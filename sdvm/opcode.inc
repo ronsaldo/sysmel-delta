@@ -1,0 +1,1 @@
+SDVM_OPCODE_DEF(Nop, 0x0, "No operation")
