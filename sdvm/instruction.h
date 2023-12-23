@@ -3,19 +3,35 @@
 
 #include <stdint.h>
 
+typedef enum sdvm_type_e
+{
+    SdvmTypeVoid = 0,
+    SdvmTypeInteger = 1,
+    SdvmTypePointer = 2,
+    SdvmTypeProcedureHandle = 3,
+    SdvmTypeFatPointer = 5,
+    SdvmTypeFloat = 6,
+    SdvmTypeFloatVector = 7,
+    SdvmTypeIntegerVector = 8,
+    SdvmTypeInfo = 9,
+} sdvm_type_t;
+
+#define SDVM_ENCODE_OPCODE(isConstant, opcode, destinationType, arg0Type, arg1Type) \
+    (isConstant \
+        ? (1 | (opcode << 1)) \
+        : (opcode << 1) | (destinationType << 12) | (arg0Type << 16) | (arg1Type << 20))
+
 typedef enum sdvm_opcode_e
 {
-#define SDVM_OPCODE_DEF(name, value, description) SdvmOp ## name = value
+#define SDVM_CONSTANT_DEF(name, opcode, type, description) \
+    SdvmConst ## name = SDVM_ENCODE_OPCODE(1, opcode, SdvmType ## type, SdvmTypeVoid, SdvmTypeVoid),
+#define SDVM_OPCODE_DEF(name, opcode, description) \
+    SdvmOp ## name = opcode,
+#define SDVM_INSTRUCTION_DEF(name, opcode, type, arg0Type, arg1Type, description) \
+    SdvmInst ## name = SDVM_ENCODE_OPCODE(0, SdvmOp ## opcode, SdvmType ## type, SdvmType ## arg0Type, SdvmType ## arg1Type),
 #include "opcode.inc"
-#undef SDVM_OPCODE_DEF
+#undef SDVM_CONSTANT_DEF
+#undef SDVM_INSTRUCTION_DEF
 } sdvm_opcode_t;
-
-typedef struct sdvm_instruction_s
-{
-    int32_t opcode;
-    int32_t destination;
-    int32_t arg0;
-    int32_t arg1;
-} sdvm_instruction_t;
 
 #endif //SDVM_INSTRUCTION_H
