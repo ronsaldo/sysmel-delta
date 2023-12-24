@@ -28,11 +28,12 @@ void processInputFile(FILE *inputFile, const char *fileName)
     do 
     {
         token = sdvm_scanner_nextToken(&scannerState);
-        printf("%s:%d.%d-%d.%d: %s\n",
+        printf("%s:%d.%d-%d.%d: %s %s\n",
             token.sourcePosition.sourceCollection->fileName,
             token.sourcePosition.startLine, token.sourcePosition.startColumn,
             token.sourcePosition.endLine, token.sourcePosition.endColumn,
-            sdvm_scanner_getTokenKindName(token.kind)
+            sdvm_scanner_getTokenKindName(token.kind),
+            token.message ? token.message : ""
         );
     } while(token.kind != SdvmTokenKindEndOfSource);
 
