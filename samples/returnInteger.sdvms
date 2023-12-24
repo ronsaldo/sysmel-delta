@@ -1,0 +1,7 @@
+## returnInt :: () => Int32.
+procedure: #returnInt with: {
+    ReturnInteger()
+}.
+
+## Set the module entry point.
+entryPoint: returnInt.

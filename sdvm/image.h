@@ -21,6 +21,8 @@ typedef struct sdvm_imageHeader_s
 typedef struct sdvm_imageSectionHeader_s
 {
     uint32_t type;
+    uint32_t offset;
+    uint32_t size;
 } sdvm_imageSectionHeader_t;
 
 #endif //SDVM_IMAGE_H
