@@ -630,3 +630,39 @@ sdvm_token_t sdvm_scanner_nextToken(sdvm_scannerState_t *state)
     sdvm_scanner_advance(state);
     return sdvm_scanner_errorTokenBetweenStates(&startState, state, "Unexpected character");
 }
+
+void sdvm_scanner_scanUntilEndInto(sdvm_scannerState_t *state, sdvm_tokenList_t *outList)
+{
+    sdvm_token_t token;
+    do 
+    {
+        token = sdvm_scanner_nextToken(state);
+        sdvm_tokenList_add(outList, token);
+    } while(token.kind != SdvmTokenKindEndOfSource);
+}
+
+void sdvm_tokenList_add(sdvm_tokenList_t *list, sdvm_token_t token)
+{
+    if(list->size >= list->capacity)
+    {
+        size_t newCapacity = list->capacity*2;
+        if(newCapacity < 16)
+            newCapacity = 16;
+
+        sdvm_token_t *newTokens = calloc(newCapacity, sizeof(sdvm_token_t));
+        memcpy(newTokens, list->elements, list->size*sizeof(sdvm_token_t));
+        if(list->elements)
+            free(list->elements);
+
+        list->elements = newTokens;
+        list->capacity = newCapacity;
+    }
+
+    list->elements[list->size++] = token;
+}
+
+void sdvm_tokenList_destroy(sdvm_tokenList_t *list)
+{
+    if(list->elements)
+        free(list->elements);
+}

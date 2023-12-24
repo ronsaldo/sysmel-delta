@@ -24,10 +24,11 @@ void processInputFile(FILE *inputFile, const char *fileName)
 {
     sdvm_sourceCollection_t *sourceCollection = sdvm_sourceCollection_readFromFile(inputFile, fileName);
     sdvm_scannerState_t scannerState = sdvm_scanner_initialize(sourceCollection);
-    sdvm_token_t token;
-    do 
+    sdvm_tokenList_t tokenList = {0};
+    sdvm_scanner_scanUntilEndInto(&scannerState, &tokenList);
+    for(size_t i = 0; i < tokenList.size; ++i)
     {
-        token = sdvm_scanner_nextToken(&scannerState);
+        sdvm_token_t token = tokenList.elements[i];
         printf("%s:%d.%d-%d.%d: %s %s\n",
             token.sourcePosition.sourceCollection->fileName,
             token.sourcePosition.startLine, token.sourcePosition.startColumn,
@@ -35,8 +36,9 @@ void processInputFile(FILE *inputFile, const char *fileName)
             sdvm_scanner_getTokenKindName(token.kind),
             token.message ? token.message : ""
         );
-    } while(token.kind != SdvmTokenKindEndOfSource);
+    }
 
+    sdvm_tokenList_destroy(&tokenList);
     sdvm_sourceCollection_destroy(sourceCollection);
 }
 

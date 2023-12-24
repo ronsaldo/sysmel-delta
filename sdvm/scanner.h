@@ -18,6 +18,13 @@ typedef struct sdvm_token_s
     const char *message;
 } sdvm_token_t;
 
+typedef struct sdvm_tokenList_s
+{
+    size_t capacity;
+    size_t size;
+    sdvm_token_t *elements;
+} sdvm_tokenList_t;
+
 typedef struct sdvm_scannerState_s
 {
     sdvm_sourceCollection_t *sourceCollection;
@@ -29,6 +36,10 @@ typedef struct sdvm_scannerState_s
 
 const char *sdvm_scanner_getTokenKindName(sdvm_tokenKind_t kind);
 sdvm_scannerState_t sdvm_scanner_initialize(sdvm_sourceCollection_t *sourceCollection);
-sdvm_token_t sdvm_scanner_nextToken(sdvm_scannerState_t *scannerState);
+sdvm_token_t sdvm_scanner_nextToken(sdvm_scannerState_t *state);
+void sdvm_scanner_scanUntilEndInto(sdvm_scannerState_t *state, sdvm_tokenList_t *outList);
+
+void sdvm_tokenList_add(sdvm_tokenList_t *list, sdvm_token_t token);
+void sdvm_tokenList_destroy(sdvm_tokenList_t *list);
 
 #endif //SDVM_SCANNER_H
