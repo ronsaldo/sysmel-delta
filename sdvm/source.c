@@ -2,11 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-void sdvm_sourceCollection_destroy(sdvm_sourceCollection_t *sourceCollection)
+static void sdvm_sourceCollection_finalize(sdvm_sourceCollection_t *sourceCollection)
 {
     free(sourceCollection->fileName);
     free(sourceCollection->sourceText);
-    free(sourceCollection);
 }
 
 sdvm_sourceCollection_t *sdvm_sourceCollection_readFromFile(FILE *file, const char *fileName)
@@ -30,7 +29,7 @@ sdvm_sourceCollection_t *sdvm_sourceCollection_readFromFile(FILE *file, const ch
     }
 
     // Allocate the resulting collection.
-    sdvm_sourceCollection_t *sourceCollection = calloc(1, sizeof(sdvm_sourceCollection_t));
+    sdvm_sourceCollection_t *sourceCollection = SDVM_RC_ALLOCATE(sdvm_sourceCollection_t, sdvm_sourceCollection_finalize);
 
     // Reduce the text size and add the null terminator.
     sourceCollection->sourceText = realloc(readBuffer, size + 1);

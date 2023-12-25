@@ -39,7 +39,7 @@ void processInputFile(FILE *inputFile, const char *fileName)
     }
 
     sdvm_tokenList_destroy(&tokenList);
-    sdvm_sourceCollection_destroy(sourceCollection);
+    sdvm_rc_release(sourceCollection);
 }
 
 int main(int argc, const char *argv[])
