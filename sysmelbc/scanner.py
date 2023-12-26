@@ -70,13 +70,21 @@ class ScannerState:
             self.isPreviousCR = False
         else:
             self.column += 1
+
+    def advanceCount(self, count):
+        for i in range(count):
+            self.advance()
         
     def makeToken(self, kind):
         sourcePosition = SourcePosition(self.sourceCode, self.position, self.position, self.line, self.column, self.line, self.column)
         return Token(kind, sourcePosition)
+    
+    def makeTokenStartingFrom(self, kind, initialState):
+        sourcePosition = SourcePosition(self.sourceCode, initialState.position, self.position, initialState.line, initialState.column, self.line, self.column)
+        return Token(kind, sourcePosition)
 
-    def makeErrorToken(self, errorMessage):
-        sourcePosition = SourcePosition(self.sourceCode, self.position, self.position, self.line, self.column, self.line, self.column)
+    def makeErrorTokenStartingFrom(self, errorMessage, initialState):
+        sourcePosition = SourcePosition(self.sourceCode, initialState.position, self.position, initialState.line, initialState.column, self.line, self.column)
         return Token(TokenKind.ERROR, sourcePosition, errorMessage)
 
 class Token:
@@ -92,7 +100,62 @@ class Token:
             return '%s: %s' % (str(self.sourcePosition), repr(self.kind))
 
 def skipWhite(state):
+    hasSeenComment = True
+    while hasSeenComment:
+        hasSeenComment = False
+        while not state.atEnd() and state.peek() <= b' '[0]:
+            state.advance()
+
+        if state.peek() == b'#'[0]:
+            if state.peek(1) == b'#'[0]:
+                state.advanceCount(2)
+                while not state.atEnd():
+                    if state.peek() in b'\r\n':
+                        break
+                    state.advance()
+                hasSeenComment = True
+
+            elif state.peek(1) == b'*'[0]:
+                commentInitialState = copy.copy(state)
+                state.advanceCount(2)
+                hasCommentEnd = False
+                while not state.atEnd():
+                    hasCommentEnd = state.peek() == b'*'[0] and state.peek(1) == b'#'[0]
+                    if hasCommentEnd:
+                        break
+
+                    state.advance()
+                if not hasCommentEnd:
+                    return state, state.makeErrorTokenStartingFrom('Incomplete multiline comment.', commentInitialState)
+
+                hasSeenComment = True
+
     return state, None
+
+def isDigit(c):
+    return (b'0'[0] <= c and c <= b'9'[0])
+
+def isIdentifierStart(c):
+    return (b'A'[0] <= c and c <= b'Z'[0]) or \
+        (b'a'[0] <= c and c <= b'z'[0]) or \
+        (b'_'[0] == c)
+
+def isIdentifierMiddle(c):
+    return isIdentifierStart(c) or isDigit(c)
+
+def scanAdvanceKeyword(state):
+    if not isIdentifierStart(state.peek()):
+        return state, False
+    
+    initialState = copy.copy(state)
+    while isIdentifierMiddle(state.peek()):
+        state.advance()
+
+    if state.peek() != b':'[0]:
+        return initialState, False
+
+    state.advance()
+    return state, True
 
 def scanNextToken(state):
     state, whiteErrorToken = skipWhite(state)
@@ -104,8 +167,167 @@ def scanNextToken(state):
     initialState = copy.copy(state)
     c = state.peek()
 
-    errorToken = state.makeErrorToken("Unexpected character " + repr(c))
+    ## Identifiers, keywords and multi-keywords
+    if isIdentifierStart(c):
+        state.advance()
+        while isIdentifierMiddle(state.peek()):
+            state.advance()
+
+        if state.peek() == b':'[0]:
+            state.advance()
+            isMultiKeyword = False
+            hasAdvanced = True
+            while hasAdvanced:
+                state, hasAdvanced = scanAdvanceKeyword(state)
+                isMultiKeyword = isMultiKeyword or hasAdvanced
+
+            if isMultiKeyword:
+                return state, state.makeTokenStartingFrom(TokenKind.MULTI_KEYWORD, initialState)
+            else:
+                return state, state.makeTokenStartingFrom(TokenKind.KEYWORD, initialState)
+        
+        return state, state.makeTokenStartingFrom(TokenKind.IDENTIFIER, initialState)
+    
+    ## Numbers
+    if isDigit(c):
+        state.advance()
+        while isDigit(state.peek()):
+            state.advance()
+
+        ## Parse the radix.
+        if not state.atEnd() and state.peek() in b'rR':
+            state.advance()
+            while isIdentifierMiddle(state.peek()):
+                state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.INTEGER, initialState)
+        
+        ## Decimal point.
+        if state.peek() == b'.' and isDigit(state.peek(1)):
+            state.advanceCount(2)
+            while isDigit(state.peek()):
+                state.advance()
+
+            return state, state.makeTokenStartingFrom(TokenKind.FLOAT, initialState)
+        
+        return state, state.makeTokenStartingFrom(TokenKind.INTEGER, initialState)
+
+    ## Symbols
+    if c == b'#'[0]:
+        c1 = state.peek(1)
+        if isIdentifierStart(c1):
+            state.advanceCount(2)
+            while isIdentifierMiddle(state.peek()):
+                state.advance()
+
+            if state.peek() == b':'[0]:
+                state.advance()
+                isMultiKeyword = False
+                hasAdvanced = True
+                while hasAdvanced:
+                    state, hasAdvanced = scanAdvanceKeyword(state)
+                    isMultiKeyword = isMultiKeyword or hasAdvanced
+
+                if isMultiKeyword:
+                    return state, state.makeTokenStartingFrom(TokenKind.SYMBOL, initialState)
+                else:
+                    return state, state.makeTokenStartingFrom(TokenKind.SYMBOL, initialState)
+            
+            return state, state.makeTokenStartingFrom(TokenKind.SYMBOL, initialState)
+        
+        if c1 == b'['[0]:
+            state.advanceCount(2)
+            return state, state.makeTokenStartingFrom(TokenKind.BYTE_ARRAY_START, initialState)
+        elif c1 == b'{'[0]:
+            state.advanceCount(2)
+            return state, state.makeTokenStartingFrom(TokenKind.DICTIONARY_START, initialState)
+        elif c1 == b'('[0]:
+            state.advanceCount(2)
+            return state, state.makeTokenStartingFrom(TokenKind.LITERAL_ARRAY_START, initialState)
+
+    ## Strings
+    if c == b'"'[0]:
+        state.advance()
+        while not state.atEnd() and state.peek() != b'"'[0]:
+            if state.peek() == b'\\'[0] and state.peek(1) >= 0:
+                state.advanceCount(2)
+            else:
+                state.advance()
+
+        if state.peek() != b'"'[0]:
+            return state, state.makeErrorTokenStartingFrom("Incomplete string literal.", initialState)
+        state.advance()
+
+        return state, state.makeTokenStartingFrom(TokenKind.STRING, initialState)
+
+    ## Characters
+    if c == b"'"[0]:
+        state.advance()
+        while not state.atEnd() and state.peek() != b"'"[0]:
+            if state.peek() == b'\\'[0] and state.peek(1) >= 0:
+                state.advanceCount(2)
+            else:
+                state.advance() 
+        if state.peek() != b"'"[0]:
+            return state, state.makeErrorTokenStartingFrom("Incomplete character literal.", initialState)
+        state.advance()
+
+        return state, state.makeTokenStartingFrom(TokenKind.CHARACTER, initialState)
+
+    if c == b'('[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.LEFT_PARENT, initialState)
+    elif c == b')'[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.RIGHT_PARENT, initialState)
+    elif c == b'['[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.LEFT_BRACKET, initialState)
+    elif c == b']'[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.RIGHT_BRACKET, initialState)
+    elif c == b'{'[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.LEFT_CURLY_BRACKET, initialState)
+    elif c == b'}'[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.RIGHT_CURLY_BRACKET, initialState)
+    elif c == b';'[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.SEMICOLON, initialState)
+    elif c == b','[0]:
+        state.advance()
+        return state, state.makeTokenStartingFrom(TokenKind.COMMA, initialState)
+    elif c == b'.'[0]:
+        state.advance()
+        if state.peek(0) == b'.'[0] and state.peek(1) == b'.'[0]:
+            state.advanceCount(2)
+            return state, state.makeTokenStartingFrom(TokenKind.ELLIPSIS, initialState)
+        return state, state.makeTokenStartingFrom(TokenKind.DOT, initialState)
+    elif c == b':'[0]:
+        state.advance()
+        if state.peek(0) == b':'[0]:
+            state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.COLON_COLON, initialState)
+        elif state.peek(0) == b'='[0]:
+            state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.ASSIGNMENT, initialState)
+        return state, state.makeTokenStartingFrom(TokenKind.COLON, initialState)
+    elif c == b'`'[0]:
+        if state.peek(1) == b'\''[0]:
+            state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.QUOTE, initialState)
+        elif state.peek(1) == b'`'[0]:
+            state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.QUASI_QUOTE, initialState)
+        elif state.peek(1) == b','[0]:
+            state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.QUASI_UNQUOTE, initialState)
+        elif state.peek(1) == b'@'[0]:
+            state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.SPLICE, initialState)
+
     state.advance()
+    errorToken = state.makeErrorTokenStartingFrom("Unexpected character.", initialState)
     return state, errorToken
 
 def scanFileNamed(fileName):

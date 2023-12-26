@@ -9,8 +9,18 @@
             "request": "launch",
             "name": "Launch",
             "program": "${workspaceFolder}/build/sdvm-as",
-            "args": ["samples/returnInteger.sdvms"],
+            "args": [
+                "samples/returnInteger.sdvms"
+            ],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Sysmelbc (Python)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",
+            "console": "integratedTerminal",
+            "args": ["samples/returnInteger.sdvms"]
         }
     ]
 }
