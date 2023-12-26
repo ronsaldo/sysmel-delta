@@ -32,6 +32,7 @@ typedef struct sdvm_astLiteralFloatNode_s
 
 struct sdvm_astNode_s
 {
+    sdvm_rc_t super;
     sdvm_sourcePosition_t sourcePosition;
     sdvm_astNodeKind_t kind;
 

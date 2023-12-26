@@ -12,6 +12,7 @@ typedef struct sdvm_rc_s
 } sdvm_rc_t;
 
 #define SDVM_RC_ALLOCATE(type, destructor) (type*)sdvm_rc_allocate(sizeof(type), (sdvm_finalize_t)(destructor))
+#define SDVM_RC_ALLOCATE_WITH_VARIABLE_SIZE(type, variableSize, destructor) (type*)sdvm_rc_allocate(sizeof(type) + variableSize, (sdvm_finalize_t)(destructor))
 
 void *sdvm_rc_allocate(size_t size, sdvm_finalize_t finalize);
 void *sdvm_rc_retain(void *ref);
