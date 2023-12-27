@@ -14,15 +14,15 @@ TokenKind = Enum('TokenKind', [
 ])
 
 class SourceCode:
-    def __init__(self, name, text):
+    def __init__(self, name: str, text: bytes) -> None:
         self.name = name
         self.text = text
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 class SourcePosition:
-    def __init__(self, sourceCode, startIndex, endIndex, startLine, startColumn, endLine, endColumn):
+    def __init__(self, sourceCode: SourceCode, startIndex: int, endIndex: int, startLine: int, startColumn: int, endLine: int, endColumn: int) -> None:
         self.sourceCode = sourceCode
         self.startIndex = startIndex
         self.endIndex = endIndex
@@ -31,28 +31,64 @@ class SourcePosition:
         self.endLine = endLine
         self.endColumn = endColumn
 
-    def __str__(self):
+    def getValue(self) -> bytes:
+        return self.sourceCode.text[self.startIndex : self.endIndex]
+    
+    def getStringValue(self) -> str:
+        return self.getValue().decode('utf-8')
+    
+    def until(self, endSourcePosition):
+        return SourcePosition(self.sourceCode,
+                self.startIndex, endSourcePosition.startIndex,
+                self.startLine, self.startColumn,
+                endSourcePosition.startLine, endSourcePosition.startColumn)
+
+    def to(self, endSourcePosition):
+        return SourcePosition(self.sourceCode,
+                self.startIndex, endSourcePosition.endIndex,
+                self.startLine, self.startColumn,
+                endSourcePosition.endLine, endSourcePosition.endColumn)
+
+    def __str__(self) -> str:
         return '%s:%d.%d-%d.%d' % (self.sourceCode, self.startLine, self.startColumn, self.endLine, self.endColumn)
 
+class Token:
+    def __init__(self, kind: TokenKind, sourcePosition: SourcePosition, errorMessage: str = None):
+        self.kind = kind
+        self.sourcePosition = sourcePosition
+        self.errorMessage = errorMessage
+
+    def getValue(self) -> bytes:
+        return self.sourcePosition.getValue()
+
+    def getStringValue(self) -> str:
+        return self.sourcePosition.getStringValue()
+
+    def __repr__(self) -> str:
+        if self.errorMessage is not None:
+            return '%s: %s: %s' % (str(self.sourcePosition), repr(self.kind), self.errorMessage)
+        else:
+            return '%s: %s' % (str(self.sourcePosition), repr(self.kind))
+
 class ScannerState:
-    def __init__(self, sourceCode):
+    def __init__(self, sourceCode: SourceCode):
         self.sourceCode = sourceCode
         self.position = 0
         self.line = 1
         self.column = 1
         self.isPreviousCR = False
     
-    def atEnd(self):
+    def atEnd(self) -> bool:
         return self.position >= len(self.sourceCode.text)
 
-    def peek(self, peekOffset = 0):
+    def peek(self, peekOffset: int = 0) -> int:
         peekPosition = self.position + peekOffset
         if peekPosition < len(self.sourceCode.text):
             return self.sourceCode.text[peekPosition]
         else:
             return -1
         
-    def advance(self):
+    def advance(self) -> None:
         assert self.position < len(self.sourceCode.text)
         c = self.sourceCode.text[self.position]
         self.position += 1
@@ -71,35 +107,23 @@ class ScannerState:
         else:
             self.column += 1
 
-    def advanceCount(self, count):
+    def advanceCount(self, count: int) -> None:
         for i in range(count):
             self.advance()
         
-    def makeToken(self, kind):
+    def makeToken(self, kind: TokenKind) -> Token:
         sourcePosition = SourcePosition(self.sourceCode, self.position, self.position, self.line, self.column, self.line, self.column)
         return Token(kind, sourcePosition)
     
-    def makeTokenStartingFrom(self, kind, initialState):
+    def makeTokenStartingFrom(self, kind: TokenKind, initialState) -> Token:
         sourcePosition = SourcePosition(self.sourceCode, initialState.position, self.position, initialState.line, initialState.column, self.line, self.column)
         return Token(kind, sourcePosition)
 
-    def makeErrorTokenStartingFrom(self, errorMessage, initialState):
+    def makeErrorTokenStartingFrom(self, errorMessage: str, initialState):
         sourcePosition = SourcePosition(self.sourceCode, initialState.position, self.position, initialState.line, initialState.column, self.line, self.column)
         return Token(TokenKind.ERROR, sourcePosition, errorMessage)
 
-class Token:
-    def __init__(self, kind, sourcePosition, errorMessage=None):
-        self.kind = kind
-        self.sourcePosition = sourcePosition
-        self.errorMessage = errorMessage
-
-    def __repr__(self) -> str:
-        if self.errorMessage is not None:
-            return '%s: %s: %s' % (str(self.sourcePosition), repr(self.kind), self.errorMessage)
-        else:
-            return '%s: %s' % (str(self.sourcePosition), repr(self.kind))
-
-def skipWhite(state):
+def skipWhite(state: ScannerState) -> tuple[ScannerState, Token]:
     hasSeenComment = True
     while hasSeenComment:
         hasSeenComment = False
@@ -122,6 +146,7 @@ def skipWhite(state):
                 while not state.atEnd():
                     hasCommentEnd = state.peek() == b'*'[0] and state.peek(1) == b'#'[0]
                     if hasCommentEnd:
+                        state.advanceCount(2)
                         break
 
                     state.advance()
@@ -132,18 +157,21 @@ def skipWhite(state):
 
     return state, None
 
-def isDigit(c):
+def isDigit(c: int) -> bool:
     return (b'0'[0] <= c and c <= b'9'[0])
 
-def isIdentifierStart(c):
+def isIdentifierStart(c: int) -> bool:
     return (b'A'[0] <= c and c <= b'Z'[0]) or \
         (b'a'[0] <= c and c <= b'z'[0]) or \
         (b'_'[0] == c)
 
-def isIdentifierMiddle(c):
+def isIdentifierMiddle(c: int) -> bool:
     return isIdentifierStart(c) or isDigit(c)
 
-def scanAdvanceKeyword(state):
+def isOperatorCharacter(c: int) -> bool:
+    return c >= 0 and c in b'+-/\\*~<>=@%|&?!^'
+
+def scanAdvanceKeyword(state: ScannerState) -> tuple[ScannerState, Token]:
     if not isIdentifierStart(state.peek()):
         return state, False
     
@@ -157,7 +185,7 @@ def scanAdvanceKeyword(state):
     state.advance()
     return state, True
 
-def scanNextToken(state):
+def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
     state, whiteErrorToken = skipWhite(state)
     if whiteErrorToken is not None: return whiteErrorToken
 
@@ -325,12 +353,31 @@ def scanNextToken(state):
         elif state.peek(1) == b'@'[0]:
             state.advance()
             return state, state.makeTokenStartingFrom(TokenKind.SPLICE, initialState)
+    elif c == b'|'[0]:
+        state.advance()
+        if isOperatorCharacter(state.peek()):
+            while isOperatorCharacter(state.peek()):
+                state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.OPERATOR, initialState)
+        return state, state.makeTokenStartingFrom(TokenKind.BAR, initialState)
+    elif isOperatorCharacter(c):
+        while isOperatorCharacter(state.peek()):
+            state.advance()
+        token = state.makeTokenStartingFrom(TokenKind.OPERATOR, initialState)
+        tokenValue = token.getValue()
+        if tokenValue == b'<':
+            token.kind = TokenKind.LESS_THAN
+        elif tokenValue == b'>':
+            token.kind = TokenKind.GREATER_THAN
+        elif tokenValue == b'*':
+            token.kind = TokenKind.STAR
+        return state, token
 
     state.advance()
     errorToken = state.makeErrorTokenStartingFrom("Unexpected character.", initialState)
     return state, errorToken
 
-def scanFileNamed(fileName):
+def scanFileNamed(fileName: str) -> tuple[SourceCode, list[Token]]:
     with open(fileName, "rb") as f:
         sourceText = f.read()
         sourceCode = SourceCode(fileName, sourceText)
@@ -342,4 +389,4 @@ def scanFileNamed(fileName):
             if token.kind == TokenKind.END_OF_SOURCE:
                 break
 
-        return tokens
+        return sourceCode, tokens

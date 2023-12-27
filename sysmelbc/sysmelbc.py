@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-from scanner import *
+from sparser import parseFileNamed
 import sys
+import json
 
 for arg in sys.argv[1:]:
-    print(scanFileNamed(arg))
+    print(json.dumps(parseFileNamed(arg).toJson()))
 
