@@ -1,6 +1,6 @@
 ## returnInt :: () => Int32.
 procedure: #returnInt with: {
-    ReturnInteger()
+    ReturnInteger(42)
 }.
 
 ## Set the module entry point.
