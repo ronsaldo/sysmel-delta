@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-from sparser import parseFileNamed
+import sysmel
 import sys
 import json
 
 for arg in sys.argv[1:]:
-    print(json.dumps(parseFileNamed(arg).toJson()))
+    print(json.dumps(sysmel.parseFileNamed(arg).toJson()))
 
