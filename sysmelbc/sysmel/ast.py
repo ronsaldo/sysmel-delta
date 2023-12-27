@@ -5,10 +5,16 @@ class ASTVisitor:
     def visitApplicationNode(self, node):
         pass
 
+    def visitArgumentNode(self, node):
+        pass
+
     def visitBinaryExpressionSequenceNode(self, node):
         pass
 
     def visitErrorNode(self, node):
+        pass
+
+    def visitFunctionalTypeNode(self, node):
         pass
 
     def visitIdentifierReferenceNode(self, node):
@@ -33,17 +39,30 @@ class ASTNode:
     def __init__(self, sourcePosition: SourcePosition) -> None:
         self.sourcePosition = sourcePosition
 
+class ASTArgumentNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isForAll: bool = False) -> None:
+        super().__init__(sourcePosition)
+        self.typeExpression = typeExpression
+        self.nameExpression = nameExpression
+        self.isForAll = isForAll
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitArgumentNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isForAll': self.isForAll}
+
 class ASTApplicationNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, argument: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, arguments: list[ASTNode]) -> None:
         super().__init__(sourcePosition)
         self.functional = functional
-        self.argument = argument
+        self.arguments = arguments
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitApplicationNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'Application', 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
+        return {'kind': 'Application', 'functional': self.functional.toJson(), 'arguments': list(map(optionalASTNodeToJson, self.arguments))}
 
 class ASTBinaryExpressionSequenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
@@ -66,6 +85,18 @@ class ASTErrorNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'Error', 'message': self.message}
+
+class ASTFunctionalTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], resultTypeExpression: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.arguments = arguments
+        self.resultTypeExpression = resultTypeExpression
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFunctionalTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'FunctionalType', 'arguments': list(map(optionalASTNodeToJson, self.arguments)), 'resultTypeExpression': optionalASTNodeToJson(self.resultTypeExpression)}
 
 class ASTIdentifierReferenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, value: Symbol) -> None:
