@@ -1,37 +1,53 @@
 from .scanner import SourcePosition
 from .symbol import Symbol
+from abc import ABC, abstractmethod
 
-class ASTVisitor:
+class ASTVisitor(ABC):
+    @abstractmethod
     def visitApplicationNode(self, node):
         pass
 
+    @abstractmethod
     def visitArgumentNode(self, node):
         pass
 
+    @abstractmethod
     def visitBinaryExpressionSequenceNode(self, node):
         pass
 
+    @abstractmethod
     def visitErrorNode(self, node):
         pass
 
+    @abstractmethod
     def visitFunctionalTypeNode(self, node):
         pass
 
+    @abstractmethod
     def visitIdentifierReferenceNode(self, node):
         pass
 
+    @abstractmethod
     def visitLexicalBlockNode(self, node):
         pass
 
+    @abstractmethod
+    def visitLambdaNode(self, node):
+        pass
+
+    @abstractmethod
     def visitLiteralNode(self, node):
         pass
 
+    @abstractmethod
     def visitMessageSendNode(self, node):
         pass
 
+    @abstractmethod
     def visitSequenceNode(self, node):
         pass
 
+    @abstractmethod
     def visitTupleNode(self, node):
         pass
 
@@ -63,6 +79,18 @@ class ASTApplicationNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'Application', 'functional': self.functional.toJson(), 'arguments': list(map(optionalASTNodeToJson, self.arguments))}
+
+class ASTBlockNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, functionalType: ASTNode, body: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.functionalType = functionalType
+        self.body = body
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitBlockNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'Block', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
 
 class ASTBinaryExpressionSequenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
@@ -109,6 +137,18 @@ class ASTIdentifierReferenceNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Identifier', 'value': repr(self.value)}
 
+class ASTLambdaNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, functionalType: ASTNode, body: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.functionalType = functionalType
+        self.body = body
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitLambdaNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'Lambda', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
+    
 class ASTLexicalBlockNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, expression: ASTNode) -> None:
         super().__init__(sourcePosition)

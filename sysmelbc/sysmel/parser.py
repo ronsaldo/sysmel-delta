@@ -138,7 +138,7 @@ def parseIdentifier(state: ParserState) -> tuple[ParserState, ASTNode]:
 
 def parseTerm(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.IDENTIFIER: return parseIdentifier(state)
-    elif state.peekKind() == TokenKind.LEFT_PARENT: return parseParenthesis(state)
+    elif state.peekKind() == TokenKind.LEFT_PARENT: return parseParenthesisOrLambda(state)
     elif state.peekKind() == TokenKind.LEFT_CURLY_BRACKET: return parseBlock(state)
     else: return parseLiteral(state)
 
@@ -212,6 +212,25 @@ def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     expression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, expression)
     return state, expression
 
+def parseParenthesisOrLambda(state: ParserState) -> tuple[ParserState, ASTNode]:
+    startPosition = state.position
+
+    if state.peekKind() == TokenKind.LEFT_PARENT and \
+        state.peekKind(1) == TokenKind.RIGHT_PARENT and \
+        state.peekKind(2) == TokenKind.ASSIGNMENT_ARROW:
+        state.advance()
+        state.advance()
+        expression = ASTFunctionalTypeNode(state.sourcePositionFrom(startPosition), [], None)
+    else:
+        state, expression = parseParenthesis(state)
+
+    if state.peekKind() == TokenKind.ASSIGNMENT_ARROW:
+        state.advance()
+        functionalType = expression
+        state, body = parseExpression(state)
+        return state, ASTLambdaNode(state.sourcePositionFrom(startPosition), functionalType, body)
+    else:
+        return state, expression
 
 def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
     # {
@@ -219,13 +238,21 @@ def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
     assert state.peekKind() == TokenKind.LEFT_CURLY_BRACKET
     state.advance()
 
-    if state.peekKind() in [TokenKind.COLON]
+    functionalType = None
+    if state.peekKind() in [TokenKind.COLON, TokenKind.COLON_COLON]:
+        state, functionalType = parseFunctionalType(state)
+        functionalType = state.expectAddingErrorToNode(TokenKind.BAR, functionalType)
+    elif state.peekKind() == TokenKind.BAR:
+        functionalType = ASTFunctionalTypeNode(state.currentSourcePosition(), [], None)
 
     state, body = parseSequenceUntilEndOrDelimiter(state, TokenKind.RIGHT_CURLY_BRACKET)
 
     # }
     body = state.expectAddingErrorToNode(TokenKind.RIGHT_CURLY_BRACKET, body)
-    return state, ASTLexicalBlockNode(state.sourcePositionFrom(startPosition), body)
+    if functionalType is None:
+        return state, ASTLexicalBlockNode(state.sourcePositionFrom(startPosition), body)
+    else:
+        return state, ASTBlockNode(state.sourcePositionFrom(startPosition), functionalType, body)
 
 def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
