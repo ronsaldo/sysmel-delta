@@ -5,5 +5,9 @@ import sys
 import json
 
 for arg in sys.argv[1:]:
-    print(json.dumps(sysmel.parseFileNamed(arg).toJson()))
+    ast = sysmel.parseFileNamed(arg)
+    ##print(json.dumps(ast.toJson()))
+
+    evalResult = sysmel.ASTEvaluator().evaluate(ast)
+    print(json.dumps(evalResult.toJson()))
 

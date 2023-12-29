@@ -1,3 +1,5 @@
+42, 45
+#*
 (:: Integer) :=> 42.
 
 ## returnInt :: () => Int32.
@@ -7,3 +9,4 @@ procedure: #returnInt with: {
 
 ## Set the module entry point.
 entryPoint: returnInt.
+*#

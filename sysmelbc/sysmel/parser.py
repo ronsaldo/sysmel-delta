@@ -323,7 +323,7 @@ def parseCommaExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
         return state, element
     
     elements = [element]
-    while state.peekKind() != TokenKind.COMMA:
+    while state.peekKind() == TokenKind.COMMA:
         state.advance()
         state, element = parseCommaExpressionElement(state)
         elements.append(element)
