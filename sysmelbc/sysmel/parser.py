@@ -1,6 +1,5 @@
 from .scanner import SourceCode, SourcePosition, Token, TokenKind, scanFileNamed
 from .ast import *
-from .symbol import intern
 from .value import *
 import copy
 
@@ -122,7 +121,7 @@ def parseLiteralSymbol(state: ParserState) -> tuple[ParserState, ASTNode]:
     if symbolValue[0] == '"':
         assert symbolValue[0] == '"' and symbolValue[-1] == '"'
         symbolValue = parseCEscapedString(symbolValue[1:-1])
-    return state, ASTLiteralNode(token.sourcePosition, intern(symbolValue))
+    return state, ASTLiteralNode(token.sourcePosition, Symbol.intern(symbolValue))
 
 def parseLiteral(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.INTEGER: return parseLiteralInteger(state)
@@ -135,7 +134,7 @@ def parseLiteral(state: ParserState) -> tuple[ParserState, ASTNode]:
 def parseIdentifier(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.IDENTIFIER
-    return state, ASTIdentifierReferenceNode(token.sourcePosition, intern(token.getStringValue()))
+    return state, ASTIdentifierReferenceNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
 
 def parseTerm(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.IDENTIFIER: return parseIdentifier(state)
@@ -152,7 +151,7 @@ def parseOptionalParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
 def parseNameExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.IDENTIFIER:
         token = state.next()
-        return state, ASTLiteralNode(token.sourcePosition, intern(token.getStringValue()))
+        return state, ASTLiteralNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
     else:
         assert False
 
@@ -261,7 +260,7 @@ def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNod
     while state.peekKind() in [TokenKind.IDENTIFIER, TokenKind.LEFT_PARENT]:
         token = state.next()
         if token.kind == TokenKind.IDENTIFIER:
-            selector = ASTLiteralNode(token.sourcePosition, intern(token.getStringValue()))
+            selector = ASTLiteralNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
             receiver = ASTMessageSendNode(receiver.sourcePosition.to(selector.sourcePosition), receiver, selector, [])
         elif token.kind == TokenKind.LEFT_PARENT:
             state, arguments = parseExpressionListUntilEndOrDelimiter(state, TokenKind.RIGHT_PARENT)
@@ -284,7 +283,7 @@ def parseBinaryExpressionSequence(state: ParserState) -> tuple[ParserState, ASTN
     elements = [operand]
     while isBinaryExpressionOperator(state.peekKind()):
         operatorToken = state.next()
-        operator = ASTLiteralNode(operatorToken.sourcePosition, intern(operatorToken.getStringValue()))
+        operator = ASTLiteralNode(operatorToken.sourcePosition, Symbol.intern(operatorToken.getStringValue()))
         elements.append(operator)
 
         state, operand = parseUnaryPostfixExpression(state)
@@ -308,7 +307,7 @@ def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
         state, argument = parseBinaryExpressionSequence(state)
         arguments.append(argument)
 
-    functionIdentifier = ASTIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), intern(symbolValue))
+    functionIdentifier = ASTIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
     return state, ASTApplicationNode(state.sourcePositionFrom(startPosition), functionIdentifier, arguments)
 
 def parseCommaExpressionElement(state: ParserState) -> tuple[ParserState, ASTNode]:

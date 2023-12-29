@@ -174,3 +174,35 @@ class RecordType(ProductType):
     
     def toJson(self):
         return {'recordType': list(map(lambda v: v.toJson(), self.elementTypes)), 'fields' : list(map(lambda v: v.toJson(), self.fields))}
+
+class SymbolTypeClass(BaseType):
+    pass
+
+SymbolType = SymbolTypeClass("Symbol")
+
+class Symbol(TypedValue):
+    InternedSymbolDictionary = dict()
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def __repr__(self) -> str:
+        return '#' + repr(self.value)
+    
+    def __str__(self) -> str:
+        return '#' + repr(self.value)
+
+    @classmethod
+    def intern(cls, value: str):
+        if value in cls.InternedSymbolDictionary:
+            return cls.InternedSymbolDictionary[value]
+        
+        newSymbol = cls(value)
+        cls.InternedSymbolDictionary[value] = newSymbol
+        return newSymbol
+
+    def getType(self):
+        return SymbolType
+
+    def toJson(self):
+        return repr(self)

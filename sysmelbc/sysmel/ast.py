@@ -1,5 +1,4 @@
 from .scanner import SourcePosition
-from .symbol import Symbol
 from .value import *
 from abc import ABC, abstractmethod
 
