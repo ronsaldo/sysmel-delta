@@ -211,3 +211,73 @@ def optionalASTNodeToJson(node: ASTNode | None) -> dict | None:
         return None
     else:
         return node.toJson()
+
+class ASTSequentialVisitor(ASTVisitor):
+    def visitNode(self, node: ASTNode):
+        return node.accept(self)
+
+    def visitOptionalNode(self, node: ASTNode):
+        if node is not None:
+            self.visitNode(node)
+
+    def visitApplicationNode(self, node: ASTApplicationNode):
+        self.visitNode(node.functional)
+        for arg in node.arguments:
+            self.visitNode(arg)
+
+    def visitArgumentNode(self, node: ASTArgumentNode):
+        self.visitOptionalNode(node.nameExpression)
+        self.visitOptionalNode(node.typeExpression)
+
+    def visitBinaryExpressionSequenceNode(self, node: ASTBinaryExpressionSequenceNode):
+        for element in node.elements:
+            self.visitNode(element)
+
+    def visitErrorNode(self, node: ASTErrorNode):
+        pass
+
+    def visitFunctionalTypeNode(self, node: ASTFunctionalTypeNode):
+        for arg in node.arguments:
+            self.visitNode(arg)
+        self.visitOptionalNode(node.resultTypeExpression)
+
+    def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
+        pass
+
+    def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
+        self.visitNode(node.expression)
+
+    def visitLambdaNode(self, node: ASTLambdaNode):
+        self.visitNode(node.functionalType)
+        self.visitNode(node.body)
+
+    def visitLiteralNode(self, node):
+        pass
+
+    def visitMessageSendNode(self, node: ASTMessageSendNode):
+        self.visitOptionalNode(node.receiver)
+        self.visitNode(node.selector)
+        for arg in node.arguments:
+            self.visitNode(arg)
+
+    def visitSequenceNode(self, node: ASTSequenceNode):
+        for expression in node.elements:
+            self.visitNode(expression)
+
+    def visitTupleNode(self, node: ASTTupleNode):
+        for expression in node.elements:
+            self.visitNode(expression)
+
+class ASTErrorVisitor(ASTSequentialVisitor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.errorNodes = []
+    
+    def visitErrorNode(self, node: ASTErrorNode):
+        self.errorNodes.append(node)
+
+    def checkASTAndPrintErrors(self, node: ASTNode):
+        self.visitNode(node)
+        for errorNode in self.errorNodes:
+            print('%s: %s' % (str(errorNode.sourcePosition), errorNode.message))
+        return len(self.errorNodes) == 0

@@ -6,6 +6,8 @@ import json
 
 for arg in sys.argv[1:]:
     ast = sysmel.parseFileNamed(arg)
+    if not sysmel.ASTErrorVisitor().checkASTAndPrintErrors(ast):
+        sys.exit(1)
     ##print(json.dumps(ast.toJson()))
 
     evalResult = sysmel.ASTEvaluator().evaluate(ast)

@@ -267,7 +267,7 @@ def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNod
             if state.peekKind() == TokenKind.RIGHT_PARENT:
                 state.advance()
             else:
-                arguments.append(ASTErrorNode(state.currentSourcePosition, "Expected right parenthesis."))
+                arguments.append(ASTErrorNode(state.currentSourcePosition(), "Expected right parenthesis."))
             receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments)
     return state, receiver
 
