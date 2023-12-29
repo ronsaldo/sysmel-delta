@@ -1,5 +1,6 @@
 from .scanner import SourcePosition
 from .symbol import Symbol
+from .value import *
 from abc import ABC, abstractmethod
 
 class ASTVisitor(ABC):
@@ -161,7 +162,7 @@ class ASTLexicalBlockNode(ASTNode):
         return {'kind': 'LexicalBlock', 'expression': self.expression.toJson()}
 
 class ASTLiteralNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, value) -> None:
+    def __init__(self, sourcePosition: SourcePosition, value: TypedValue) -> None:
         super().__init__(sourcePosition)
         self.value = value
 
@@ -169,7 +170,7 @@ class ASTLiteralNode(ASTNode):
         return visitor.visitLiteralNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'Literal', 'value': repr(self.value)}
+        return {'kind': 'Literal', 'value': self.value.toJson()}
 
 class ASTMessageSendNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, receiver: ASTNode, selector: ASTNode, arguments: list[ASTNode]) -> None:

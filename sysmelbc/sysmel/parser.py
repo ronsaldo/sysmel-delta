@@ -1,6 +1,7 @@
 from .scanner import SourceCode, SourcePosition, Token, TokenKind, scanFileNamed
 from .ast import *
 from .symbol import intern
+from .value import *
 import copy
 
 C_ESCAPE_TABLE = {
@@ -97,22 +98,22 @@ def parseCEscapedString(string: str) -> str:
 def parseLiteralInteger(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.INTEGER
-    return state, ASTLiteralNode(token.sourcePosition, int(token.getValue()))
+    return state, ASTLiteralNode(token.sourcePosition, IntegerValue(int(token.getValue())))
 
 def parseLiteralFloat(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.FLOAT
-    return state, ASTLiteralNode(token.sourcePosition, float(token.getValue()))
+    return state, ASTLiteralNode(token.sourcePosition, FloatValue(float(token.getValue())))
 
 def parseLiteralString(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.STRING
-    return state, ASTLiteralNode(token.sourcePosition, parseCEscapedString(token.getStringValue()[1:-1]))
+    return state, ASTLiteralNode(token.sourcePosition, StringValue(parseCEscapedString(token.getStringValue()[1:-1])))
 
 def parseLiteralCharacter(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.CHARACTER
-    return state, ASTLiteralNode(token.sourcePosition, ord(parseCEscapedString(token.getStringValue()[1:-1])[0]))
+    return state, ASTLiteralNode(token.sourcePosition, CharacterValue(ord(parseCEscapedString(token.getStringValue()[1:-1])[0])))
 
 def parseLiteralSymbol(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
