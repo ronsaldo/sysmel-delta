@@ -228,7 +228,7 @@ def parseParenthesisOrLambda(state: ParserState) -> tuple[ParserState, ASTNode]:
         state.advance()
         functionalType = expression
         state, body = parseExpression(state)
-        return state, ASTLambdaNode(state.sourcePositionFrom(startPosition), functionalType, body)
+        return state, ASTFunctionNode(state.sourcePositionFrom(startPosition), functionalType, body)
     else:
         return state, expression
 

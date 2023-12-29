@@ -8,7 +8,9 @@ for arg in sys.argv[1:]:
     ast = sysmel.parseFileNamed(arg)
     if not sysmel.ASTErrorVisitor().checkASTAndPrintErrors(ast):
         sys.exit(1)
-    ##print(json.dumps(ast.toJson()))
+
+    typechecked = sysmel.Typechecker().typecheckASTAndPrintErrors(ast)
+    print(json.dumps(typechecked.toJson()))
 
     evalResult = sysmel.ASTEvaluator().evaluate(ast)
     print(json.dumps(evalResult.toJson()))

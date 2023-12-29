@@ -20,6 +20,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitFunctionNode(self, node):
+        pass
+
+    @abstractmethod
     def visitFunctionalTypeNode(self, node):
         pass
 
@@ -29,10 +33,6 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitLexicalBlockNode(self, node):
-        pass
-
-    @abstractmethod
-    def visitLambdaNode(self, node):
         pass
 
     @abstractmethod
@@ -49,6 +49,30 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTupleNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedForAllNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedIdentifierReferenceNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedLambdaNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedLiteralNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedSequenceNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedTupleNode(self, node):
         pass
 
 class ASTNode:
@@ -137,17 +161,17 @@ class ASTIdentifierReferenceNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Identifier', 'value': repr(self.value)}
 
-class ASTLambdaNode(ASTNode):
+class ASTFunctionNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, functionalType: ASTNode, body: ASTNode) -> None:
         super().__init__(sourcePosition)
         self.functionalType = functionalType
         self.body = body
 
     def accept(self, visitor: ASTVisitor):
-        return visitor.visitLambdaNode(self)
+        return visitor.visitFunctionNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'Lambda', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
+        return {'kind': 'Function', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
     
 class ASTLexicalBlockNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, expression: ASTNode) -> None:
@@ -206,6 +230,92 @@ class ASTTupleNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
+class ASTTypedNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, type: TypedValue) -> None:
+        super().__init__(sourcePosition)
+        self.type = type
+
+class ASTTypedErrorNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: TypedValue, message: str) -> None:
+        super().__init__(sourcePosition, type)
+        self.message = message
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedErrorNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedErrorNode', 'type': self.type.toJson(), 'message': self.message}
+
+class ASTTypedIdentifierReferenceNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: TypedValue, value: TypedValue) -> None:
+        super().__init__(sourcePosition, type)
+        self.value = value
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedIdentifierReferenceNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedIdentifierReference', 'type': self.type.toJson(), 'value': self.value.toJson()}
+
+class ASTTypedForAllNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: TypedValue, argumentType: TypedValue, argumentName: TypedValue, body: ASTTypedNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.argumentType = self.argumentType
+        self.argumentName = argumentName
+        self.body = body
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedForAllNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedForAll', 'type': self.type.toJson(), 'argumentType': self.argumentType.toJson(), 'argumentName': optionalASTNodeToJson(self.argumentName), 'body': self.body.toJson()}
+
+class ASTTypedLambdaNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: TypedValue, argumentType: TypedValue, argumentName: TypedValue, body: ASTTypedNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.argumentType = self.argumentType
+        self.argumentName = argumentName
+        self.body = body
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedLambdaNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentType': self.argumentType.toJson(), 'argumentName': optionalASTNodeToJson(self.argumentName), 'body': self.body.toJson()}
+
+class ASTTypedLiteralNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: TypedValue, value: TypedValue) -> None:
+        super().__init__(sourcePosition, type)
+        self.value = value
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedLiteralNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedLiteral', 'type': self.type.toJson(), 'value': self.value.toJson()}
+
+class ASTTypedSequenceNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: TypedValue, elements: list[ASTTypedNode]) -> None:
+        super().__init__(sourcePosition, type)
+        self.elements = elements
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedSequenceNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedSequence', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
+
+class ASTTypedTupleNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.elements = elements
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedTupleNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedTuple', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
+    
 def optionalASTNodeToJson(node: ASTNode | None) -> dict | None:
     if node is None:
         return None
@@ -247,7 +357,7 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
         self.visitNode(node.expression)
 
-    def visitLambdaNode(self, node: ASTLambdaNode):
+    def visitFunctionNode(self, node: ASTFunctionNode):
         self.visitNode(node.functionalType)
         self.visitNode(node.body)
 
@@ -268,6 +378,28 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.elements:
             self.visitNode(expression)
 
+    def visitTypedForAllNode(self, node: ASTTypedForAllNode):
+        self.visitNode(node.argumentType)
+        self.visitNode(node.body)
+
+    def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
+        pass
+
+    def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
+        self.visitNode(node.argumentType)
+        self.visitNode(node.body)
+
+    def visitTypedLiteralNode(self, node: ASTLiteralNode):
+        pass
+
+    def visitTypedSequenceNode(self, node: ASTSequenceNode):
+        for expression in node.elements:
+            self.visitNode(expression)
+
+    def visitTypedTupleNode(self, node: ASTTypedTupleNode):
+        for expression in node.elements:
+            self.visitNode(expression)
+
 class ASTErrorVisitor(ASTSequentialVisitor):
     def __init__(self) -> None:
         super().__init__()
@@ -276,8 +408,48 @@ class ASTErrorVisitor(ASTSequentialVisitor):
     def visitErrorNode(self, node: ASTErrorNode):
         self.errorNodes.append(node)
 
+    def visitTypedErrorNode(self, node: ASTTypedErrorNode):
+        self.errorNodes.append(node)
+
     def checkASTAndPrintErrors(self, node: ASTNode):
         self.visitNode(node)
         for errorNode in self.errorNodes:
             print('%s: %s' % (str(errorNode.sourcePosition), errorNode.message))
         return len(self.errorNodes) == 0
+
+class ASTTypecheckedVisitor(ASTVisitor):
+    def visitApplicationNode(self, node):
+        assert False
+
+    def visitArgumentNode(self, node):
+        assert False
+
+    def visitBinaryExpressionSequenceNode(self, node):
+        assert False
+
+    def visitErrorNode(self, node):
+        assert False
+
+    def visitFunctionalTypeNode(self, node):
+        assert False
+
+    def visitIdentifierReferenceNode(self, node):
+        assert False
+
+    def visitLexicalBlockNode(self, node):
+        assert False
+
+    def visitLambdaNode(self, node):
+        assert False
+
+    def visitLiteralNode(self, node):
+        assert False
+
+    def visitMessageSendNode(self, node):
+        assert False
+
+    def visitSequenceNode(self, node):
+        assert False
+
+    def visitTupleNode(self, node):
+        assert False
