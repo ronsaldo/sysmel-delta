@@ -12,6 +12,6 @@ for arg in sys.argv[1:]:
     typechecked = sysmel.Typechecker().typecheckASTAndPrintErrors(ast)
     print(json.dumps(typechecked.toJson()))
 
-    evalResult = sysmel.ASTEvaluator().evaluate(ast)
+    evalResult = sysmel.ASTEvaluator().evaluate(typechecked)
     print(json.dumps(evalResult.toJson()))
 

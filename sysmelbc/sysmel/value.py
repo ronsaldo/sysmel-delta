@@ -144,6 +144,8 @@ class ProductTypeValue(TypedValue):
         return {'product': list(map(lambda v: v.toJson(), self.elements))}
 
 class ProductType(BaseType):
+    ProductTypeCache = dict()
+
     def __init__(self, elementTypes: list[TypedValue]) -> None:
         self.elementTypes = elementTypes
 
@@ -155,6 +157,15 @@ class ProductType(BaseType):
 
     def toJson(self):
         return {'productType': list(map(lambda v: v.toJson(), self.elementTypes))}
+    
+    @classmethod
+    def makeWithElementTypes(cls, elementTypes: list[TypedValue]):
+        if elementTypes in cls.ProductTypeCache:
+            return cls.ProductTypeCache[elementTypes]
+
+        productType = cls(elementTypes)
+        cls.ProductTypeCache[elementTypes] = productType
+        return productType
 
 class RecordTypeValue(ProductTypeValue):
     def toJson(self):
@@ -175,6 +186,43 @@ class RecordType(ProductType):
     def toJson(self):
         return {'recordType': list(map(lambda v: v.toJson(), self.elementTypes)), 'fields' : list(map(lambda v: v.toJson(), self.fields))}
 
+class SumTypeValue(TypedValue):
+    def __init__(self, type: TypedValue, variantIndex: int, value: TypedValue) -> None:
+        super().__init__()
+        self.type = type
+        self.variantIndex = variantIndex
+        self.value = value
+
+    def getType(self):
+        return self.type
+
+    def toJson(self):
+        return {'sum': self.typeIndex, 'value': self.value.toJson}
+
+class SumType(BaseType):
+    SumTypeCache = dict()
+
+    def __init__(self, variantTypes: list[TypedValue]) -> None:
+        self.variantTypes = variantTypes
+
+    def makeWithTypeIndexAndValue(self, variantIndex: int, value: TypedValue) -> SumTypeValue:
+        return SumTypeValue(self, variantIndex, value)
+
+    def getType(self):
+        return TypeType
+
+    def toJson(self):
+        return {'sumType': list(map(lambda v: v.toJson(), self.variantTypes))}
+    
+    @classmethod
+    def makeWithVariantTypes(cls, variantTypes: list[TypedValue]):
+        if variantTypes in cls.SumTypeCache:
+            return cls.SumTypeCache[variantTypes]
+
+        sumType = cls(variantTypes)
+        cls.SumTypeCache[variantTypes] = sumType
+        return sumType
+    
 class SymbolTypeClass(BaseType):
     pass
 
