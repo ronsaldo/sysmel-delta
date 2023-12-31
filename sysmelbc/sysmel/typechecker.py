@@ -91,18 +91,44 @@ class Typechecker(ASTVisitor):
 
     def visitApplicationNode(self, node: ASTApplicationNode):
         functional = self.visitNode(node.functional)
-        if len(node.arguments):
+        if len(node.arguments) == 0:
             return self.visitNode(ASTArgumentApplicationNode(node.sourcePosition, functional, ASTLiteralNode(node.sourcePosition, UnitType.getSingleton())))
 
         for argument in node.arguments:
             functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument))
         return functional
     
+    def betaReduceForAllWithArgument(self, forAllNode: ASTNode, argument: ASTNode):
+        if forAllNode.isTypedForAllNode():
+            typedForAllNode: ASTTypedForAllNode = forAllNode
+            argumentBinding = typedForAllNode.argumentBinding
+            captureBindings = typedForAllNode.captureBindings
+            forAllBody = forAllValue.body
+        else:
+            assert forAllNode.isForAllLiteralValue()
+            forAllValue: ForAllValue = forAllNode.value
+            argumentBinding = forAllValue.argumentBinding
+            captureBindings = []
+            forAllBody = forAllValue.body
+
+        typedArgument = self.visitNodeWithExpectedTypeExpression(argument, argumentBinding.getTypeExpression())
+
+        substitutionContext = SubstitutionContext(captureBindings, list(map(captureBindingToIdentifierReferenceNode, captureBindings)), argumentBinding, typedArgument)
+        reduced = ASTBetaSubstituter(substitutionContext).visitNode(forAllBody)
+        return typedArgument, reduced
+
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         functional = self.visitNode(node.functional)
-        argument = self.visitNode(node.argument)
-        print(functional.type, argument.type)
-        assert False
+        if functional.isTypedForAllNodeOrLiteralValue():
+            typedArgument, resultType = self.betaReduceForAllWithArgument(functional, node.argument)
+            return resultType
+
+        if not functional.type.isTypedForAllNodeOrLiteralValue():
+            functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a forall or it must have a forall type.", functional)
+            return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument))
+        
+        typedArgument, resultType = self.betaReduceForAllWithArgument(functional.type, node.argument)
+        return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, functional, typedArgument))
 
     def visitArgumentNode(self, node: ASTArgumentNode):
         assert False
@@ -236,6 +262,9 @@ class Typechecker(ASTVisitor):
             typedElements.append(typedExpression)
         return ASTTupleNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes), typedElements)
 
+    def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        return node
+
     def visitTypedForAllNode(self, node: ASTTypedForAllNode):
         return node
 
@@ -253,3 +282,41 @@ class Typechecker(ASTVisitor):
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         return node
+
+class ASTBetaSubstituter(ASTTypecheckedVisitor):
+    def __init__(self, substitutionContext: SubstitutionContext) -> None:
+        super().__init__()
+        self.substitutionContext = substitutionContext
+
+    def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTLiteralTypeNode:
+        return node.accept(self)
+
+    def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> ASTLiteralTypeNode:
+        return node
+    
+    def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.functional), self.visitNode(node.argument)))
+
+    def visitTypedForAllNode(self, node: ASTTypedForAllNode):
+        assert False
+
+    def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
+        return node.binding.evaluateSubstitutionInContext(self.substitutionContext, node.sourcePosition)
+
+    def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
+        assert False
+
+    def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
+        return node
+
+    def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
+        assert False
+
+    def visitTypedTupleNode(self, node: ASTTypedTupleNode):
+        assert False
+    
+def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
+    return node
+
+def captureBindingToIdentifierReferenceNode(captureBinding: SymbolCaptureBinding) -> ASTTypedIdentifierReferenceNode:
+    return ASTTypedIdentifierReferenceNode(captureBinding.sourcePosition, captureBinding.getTypeExpression(), captureBinding.capturedBinding)

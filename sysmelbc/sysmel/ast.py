@@ -68,6 +68,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedApplicationNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedForAllNode(self, node):
         pass
 
@@ -281,6 +285,18 @@ class ASTTupleNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
+class ASTTypedApplicationNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, functional: ASTTypedNode, argument: ASTTypedNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.functional = functional
+        self.argument = argument
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedApplicationNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedApplication', 'type': self.type.toJson(), 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
+    
 class ASTTypedErrorNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, message: str, innerNode: ASTNode = None) -> None:
         super().__init__(sourcePosition, type)
@@ -314,6 +330,9 @@ class ASTTypedForAllNode(ASTTypedNode):
         self.argumentBinding = argumentBinding
         self.body = body
 
+    def isTypedForAllNode(self) -> bool:
+        return True
+
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedForAllNode(self)
 
@@ -332,20 +351,6 @@ class ASTTypedLambdaNode(ASTTypedNode):
 
     def toJson(self) -> dict:
         return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'captureBindings': list(map(optionalASTNodeToJson, self.captureBindings)), 'body': self.body.toJson()}
-
-class ASTTypedLiteralNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, value: TypedValue) -> None:
-        super().__init__(sourcePosition, type)
-        self.value = value
-
-    def isTypedLiteralNode(self) -> bool:
-        return True
-
-    def accept(self, visitor: ASTVisitor):
-        return visitor.visitTypedLiteralNode(self)
-
-    def toJson(self) -> dict:
-        return {'kind': 'TypedLiteral', 'type': self.type.toJson(), 'value': self.value.toJson()}
 
 class ASTTypedSequenceNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTTypedNode]) -> None:
@@ -447,6 +452,10 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitTupleNode(self, node: ASTTupleNode):
         for expression in node.elements:
             self.visitNode(expression)
+
+    def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        self.visitNode(node.functional)
+        self.visitNode(node.argument)
 
     def visitTypedForAllNode(self, node: ASTTypedForAllNode):
         self.visitNode(node.type)

@@ -23,6 +23,9 @@ class TypedValue(ABC):
 
     def getTypeUniverseIndex(self) -> int:
         return 0
+    
+    def isForAll(self) -> bool:
+        return False
 
 class TypeUniverse(TypedValue):
     InstancedUniverses = dict()
@@ -337,6 +340,15 @@ class ASTNode:
     
     def isTypedErrorNode(self) -> bool:
         return False
+    
+    def isForAllLiteralValue(self) -> bool:
+        return False
+
+    def isTypedForAllNode(self) -> bool:
+        return False
+
+    def isTypedForAllNodeOrLiteralValue(self) -> bool:
+        return self.isForAllLiteralValue() or self.isTypedForAllNode()
 
 class ASTLiteralTypeNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, value: TypedValue) -> None:
@@ -348,6 +360,9 @@ class ASTLiteralTypeNode(ASTNode):
 
     def isLiteralTypeNode(self) -> bool:
         return True
+
+    def isForAllLiteralValue(self) -> bool:
+        return self.value.isForAll()
 
     def accept(self, visitor):
         return visitor.visitLiteralTypeNode(self)
@@ -363,6 +378,23 @@ class ASTTypedNode(ASTNode):
     def computeTypeUniverseIndex(self) -> int:
         return self.type.computeTypeUniverseIndex()
 
+class ASTTypedLiteralNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, value: TypedValue) -> None:
+        super().__init__(sourcePosition, type)
+        self.value = value
+
+    def isTypedLiteralNode(self) -> bool:
+        return True
+
+    def isForAllLiteralValue(self) -> bool:
+        return self.value.isForAll()
+
+    def accept(self, visitor):
+        return visitor.visitTypedLiteralNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedLiteral', 'type': self.type.toJson(), 'value': self.value.toJson()}
+
 class SymbolBinding(ABC):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol) -> None:
         super().__init__()
@@ -371,6 +403,10 @@ class SymbolBinding(ABC):
 
     @abstractmethod
     def evaluateInActivationContext(self, activationContext) -> TypedValue:
+        pass
+
+    @abstractmethod
+    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
         pass
 
     @abstractmethod
@@ -394,6 +430,9 @@ class SymbolValueBinding(SymbolBinding):
     def evaluateInActivationContext(self, activationContext) -> TypedValue:
         return self.value
 
+    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
+        return ASTTypedLiteralNode(sourcePosition, self.getTypeExpression(), self.value)
+
     def getTypeExpression(self) -> TypedValue:
         return self.typeExpression
 
@@ -409,7 +448,10 @@ class SymbolArgumentBinding(SymbolBinding):
         self.typeExpression = typeExpression
 
     def evaluateInActivationContext(self, activationContext) -> TypedValue:
-        return activationContext.getArgumentValue()
+        return activationContext.getArgumentValueFor(self)
+
+    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
+        return substitutionContext.getArgumentSubstitutionFor(self, sourcePosition)
 
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.typeExpression
@@ -428,6 +470,9 @@ class SymbolCaptureBinding(SymbolBinding):
 
     def evaluateInActivationContext(self, activationContext) -> TypedValue:
         return activationContext.getCaptureValueFor(self)
+
+    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
+        return substitutionContext.getCaptureSubstitutionFor(self, sourcePosition)
 
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.capturedBinding.getTypeExpression()
@@ -523,7 +568,7 @@ class FunctionalValue(TypedValue):
         self.argumentBinding = argumentBinding
         self.body = body
 
-    def getCaptureValue(self, captureBinding):
+    def getCaptureValueFor(self, captureBinding: SymbolCaptureBinding) -> TypedValue:
         return self.captureValues[self.captureBindings.index(captureBinding)]
 
     def getType(self):
@@ -539,17 +584,35 @@ class ForAllValue(FunctionalValue):
 
     def toJson(self):
         return {'forAll': self.argumentBinding.toJson(), 'body': self.body.toJson()}
+    
+    def isForAll(self) -> bool:
+        return True
 
 class FunctionalActivationContext:
-    def __init__(self, functionalValue: FunctionalValue, argumentValue):
+    def __init__(self, functionalValue: FunctionalValue, argumentValue: TypedValue):
         self.functionalValue = functionalValue
         self.argumentValue = argumentValue
 
-    def getArgumentValue(self):
+    def getArgumentValueFor(self, argumentBinding: SymbolArgumentBinding) -> TypedValue:
+        assert argumentBinding == self.functionalValue.argumentBinding
         return self.argumentValue
 
-    def getCaptureValue(self, captureBinding: SymbolCaptureBinding):
+    def getCaptureValueFor(self, captureBinding: SymbolCaptureBinding) -> TypedValue:
         return self.functionalValue.getCaptureValue(captureBinding)
+
+class SubstitutionContext:
+    def __init__(self, captureBindings: list[SymbolCaptureBinding], captureSubstitutions: list[ASTNode], argumentBinding: SymbolArgumentBinding, argumentSubstitution: ASTNode) -> None:
+        self.captureBindings = captureBindings
+        self.captureSubstitutions = captureSubstitutions
+        self.argumentBinding = argumentBinding
+        self.argumentSubstitution = argumentSubstitution
+
+    def getArgumentSubstitutionFor(self, argumentBinding: SymbolArgumentBinding) -> ASTNode:
+        assert argumentBinding == self.argumentBinding
+        return self.argumentSubstitution
+
+    def getCaptureSubstitutionFor(self, captureBinding: SymbolCaptureBinding) -> ASTNode:
+        return self.captureSubstitutions[self.captureBindings.index(captureBinding)]
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment.addBaseType(AbsurdType)

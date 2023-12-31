@@ -1,3 +1,4 @@
+from typing import Any
 from .ast import *
 from .value import *
 
@@ -6,7 +7,7 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         super().__init__()
         self.activationContext = activationContext
 
-    def visitNode(self, node: ASTNode) ->TypedValue:
+    def visitNode(self, node: ASTNode) -> TypedValue:
         return node.accept(self)
 
     def evaluate(self, ast: ASTNode) -> TypedValue:
@@ -18,12 +19,17 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> TypedValue:
         return node.value
 
+    def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        functional = self.visitNode(node.functional)
+        argument = self.visitNode(node.argument)
+        return functional(argument)
+
     def visitTypedForAllNode(self, node: ASTTypedForAllNode) -> TypedValue:
         type = self.visitNode(node.type)
         return ForAllValue(type, node.captureBindings, list(map(self.evaluateBinding, node.captureBindings)), node.argumentBinding, node.body)
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
-        return self.evaluteBinding(node.binding)
+        return self.evaluateBinding(node.binding)
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.visitNode(node.type)
@@ -40,3 +46,10 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
     def visitTypedTupleNode(self, node) -> TypedValue:
         assert False
+
+def evaluateFunctionalValueWithParameter(functionalValue: FunctionalValue, argumentValue: TypedValue):
+    activationContext = FunctionalActivationContext(functionalValue, argumentValue)
+    return ASTEvaluator(activationContext).evaluate(functionalValue.body)
+
+LambdaValue.__call__ = evaluateFunctionalValueWithParameter
+ForAllValue.__call__ = evaluateFunctionalValueWithParameter
