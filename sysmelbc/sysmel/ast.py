@@ -72,6 +72,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedErrorNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedForAllNode(self, node):
         pass
 

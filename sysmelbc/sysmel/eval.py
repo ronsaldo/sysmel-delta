@@ -24,6 +24,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         argument = self.visitNode(node.argument)
         return functional(argument)
 
+    def visitTypedErrorNode(self, node: ASTTypedErrorNode) -> TypedValue:
+        raise Exception('%s: %s' % (str(node.sourcePosition), node.message))
+
     def visitTypedForAllNode(self, node: ASTTypedForAllNode) -> TypedValue:
         type = self.visitNode(node.type)
         return ForAllValue(type, node.captureBindings, list(map(self.evaluateBinding, node.captureBindings)), node.argumentBinding, node.body)

@@ -43,18 +43,21 @@ class Typechecker(ASTVisitor):
 
         return self.visitNodeWithExpectedTypeExpression(node, ASTLiteralTypeNode(node.sourcePosition, expectedType))
 
+    def evaluateSymbol(self, node: ASTNode) -> Symbol | None:
+        return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, SymbolType))
+
     def evaluateOptionalSymbol(self, node: ASTNode) -> Symbol | None:
         if node is None:
             return None
         
-        return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, SymbolType))
+        symbol, errorNode = self.evaluateSymbol(node)
+        return symbol
     
     def evaluateReducedLiteral(self, node: ASTTypedNode) -> TypedValue | None:
         if node.isTypedLiteralNode():
-            return node.value
+            return node.value, None
 
-        self.makeSemanticError(node.sourcePosition, "Expected a value reducible expression.", node)
-        return None
+        return None, self.makeSemanticError(node.sourcePosition, "Expected a value reducible expression.", node)
     
     def mergeTypeUniversesOfTypeNodes(self, leftNode: ASTTypedNode, rightNode: ASTTypedNode, sourcePosition: SourcePosition) -> ASTLiteralTypeNode:
         leftUniverseIndex = leftNode.computeTypeUniverseIndex()
@@ -126,6 +129,9 @@ class Typechecker(ASTVisitor):
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         functional = self.visitNode(node.functional)
+        if functional.isTypedErrorNode():
+            return ASTTypedApplicationNode(node.sourcePosition, functional.type, functional, self.visitNode(node.argument))
+
         if functional.isTypedForAllNodeOrLiteralValue():
             typedArgument, resultType = self.betaReduceForAllWithArgument(functional, node.argument)
             return resultType
@@ -218,7 +224,8 @@ class Typechecker(ASTVisitor):
         return reduceLambdaNode(lambdaNode)
 
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
-        assert False
+        innerEnvironment = LexicalEnvironment(self.lexicalEnvironment)
+        return Typechecker(innerEnvironment, self.errorAccumulator).visitNode(node)
 
     def visitLiteralNode(self, node: ASTLiteralNode):
         return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, node.value.getType()), node.value)
@@ -227,7 +234,16 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitMessageSendNode(self, node: ASTMessageSendNode):
-        assert False
+        selector, errorNode = self.evaluateSymbol(node.selector)
+        if selector is not None:
+            selectorNode = ASTIdentifierReferenceNode(node.selector.sourcePosition, selector)
+        else:
+            selectorNode = errorNode
+        
+        if node.receiver is None:
+            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, node.arguments))
+        else:
+            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, [node.receiver] + node.arguments))
 
     def visitSequenceNode(self, node: ASTSequenceNode):
         if len(node.elements) == 0:
@@ -258,6 +274,9 @@ class Typechecker(ASTVisitor):
         return ASTTupleNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes), typedElements)
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        return node
+    
+    def visitTypedErrorNode(self, node: ASTTypedErrorNode):
         return node
 
     def visitTypedForAllNode(self, node: ASTTypedForAllNode):
@@ -292,6 +311,9 @@ class ASTBetaSubstituter(ASTTypecheckedVisitor):
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.functional), self.visitNode(node.argument)))
 
+    def visitTypedErrorNode(self, node: ASTTypedErrorNode):
+        assert False
+        
     def visitTypedForAllNode(self, node: ASTTypedForAllNode):
         assert False
 
