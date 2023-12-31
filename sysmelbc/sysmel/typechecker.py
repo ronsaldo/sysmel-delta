@@ -71,7 +71,7 @@ class Typechecker(ASTVisitor):
         if analyzedNode.isLiteralTypeNode():
             return analyzedNode
         
-        if analyzedNode.type.isLiteralTypeNode():
+        if analyzedNode.type.isLiteralTypeNode() or analyzedNode.type.isTypedLiteralNode():
             if analyzedNode.type.value.isTypeUniverse():
                 return analyzedNode
 
@@ -275,7 +275,7 @@ class Typechecker(ASTVisitor):
             typedExpression = self.visitNode(expression)
             elementTypes.append(typedExpression.type)
             typedElements.append(typedExpression)
-        return ASTTupleNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes), typedElements)
+        return ASTTypedTupleNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes)), typedElements)
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         return node

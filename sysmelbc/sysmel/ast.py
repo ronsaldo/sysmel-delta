@@ -316,17 +316,6 @@ class ASTTypedErrorNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedError', 'type': self.type.toJson(), 'message': self.message, 'innerNodes': list(map(optionalASTNodeToJson, self.innerNodes))}
 
-class ASTTypedIdentifierReferenceNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolBinding) -> None:
-        super().__init__(sourcePosition, type)
-        self.binding = binding
-
-    def accept(self, visitor: ASTVisitor):
-        return visitor.visitTypedIdentifierReferenceNode(self)
-
-    def toJson(self) -> dict:
-        return {'kind': 'TypedIdentifierReference', 'type': self.type.toJson(), 'binding': self.binding.toJson()}
-
 class ASTTypedForAllNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, captureBindings: list[SymbolCaptureBinding], argumentBinding: SymbolArgumentBinding, body: ASTTypedNode) -> None:
         super().__init__(sourcePosition, type)

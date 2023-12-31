@@ -38,6 +38,7 @@ class TypeUniverse(TypedValue):
         self.index = index
 
     def toJson(self):
+        if self.index == 0: return "Type"
         return "Type@%d" % self.index
     
     def getType(self):
@@ -230,11 +231,12 @@ class ProductType(BaseType):
     
     @classmethod
     def makeWithElementTypes(cls, elementTypes: list[TypedValue]):
-        if elementTypes in cls.ProductTypeCache:
-            return cls.ProductTypeCache[elementTypes]
+        productKey = tuple(elementTypes)
+        if productKey in cls.ProductTypeCache:
+            return cls.ProductTypeCache[productKey]
 
-        productType = cls(elementTypes)
-        cls.ProductTypeCache[elementTypes] = productType
+        productType = cls(productKey)
+        cls.ProductTypeCache[productKey] = productType
         return productType
 
 class RecordTypeValue(ProductTypeValue):
@@ -378,6 +380,9 @@ class ASTNode:
     def isLiteralTypeNode(self) -> bool:
         return False
 
+    def isTypedIdentifierReferenceNode(self) -> bool:
+        return False
+
     def isTypedLiteralNode(self) -> bool:
         return False
     
@@ -490,6 +495,19 @@ class SymbolBinding(ABC):
     def getCaptureNestingLevel(self) -> int:
         pass
 
+class ASTTypedIdentifierReferenceNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolBinding) -> None:
+        super().__init__(sourcePosition, type)
+        self.binding = binding
+
+    def isTypedIdentifierReferenceNode(self) -> bool:
+        return True
+
+    def accept(self, visitor):
+        return visitor.visitTypedIdentifierReferenceNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedIdentifierReference', 'type': self.type.toJson(), 'binding': self.binding.toJson()}
 class SymbolValueBinding(SymbolBinding):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, value: TypedValue) -> None:
         super().__init__(sourcePosition, name)
@@ -676,12 +694,17 @@ class SubstitutionContext:
         self.argumentBinding = argumentBinding
         self.argumentSubstitution = argumentSubstitution
 
-    def getArgumentSubstitutionFor(self, argumentBinding: SymbolArgumentBinding) -> ASTNode:
+    def getArgumentSubstitutionFor(self, argumentBinding: SymbolArgumentBinding, sourcePosition: SourcePosition) -> ASTNode:
         assert argumentBinding == self.argumentBinding
-        return self.argumentSubstitution
+        return self.applySourcePositionToSubstitution(self.argumentSubstitution, sourcePosition)
 
-    def getCaptureSubstitutionFor(self, captureBinding: SymbolCaptureBinding) -> ASTNode:
-        return self.captureSubstitutions[self.captureBindings.index(captureBinding)]
+    def getCaptureSubstitutionFor(self, captureBinding: SymbolCaptureBinding, sourcePosition: SourcePosition) -> ASTNode:
+        return self.applySourcePositionToSubstitution(self.captureSubstitutions[self.captureBindings.index(captureBinding)], sourcePosition)
+    
+    def applySourcePositionToSubstitution(self, substitution: ASTNode, sourcePosition: SourcePosition) -> ASTNode:
+        if substitution.isTypedIdentifierReferenceNode():
+            return ASTTypedIdentifierReferenceNode(sourcePosition, substitution.type, substitution.binding)
+        return substitution
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment.addBaseType(AbsurdType)
@@ -701,6 +724,7 @@ TopLevelEnvironment.addUnitTypeValue(FalseType.getSingleton())
 TopLevelEnvironment.addBaseType(TrueType)
 TopLevelEnvironment.addUnitTypeValue(TrueType.getSingleton())
 TopLevelEnvironment.setSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
+TopLevelEnvironment.setSymbolValueBinding(Symbol.intern("Type"), TypeType)
 
 def makeDefaultEvaluationEnvironment() -> LexicalEnvironment:
     return LexicalEnvironment(TopLevelEnvironment)

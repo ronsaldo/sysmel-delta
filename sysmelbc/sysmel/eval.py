@@ -47,8 +47,13 @@ class ASTEvaluator(ASTTypecheckedVisitor):
             result = self.visitNode(expression)
         return result
 
-    def visitTypedTupleNode(self, node) -> TypedValue:
-        assert False
+    def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
+        elements = list()
+        for expression in node.elements:
+            elements.append(self.visitNode(expression))
+
+        productType = self.visitNode(node.type)
+        return productType.makeWithElements(tuple(elements))
 
 def evaluateFunctionalValueWithParameter(functionalValue: FunctionalValue, argumentValue: TypedValue):
     activationContext = FunctionalActivationContext(functionalValue, argumentValue)
