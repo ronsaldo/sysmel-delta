@@ -8,14 +8,22 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def evaluate(self, ast: ASTNode) -> TypedValue:
         return self.visitNode(ast)
 
-    def visitTypedForAllNode(self, node) -> TypedValue:
+    def evaluateBinding(self, binding: SymbolBinding) -> TypedValue:
         assert False
 
-    def visitTypedIdentifierReferenceNode(self, node) -> TypedValue:
-        assert False
+    def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> TypedValue:
+        return node.value
 
-    def visitTypedLambdaNode(self, node) -> TypedValue:
-        assert False
+    def visitTypedForAllNode(self, node: ASTTypedForAllNode) -> TypedValue:
+        type = self.visitNode(node.type)
+        return ForAllValue(type, node.captureBindings, list(map(self.evaluateBinding, node.captureBindings)), node.argumentBinding, node.body)
+
+    def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
+        return self.evaluteBinding(node.binding)
+
+    def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
+        type = self.visitNode(node.type)
+        return LambdaValue(type, node.captureBindings, list(map(self.evaluateBinding, node.captureBindings)), node.argumentBinding, node.body)
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return node.value

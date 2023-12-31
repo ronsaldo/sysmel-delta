@@ -1,4 +1,5 @@
 from enum import Enum
+from .value import SourceCode, SourcePosition
 import copy
 
 TokenKind = Enum('TokenKind', [
@@ -12,45 +13,6 @@ TokenKind = Enum('TokenKind', [
     'QUOTE', 'QUASI_QUOTE', 'QUASI_UNQUOTE', 'SPLICE',
     'BYTE_ARRAY_START', 'DICTIONARY_START', 'LITERAL_ARRAY_START'
 ])
-
-class SourceCode:
-    def __init__(self, name: str, text: bytes) -> None:
-        self.name = name
-        self.text = text
-
-    def __str__(self) -> str:
-        return self.name
-
-class SourcePosition:
-    def __init__(self, sourceCode: SourceCode, startIndex: int, endIndex: int, startLine: int, startColumn: int, endLine: int, endColumn: int) -> None:
-        self.sourceCode = sourceCode
-        self.startIndex = startIndex
-        self.endIndex = endIndex
-        self.startLine = startLine
-        self.startColumn = startColumn
-        self.endLine = endLine
-        self.endColumn = endColumn
-
-    def getValue(self) -> bytes:
-        return self.sourceCode.text[self.startIndex : self.endIndex]
-    
-    def getStringValue(self) -> str:
-        return self.getValue().decode('utf-8')
-    
-    def until(self, endSourcePosition):
-        return SourcePosition(self.sourceCode,
-                self.startIndex, endSourcePosition.startIndex,
-                self.startLine, self.startColumn,
-                endSourcePosition.startLine, endSourcePosition.startColumn)
-
-    def to(self, endSourcePosition):
-        return SourcePosition(self.sourceCode,
-                self.startIndex, endSourcePosition.endIndex,
-                self.startLine, self.startColumn,
-                endSourcePosition.endLine, endSourcePosition.endColumn)
-
-    def __str__(self) -> str:
-        return '%s:%d.%d-%d.%d' % (self.sourceCode, self.startLine, self.startColumn, self.endLine, self.endColumn)
 
 class Token:
     def __init__(self, kind: TokenKind, sourcePosition: SourcePosition, errorMessage: str = None):

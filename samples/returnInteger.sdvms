@@ -1,3 +1,5 @@
+##(:*(Integer) :: Integer)
+
 (:(Integer)a :: Integer) :=> a.
 
 #*

@@ -9,8 +9,10 @@ for arg in sys.argv[1:]:
     if not sysmel.ASTErrorVisitor().checkASTAndPrintErrors(ast):
         sys.exit(1)
 
-    typechecked = sysmel.Typechecker().typecheckASTAndPrintErrors(ast)
+    typechecked, typecheckedSucceeded = sysmel.Typechecker(sysmel.makeDefaultEvaluationEnvironment()).typecheckASTAndPrintErrors(ast)
     print(json.dumps(typechecked.toJson()))
+    if not typecheckedSucceeded:
+        sys.exit(1)
 
     evalResult = sysmel.ASTEvaluator().evaluate(typechecked)
     print(json.dumps(evalResult.toJson()))

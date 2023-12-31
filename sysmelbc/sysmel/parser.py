@@ -1,4 +1,4 @@
-from .scanner import SourceCode, SourcePosition, Token, TokenKind, scanFileNamed
+from .scanner import Token, TokenKind, scanFileNamed
 from .ast import *
 from .value import *
 import copy
