@@ -12,6 +12,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitArgumentApplicationNode(self, node):
+        pass
+
+    @abstractmethod
     def visitBinaryExpressionSequenceNode(self, node):
         pass
 
@@ -100,6 +104,18 @@ class ASTArgumentNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isForAll': self.isForAll}
 
+class ASTArgumentApplicationNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, argument: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.functional = functional
+        self.argument = argument
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitArgumentApplicationNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'ArgumentApplication', 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
+    
 class ASTApplicationNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, arguments: list[ASTNode]) -> None:
         super().__init__(sourcePosition)
@@ -372,6 +388,10 @@ class ASTSequentialVisitor(ASTVisitor):
         for arg in node.arguments:
             self.visitNode(arg)
 
+    def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
+        self.visitNode(node.functional)
+        self.visitNode(node.argument)
+    
     def visitArgumentNode(self, node: ASTArgumentNode):
         self.visitOptionalNode(node.nameExpression)
         self.visitOptionalNode(node.typeExpression)
@@ -476,6 +496,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitArgumentNode(self, node):
+        assert False
+
+    def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         assert False
 
     def visitBinaryExpressionSequenceNode(self, node):

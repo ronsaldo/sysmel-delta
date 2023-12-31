@@ -1,6 +1,4 @@
-##(:*(Integer) :: Integer)
-
-(:(Integer)a :: Integer) :=> a.
+((:(Integer)a :: Integer) :=> a) (42).
 
 #*
 (:: Integer) :=> 42.

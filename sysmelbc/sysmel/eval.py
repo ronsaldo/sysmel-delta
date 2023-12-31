@@ -2,6 +2,10 @@ from .ast import *
 from .value import *
 
 class ASTEvaluator(ASTTypecheckedVisitor):
+    def __init__(self, activationContext: FunctionalActivationContext) -> None:
+        super().__init__()
+        self.activationContext = activationContext
+
     def visitNode(self, node: ASTNode) ->TypedValue:
         return node.accept(self)
 
@@ -9,7 +13,7 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         return self.visitNode(ast)
 
     def evaluateBinding(self, binding: SymbolBinding) -> TypedValue:
-        assert False
+        return binding.evaluateInActivationContext(self.activationContext)
 
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> TypedValue:
         return node.value

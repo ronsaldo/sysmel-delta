@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
-import sysmel
+from sysmel import *
 import sys
 import json
 
 for arg in sys.argv[1:]:
-    ast = sysmel.parseFileNamed(arg)
-    if not sysmel.ASTErrorVisitor().checkASTAndPrintErrors(ast):
+    ast = parseFileNamed(arg)
+    if not ASTErrorVisitor().checkASTAndPrintErrors(ast):
         sys.exit(1)
 
-    typechecked, typecheckedSucceeded = sysmel.Typechecker(sysmel.makeDefaultEvaluationEnvironment()).typecheckASTAndPrintErrors(ast)
+    typechecked, typecheckedSucceeded = Typechecker(makeDefaultEvaluationEnvironment()).typecheckASTAndPrintErrors(ast)
     print(json.dumps(typechecked.toJson()))
     if not typecheckedSucceeded:
         sys.exit(1)
 
-    evalResult = sysmel.ASTEvaluator().evaluate(typechecked)
+    evalResult = ASTEvaluator(FunctionalActivationContext(None, UnitType.getSingleton())).evaluate(typechecked)
     print(json.dumps(evalResult.toJson()))
 

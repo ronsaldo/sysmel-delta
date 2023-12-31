@@ -91,7 +91,17 @@ class Typechecker(ASTVisitor):
 
     def visitApplicationNode(self, node: ASTApplicationNode):
         functional = self.visitNode(node.functional)
+        if len(node.arguments):
+            return self.visitNode(ASTArgumentApplicationNode(node.sourcePosition, functional, ASTLiteralNode(node.sourcePosition, UnitType.getSingleton())))
 
+        for argument in node.arguments:
+            functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument))
+        return functional
+    
+    def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
+        functional = self.visitNode(node.functional)
+        argument = self.visitNode(node.argument)
+        print(functional.type, argument.type)
         assert False
 
     def visitArgumentNode(self, node: ASTArgumentNode):

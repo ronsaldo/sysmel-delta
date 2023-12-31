@@ -370,6 +370,10 @@ class SymbolBinding(ABC):
         self.name = name
 
     @abstractmethod
+    def evaluateInActivationContext(self, activationContext) -> TypedValue:
+        pass
+
+    @abstractmethod
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         pass
 
@@ -387,6 +391,9 @@ class SymbolValueBinding(SymbolBinding):
         self.value = value
         self.typeExpression = ASTLiteralTypeNode(sourcePosition, self.value.getType())
 
+    def evaluateInActivationContext(self, activationContext) -> TypedValue:
+        return self.value
+
     def getTypeExpression(self) -> TypedValue:
         return self.typeExpression
 
@@ -400,6 +407,9 @@ class SymbolArgumentBinding(SymbolBinding):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode) -> None:
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
+
+    def evaluateInActivationContext(self, activationContext) -> TypedValue:
+        return activationContext.getArgumentValue()
 
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.typeExpression
@@ -415,6 +425,9 @@ class SymbolCaptureBinding(SymbolBinding):
         super().__init__(capturedBinding.sourcePosition, capturedBinding.name)
         self.capturedBinding = capturedBinding
         self.captureNestingLevel = capturedBinding.getCaptureNestingLevel() + 1
+
+    def evaluateInActivationContext(self, activationContext) -> TypedValue:
+        return activationContext.getCaptureValueFor(self)
 
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.capturedBinding.getTypeExpression()
@@ -501,7 +514,7 @@ class LambdaEnvironment(LexicalEnvironment):
         self.captureBindings.append(captureBinding)
         return captureBinding
 
-class LambdaValue(TypedValue):
+class FunctionalValue(TypedValue):
     def __init__(self, type: TypedValue, captureBindings: list[SymbolCaptureBinding], captureValues: list[TypedValue], argumentBinding: SymbolArgumentBinding, body) -> None:
         super().__init__()
         self.type = type
@@ -509,27 +522,34 @@ class LambdaValue(TypedValue):
         self.captureValues = captureValues
         self.argumentBinding = argumentBinding
         self.body = body
+
+    def getCaptureValue(self, captureBinding):
+        return self.captureValues[self.captureBindings.index(captureBinding)]
 
     def getType(self):
         return self.type
 
+class LambdaValue(FunctionalValue):
     def toJson(self):
         return {'lambda': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
-class ForAllValue(TypedValue):
-    def __init__(self, type: TypedValue, captureBindings: list[SymbolCaptureBinding], captureValues: list[TypedValue], argumentBinding: SymbolArgumentBinding, body) -> None:
-        super().__init__()
-        self.type = type
-        self.captureBindings = captureBindings
-        self.captureValues = captureValues
-        self.argumentBinding = argumentBinding
-        self.body = body
-
+class ForAllValue(FunctionalValue):
     def getType(self):
         return self.type
 
     def toJson(self):
         return {'forAll': self.argumentBinding.toJson(), 'body': self.body.toJson()}
+
+class FunctionalActivationContext:
+    def __init__(self, functionalValue: FunctionalValue, argumentValue):
+        self.functionalValue = functionalValue
+        self.argumentValue = argumentValue
+
+    def getArgumentValue(self):
+        return self.argumentValue
+
+    def getCaptureValue(self, captureBinding: SymbolCaptureBinding):
+        return self.functionalValue.getCaptureValue(captureBinding)
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment.addBaseType(AbsurdType)
