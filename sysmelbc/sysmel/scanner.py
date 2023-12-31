@@ -5,7 +5,7 @@ import copy
 TokenKind = Enum('TokenKind', [
     'END_OF_SOURCE', 'ERROR',
 
-    'CHARACTER', 'FLOAT', 'IDENTIFIER', 'INTEGER', 'KEYWORD', 'MULTI_KEYWORD', 'OPERATOR', 'STRING', 'SYMBOL',
+    'CHARACTER', 'FLOAT', 'IDENTIFIER', 'NAT', 'KEYWORD', 'MULTI_KEYWORD', 'OPERATOR', 'STRING', 'SYMBOL',
     'LEFT_PARENT', 'RIGHT_PARENT', 'LEFT_BRACKET', 'RIGHT_BRACKET', 'LEFT_CURLY_BRACKET', 'RIGHT_CURLY_BRACKET',
     'LESS_THAN', 'GREATER_THAN', 'STAR',
     'COLON', 'COLON_COLON', 'BAR',
@@ -189,7 +189,7 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
             state.advance()
             while isIdentifierMiddle(state.peek()):
                 state.advance()
-            return state, state.makeTokenStartingFrom(TokenKind.INTEGER, initialState)
+            return state, state.makeTokenStartingFrom(TokenKind.NAT, initialState)
         
         ## Decimal point.
         if state.peek() == b'.' and isDigit(state.peek(1)):
@@ -199,7 +199,7 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
 
             return state, state.makeTokenStartingFrom(TokenKind.FLOAT, initialState)
         
-        return state, state.makeTokenStartingFrom(TokenKind.INTEGER, initialState)
+        return state, state.makeTokenStartingFrom(TokenKind.NAT, initialState)
 
     ## Symbols
     if c == b'#'[0]:

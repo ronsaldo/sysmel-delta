@@ -1,4 +1,4 @@
-((:(Integer)a :: Integer) :=> a) (42).
+((:(Nat)a :: Nat) :=> a) (42).
 
 #*
 ## returnInt :: () => Int32.

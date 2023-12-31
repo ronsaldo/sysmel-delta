@@ -107,6 +107,9 @@ class UnitTypeClass(BaseType):
     def getSingleton(self) -> UnitTypeValue:
         return self.singleton
 
+class NatTypeClass(BaseType):
+    pass
+
 class IntegerTypeClass(BaseType):
     pass
 
@@ -122,11 +125,26 @@ class StringTypeClass(BaseType):
 AbsurdType = AbsurdTypeClass("Absurd")
 UnitType = UnitTypeClass("Unit", "unit")
 
+NatType = IntegerTypeClass("Nat")
 IntegerType = IntegerTypeClass("Integer")
 FloatType = FloatTypeClass("Float")
 CharacterType = CharacterTypeClass("Character")
 StringType = StringTypeClass("String")
-    
+
+class NatValue(TypedValue):
+    def __init__(self, value: int) -> None:
+        super().__init__()
+        self.value = value
+
+    def getType(self) -> TypedValue:
+        return NatType
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        return isinstance(other, self.__class__) and self.value == other.value
+
+    def toJson(self):
+        return self.value
+        
 class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
         super().__init__()
@@ -710,6 +728,7 @@ TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment.addBaseType(AbsurdType)
 TopLevelEnvironment.addBaseType(UnitType)
 TopLevelEnvironment.addUnitTypeValue(UnitType.getSingleton())
+TopLevelEnvironment.addBaseType(NatType)
 TopLevelEnvironment.addBaseType(IntegerType)
 TopLevelEnvironment.addBaseType(FloatType)
 TopLevelEnvironment.addBaseType(CharacterType)
