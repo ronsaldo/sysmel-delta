@@ -1,8 +1,6 @@
 ((:(Integer)a :: Integer) :=> a) (42).
 
 #*
-(:: Integer) :=> 42.
-
 ## returnInt :: () => Int32.
 procedure: #returnInt with: {
     ReturnInteger(42)
