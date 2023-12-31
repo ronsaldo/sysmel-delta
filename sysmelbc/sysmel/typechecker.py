@@ -147,10 +147,14 @@ class Typechecker(ASTVisitor):
         assert False
 
     def visitBinaryExpressionSequenceNode(self, node: ASTBinaryExpressionSequenceNode):
+        if len(node.elements) == 3:
+            return self.visitNode(ASTMessageSendNode(node.sourcePosition, node.elements[0], node.elements[1], [node.elements[2]]))
         assert False
 
     def visitErrorNode(self, node: ASTErrorNode):
-        assert False
+        errorNode = ASTTypedErrorNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), node.message)
+        self.errorAccumulator.add(errorNode)
+        return errorNode
 
     def visitForAllNode(self, node: ASTForAllNode):
         lambdaEnvironment = LambdaEnvironment(self.lexicalEnvironment, node.sourcePosition)
@@ -313,7 +317,7 @@ class ASTBetaSubstituter(ASTTypecheckedVisitor):
 
     def visitTypedErrorNode(self, node: ASTTypedErrorNode):
         assert False
-        
+
     def visitTypedForAllNode(self, node: ASTTypedForAllNode):
         assert False
 
