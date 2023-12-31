@@ -11,7 +11,7 @@ class ErrorAccumulator:
         if len(self.errorList) == 0: return True
         
         for error in self.errorList:
-            print('%s: %s', error.sourcePosition, error.message)
+            print('%s: %s' % (error.sourcePosition, error.message))
         return False
 
 class Typechecker(ASTVisitor):
@@ -32,7 +32,9 @@ class Typechecker(ASTVisitor):
             return self.visitNode(node)
 
         typedNode = self.visitNode(node)
-        ## TODO: Typecheck the node
+        expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
+        if typedNode.type != expectedTypeNode and not typedNode.type.isEquivalentTo(expectedTypeNode):
+            return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
 
     def visitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> ASTTypedNode | ASTLiteralTypeNode:
@@ -84,8 +86,13 @@ class Typechecker(ASTVisitor):
         result = self.visitNode(node)
         return result, self.errorAccumulator.printErrors()
     
-    def makeSemanticError(self, sourcePosition: SourcePosition, errorMessage: str, innerNode: ASTNode = None) -> ASTTypedErrorNode:
-        errorNode = ASTTypedErrorNode(sourcePosition, AbsurdType, errorMessage, innerNode)
+    def makeSemanticError(self, sourcePosition: SourcePosition, errorMessage: str, innerNode: ASTNode = None, innerNode2: ASTNode = None) -> ASTTypedErrorNode:
+        innerNodes = []
+        if innerNode is not None:
+            innerNodes.append(innerNode)
+        if innerNode2 is not None:
+            innerNodes.append(innerNode2)
+        errorNode = ASTTypedErrorNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, AbsurdType), errorMessage, innerNodes)
         self.errorAccumulator.add(errorNode)
         return errorNode
 

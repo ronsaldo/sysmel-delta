@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import json
 
 class TypedValue(ABC):
     @abstractmethod
@@ -26,6 +27,9 @@ class TypedValue(ABC):
     
     def isForAll(self) -> bool:
         return False
+
+    def isEquivalentTo(self, other) -> bool:
+        return self == other
 
 class TypeUniverse(TypedValue):
     InstancedUniverses = dict()
@@ -83,6 +87,9 @@ class UnitTypeValue(TypedValue):
         self.type = type
         self.name = name
 
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        return self.type.isEquivalentTo(other.getType())
+    
     def getType(self) -> TypedValue:
         return self.type
 
@@ -127,9 +134,11 @@ class IntegerValue(TypedValue):
     def getType(self) -> TypedValue:
         return IntegerType
 
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        return isinstance(other, self.__class__) and self.value == other.value
+
     def toJson(self):
         return self.value
-    
 
 class FloatValue(TypedValue):
     def __init__(self, value: float) -> None:
@@ -138,6 +147,9 @@ class FloatValue(TypedValue):
 
     def getType(self):
         return FloatType
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        return isinstance(other, self.__class__) and self.value == other.value
 
     def toJson(self):
         return self.value
@@ -150,6 +162,9 @@ class CharacterValue(TypedValue):
     def getType(self):
         return CharacterType
 
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        return isinstance(other, self.__class__) and self.value == other.value
+
     def toJson(self):
         return self.value
 
@@ -160,6 +175,9 @@ class StringValue(TypedValue):
 
     def getType(self):
         return StringType
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        return isinstance(other, self.__class__) and self.value == other.value
 
     def toJson(self):
         return self.value
@@ -172,6 +190,15 @@ class ProductTypeValue(TypedValue):
 
     def getType(self):
         return self.type
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not self.type.isEquivalentTo(other.getType()): return False
+        if len(self.elements) != len(other.elements): return False
+        for i in range(len(self.elements)):
+            if not self.elements[i].isEquivalentTo(other.elements[i]):
+                return False
+
+        return True
 
     def toJson(self):
         return {'product': list(map(lambda v: v.toJson(), self.elements))}
@@ -187,6 +214,16 @@ class ProductType(BaseType):
 
     def getType(self):
         return TypeType
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not isinstance(other, ProductType): return False
+
+        if len(self.elementTypes) != len(other.elementTypes): return False
+        for i in range(len(self.elementTypes)):
+            if not self.elementTypes[i].isEquivalentTo(other.elementTypes[i]):
+                return False
+
+        return True
 
     def toJson(self):
         return {'productType': list(map(lambda v: v.toJson(), self.elementTypes))}
@@ -332,6 +369,12 @@ class ASTNode:
     def __init__(self, sourcePosition: SourcePosition) -> None:
         self.sourcePosition = sourcePosition
 
+    def prettyPrint(self) -> str:
+        return json.dumps(self.toJson())
+
+    def isEquivalentTo(self, other) -> bool:
+        return self == other
+
     def isLiteralTypeNode(self) -> bool:
         return False
 
@@ -355,9 +398,22 @@ class ASTLiteralTypeNode(ASTNode):
         super().__init__(sourcePosition)
         self.value = value
 
+    def prettyPrint(self) -> str:
+        return str(self.value)
+
     def computeTypeUniverseIndex(self) -> int:
         return self.value.getTypeUniverseIndex()
 
+    def isEquivalentTo(self, other: ASTNode) -> bool:
+        if self == other:
+            return True
+        elif other.isLiteralTypeNode():
+            return self.value.isEquivalentTo(other.value)
+        elif other.isTypedLiteralNode():
+            return self.value.isEquivalentTo(other.value)
+        else:
+            return False
+    
     def isLiteralTypeNode(self) -> bool:
         return True
 
@@ -383,12 +439,25 @@ class ASTTypedLiteralNode(ASTTypedNode):
         super().__init__(sourcePosition, type)
         self.value = value
 
+    def prettyPrint(self) -> str:
+        return str(self.value)
+
     def isTypedLiteralNode(self) -> bool:
         return True
 
     def isForAllLiteralValue(self) -> bool:
         return self.value.isForAll()
 
+    def isEquivalentTo(self, other: ASTNode) -> bool:
+        if self == other:
+            return True
+        elif other.isLiteralTypeNode():
+            return self.value.isEquivalentTo(other.value)
+        elif other.isTypedLiteralNode():
+            return self.value.isEquivalentTo(other.value)
+        else:
+            return False
+        
     def accept(self, visitor):
         return visitor.visitTypedLiteralNode(self)
 

@@ -298,10 +298,10 @@ class ASTTypedApplicationNode(ASTTypedNode):
         return {'kind': 'TypedApplication', 'type': self.type.toJson(), 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
     
 class ASTTypedErrorNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, message: str, innerNode: ASTNode = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, message: str, innerNodes: list[ASTNode]) -> None:
         super().__init__(sourcePosition, type)
         self.message = message
-        self.innerNode = innerNode
+        self.innerNodes = innerNodes
 
     def isTypedErrorNode(self) -> bool:
         return True
@@ -310,7 +310,7 @@ class ASTTypedErrorNode(ASTTypedNode):
         return visitor.visitTypedErrorNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedError', 'type': self.type.toJson(), 'message': self.message, 'innerNode': optionalASTNodeToJson(self.innerNode)}
+        return {'kind': 'TypedError', 'type': self.type.toJson(), 'message': self.message, 'innerNodes': list(map(optionalASTNodeToJson, self.innerNodes))}
 
 class ASTTypedIdentifierReferenceNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolBinding) -> None:
