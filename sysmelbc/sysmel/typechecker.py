@@ -163,18 +163,12 @@ class Typechecker(ASTVisitor):
 
     def visitFunctionNode(self, node: ASTFunctionNode):
         if len(node.functionalType.arguments) == 0:
-            return self.visitNode(ASTLambdaNode(node.sourcePosition, None, None, node.functionalType.resultType, node.body))
+            return self.visitNode(ASTLambdaNode(node.sourcePosition, False, None, None, node.functionalType.resultType, node.body))
 
         resultType = node.functionalType.resultType
         body = node.body
         for argument in reversed(node.functionalType.arguments):
-            if argument.isForAll:
-                if resultType is not None:
-                    body = ASTLambdaNode(argument.sourcePosition, None, None, resultType, body)
-                    resultType = None
-                body = ASTForAllNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, body)
-            else:
-                body = ASTLambdaNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType, body)
+            body = ASTLambdaNode(argument.sourcePosition, argument.isForAll, argument.typeExpression, argument.nameExpression, resultType, body)
             resultType = None
         return self.visitNode(body)
 

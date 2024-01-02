@@ -1,7 +1,7 @@
 ##(:*(Type)T :: T).
-((:(Nat)n) :=> n) (42).
+##((:(Nat)n) :=> n) (42).
 
-##((:(Type)T :(T)x :: T) :=> x) (Nat. 42).
+((:*(Type)T :(T)x :: T) :=> x).## (Nat. 42).
 
 #*
 ## returnInt :: () => Int32.

@@ -207,8 +207,9 @@ class ASTFunctionNode(ASTNode):
         return {'kind': 'Function', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
     
 class ASTLambdaNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, argumentType: ASTNode, argumentName: ASTNode, resultType: ASTNode, body: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, isImplicitForAllArgument: bool, argumentType: ASTNode, argumentName: ASTNode, resultType: ASTNode, body: ASTNode) -> None:
         super().__init__(sourcePosition)
+        self.isImplicitForAllArgument = isImplicitForAllArgument
         self.argumentType = argumentType
         self.argumentName = argumentName
         self.resultType = resultType
