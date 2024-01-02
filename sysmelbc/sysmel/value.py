@@ -60,7 +60,7 @@ class TypeUniverse(TypedValue):
         return True
 
     def getTypeUniverseIndex(self) -> int:
-        return self.index + 1
+        return self.index
 
 TypeType = TypeUniverse.getWithIndex(0)
 
@@ -505,6 +505,17 @@ class SymbolBinding(ABC):
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         pass
 
+    def getCanonicalBinding(self):
+        return self
+
+    def isCanonicalEquivalentTo(self, other) -> bool:
+        return self == other
+
+    def isEquivalentTo(self, other) -> bool:
+        if self == other: return True
+        if not isinstance(other, SymbolBinding): return False
+        return self.getCanonicalBinding().isCanonicalEquivalentTo(other.getCanonicalBinding())
+
     def isValueBinding(self) -> bool:
         return False
 
@@ -518,6 +529,11 @@ class ASTTypedIdentifierReferenceNode(ASTTypedNode):
         super().__init__(sourcePosition, type)
         self.binding = binding
 
+    def isEquivalentTo(self, other) -> bool:
+        if self == other: return True
+        if not isinstance(other, self.__class__): return False
+        return self.binding.isEquivalentTo(other.binding)
+
     def isTypedIdentifierReferenceNode(self) -> bool:
         return True
 
@@ -526,6 +542,7 @@ class ASTTypedIdentifierReferenceNode(ASTTypedNode):
 
     def toJson(self) -> dict:
         return {'kind': 'TypedIdentifierReference', 'type': self.type.toJson(), 'binding': self.binding.toJson()}
+
 class SymbolValueBinding(SymbolBinding):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, value: TypedValue) -> None:
         super().__init__(sourcePosition, name)
@@ -572,6 +589,7 @@ class SymbolCaptureBinding(SymbolBinding):
         super().__init__(capturedBinding.sourcePosition, capturedBinding.name)
         self.capturedBinding = capturedBinding
         self.captureNestingLevel = capturedBinding.getCaptureNestingLevel() + 1
+        self.canonicalBinding = capturedBinding.getCanonicalBinding()
 
     def evaluateInActivationContext(self, activationContext) -> TypedValue:
         return activationContext.getCaptureValueFor(self)
@@ -579,11 +597,17 @@ class SymbolCaptureBinding(SymbolBinding):
     def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
         return substitutionContext.getCaptureSubstitutionFor(self, sourcePosition)
 
+    def getCanonicalBinding(self):
+        return self.canonicalBinding
+
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.capturedBinding.getTypeExpression()
     
     def getCaptureNestingLevel(self) -> int:
         return self.captureNestingLevel
+    
+    def toJson(self):
+        return {'captureBinding': str(self.name)}
 
 class AbstractEnvironment(ABC):
     @abstractmethod
@@ -681,14 +705,14 @@ class FunctionalValue(TypedValue):
 
 class LambdaValue(FunctionalValue):
     def toJson(self):
-        return {'lambda': self.argumentBinding.toJson(), 'body': self.body.toJson()}
+        return {'lambda': self.argumentBinding.toJson(), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class ForAllValue(FunctionalValue):
     def getType(self):
         return self.type
 
     def toJson(self):
-        return {'forAll': self.argumentBinding.toJson(), 'body': self.body.toJson()}
+        return {'forAll': self.argumentBinding.toJson(), 'body': self.body.toJson(), 'type': self.type.toJson()}
     
     def isForAll(self) -> bool:
         return True

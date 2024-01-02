@@ -59,21 +59,13 @@ class Typechecker(ASTVisitor):
 
         return None, self.makeSemanticError(node.sourcePosition, "Expected a value reducible expression.", node)
     
-    def mergeTypeUniversesOfTypeNodes(self, leftNode: ASTTypedNode, rightNode: ASTTypedNode, sourcePosition: SourcePosition) -> ASTLiteralTypeNode:
-        leftUniverseIndex = leftNode.computeTypeUniverseIndex()
-        rightUniverseIndex = rightNode.computeTypeUniverseIndex()
-        mergedUniverse = max(leftUniverseIndex, rightUniverseIndex)
-        assert mergedUniverse >= 1
-        return ASTLiteralTypeNode(sourcePosition, TypeUniverse.getWithIndex(mergedUniverse - 1))
-
     def visitTypeExpression(self, node: ASTNode) -> ASTTypedNode:
         analyzedNode = self.visitNode(node)
         if analyzedNode.isLiteralTypeNode():
             return analyzedNode
         
-        if analyzedNode.type.isLiteralTypeNode() or analyzedNode.type.isTypedLiteralNode():
-            if analyzedNode.type.value.isTypeUniverse():
-                return analyzedNode
+        if isLiteralTypeOfTypeNode(analyzedNode.type):
+            return reduceType(analyzedNode)
 
         if analyzedNode.isTypedErrorNode():
             return ASTLiteralTypeNode(node.sourcePosition, AbsurdType)
@@ -113,7 +105,7 @@ class Typechecker(ASTVisitor):
             typedForAllNode: ASTTypedForAllNode = forAllNode
             argumentBinding = typedForAllNode.argumentBinding
             captureBindings = typedForAllNode.captureBindings
-            forAllBody = forAllValue.body
+            forAllBody = typedForAllNode.body
         else:
             assert forAllNode.isForAllLiteralValue()
             forAllValue: ForAllValue = forAllNode.value
@@ -166,8 +158,7 @@ class Typechecker(ASTVisitor):
         argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType)
         lambdaEnvironment.setArgumentBinding(argumentBinding)
         body = self.withEnvironment(lambdaEnvironment).visitTypeExpression(node.body)
-        forAllUniverse = self.mergeTypeUniversesOfTypeNodes(argumentType, body, node.sourcePosition)
-        typedForAll = ASTTypedForAllNode(node.sourcePosition, forAllUniverse, lambdaEnvironment.captureBindings, argumentBinding, body)
+        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), lambdaEnvironment.captureBindings, argumentBinding, body)
         return reduceForAllNode(typedForAll)
 
     def visitFunctionNode(self, node: ASTFunctionNode):
@@ -218,9 +209,8 @@ class Typechecker(ASTVisitor):
         body = self.withEnvironment(lambdaEnvironment).visitNodeWithExpectedTypeExpression(node.body, node.resultType)
 
         ## Compute the lambda type.
-        bodyType = body.type
-        forAllUniverse = self.mergeTypeUniversesOfTypeNodes(argumentType, bodyType, node.sourcePosition)
-        typedForAll = ASTTypedForAllNode(node.sourcePosition, forAllUniverse, lambdaEnvironment.captureBindings, argumentBinding, bodyType)
+        bodyType = getTypeOfTypedNodeOrLiteralType(body, node.sourcePosition)
+        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType, bodyType, node.sourcePosition), lambdaEnvironment.captureBindings, argumentBinding, bodyType)
         reducedForAll = reduceForAllNode(typedForAll)
 
         ## Make the lambda node.
@@ -316,7 +306,7 @@ class ASTBetaSubstituter(ASTTypecheckedVisitor):
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.functional), self.visitNode(node.argument)))
 
     def visitTypedErrorNode(self, node: ASTTypedErrorNode):
-        assert False
+        return node
 
     def visitTypedForAllNode(self, node: ASTTypedForAllNode):
         assert False
@@ -336,7 +326,21 @@ class ASTBetaSubstituter(ASTTypecheckedVisitor):
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         assert False
     
+def getTypeOfTypedNodeOrLiteralType(node: ASTTypedNode | ASTLiteralTypeNode, sourcePosition: SourcePosition) -> ASTTypedNode | ASTLiteralTypeNode:
+    if node.isLiteralTypeNode():
+        return ASTLiteralTypeNode(sourcePosition, node.value.getType())
+    return node.type
+
 def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
+    return node
+
+def isLiteralTypeOfTypeNode(node: ASTNode):
+    return (node.isLiteralTypeNode() or node.isTypedLiteralNode()) and node.value.isTypeUniverse()
+
+def reduceType(node: ASTNode):
+    if node.isTypedLiteralNode() and isLiteralTypeOfTypeNode(node.type):
+        return ASTLiteralTypeNode(node.sourcePosition, node.value)
+
     return node
 
 def reduceForAllNode(node: ASTTypedForAllNode):
@@ -350,6 +354,12 @@ def reduceLambdaNode(node: ASTTypedLambdaNode):
         lambdaValue = LambdaValue(node.type.value, [], [], node.argumentBinding, node.body)
         return ASTTypedLiteralNode(node.sourcePosition, node.type, lambdaValue)
     return node
+
+def mergeTypeUniversesOfTypeNodes(leftNode: ASTTypedNode, rightNode: ASTTypedNode, sourcePosition: SourcePosition) -> ASTLiteralTypeNode:
+    leftUniverseIndex = leftNode.computeTypeUniverseIndex()
+    rightUniverseIndex = rightNode.computeTypeUniverseIndex()
+    mergedUniverse = max(leftUniverseIndex, rightUniverseIndex)
+    return ASTLiteralTypeNode(sourcePosition, TypeUniverse.getWithIndex(mergedUniverse))
 
 def captureBindingToIdentifierReferenceNode(captureBinding: SymbolCaptureBinding) -> ASTTypedIdentifierReferenceNode:
     return ASTTypedIdentifierReferenceNode(captureBinding.sourcePosition, captureBinding.getTypeExpression(), captureBinding.capturedBinding)
