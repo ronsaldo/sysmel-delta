@@ -32,8 +32,9 @@ class Typechecker(ASTVisitor):
             return self.visitNode(node)
 
         typedNode = self.visitNode(node)
+        typedNodeType = getTypeOfTypedNodeOrLiteralType(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
-        if typedNode.type != expectedTypeNode and not typedNode.type.isEquivalentTo(expectedTypeNode):
+        if typedNodeType != expectedTypeNode and not typedNodeType.isEquivalentTo(expectedTypeNode):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
 
@@ -101,22 +102,17 @@ class Typechecker(ASTVisitor):
         return functional
     
     def betaReduceForAllWithArgument(self, forAllNode: ASTNode, argument: ASTNode):
-        if forAllNode.isTypedForAllNode():
-            typedForAllNode: ASTTypedForAllNode = forAllNode
-            argumentBinding = typedForAllNode.argumentBinding
-            captureBindings = typedForAllNode.captureBindings
-            forAllBody = typedForAllNode.body
-        else:
-            assert forAllNode.isForAllLiteralValue()
-            forAllValue: ForAllValue = forAllNode.value
-            argumentBinding = forAllValue.argumentBinding
-            captureBindings = []
-            forAllBody = forAllValue.body
+        assert forAllNode.isTypedForAllNode()
+        typedFunctionalNode: ASTTypedFunctionalNode = forAllNode
+        argumentBinding = typedFunctionalNode.argumentBinding
+        forAllBody = typedFunctionalNode.body
+
+        substitutionContext = SubstitutionContext()
 
         typedArgument = self.visitNodeWithExpectedTypeExpression(argument, argumentBinding.getTypeExpression())
+        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, typedArgument)
 
-        substitutionContext = SubstitutionContext(captureBindings, list(map(captureBindingToIdentifierReferenceNode, captureBindings)), argumentBinding, typedArgument)
-        reduced = ASTBetaSubstituter(substitutionContext).visitNode(forAllBody)
+        reduced = ASTBetaReducer(substitutionContext).visitNode(forAllBody)
         return typedArgument, reduced
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
@@ -149,17 +145,18 @@ class Typechecker(ASTVisitor):
         return errorNode
 
     def visitForAllNode(self, node: ASTForAllNode):
-        lambdaEnvironment = LambdaEnvironment(self.lexicalEnvironment, node.sourcePosition)
         argumentName = self.evaluateOptionalSymbol(node.argumentName)
         argumentType = self.visitOptionalTypeExpression(node.argumentType)
         if argumentName is None and argumentType is None:
             argumentType = ASTLiteralTypeNode(UnitType)
 
         argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType)
-        lambdaEnvironment.setArgumentBinding(argumentBinding)
+        lambdaEnvironment = LexicalEnvironment(self.lexicalEnvironment, node.sourcePosition)
+        if argumentName is not None:
+            lambdaEnvironment.setSymbolBinding(argumentName, argumentBinding)
         body = self.withEnvironment(lambdaEnvironment).visitTypeExpression(node.body)
-        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), lambdaEnvironment.captureBindings, argumentBinding, body)
-        return reduceForAllNode(typedForAll)
+        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), argumentBinding, body)
+        return typedForAll
 
     def visitFunctionNode(self, node: ASTFunctionNode):
         if len(node.functionalType.arguments) == 0:
@@ -187,29 +184,30 @@ class Typechecker(ASTVisitor):
             return self.makeSemanticError(node.sourcePosition, "Failed to find binding for symbol %s." % repr(node.value))
         
         if binding.isValueBinding():
+            if binding.value.isType():
+                return ASTLiteralTypeNode(node.sourcePosition, binding.value)
             return ASTTypedLiteralNode(node.sourcePosition, binding.getTypeExpression(), binding.value)
         return ASTTypedIdentifierReferenceNode(node.sourcePosition, binding.getTypeExpression(), binding)
 
     def visitLambdaNode(self, node: ASTLambdaNode):
-        lambdaEnvironment = LambdaEnvironment(self.lexicalEnvironment, node.sourcePosition)
         argumentName = self.evaluateOptionalSymbol(node.argumentName)
         argumentType = self.visitOptionalTypeExpression(node.argumentType)
         if argumentName is None and argumentType is None:
             argumentType = ASTLiteralTypeNode(UnitType)
 
         argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType)
-        lambdaEnvironment.setArgumentBinding(argumentBinding)
+        lambdaEnvironment = LexicalEnvironment(self.lexicalEnvironment, node.sourcePosition)
+        if argumentName is not None:
+            lambdaEnvironment.setSymbolBinding(argumentName, argumentBinding)
 
         body = self.withEnvironment(lambdaEnvironment).visitNodeWithExpectedTypeExpression(node.body, node.resultType)
 
         ## Compute the lambda type.
         bodyType = getTypeOfTypedNodeOrLiteralType(body, node.sourcePosition)
-        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType, bodyType, node.sourcePosition), lambdaEnvironment.captureBindings, argumentBinding, bodyType)
-        reducedForAll = reduceForAllNode(typedForAll)
+        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType, bodyType, node.sourcePosition), argumentBinding, bodyType)
 
         ## Make the lambda node.
-        lambdaNode = ASTTypedLambdaNode(node.sourcePosition, reducedForAll, lambdaEnvironment.captureBindings, argumentBinding, body)
-        return reduceLambdaNode(lambdaNode)
+        return ASTTypedLambdaNode(node.sourcePosition, typedForAll, argumentBinding, body)
 
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
         innerEnvironment = LexicalEnvironment(self.lexicalEnvironment)
@@ -285,7 +283,36 @@ class Typechecker(ASTVisitor):
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         return node
 
-class ASTBetaSubstituter(ASTTypecheckedVisitor):
+class SubstitutionContext:
+    def __init__(self, parent = None) -> None:
+        self.parent = parent
+        self.bindingSubstitutionNodes = dict()
+        self.bindingSubstitutionBindings = dict()
+
+    def lookSubstitutionForBindingInNode(self, binding: SymbolBinding, oldNode: ASTTypedNode) -> ASTTypedNode | ASTLiteralTypeNode:
+        if binding in self.bindingSubstitutionNodes:
+            return self.applySourcePositionToSubstitution(self.bindingSubstitutionNodes[binding], oldNode.sourcePosition)
+        if binding in self.bindingSubstitutionBindings:
+            assert oldNode.isTypedIdentifierReferenceNode()
+            newBinding = self.bindingSubstitutionBindings[binding]
+            return ASTTypedIdentifierReferenceNode(oldNode.sourcePosition, newBinding.getTypeExpression(), newBinding)
+
+        if self.parent is not None:
+            return self.parent.lookSubstitutionForBindingInNode(binding, oldNode)
+        return oldNode
+
+    def setSubstitutionNodeForBinding(self, binding: SymbolBinding, substitution: ASTTypedNode | ASTLiteralTypeNode) -> None:
+        self.bindingSubstitutionNodes[binding] = substitution
+
+    def setSubstitutionBindingForBinding(self, binding: SymbolBinding, newBinding: SymbolBinding) -> None:
+        self.bindingSubstitutionBindings[binding] = newBinding
+
+    def applySourcePositionToSubstitution(self, substitution: ASTNode, sourcePosition: SourcePosition) -> ASTNode:
+        if substitution.isTypedIdentifierReferenceNode():
+            return ASTTypedIdentifierReferenceNode(sourcePosition, substitution.type, substitution.binding)
+        return substitution
+
+class ASTBetaReducer(ASTTypecheckedVisitor):
     def __init__(self, substitutionContext: SubstitutionContext) -> None:
         super().__init__()
         self.substitutionContext = substitutionContext
@@ -303,29 +330,80 @@ class ASTBetaSubstituter(ASTTypecheckedVisitor):
         return node
 
     def visitTypedForAllNode(self, node: ASTTypedForAllNode):
-        assert False
+        argumentBinding = node.argumentBinding
+        newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
+        newType = self.visitNode(node.type)
+        
+        bodyContext = SubstitutionContext(self.substitutionContext)
+        bodyContext.setSubstitutionBindingForBinding(argumentBinding, newArgumentBinding)
+
+        reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
+        return ASTTypedForAllNode(node.sourcePosition, newType, newArgumentBinding, reducedBody)
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
-        return node.binding.evaluateSubstitutionInContext(self.substitutionContext, node.sourcePosition)
+        return node.binding.evaluateSubstitutionInContextFor(self.substitutionContext, node)
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
-        assert False
+        argumentBinding = node.argumentBinding
+        newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
+        newType = self.visitNode(node.type)
+        
+        bodyContext = SubstitutionContext(self.substitutionContext)
+        bodyContext.setSubstitutionBindingForBinding(argumentBinding, newArgumentBinding)
+
+        reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
+        return ASTTypedLambdaNode(node.sourcePosition, newType, newArgumentBinding, reducedBody)
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
-        assert False
+        reducedType = self.visitNode(node.type)
+        reducedElements = []
+        for element in node.elements:
+            reducedElements.append(self.visitNode(element))
+        return ASTTypedSequenceNode(node.sourcePosition, reducedType, reducedElements)
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
-        assert False
+        reducedType = self.visitNode(node.type)
+        reducedElements = []
+        for element in node.elements:
+            reducedElements.append(self.visitNode(element))
+        return ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements)
     
 def getTypeOfTypedNodeOrLiteralType(node: ASTTypedNode | ASTLiteralTypeNode, sourcePosition: SourcePosition) -> ASTTypedNode | ASTLiteralTypeNode:
     if node.isLiteralTypeNode():
         return ASTLiteralTypeNode(sourcePosition, node.value.getType())
     return node.type
 
+def betaReduceFunctionalNodeWithArgument(functionalNode: ASTTypedNode | ASTLiteralTypeNode, argument: ASTTypedNode | ASTLiteralTypeNode):
+    assert functionalNode.isTypedFunctionalNode()
+    typedFunctionalNode: ASTTypedFunctionalNode = functionalNode
+    argumentBinding = typedFunctionalNode.argumentBinding
+    forAllBody = typedFunctionalNode.body
+
+    substitutionContext = SubstitutionContext()
+    substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
+
+    return ASTBetaReducer(substitutionContext).visitNode(forAllBody)
+    
+def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition) -> ASTTypedLiteralNode | ASTLiteralTypeNode:
+    if value.isType():
+        return ASTLiteralTypeNode(sourcePosition, value)
+    return ASTTypedLiteralNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, value.getType()), value)
+
 def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
+    hasLiteralArgument = node.argument.isLiteralTypeNode() or node.argument.isTypedLiteralNode()
+    if not hasLiteralArgument:
+        return node
+
+    hasLiteralFunctionalNode = node.isLiteralTypeNode() or node.isTypedLiteralNode()
+    if node.functional.isTypedLambdaNode() or node.functional.isTypedForAllNode():
+        return betaReduceFunctionalNodeWithArgument(node.functional, node.argument)
+    
+    if hasLiteralFunctionalNode and node.value.isPurelyFunctional():
+        return makeTypedLiteralForValueAt(TypedValue = node.functional.value(node.argument.value))
+
     return node
 
 def isLiteralTypeOfTypeNode(node: ASTNode):
@@ -354,7 +432,3 @@ def mergeTypeUniversesOfTypeNodes(leftNode: ASTTypedNode, rightNode: ASTTypedNod
     rightUniverseIndex = rightNode.computeTypeUniverseIndex()
     mergedUniverse = max(leftUniverseIndex, rightUniverseIndex)
     return ASTLiteralTypeNode(sourcePosition, TypeUniverse.getWithIndex(mergedUniverse))
-
-def captureBindingToIdentifierReferenceNode(captureBinding: SymbolCaptureBinding) -> ASTTypedIdentifierReferenceNode:
-    return ASTTypedIdentifierReferenceNode(captureBinding.sourcePosition, captureBinding.getTypeExpression(), captureBinding.capturedBinding)
-

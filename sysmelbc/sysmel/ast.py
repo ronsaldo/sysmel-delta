@@ -317,13 +317,16 @@ class ASTTypedErrorNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedError', 'type': self.type.toJson(), 'message': self.message, 'innerNodes': list(map(optionalASTNodeToJson, self.innerNodes))}
 
-class ASTTypedForAllNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, captureBindings: list[SymbolCaptureBinding], argumentBinding: SymbolArgumentBinding, body: ASTTypedNode) -> None:
+class ASTTypedFunctionalNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, argumentBinding: SymbolArgumentBinding, body: ASTTypedNode) -> None:
         super().__init__(sourcePosition, type)
-        self.captureBindings = captureBindings
         self.argumentBinding = argumentBinding
         self.body = body
 
+    def isTypedFunctionalNode(self) -> bool:
+        return True
+
+class ASTTypedForAllNode(ASTTypedFunctionalNode):
     def isTypedForAllNode(self) -> bool:
         return True
 
@@ -331,20 +334,17 @@ class ASTTypedForAllNode(ASTTypedNode):
         return visitor.visitTypedForAllNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedForAll', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'captureBindings': list(map(optionalASTNodeToJson, self.captureBindings)), 'body': self.body.toJson()}
+        return {'kind': 'TypedForAll', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
-class ASTTypedLambdaNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, captureBindings: list[SymbolCaptureBinding], argumentBinding: SymbolArgumentBinding, body: ASTTypedNode) -> None:
-        super().__init__(sourcePosition, type)
-        self.captureBindings = captureBindings
-        self.argumentBinding = argumentBinding
-        self.body = body
+class ASTTypedLambdaNode(ASTTypedFunctionalNode):
+    def isTypedLambdaNode(self) -> bool:
+        return True
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedLambdaNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'captureBindings': list(map(optionalASTNodeToJson, self.captureBindings)), 'body': self.body.toJson()}
+        return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
 class ASTTypedSequenceNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTTypedNode]) -> None:

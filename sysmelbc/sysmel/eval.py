@@ -3,9 +3,9 @@ from .ast import *
 from .value import *
 
 class ASTEvaluator(ASTTypecheckedVisitor):
-    def __init__(self, activationContext: FunctionalActivationContext) -> None:
+    def __init__(self, activationEnvironment: FunctionalActivationEnvironment) -> None:
         super().__init__()
-        self.activationContext = activationContext
+        self.activationEnvironment = activationEnvironment
 
     def visitNode(self, node: ASTNode) -> TypedValue:
         return node.accept(self)
@@ -13,8 +13,8 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def evaluate(self, ast: ASTNode) -> TypedValue:
         return self.visitNode(ast)
 
-    def evaluateBinding(self, binding: SymbolBinding) -> TypedValue:
-        return binding.evaluateInActivationContext(self.activationContext)
+    def evaluateBindingAt(self, binding: SymbolBinding, sourcePosition: SourcePosition) -> TypedValue:
+        return binding.evaluateInActivationEnvironmentAt(self.activationEnvironment, sourcePosition)
 
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> TypedValue:
         return node.value
@@ -29,14 +29,14 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
     def visitTypedForAllNode(self, node: ASTTypedForAllNode) -> TypedValue:
         type = self.visitNode(node.type)
-        return ForAllValue(type, node.captureBindings, list(map(self.evaluateBinding, node.captureBindings)), node.argumentBinding, node.body)
+        return ForAllValue(type, self.activationEnvironment, node.argumentBinding, node.body)
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
-        return self.evaluateBinding(node.binding)
+        return self.evaluateBindingAt(node.binding, node.sourcePosition)
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.visitNode(node.type)
-        return LambdaValue(type, node.captureBindings, list(map(self.evaluateBinding, node.captureBindings)), node.argumentBinding, node.body)
+        return LambdaValue(type, self.activationEnvironment, node.argumentBinding, node.body)
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return node.value
@@ -56,8 +56,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         return productType.makeWithElements(tuple(elements))
 
 def evaluateFunctionalValueWithParameter(functionalValue: FunctionalValue, argumentValue: TypedValue):
-    activationContext = FunctionalActivationContext(functionalValue, argumentValue)
-    return ASTEvaluator(activationContext).evaluate(functionalValue.body)
+    activationEnvironment = FunctionalActivationEnvironment(functionalValue.environment)
+    activationEnvironment.setBindingValue(functionalValue.argumentBinding, argumentValue)
+    return ASTEvaluator(activationEnvironment).evaluate(functionalValue.body)
 
 LambdaValue.__call__ = evaluateFunctionalValueWithParameter
 ForAllValue.__call__ = evaluateFunctionalValueWithParameter

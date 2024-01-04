@@ -31,6 +31,12 @@ class TypedValue(ABC):
     def isEquivalentTo(self, other) -> bool:
         return self == other
 
+    def isFunctionalValue(self) -> bool:
+        return False
+
+    def isPurelyFunction(self) -> bool:
+        return False
+
 class TypeUniverse(TypedValue):
     InstancedUniverses = dict()
     def __init__(self, index: int) -> None:
@@ -410,11 +416,17 @@ class ASTNode:
     def isForAllLiteralValue(self) -> bool:
         return False
 
+    def isTypedFunctionalNode(self) -> bool:
+        return False
+
     def isTypedForAllNode(self) -> bool:
         return False
 
     def isTypedForAllNodeOrLiteralValue(self) -> bool:
         return self.isForAllLiteralValue() or self.isTypedForAllNode()
+
+    def isTypedLambdaNode(self) -> bool:
+        return False
 
 class ASTLiteralTypeNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, value: TypedValue) -> None:
@@ -493,13 +505,11 @@ class SymbolBinding(ABC):
         self.sourcePosition = sourcePosition
         self.name = name
 
-    @abstractmethod
-    def evaluateInActivationContext(self, activationContext) -> TypedValue:
-        pass
+    def evaluateInActivationEnvironmentAt(self, activationEnvironment, sourcePosition: SourcePosition) -> TypedValue:
+        return activationEnvironment.lookBindingValueAt(self, sourcePosition)
 
-    @abstractmethod
-    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
-        pass
+    def evaluateSubstitutionInContextFor(self, substitutionContext, oldNode: ASTTypedNode) -> ASTTypedNode:
+        return substitutionContext.lookSubstitutionForBindingInNode(self, oldNode)
 
     @abstractmethod
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
@@ -549,10 +559,12 @@ class SymbolValueBinding(SymbolBinding):
         self.value = value
         self.typeExpression = ASTLiteralTypeNode(sourcePosition, self.value.getType())
 
-    def evaluateInActivationContext(self, activationContext) -> TypedValue:
+    def evaluateInActivationEnvironmentAt(self, activationEnvironment, sourcePosition: SourcePosition) -> TypedValue:
         return self.value
 
-    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
+    def evaluateSubstitutionInContextAt(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode | ASTLiteralTypeNode:
+        if self.value.isType():
+            return ASTLiteralTypeNode(sourcePosition, self.value)
         return ASTTypedLiteralNode(sourcePosition, self.getTypeExpression(), self.value)
 
     def getTypeExpression(self) -> TypedValue:
@@ -569,12 +581,6 @@ class SymbolArgumentBinding(SymbolBinding):
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
 
-    def evaluateInActivationContext(self, activationContext) -> TypedValue:
-        return activationContext.getArgumentValueFor(self)
-
-    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
-        return substitutionContext.getArgumentSubstitutionFor(self, sourcePosition)
-
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.typeExpression
 
@@ -583,31 +589,6 @@ class SymbolArgumentBinding(SymbolBinding):
 
     def toJson(self):
         return {'name': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
-
-class SymbolCaptureBinding(SymbolBinding):
-    def __init__(self, capturedBinding: SymbolBinding) -> None:
-        super().__init__(capturedBinding.sourcePosition, capturedBinding.name)
-        self.capturedBinding = capturedBinding
-        self.captureNestingLevel = capturedBinding.getCaptureNestingLevel() + 1
-        self.canonicalBinding = capturedBinding.getCanonicalBinding()
-
-    def evaluateInActivationContext(self, activationContext) -> TypedValue:
-        return activationContext.getCaptureValueFor(self)
-
-    def evaluateSubstitutionInContext(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode:
-        return substitutionContext.getCaptureSubstitutionFor(self, sourcePosition)
-
-    def getCanonicalBinding(self):
-        return self.canonicalBinding
-
-    def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
-        return self.capturedBinding.getTypeExpression()
-    
-    def getCaptureNestingLevel(self) -> int:
-        return self.captureNestingLevel
-    
-    def toJson(self):
-        return {'captureBinding': str(self.name)}
 
 class AbstractEnvironment(ABC):
     @abstractmethod
@@ -657,96 +638,52 @@ class LexicalEnvironment(AbstractEnvironment):
         assert unitTypeValue.name is not None
         self.setSymbolValueBinding(Symbol.intern(unitTypeValue.name), unitTypeValue)
 
-class LambdaEnvironment(LexicalEnvironment):
-    def __init__(self, parent: AbstractEnvironment, sourcePosition: SourcePosition = None) -> None:
-        super().__init__(parent, sourcePosition)
-        self.argumentBinding = None
-        self.captureBindings = []
-        self.captureCache = dict()
+class FunctionalActivationEnvironment:
+    def __init__(self, parent = None):
+        self.parent = parent
+        self.bindingValues = dict()
 
-    def setArgumentBinding(self, binding: SymbolArgumentBinding):
-        if binding.name is not None:
-            self.setSymbolBinding(binding.name, binding)
-        self.argumentBinding = binding
+    def setBindingValue(self, binding: SymbolBinding, value: TypedValue):
+        self.bindingValues[binding] = value
 
-    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding | None:
-        binding = self.lookSymbol(symbol)
-        if binding is not None:
-            return binding
+    def lookBindingValueAt(self, binding: SymbolBinding, sourcePosition: SourcePosition) -> TypedValue:
+        if binding in self.bindingValues:
+            return self.bindingValues[binding]
         
-        if symbol in self.captureCache:
-            return self.captureCache[symbol]
-        
-        parentSymbol = self.parent.lookSymbolRecursively(symbol)
-        if parentSymbol is None:
-            return parentSymbol
-        
-        if parentSymbol.isValueBinding():
-            return parentSymbol
-        
-        captureBinding = SymbolCaptureBinding(parentSymbol)
-        self.captureBindings.append(captureBinding)
-        return captureBinding
-
+        if self.parent is None:
+            raise Exception('%s: Binding for %s does not have an active value.' % (str(sourcePosition), repr(binding.name)))
+        return self.parent.lookBindingValueAt(binding, sourcePosition)
+    
 class FunctionalValue(TypedValue):
-    def __init__(self, type: TypedValue, captureBindings: list[SymbolCaptureBinding], captureValues: list[TypedValue], argumentBinding: SymbolArgumentBinding, body) -> None:
+    def __init__(self, type: TypedValue, environment: FunctionalActivationEnvironment, argumentBinding: SymbolArgumentBinding, body) -> None:
         super().__init__()
         self.type = type
-        self.captureBindings = captureBindings
-        self.captureValues = captureValues
+        self.environment = environment
         self.argumentBinding = argumentBinding
         self.body = body
 
-    def getCaptureValueFor(self, captureBinding: SymbolCaptureBinding) -> TypedValue:
-        return self.captureValues[self.captureBindings.index(captureBinding)]
+    def isPurelyFunctional(self) -> bool:
+        return True
+
+    def isFunctionalValue(self) -> bool:
+        return True
 
     def getType(self):
         return self.type
 
 class LambdaValue(FunctionalValue):
     def toJson(self):
-        return {'lambda': self.argumentBinding.toJson(), 'body': self.body.toJson(), 'type': self.type.toJson()}
+        return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class ForAllValue(FunctionalValue):
     def getType(self):
         return self.type
 
     def toJson(self):
-        return {'forAll': self.argumentBinding.toJson(), 'body': self.body.toJson(), 'type': self.type.toJson()}
+        return {'forAll': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
     
     def isForAll(self) -> bool:
         return True
-
-class FunctionalActivationContext:
-    def __init__(self, functionalValue: FunctionalValue, argumentValue: TypedValue):
-        self.functionalValue = functionalValue
-        self.argumentValue = argumentValue
-
-    def getArgumentValueFor(self, argumentBinding: SymbolArgumentBinding) -> TypedValue:
-        assert argumentBinding == self.functionalValue.argumentBinding
-        return self.argumentValue
-
-    def getCaptureValueFor(self, captureBinding: SymbolCaptureBinding) -> TypedValue:
-        return self.functionalValue.getCaptureValue(captureBinding)
-
-class SubstitutionContext:
-    def __init__(self, captureBindings: list[SymbolCaptureBinding], captureSubstitutions: list[ASTNode], argumentBinding: SymbolArgumentBinding, argumentSubstitution: ASTNode) -> None:
-        self.captureBindings = captureBindings
-        self.captureSubstitutions = captureSubstitutions
-        self.argumentBinding = argumentBinding
-        self.argumentSubstitution = argumentSubstitution
-
-    def getArgumentSubstitutionFor(self, argumentBinding: SymbolArgumentBinding, sourcePosition: SourcePosition) -> ASTNode:
-        assert argumentBinding == self.argumentBinding
-        return self.applySourcePositionToSubstitution(self.argumentSubstitution, sourcePosition)
-
-    def getCaptureSubstitutionFor(self, captureBinding: SymbolCaptureBinding, sourcePosition: SourcePosition) -> ASTNode:
-        return self.applySourcePositionToSubstitution(self.captureSubstitutions[self.captureBindings.index(captureBinding)], sourcePosition)
-    
-    def applySourcePositionToSubstitution(self, substitution: ASTNode, sourcePosition: SourcePosition) -> ASTNode:
-        if substitution.isTypedIdentifierReferenceNode():
-            return ASTTypedIdentifierReferenceNode(sourcePosition, substitution.type, substitution.binding)
-        return substitution
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment.addBaseType(AbsurdType)

@@ -14,6 +14,6 @@ for arg in sys.argv[1:]:
     if not typecheckedSucceeded:
         sys.exit(1)
 
-    evalResult = ASTEvaluator(FunctionalActivationContext(None, UnitType.getSingleton())).evaluate(typechecked)
+    evalResult = ASTEvaluator(FunctionalActivationEnvironment(None)).evaluate(typechecked)
     print(json.dumps(evalResult.toJson()))
 
