@@ -25,7 +25,7 @@ class TypedValue(ABC):
     def getTypeUniverseIndex(self) -> int:
         return 0
     
-    def isForAll(self) -> bool:
+    def isPi(self) -> bool:
         return False
 
     def isEquivalentTo(self, other) -> bool:
@@ -413,17 +413,17 @@ class ASTNode:
     def isTypedErrorNode(self) -> bool:
         return False
     
-    def isForAllLiteralValue(self) -> bool:
+    def isPiLiteralValue(self) -> bool:
         return False
 
     def isTypedFunctionalNode(self) -> bool:
         return False
 
-    def isTypedForAllNode(self) -> bool:
+    def isTypedPiNode(self) -> bool:
         return False
 
-    def isTypedForAllNodeOrLiteralValue(self) -> bool:
-        return self.isForAllLiteralValue() or self.isTypedForAllNode()
+    def isTypedPiNodeOrLiteralValue(self) -> bool:
+        return self.isPiLiteralValue() or self.isTypedPiNode()
 
     def isTypedLambdaNode(self) -> bool:
         return False
@@ -452,8 +452,8 @@ class ASTLiteralTypeNode(ASTNode):
     def isLiteralTypeNode(self) -> bool:
         return True
 
-    def isForAllLiteralValue(self) -> bool:
-        return self.value.isForAll()
+    def isPiLiteralValue(self) -> bool:
+        return self.value.isPi()
 
     def accept(self, visitor):
         return visitor.visitLiteralTypeNode(self)
@@ -480,8 +480,8 @@ class ASTTypedLiteralNode(ASTTypedNode):
     def isTypedLiteralNode(self) -> bool:
         return True
 
-    def isForAllLiteralValue(self) -> bool:
-        return self.value.isForAll()
+    def isPiLiteralValue(self) -> bool:
+        return self.value.isPi()
 
     def isEquivalentTo(self, other: ASTNode) -> bool:
         if self == other:
@@ -675,14 +675,14 @@ class LambdaValue(FunctionalValue):
     def toJson(self):
         return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
-class ForAllValue(FunctionalValue):
+class PiValue(FunctionalValue):
     def getType(self):
         return self.type
 
     def toJson(self):
         return {'forAll': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
     
-    def isForAll(self) -> bool:
+    def isPi(self) -> bool:
         return True
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())

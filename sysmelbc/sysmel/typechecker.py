@@ -101,8 +101,8 @@ class Typechecker(ASTVisitor):
             functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument))
         return functional
     
-    def betaReduceForAllWithArgument(self, forAllNode: ASTNode, argument: ASTNode):
-        assert forAllNode.isTypedForAllNode()
+    def betaReducePiWithArgument(self, forAllNode: ASTNode, argument: ASTNode):
+        assert forAllNode.isTypedPiNode()
         typedFunctionalNode: ASTTypedFunctionalNode = forAllNode
         argumentBinding = typedFunctionalNode.argumentBinding
         forAllBody = typedFunctionalNode.body
@@ -120,15 +120,15 @@ class Typechecker(ASTVisitor):
         if functional.isTypedErrorNode():
             return ASTTypedApplicationNode(node.sourcePosition, functional.type, functional, self.visitNode(node.argument))
 
-        if functional.isTypedForAllNodeOrLiteralValue():
-            typedArgument, resultType = self.betaReduceForAllWithArgument(functional, node.argument)
+        if functional.isTypedPiNodeOrLiteralValue():
+            typedArgument, resultType = self.betaReducePiWithArgument(functional, node.argument)
             return resultType
 
-        if not functional.type.isTypedForAllNodeOrLiteralValue():
+        if not functional.type.isTypedPiNodeOrLiteralValue():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a forall or it must have a forall type.", functional)
             return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument))
         
-        typedArgument, resultType = self.betaReduceForAllWithArgument(functional.type, node.argument)
+        typedArgument, resultType = self.betaReducePiWithArgument(functional.type, node.argument)
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, functional, typedArgument))
 
     def visitArgumentNode(self, node: ASTArgumentNode):
@@ -144,7 +144,7 @@ class Typechecker(ASTVisitor):
         self.errorAccumulator.add(errorNode)
         return errorNode
 
-    def visitForAllNode(self, node: ASTForAllNode):
+    def visitPiNode(self, node: ASTPiNode):
         argumentName = self.evaluateOptionalSymbol(node.argumentName)
         argumentType = self.visitOptionalTypeExpression(node.argumentType)
         if argumentName is None and argumentType is None:
@@ -155,8 +155,8 @@ class Typechecker(ASTVisitor):
         if argumentName is not None:
             lambdaEnvironment.setSymbolBinding(argumentName, argumentBinding)
         body = self.withEnvironment(lambdaEnvironment).visitTypeExpression(node.body)
-        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), argumentBinding, body)
-        return typedForAll
+        typedPi = ASTTypedPiNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), argumentBinding, body)
+        return typedPi
 
     def visitFunctionNode(self, node: ASTFunctionNode):
         if len(node.functionalType.arguments) == 0:
@@ -165,17 +165,17 @@ class Typechecker(ASTVisitor):
         resultType = node.functionalType.resultType
         body = node.body
         for argument in reversed(node.functionalType.arguments):
-            body = ASTLambdaNode(argument.sourcePosition, argument.isForAll, argument.typeExpression, argument.nameExpression, resultType, body)
+            body = ASTLambdaNode(argument.sourcePosition, argument.isPi, argument.typeExpression, argument.nameExpression, resultType, body)
             resultType = None
         return self.visitNode(body)
 
     def visitFunctionalTypeNode(self, node: ASTFunctionalTypeNode):
         if len(node.arguments) == 0:
-            return self.visitNode(ASTForAllNode(node.sourcePosition, None, None, node.resultTypeExpression))
+            return self.visitNode(ASTPiNode(node.sourcePosition, None, None, node.resultTypeExpression))
 
         resultType = node.resultType
         for argument in reversed(node.arguments):
-            resultType = ASTForAllNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
+            resultType = ASTPiNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
         return self.visitNode(resultType)
 
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
@@ -204,10 +204,10 @@ class Typechecker(ASTVisitor):
 
         ## Compute the lambda type.
         bodyType = getTypeOfTypedNodeOrLiteralType(body, node.sourcePosition)
-        typedForAll = ASTTypedForAllNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType, bodyType, node.sourcePosition), argumentBinding, bodyType)
+        typedPi = ASTTypedPiNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType, bodyType, node.sourcePosition), argumentBinding, bodyType)
 
         ## Make the lambda node.
-        return ASTTypedLambdaNode(node.sourcePosition, typedForAll, argumentBinding, body)
+        return ASTTypedLambdaNode(node.sourcePosition, typedPi, argumentBinding, body)
 
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
         innerEnvironment = LexicalEnvironment(self.lexicalEnvironment)
@@ -265,7 +265,7 @@ class Typechecker(ASTVisitor):
     def visitTypedErrorNode(self, node: ASTTypedErrorNode):
         return node
 
-    def visitTypedForAllNode(self, node: ASTTypedForAllNode):
+    def visitTypedPiNode(self, node: ASTTypedPiNode):
         return node
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
@@ -329,7 +329,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
     def visitTypedErrorNode(self, node: ASTTypedErrorNode):
         return node
 
-    def visitTypedForAllNode(self, node: ASTTypedForAllNode):
+    def visitTypedPiNode(self, node: ASTTypedPiNode):
         argumentBinding = node.argumentBinding
         newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
         newType = self.visitNode(node.type)
@@ -338,7 +338,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         bodyContext.setSubstitutionBindingForBinding(argumentBinding, newArgumentBinding)
 
         reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
-        return ASTTypedForAllNode(node.sourcePosition, newType, newArgumentBinding, reducedBody)
+        return ASTTypedPiNode(node.sourcePosition, newType, newArgumentBinding, reducedBody)
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         return node.binding.evaluateSubstitutionInContextFor(self.substitutionContext, node)
@@ -398,7 +398,7 @@ def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
         return node
 
     hasLiteralFunctionalNode = node.isLiteralTypeNode() or node.isTypedLiteralNode()
-    if node.functional.isTypedLambdaNode() or node.functional.isTypedForAllNode():
+    if node.functional.isTypedLambdaNode() or node.functional.isTypedPiNode():
         return betaReduceFunctionalNodeWithArgument(node.functional, node.argument)
     
     if hasLiteralFunctionalNode and node.value.isPurelyFunctional():
@@ -415,9 +415,9 @@ def reduceType(node: ASTNode):
 
     return node
 
-def reduceForAllNode(node: ASTTypedForAllNode):
+def reducePiNode(node: ASTTypedPiNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        forAllValue = ForAllValue(node.type.value, [], [], node.argumentBinding, node.body)
+        forAllValue = PiValue(node.type.value, [], [], node.argumentBinding, node.body)
         return ASTLiteralTypeNode(node.sourcePosition, forAllValue)
     return node
 

@@ -27,9 +27,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedErrorNode(self, node: ASTTypedErrorNode) -> TypedValue:
         raise Exception('%s: %s' % (str(node.sourcePosition), node.message))
 
-    def visitTypedForAllNode(self, node: ASTTypedForAllNode) -> TypedValue:
+    def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
         type = self.visitNode(node.type)
-        return ForAllValue(type, self.activationEnvironment, node.argumentBinding, node.body)
+        return PiValue(type, self.activationEnvironment, node.argumentBinding, node.body)
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.evaluateBindingAt(node.binding, node.sourcePosition)
@@ -61,4 +61,4 @@ def evaluateFunctionalValueWithParameter(functionalValue: FunctionalValue, argum
     return ASTEvaluator(activationEnvironment).evaluate(functionalValue.body)
 
 LambdaValue.__call__ = evaluateFunctionalValueWithParameter
-ForAllValue.__call__ = evaluateFunctionalValueWithParameter
+PiValue.__call__ = evaluateFunctionalValueWithParameter
