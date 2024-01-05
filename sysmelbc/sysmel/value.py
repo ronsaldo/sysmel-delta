@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import json
+from typing import Any
 
 class TypedValue(ABC):
     @abstractmethod
@@ -128,6 +129,9 @@ class CharacterTypeClass(BaseType):
 class StringTypeClass(BaseType):
     pass
 
+class ASTNodeTypeClass(BaseType):
+    pass
+
 AbsurdType = AbsurdTypeClass("Absurd")
 UnitType = UnitTypeClass("Unit", "unit")
 
@@ -136,6 +140,7 @@ IntegerType = IntegerTypeClass("Integer")
 FloatType = FloatTypeClass("Float")
 CharacterType = CharacterTypeClass("Character")
 StringType = StringTypeClass("String")
+ASTNodeType = ASTNodeTypeClass("ASTNode")
 
 class NatValue(TypedValue):
     def __init__(self, value: int) -> None:
@@ -391,10 +396,17 @@ class SourcePosition:
     def __str__(self) -> str:
         return '%s:%d.%d-%d.%d' % (self.sourceCode, self.startLine, self.startColumn, self.endLine, self.endColumn)
 
-class ASTNode:
+class EmptySourcePosition:
+    def __str__(self) -> str:
+        return '<no position>'
+
+class ASTNode(TypedValue):
     def __init__(self, sourcePosition: SourcePosition) -> None:
         self.sourcePosition = sourcePosition
 
+    def getType(self):
+        return ASTNodeType
+    
     def prettyPrint(self) -> str:
         return json.dumps(self.toJson())
 
@@ -638,6 +650,10 @@ class LexicalEnvironment(AbstractEnvironment):
         assert unitTypeValue.name is not None
         self.setSymbolValueBinding(Symbol.intern(unitTypeValue.name), unitTypeValue)
 
+    def addPrimitiveFunction(self, primitiveFunction):
+        assert primitiveFunction.name is not None
+        self.setSymbolValueBinding(primitiveFunction.name, primitiveFunction)
+
 class FunctionalActivationEnvironment:
     def __init__(self, parent = None):
         self.parent = parent
@@ -656,7 +672,6 @@ class FunctionalActivationEnvironment:
     
 class FunctionalValue(TypedValue):
     def __init__(self, type: TypedValue, environment: FunctionalActivationEnvironment, argumentBinding: SymbolArgumentBinding, body) -> None:
-        super().__init__()
         self.type = type
         self.environment = environment
         self.argumentBinding = argumentBinding
@@ -684,6 +699,42 @@ class PiValue(FunctionalValue):
     
     def isPi(self) -> bool:
         return True
+    
+class PrimitiveFunction(TypedValue):
+    def __init__(self, type: TypedValue, value, name: Symbol = None) -> None:
+        self.type = type
+        self.name = name
+        self.value = value
+
+    def isFunctionalValue(self) -> bool:
+        return True
+
+    def getType(self):
+        return self.type
+
+    def toJson(self):
+        return {'primitive': str(self.name), 'type': self.type.toJson()}
+
+    def __call__(self, argument) -> TypedValue:
+        return self.value(argument)
+
+def makeFunctionTypeFromTo(first: TypedValue, second: TypedValue, sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
+    return PiValue(first.getType(), None, SymbolArgumentBinding(None, None, ASTLiteralTypeNode(first)), ASTTypedLiteralNode(second))
+
+def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
+    assert len(signature) >= 2
+    if len(signature) == 2:
+        return makeFunctionTypeFromTo(signature[0], signature[1], sourcePosition)
+    else:
+        return makeFunctionTypeFromTo(signature[0], (makeSimpleFunctionType(signature[1:], sourcePosition)), sourcePosition)
+
+def makePrimitiveFunction(name: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition()):
+    assert len(signature) >= 2
+    nameSymbol = None
+    if name is not None:
+        nameSymbol = Symbol.intern(name)
+
+    functionType = makeSimpleFunctionType(signature)
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment.addBaseType(AbsurdType)
@@ -694,6 +745,7 @@ TopLevelEnvironment.addBaseType(IntegerType)
 TopLevelEnvironment.addBaseType(FloatType)
 TopLevelEnvironment.addBaseType(CharacterType)
 TopLevelEnvironment.addBaseType(StringType)
+TopLevelEnvironment.addBaseType(ASTNodeType)
 
 ## Boolean :: False | True.
 FalseType = UnitTypeClass("False", "false")
