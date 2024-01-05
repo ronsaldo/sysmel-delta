@@ -155,7 +155,23 @@ class NatValue(TypedValue):
 
     def toJson(self):
         return self.value
-        
+    
+    def __add__(self, other):
+        return NatValue(self.value + other.value)
+
+    def __sub__(self, other):
+        result = self.value - other.value
+        if result < 0:
+            raise Exception("Nat underflow")
+
+        return NatValue(result)
+
+    def __mul__(self, other):
+        return NatValue(self.value * other.value)
+
+    def __div__(self, other):
+        return NatValue(self.value / other.value)
+
 class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
         super().__init__()
@@ -170,6 +186,18 @@ class IntegerValue(TypedValue):
     def toJson(self):
         return self.value
 
+    def __add__(self, other):
+        return IntegerValue(self.value + other.value)
+
+    def __sub__(self, other):
+        return IntegerValue(self.value - other.value)
+
+    def __mul__(self, other):
+        return IntegerValue(self.value * other.value)
+
+    def __div__(self, other):
+        return IntegerValue(self.value / other.value)
+    
 class FloatValue(TypedValue):
     def __init__(self, value: float) -> None:
         super().__init__()
@@ -184,8 +212,20 @@ class FloatValue(TypedValue):
     def toJson(self):
         return self.value
 
+    def __add__(self, other):
+        return FloatValue(self.value + other.value)
+
+    def __sub__(self, other):
+        return FloatValue(self.value - other.value)
+
+    def __mul__(self, other):
+        return FloatValue(self.value * other.value)
+
+    def __div__(self, other):
+        return FloatValue(self.value / other.value)
+    
 class CharacterValue(TypedValue):
-    def __init__(self, value: float) -> None:
+    def __init__(self, value: int) -> None:
         super().__init__()
         self.value = value
 
@@ -198,6 +238,18 @@ class CharacterValue(TypedValue):
     def toJson(self):
         return self.value
 
+    def __add__(self, other):
+        return CharacterValue(self.value + other.value)
+
+    def __sub__(self, other):
+        return CharacterValue(self.value - other.value)
+
+    def __mul__(self, other):
+        return CharacterValue(self.value * other.value)
+
+    def __div__(self, other):
+        return CharacterValue(self.value / other.value)
+    
 class StringValue(TypedValue):
     def __init__(self, value: str) -> None:
         super().__init__()
@@ -715,11 +767,47 @@ class PrimitiveFunction(TypedValue):
     def toJson(self):
         return {'primitive': str(self.name), 'type': self.type.toJson()}
 
-    def __call__(self, argument) -> TypedValue:
-        return self.value(argument)
+    def __call__(self, *argument) -> TypedValue:
+        return self.value(*argument)
+
+class CurriedFunctionalValue(TypedValue):
+    def __init__(self, type: TypedValue, arguments: tuple[TypedValue], innerFunction: TypedValue) -> None:
+        self.type = type
+        self.arguments = arguments
+        self.innerFunction = innerFunction
+
+    def isFunctionalValue(self) -> bool:
+        return True
+
+    def getType(self):
+        return self.type
+
+    def toJson(self):
+        return {'curried': list(map(lambda a: a.toJson(), self.arguments)), 'type': self.type.toJson(), 'innerFunction': self.innerFunction.toJson()}
+
+    def __call__(self, *arguments) -> TypedValue:
+        return self.innerFunction(*self.arguments, *arguments)
+    
+class CurryingFunctionalValue(TypedValue):
+    def __init__(self, type: TypedValue, innerFunction: TypedValue, name: Symbol = None) -> None:
+        self.type = type
+        self.name = name
+        self.innerFunction = innerFunction
+
+    def isFunctionalValue(self) -> bool:
+        return True
+
+    def getType(self):
+        return self.type
+
+    def toJson(self):
+        return {'currying': str(self.name), 'type': self.type.toJson(), 'innerFunction': self.innerFunction.toJson()}
+
+    def __call__(self, *arguments) -> TypedValue:
+        return CurriedFunctionalValue(self.innerFunction.getType(), arguments, self.innerFunction)
 
 def makeFunctionTypeFromTo(first: TypedValue, second: TypedValue, sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
-    return PiValue(first.getType(), None, SymbolArgumentBinding(None, None, ASTLiteralTypeNode(first)), ASTTypedLiteralNode(second))
+    return PiValue(first.getType(), None, SymbolArgumentBinding(None, None, ASTLiteralTypeNode(sourcePosition, first)), ASTLiteralTypeNode(sourcePosition, second))
 
 def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     assert len(signature) >= 2
@@ -734,7 +822,17 @@ def makePrimitiveFunction(name: str, signature: list[TypedValue], function, sour
     if name is not None:
         nameSymbol = Symbol.intern(name)
 
-    functionType = makeSimpleFunctionType(signature)
+    if len(signature) == 2:
+        functionType = makeSimpleFunctionType(signature)
+        return PrimitiveFunction(functionType, function, nameSymbol)
+    else:
+        innerFunction = makePrimitiveFunction(nameSymbol, signature[1:], function, sourcePosition)
+        functionType = makeFunctionTypeFromTo(signature[0], innerFunction.getType(), sourcePosition)
+        return CurryingFunctionalValue(functionType, innerFunction, nameSymbol)
+
+def addPrimitiveFunctionDefinitionsToEnvironment(definitions, environment):
+    for functionName, signature, function in definitions:
+        environment.addPrimitiveFunction(makePrimitiveFunction(functionName, signature, function))
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment.addBaseType(AbsurdType)
@@ -746,6 +844,10 @@ TopLevelEnvironment.addBaseType(FloatType)
 TopLevelEnvironment.addBaseType(CharacterType)
 TopLevelEnvironment.addBaseType(StringType)
 TopLevelEnvironment.addBaseType(ASTNodeType)
+
+addPrimitiveFunctionDefinitionsToEnvironment([
+    ['+', [NatType, NatType, NatType], lambda x, y: x + y]
+], TopLevelEnvironment)
 
 ## Boolean :: False | True.
 FalseType = UnitTypeClass("False", "false")

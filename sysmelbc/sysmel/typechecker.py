@@ -101,18 +101,22 @@ class Typechecker(ASTVisitor):
             functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument))
         return functional
     
-    def betaReducePiWithArgument(self, forAllNode: ASTNode, argument: ASTNode):
-        assert forAllNode.isTypedPiNode()
-        typedFunctionalNode: ASTTypedFunctionalNode = forAllNode
-        argumentBinding = typedFunctionalNode.argumentBinding
-        forAllBody = typedFunctionalNode.body
-
+    def betaReducePiWithArgument(self, piNode: ASTNode, argument: ASTNode):
         substitutionContext = SubstitutionContext()
+        if piNode.isPiLiteralValue():
+            piValue: FunctionalValue = piNode.value
+            argumentBinding = piValue.argumentBinding
+            piBody = piValue.body
+        else:
+            assert piNode.isTypedPiNode()
+            typedFunctionalNode: ASTTypedFunctionalNode = piNode
+            argumentBinding = typedFunctionalNode.argumentBinding
+            piBody = typedFunctionalNode.body
 
         typedArgument = self.visitNodeWithExpectedTypeExpression(argument, argumentBinding.getTypeExpression())
         substitutionContext.setSubstitutionNodeForBinding(argumentBinding, typedArgument)
 
-        reduced = ASTBetaReducer(substitutionContext).visitNode(forAllBody)
+        reduced = ASTBetaReducer(substitutionContext).visitNode(piBody)
         return typedArgument, reduced
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
