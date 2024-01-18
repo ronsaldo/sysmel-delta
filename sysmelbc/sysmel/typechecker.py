@@ -183,15 +183,20 @@ class Typechecker(ASTVisitor):
         return self.visitNode(resultType)
 
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
-        binding = self.lexicalEnvironment.lookSymbolRecursively(node.value)
-        if binding is None:
+        bindingList = self.lexicalEnvironment.lookSymbolBindingListRecursively(node.value)
+        bindingListSize = len(bindingList)
+        if bindingListSize == 0:
             return self.makeSemanticError(node.sourcePosition, "Failed to find binding for symbol %s." % repr(node.value))
-        
-        if binding.isValueBinding():
-            if binding.value.isType():
-                return ASTLiteralTypeNode(node.sourcePosition, binding.value)
-            return ASTTypedLiteralNode(node.sourcePosition, binding.getTypeExpression(), binding.value)
-        return ASTTypedIdentifierReferenceNode(node.sourcePosition, binding.getTypeExpression(), binding)
+        elif bindingListSize == 1:
+            binding = bindingList[0]
+            if binding.isValueBinding():
+                if binding.value.isType():
+                    return ASTLiteralTypeNode(node.sourcePosition, binding.value)
+                return ASTTypedLiteralNode(node.sourcePosition, binding.getTypeExpression(), binding.value)
+            return ASTTypedIdentifierReferenceNode(node.sourcePosition, binding.getTypeExpression(), binding)
+        else:
+            print(bindingList)
+            raise "TODO: Support overloaded symbols."
 
     def visitLambdaNode(self, node: ASTLambdaNode):
         argumentName = self.evaluateOptionalSymbol(node.argumentName)

@@ -682,9 +682,13 @@ class AbstractEnvironment(ABC):
 
 class EmptyEnvironment(AbstractEnvironment):
     Singleton = None
+
     def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
         return None
-    
+
+    def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
+        return []
+
     @classmethod
     def getSingleton(cls):
         if cls.Singleton is None:
@@ -706,7 +710,18 @@ class ChildEnvironment(AbstractEnvironment):
         if self.parent is not None:
             return self.parent.lookSymbolRecursively(symbol)
         return None
-    
+
+    def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
+        parentResult = []
+        if self.parent is not None:
+            parentResult = self.parent.lookSymbolBindingListRecursively(symbol)
+
+        binding = self.lookLocalSymbol(symbol)
+        if binding is not None:
+            return [binding] + parentResult
+        else:
+            return parentResult
+
 class ChildEnvironmentWithBinding(ChildEnvironment):
     def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding) -> None:
         super().__init__(parent)
