@@ -656,8 +656,29 @@ class SymbolArgumentBinding(SymbolBinding):
 
 class AbstractEnvironment(ABC):
     @abstractmethod
-    def lookSymbolRecursively(symbol: Symbol) -> SymbolBinding:
+    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
         pass
+
+    def isLexicalEnvironment(self) -> bool:
+        return False
+    
+    def withBaseType(self, baseType: BaseType, sourcePosition: SourcePosition = None):
+        assert baseType.name is not None
+        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, Symbol.intern(baseType.name), baseType))
+
+    def withUnitTypeValue(self, unitTypeValue: UnitTypeValue, sourcePosition: SourcePosition = None):
+        assert unitTypeValue.name is not None
+        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, Symbol.intern(unitTypeValue.name), unitTypeValue))
+
+    def withPrimitiveFunction(self, primitiveFunction, sourcePosition: SourcePosition = None):
+        assert primitiveFunction.name is not None
+        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, primitiveFunction.name, primitiveFunction))
+
+    def withSymbolBinding(self, symbolBinding: SymbolBinding):
+        return ChildEnvironmentWithBinding(self, symbolBinding)
+
+    def withSymbolValueBinding(self, symbol: Symbol, value: TypedValue, sourcePosition: SourcePosition = None):
+        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, symbol, value))
 
 class EmptyEnvironment(AbstractEnvironment):
     Singleton = None
@@ -670,41 +691,39 @@ class EmptyEnvironment(AbstractEnvironment):
             cls.Singleton = cls()
         return cls.Singleton
 
-class LexicalEnvironment(AbstractEnvironment):
-    def __init__(self, parent: AbstractEnvironment, sourcePosition: SourcePosition = None) -> None:
+class ChildEnvironment(AbstractEnvironment):
+    def __init__(self, parent: AbstractEnvironment) -> None:
         self.parent = parent
-        self.sourcePosition = sourcePosition
-        self.symbolTable: dict[Symbol, SymbolBinding] = dict()
 
-    def setSymbolBinding(self, symbol: Symbol, binding: SymbolBinding) -> None:
-        if symbol in self.symbolTable:
-            raise Exception("Overriding symbol " + str(symbol))
-        self.symbolTable[symbol] = binding
-
-    def setSymbolValueBinding(self, symbol: Symbol, value: TypedValue, sourcePosition: SourcePosition = None) -> None:
-        self.setSymbolBinding(symbol, SymbolValueBinding(sourcePosition, symbol, value))
-
-    def lookSymbol(self, symbol: Symbol) -> SymbolBinding | None:
-        return self.symbolTable.get(symbol, None)
-
-    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding | None:
-        binding = self.lookSymbol(symbol)
+    def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
+        return None
+    
+    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
+        binding = self.lookLocalSymbol(symbol)
         if binding is not None:
             return binding
 
-        return self.parent.lookSymbolRecursively(symbol)
+        if self.parent is not None:
+            return self.parent.lookSymbolRecursively(symbol)
+        return None
     
-    def addBaseType(self, baseType: BaseType):
-        assert baseType.name is not None
-        self.setSymbolValueBinding(Symbol.intern(baseType.name), baseType)
+class ChildEnvironmentWithBinding(ChildEnvironment):
+    def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding) -> None:
+        super().__init__(parent)
+        self.binding = binding
 
-    def addUnitTypeValue(self, unitTypeValue: UnitTypeValue):
-        assert unitTypeValue.name is not None
-        self.setSymbolValueBinding(Symbol.intern(unitTypeValue.name), unitTypeValue)
+    def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
+        if symbol == self.binding.name:
+            return self.binding
+        return None
 
-    def addPrimitiveFunction(self, primitiveFunction):
-        assert primitiveFunction.name is not None
-        self.setSymbolValueBinding(primitiveFunction.name, primitiveFunction)
+class LexicalEnvironment(ChildEnvironment):
+    def __init__(self, parent: AbstractEnvironment, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(parent)
+        self.sourcePosition = sourcePosition
+    
+    def isLexicalEnvironment(self) -> bool:
+        return True
 
 class FunctionalActivationEnvironment:
     def __init__(self, parent = None):
@@ -832,20 +851,21 @@ def makePrimitiveFunction(name: str, signature: list[TypedValue], function, sour
 
 def addPrimitiveFunctionDefinitionsToEnvironment(definitions, environment):
     for functionName, signature, function in definitions:
-        environment.addPrimitiveFunction(makePrimitiveFunction(functionName, signature, function))
+        environment = environment.withPrimitiveFunction(makePrimitiveFunction(functionName, signature, function))
+    return environment
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
-TopLevelEnvironment.addBaseType(AbsurdType)
-TopLevelEnvironment.addBaseType(UnitType)
-TopLevelEnvironment.addUnitTypeValue(UnitType.getSingleton())
-TopLevelEnvironment.addBaseType(NatType)
-TopLevelEnvironment.addBaseType(IntegerType)
-TopLevelEnvironment.addBaseType(FloatType)
-TopLevelEnvironment.addBaseType(CharacterType)
-TopLevelEnvironment.addBaseType(StringType)
-TopLevelEnvironment.addBaseType(ASTNodeType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(AbsurdType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(UnitType)
+TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(NatType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(IntegerType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(FloatType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(CharacterType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(StringType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(ASTNodeType)
 
-addPrimitiveFunctionDefinitionsToEnvironment([
+TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['+', [NatType, NatType, NatType], lambda x, y: x + y]
 ], TopLevelEnvironment)
 
@@ -853,12 +873,12 @@ addPrimitiveFunctionDefinitionsToEnvironment([
 FalseType = UnitTypeClass("False", "false")
 TrueType = UnitTypeClass("True", "true")
 BooleanType = SumType.makeWithVariantTypes([FalseType, TrueType])
-TopLevelEnvironment.addBaseType(FalseType)
-TopLevelEnvironment.addUnitTypeValue(FalseType.getSingleton())
-TopLevelEnvironment.addBaseType(TrueType)
-TopLevelEnvironment.addUnitTypeValue(TrueType.getSingleton())
-TopLevelEnvironment.setSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
-TopLevelEnvironment.setSymbolValueBinding(Symbol.intern("Type"), TypeType)
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(FalseType)
+TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(FalseType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withBaseType(TrueType)
+TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(TrueType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
+TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Type"), TypeType)
 
 def makeDefaultEvaluationEnvironment() -> LexicalEnvironment:
     return LexicalEnvironment(TopLevelEnvironment)

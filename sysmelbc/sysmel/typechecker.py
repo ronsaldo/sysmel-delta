@@ -157,7 +157,7 @@ class Typechecker(ASTVisitor):
         argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType)
         lambdaEnvironment = LexicalEnvironment(self.lexicalEnvironment, node.sourcePosition)
         if argumentName is not None:
-            lambdaEnvironment.setSymbolBinding(argumentName, argumentBinding)
+            lambdaEnvironment = lambdaEnvironment.withSymbolBinding(argumentBinding)
         body = self.withEnvironment(lambdaEnvironment).visitTypeExpression(node.body)
         typedPi = ASTTypedPiNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), argumentBinding, body)
         return typedPi
@@ -202,7 +202,7 @@ class Typechecker(ASTVisitor):
         argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType)
         lambdaEnvironment = LexicalEnvironment(self.lexicalEnvironment, node.sourcePosition)
         if argumentName is not None:
-            lambdaEnvironment.setSymbolBinding(argumentName, argumentBinding)
+            lambdaEnvironment = lambdaEnvironment.withSymbolBinding(argumentBinding)
 
         body = self.withEnvironment(lambdaEnvironment).visitNodeWithExpectedTypeExpression(node.body, node.resultType)
 
