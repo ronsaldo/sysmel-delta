@@ -41,6 +41,14 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return node.value
 
+    def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode) -> TypedValue:
+        alternatives = list()
+        for alternative in node.alternatives:
+            alternatives.append(self.visitNode(alternative))
+
+        overloadFunctionType = self.visitNode(node.type)
+        return overloadFunctionType.makeWithAlternatives(tuple(alternatives))
+
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
         result = UnitType.getSingleton()
         for expression in node.elements:

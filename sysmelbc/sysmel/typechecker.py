@@ -181,22 +181,26 @@ class Typechecker(ASTVisitor):
         for argument in reversed(node.arguments):
             resultType = ASTPiNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
         return self.visitNode(resultType)
+    
+    def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTTypedNode | ASTLiteralTypeNode:
+        if binding.isValueBinding():
+            if binding.value.isType():
+                return ASTLiteralTypeNode(node.sourcePosition, binding.value)
+            return ASTTypedLiteralNode(node.sourcePosition, binding.getTypeExpression(), binding.value)
+        return ASTTypedIdentifierReferenceNode(node.sourcePosition, binding.getTypeExpression(), binding)
 
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
         bindingList = self.lexicalEnvironment.lookSymbolBindingListRecursively(node.value)
-        bindingListSize = len(bindingList)
-        if bindingListSize == 0:
+        if len(bindingList) == 0:
             return self.makeSemanticError(node.sourcePosition, "Failed to find binding for symbol %s." % repr(node.value))
-        elif bindingListSize == 1:
-            binding = bindingList[0]
-            if binding.isValueBinding():
-                if binding.value.isType():
-                    return ASTLiteralTypeNode(node.sourcePosition, binding.value)
-                return ASTTypedLiteralNode(node.sourcePosition, binding.getTypeExpression(), binding.value)
-            return ASTTypedIdentifierReferenceNode(node.sourcePosition, binding.getTypeExpression(), binding)
-        else:
-            print(bindingList)
-            raise "TODO: Support overloaded symbols."
+        
+        bindingReferenceNodes = list(map(lambda binding: self.analyzeIdentifierReferenceNodeWithBinding(node, binding), bindingList))
+        if len(bindingReferenceNodes) == 1:
+            return bindingReferenceNodes[0]
+
+        assert len(bindingReferenceNodes) > 1
+        tupleNode = ASTOverloadsNode(node.sourcePosition, bindingReferenceNodes)
+        return self.visitNode(tupleNode)
 
     def visitLambdaNode(self, node: ASTLambdaNode):
         argumentName = self.evaluateOptionalSymbol(node.argumentName)
@@ -253,6 +257,20 @@ class Typechecker(ASTVisitor):
             resultType = typedExpression.type
             typedElements.append(typedExpression)
         return ASTTypedSequenceNode(node.sourcePosition, resultType, typedElements)
+
+    def visitOverloadsNode(self, node: ASTOverloadsNode):
+        if len(node.alternatives) == 0:
+            return self.makeSemanticError(node.sourcePosition, "Overloads node requires at least a single alternative.")
+        elif len(node.alternatives) == 1:
+            return self.visitNode(node.alternatives[0])
+
+        elementTypes = []
+        typedAlternatives = []
+        for alternative in node.alternatives:
+            typedExpression = self.visitNode(alternative)
+            elementTypes.append(typedExpression.type)
+            typedAlternatives.append(typedExpression)
+        return ASTTypedOverloadsNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes)), typedAlternatives)
 
     def visitTupleNode(self, node: ASTTupleNode):
         if len(node.elements) == 0:

@@ -40,6 +40,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitOverloadsNode(self, node):
+        pass
+
+    @abstractmethod
     def visitLambdaNode(self, node):
         pass
 
@@ -279,6 +283,17 @@ class ASTSequenceNode(ASTNode):
     def toJson(self):
         return {'kind': 'Sequence', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
+class ASTOverloadsNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, alternatives: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.alternatives = alternatives
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitOverloadsNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'Overloads', 'elements': list(map(optionalASTNodeToJson, self.alternatives))}
+
 class ASTTupleNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
         super().__init__(sourcePosition)
@@ -346,6 +361,17 @@ class ASTTypedLambdaNode(ASTTypedFunctionalNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
+class ASTTypedOverloadsNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, alternatives: list[ASTNode]) -> None:
+        super().__init__(sourcePosition, type)
+        self.alternatives = alternatives
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedOverloadsNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedOverloads', 'type': self.type.toJson(), 'alternatives': list(map(optionalASTNodeToJson, self.alternatives))}
+    
 class ASTTypedSequenceNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTTypedNode]) -> None:
         super().__init__(sourcePosition, type)
@@ -439,6 +465,10 @@ class ASTSequentialVisitor(ASTVisitor):
         for arg in node.arguments:
             self.visitNode(arg)
 
+    def visitOverloadsNode(self, node: ASTOverloadsNode):
+        for alternative in node.alternatives:
+            self.visitNode(alternative)
+
     def visitSequenceNode(self, node: ASTSequenceNode):
         for expression in node.elements:
             self.visitNode(expression)
@@ -466,6 +496,11 @@ class ASTSequentialVisitor(ASTVisitor):
 
     def visitTypedLiteralNode(self, node: ASTLiteralNode):
         self.visitNode(node.type)
+
+    def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode):
+        self.visitNode(node.type)
+        for alternatives in node.alternatives:
+            self.visitNode(alternatives)
 
     def visitTypedSequenceNode(self, node: ASTSequenceNode):
         self.visitNode(node.type)
@@ -532,6 +567,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitMessageSendNode(self, node):
+        assert False
+
+    def visitOverloadsNode(self, node):
         assert False
 
     def visitSequenceNode(self, node):

@@ -199,6 +199,11 @@ def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     assert state.peekKind() == TokenKind.LEFT_PARENT
     state.advance()
 
+    if isBinaryExpressionOperator(state.peekKind()) and state.peekKind(1) == TokenKind.RIGHT_PARENT:
+        token = state.next()
+        state.advance()
+        return state, ASTIdentifierReferenceNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
+
     if state.peekKind() == TokenKind.RIGHT_PARENT:
         state.advance()
         return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [])

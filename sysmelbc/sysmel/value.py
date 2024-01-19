@@ -524,7 +524,7 @@ class ASTLiteralTypeNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'LiteralType', 'value': self.value.toJson()}
-    
+
 class ASTTypedNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode) -> None:
         super().__init__(sourcePosition)
@@ -881,7 +881,9 @@ TopLevelEnvironment = TopLevelEnvironment.withBaseType(StringType)
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(ASTNodeType)
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-    ['+', [NatType, NatType, NatType], lambda x, y: x + y]
+    ['+', [NatType, NatType, NatType], lambda x, y: x + y],
+    ['+', [IntegerType, IntegerType, IntegerType], lambda x, y: x + y],
+    ['+', [FloatType, FloatType, FloatType], lambda x, y: x + y]
 ], TopLevelEnvironment)
 
 ## Boolean :: False | True.
