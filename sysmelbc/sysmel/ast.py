@@ -108,6 +108,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedOverloadedApplicationNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedOverloadsNode(self, node):
         pass
 
@@ -395,7 +399,20 @@ class ASTTypedApplicationNode(ASTTypedNode):
 
     def toJson(self) -> dict:
         return {'kind': 'TypedApplication', 'type': self.type.toJson(), 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
-    
+
+class ASTTypedOverloadedApplicationNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, overloads: ASTTypedNode, argument: ASTTypedNode, alternativeIndices: list[int]) -> None:
+        super().__init__(sourcePosition, type)
+        self.overloads = overloads
+        self.argument = argument
+        self.alternativeIndices = alternativeIndices
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedOverloadedApplicationNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedOverloadedApplication', 'type': self.type.toJson(), 'overloads': self.overloads.toJson(), 'argument': self.argument.toJson(), 'alternativeIndices': self.alternativeIndices}
+
 class ASTTypedErrorNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, message: str, innerNodes: list[ASTNode]) -> None:
         super().__init__(sourcePosition, type)
@@ -444,6 +461,9 @@ class ASTTypedOverloadsNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, alternatives: list[ASTNode]) -> None:
         super().__init__(sourcePosition, type)
         self.alternatives = alternatives
+
+    def isTypedOverloadsNode(self) -> bool:
+        return True
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedOverloadsNode(self)
@@ -586,6 +606,11 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.body)
 
     def visitTypedLiteralNode(self, node: ASTLiteralNode):
+        self.visitNode(node.type)
+
+    def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
+        self.visitNode(node.overloads)
+        self.visitNode(node.argument)
         self.visitNode(node.type)
 
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode):

@@ -42,6 +42,17 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         argument = self.visitNode(node.argument)
         return functional(argument)
 
+    def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
+        type = self.visitNode(node.type)
+        overloads: OverloadsTypeValue = self.visitNode(node.overloads)
+        argument = self.visitNode(node.argument)
+
+        selectedOverloads = []
+        for alternativeIndex in node.alternativeIndices:
+            alternative = overloads.alternatives[alternativeIndex]
+            selectedOverloads.append(alternative(argument))
+        return type.makeWithAlternatives(selectedOverloads)
+
     def visitTypedErrorNode(self, node: ASTTypedErrorNode) -> TypedValue:
         raise Exception('%s: %s' % (str(node.sourcePosition), node.message))
 

@@ -348,7 +348,7 @@ class OverloadsType(BaseType):
     def __init__(self, elementTypes: list[TypedValue]) -> None:
         self.elementTypes = elementTypes
 
-    def makeWithAlternatives(self, elements) -> ProductTypeValue:
+    def makeWithAlternatives(self, elements) -> OverloadsTypeValue:
         return OverloadsTypeValue(self, elements)
 
     def getType(self):
@@ -550,6 +550,9 @@ class ASTNode(TypedValue):
         return self.isPiLiteralValue() or self.isTypedPiNode()
 
     def isTypedLambdaNode(self) -> bool:
+        return False
+    
+    def isTypedOverloadsNode(self) -> bool:
         return False
 
 class ASTTypeNode(ASTNode):

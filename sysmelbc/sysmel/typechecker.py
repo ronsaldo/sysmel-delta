@@ -163,11 +163,14 @@ class Typechecker(ASTVisitor):
                     acceptedAlternativeIndices.append(index)
                 index += 1
 
-            print(acceptedAlternativeTypes, acceptedAlternativeIndices)
-            assert False
+            if len(acceptedAlternativeTypes) == 0:
+                return self.makeSemanticError(functional.sourcePosition, "No matching alternative for overloading function application.", functional, typedArgument)
+
+            overloadedApplicationType = ASTOverloadsTypeNode(node.sourcePosition, acceptedAlternativeTypes)
+            return reduceTypedOverloadedApplicationNode(ASTTypedOverloadedApplicationNode(node.sourcePosition, overloadedApplicationType, functional, typedArgument, acceptedAlternativeIndices))
 
         if not functional.type.isTypedPiNodeOrLiteralValue():
-            functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a forall or it must have a forall type.", functional)
+            functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
             return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument))
         
         typedArgument, resultType = self.betaReducePiWithArgument(functional.type, node.argument)
@@ -310,7 +313,7 @@ class Typechecker(ASTVisitor):
             typedAlternatives.append(typedExpression)
 
         overloadsType = reduceOverloadsTypeNode(ASTOverloadsTypeNode(node.sourcePosition, alternativeTypeExpressions))
-        return ASTTypedOverloadsNode(node.sourcePosition, overloadsType, typedAlternatives)
+        return reduceTypedOverloadsNode(ASTTypedOverloadsNode(node.sourcePosition, overloadsType, typedAlternatives))
 
     def visitTupleNode(self, node: ASTTupleNode):
         if len(node.elements) == 0:
@@ -353,6 +356,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
+        return node
+
+    def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         return node
 
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode):
@@ -458,6 +464,12 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedAlternatives.append(self.visitNode(alternative))
         return reduceTypedOverloadsNode(ASTTypedOverloadsNode(node.sourcePosition, reducedType, reducedAlternatives))
 
+    def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
+        overloads = self.visitNode(node.overloads)
+        argument = self.visitNode(node.argument)
+        applicationType = self.visitNode(node.type)
+        return ASTTypedOverloadedApplicationNode(node.sourcePosition, applicationType, overloads, argument, node.alternativeIndices)
+    
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         reducedElementTypes = []
         for element in node.elementTypes:
@@ -510,6 +522,22 @@ def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
     if hasLiteralFunctionalNode and node.value.isPurelyFunctional():
         return makeTypedLiteralForValueAt(TypedValue = node.functional.value(node.argument.value))
 
+    return node
+
+def reduceTypedOverloadedApplicationNode(node: ASTTypedOverloadedApplicationNode):
+    assert node.type.isOverloadsTypeNode()
+    if node.overloads.isTypedOverloadsNode():
+        overloadsNode: ASTTypedOverloadsNode = node.overloads
+        resultOverloadsType: ASTOverloadsTypeNode = node.type
+
+        assert len(resultOverloadsType.alternativeTypes) >= 0
+        assert len(resultOverloadsType.alternativeTypes) == len(node.alternativeIndices)
+        alternativesWithApplication = []
+        for i in range(len(resultOverloadsType.alternativeTypes)):
+            alternative = overloadsNode.alternatives[node.alternativeIndices[i]]
+            resultType = resultOverloadsType.alternativeTypes[i]
+            alternativesWithApplication.append(reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, alternative, node.argument)))
+        return reduceTypedOverloadsNode(ASTTypedOverloadsNode(node.sourcePosition, node.type, alternativesWithApplication))
     return node
 
 def isLiteralTypeOfTypeNode(node: ASTNode):
