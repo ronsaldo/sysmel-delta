@@ -108,6 +108,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedOverloadsNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedSequenceNode(self, node):
         pass
 
@@ -330,6 +334,9 @@ class ASTOverloadsTypeNode(ASTTypeNode):
                 self.typeUniverseIndex = max(self.typeUniverseIndex, alternativeType.computeTypeUniverseIndex())
         
         return self.typeUniverseIndex
+    
+    def isOverloadsTypeNode(self) -> bool:
+        return True
     
     def accept(self, visitor):
         return visitor.visitOverloadsTypeNode(self)

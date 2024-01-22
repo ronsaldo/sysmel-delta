@@ -27,7 +27,7 @@ class Typechecker(ASTVisitor):
     def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
         return node.accept(self)
 
-    def visitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode | None) -> ASTTypedNode | ASTTypeNode:
+    def visitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode) -> ASTTypedNode | ASTTypeNode:
         if expectedTypeExpression is None:
             return self.visitNode(node)
 
@@ -37,6 +37,11 @@ class Typechecker(ASTVisitor):
         if typedNodeType != expectedTypeNode and not typedNodeType.isEquivalentTo(expectedTypeNode):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
+
+    def doesTypedNodeConformToTypeExpression(self, typedNode: ASTTypedNode | ASTTypeNode, expectedTypeExpression: ASTNode | None) -> ASTTypedNode | ASTTypeNode | None:
+        typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
+        expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
+        return typedNodeType == expectedTypeNode or typedNodeType.isEquivalentTo(expectedTypeNode)
 
     def visitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> ASTTypedNode | ASTTypeNode:
         if expectedType is None:
@@ -118,6 +123,24 @@ class Typechecker(ASTVisitor):
 
         reduced = ASTBetaReducer(substitutionContext).visitNode(piBody)
         return typedArgument, reduced
+    
+    def attemptBetaReducePiWithTypedArgument(self, piNode: ASTNode, typedArgument: ASTNode):
+        substitutionContext = SubstitutionContext()
+        if piNode.isPiLiteralValue():
+            piValue: FunctionalValue = piNode.value
+            argumentBinding = piValue.argumentBinding
+            piBody = piValue.body
+        else:
+            assert piNode.isTypedPiNode()
+            typedFunctionalNode: ASTTypedFunctionalNode = piNode
+            argumentBinding = typedFunctionalNode.argumentBinding
+            piBody = typedFunctionalNode.body
+
+        if not self.doesTypedNodeConformToTypeExpression(typedArgument, argumentBinding.getTypeExpression()):
+            return None
+
+        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, typedArgument)
+        return ASTBetaReducer(substitutionContext).visitNode(piBody)
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         functional = self.visitNode(node.functional)
@@ -127,6 +150,21 @@ class Typechecker(ASTVisitor):
         if functional.isTypedPiNodeOrLiteralValue():
             typedArgument, resultType = self.betaReducePiWithArgument(functional, node.argument)
             return resultType
+        
+        if functional.type.isOverloadsTypeNode():
+            acceptedAlternativeTypes = []
+            acceptedAlternativeIndices = []
+            index = 0
+            typedArgument = self.visitNode(node.argument)
+            for alternativeType in functional.type.alternativeTypes:
+                resultType = self.attemptBetaReducePiWithTypedArgument(alternativeType, typedArgument)
+                if resultType is not None:
+                    acceptedAlternativeTypes.append(resultType)
+                    acceptedAlternativeIndices.append(index)
+                index += 1
+
+            print(acceptedAlternativeTypes, acceptedAlternativeIndices)
+            assert False
 
         if not functional.type.isTypedPiNodeOrLiteralValue():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a forall or it must have a forall type.", functional)
@@ -287,7 +325,7 @@ class Typechecker(ASTVisitor):
             elementTypeExpressions.append(getTypeOfAnalyzedNode(typedExpression, typedExpression.sourcePosition))
             typedElements.append(typedExpression)
         
-        tupleType = reduceTupleTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
+        tupleType = reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
         return ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements)
 
     def visitOverloadsTypeNode(self, node: ASTProductTypeNode):
@@ -315,6 +353,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
+        return node
+
+    def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode):
         return node
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
@@ -404,6 +445,31 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedElements.append(self.visitNode(element))
         return ASTTypedSequenceNode(node.sourcePosition, reducedType, reducedElements)
 
+    def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
+        reducedAlternativeTypes = []
+        for alternative in node.alternativeTypes:
+            reducedAlternativeTypes.append(self.visitNode(alternative))
+        return reduceOverloadsTypeNode(ASTOverloadsTypeNode(node.sourcePosition, reducedAlternativeTypes))
+
+    def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode):
+        reducedType = self.visitNode(node.type)
+        reducedAlternatives = []
+        for alternative in node.alternatives:
+            reducedAlternatives.append(self.visitNode(alternative))
+        return reduceTypedOverloadsNode(ASTTypedOverloadsNode(node.sourcePosition, reducedType, reducedAlternatives))
+
+    def visitProductTypeNode(self, node: ASTProductTypeNode):
+        reducedElementTypes = []
+        for element in node.elementTypes:
+            reducedElementTypes.append(self.visitNode(element))
+        return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, reducedElementTypes))
+
+    def visitSumTypeNode(self, node: ASTSumTypeNode):
+        reducedAlternativeTypes = []
+        for alternative in node.alternativeTypesTypes:
+            reducedAlternativeTypes.append(self.visitNode(alternative))
+        return reduceSumTypeNode(ASTSumTypeNode(node.sourcePosition, reducedAlternativeTypes))
+
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         reducedType = self.visitNode(node.type)
         reducedElements = []
@@ -466,7 +532,12 @@ def reduceOverloadsTypeNode(node: ASTOverloadsTypeNode):
         return node.alternativeTypes[0]
     return node
 
-def reduceTupleTypeNode(node: ASTProductTypeNode):
+def reduceTypedOverloadsNode(node: ASTTypedOverloadsNode):
+    if len(node.alternatives) == 1:
+        return node.alternatives[0]
+    return node
+
+def reduceProductTypeNode(node: ASTProductTypeNode):
     if len(node.elementTypes) == 0:
         return ASTLiteralTypeNode(node.sourcePosition, UnitType)
     elif len(node.elementTypes) == 1:

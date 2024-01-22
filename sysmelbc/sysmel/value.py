@@ -11,6 +11,9 @@ class TypedValue(ABC):
     def toJson(self):
         pass
 
+    def isOverloadsType(self) -> bool:
+        return False
+
     def isSubtypeOf(self, otherType) -> bool:
         return False
     
@@ -135,7 +138,7 @@ class ASTNodeTypeClass(BaseType):
 AbsurdType = AbsurdTypeClass("Absurd")
 UnitType = UnitTypeClass("Unit", "unit")
 
-NatType = IntegerTypeClass("Nat")
+NatType = NatTypeClass("Nat")
 IntegerType = IntegerTypeClass("Integer")
 FloatType = FloatTypeClass("Float")
 CharacterType = CharacterTypeClass("Character")
@@ -350,6 +353,9 @@ class OverloadsType(BaseType):
 
     def getType(self):
         return TypeType
+    
+    def isOverloadsType(self):
+        return True
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         if not isinstance(other, ProductType): return False
@@ -514,6 +520,9 @@ class ASTNode(TypedValue):
         return self == other
 
     def isTypeNode(self) -> bool:
+        return False
+    
+    def isOverloadsTypeNode(self) -> bool:
         return False
 
     def isLiteralTypeNode(self) -> bool:
