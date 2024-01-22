@@ -19,6 +19,24 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> TypedValue:
         return node.value
 
+    def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
+        alternativeTypes = []
+        for alternativeType in node.alternativeTypes:
+            alternativeTypes.append(self.visitNode(alternativeType))
+        return OverloadsType.makeWithAlternativeTypes(alternativeTypes)
+
+    def visitProductTypeNode(self, node: ASTProductTypeNode):
+        elementTypes = []
+        for elementType in node.elementTypes:
+            elementTypes.append(self.visitNode(elementType))
+        return ProductType.makeWithElementTypes(elementTypes)
+
+    def visitSumTypeNode(self, node: ASTSumTypeNode):
+        alternativeTypes = []
+        for alternativeType in node.alternativeTypes:
+            alternativeTypes.append(self.visitNode(alternativeType))
+        return SumType.makeWithElementTypes(alternativeTypes)
+
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         functional = self.visitNode(node.functional)
         argument = self.visitNode(node.argument)

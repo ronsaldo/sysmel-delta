@@ -64,6 +64,18 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitOverloadsTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitProductTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitSumTypeNode(self, node):
+        pass
+
+    @abstractmethod
     def visitSequenceNode(self, node):
         pass
 
@@ -305,6 +317,66 @@ class ASTTupleNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
+class ASTOverloadsTypeNode(ASTTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, alternativeTypes: list[ASTTypeNode]) -> None:
+        super().__init__(sourcePosition)
+        self.alternativeTypes = alternativeTypes
+        self.typeUniverseIndex = None
+
+    def computeTypeUniverseIndex(self) -> int:
+        if self.typeUniverseIndex is None:
+            self.typeUniverseIndex = -1
+            for alternativeType in self.alternativeTypes:
+                self.typeUniverseIndex = max(self.typeUniverseIndex, alternativeType.computeTypeUniverseIndex())
+        
+        return self.typeUniverseIndex
+    
+    def accept(self, visitor):
+        return visitor.visitOverloadsTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'OverloadsType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
+    
+class ASTProductTypeNode(ASTTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, elementTypes: list[ASTTypeNode]) -> None:
+        super().__init__(sourcePosition)
+        self.elementTypes = elementTypes
+        self.typeUniverseIndex = None
+
+    def computeTypeUniverseIndex(self) -> int:
+        if self.typeUniverseIndex is None:
+            self.typeUniverseIndex = -1
+            for elementType in self.elementTypes:
+                self.typeUniverseIndex = max(self.typeUniverseIndex, elementType.computeTypeUniverseIndex())
+        
+        return self.typeUniverseIndex
+    
+    def accept(self, visitor):
+        return visitor.visitProductTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'ProductType', 'elementTypes': list(map(optionalASTNodeToJson, self.elementTypes))}
+    
+class ASTSumTypeNode(ASTTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, alternativeTypes: list[ASTTypeNode]) -> None:
+        super().__init__(sourcePosition)
+        self.alternativeTypes = alternativeTypes
+        self.typeUniverseIndex = None
+
+    def computeTypeUniverseIndex(self) -> int:
+        if self.typeUniverseIndex is None:
+            self.typeUniverseIndex = -1
+            for alternativeType in self.alternativeTypes:
+                self.typeUniverseIndex = max(self.typeUniverseIndex, alternativeType.computeTypeUniverseIndex())
+        
+        return self.typeUniverseIndex
+    
+    def accept(self, visitor):
+        return visitor.visitSumTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'SumType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
+    
 class ASTTypedApplicationNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, functional: ASTTypedNode, argument: ASTTypedNode) -> None:
         super().__init__(sourcePosition, type)
@@ -475,6 +547,18 @@ class ASTSequentialVisitor(ASTVisitor):
 
     def visitTupleNode(self, node: ASTTupleNode):
         for expression in node.elements:
+            self.visitNode(expression)
+
+    def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
+        for expression in node.alternativeTypes:
+            self.visitNode(expression)
+
+    def visitProductTypeNode(self, node: ASTProductTypeNode):
+        for expression in node.elementTypes:
+            self.visitNode(expression)
+
+    def visitSumTypeNode(self, node: ASTSumTypeNode):
+        for expression in node.alternativeTypes:
             self.visitNode(expression)
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):

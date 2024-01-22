@@ -24,21 +24,21 @@ class Typechecker(ASTVisitor):
     def withEnvironment(self, newEnvironment: LexicalEnvironment):
         return Typechecker(newEnvironment, self.errorAccumulator)
 
-    def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTLiteralTypeNode:
+    def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
         return node.accept(self)
 
-    def visitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode | None) -> ASTTypedNode | ASTLiteralTypeNode:
+    def visitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode | None) -> ASTTypedNode | ASTTypeNode:
         if expectedTypeExpression is None:
             return self.visitNode(node)
 
         typedNode = self.visitNode(node)
-        typedNodeType = getTypeOfTypedNodeOrLiteralType(typedNode, typedNode.sourcePosition)
+        typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
         if typedNodeType != expectedTypeNode and not typedNodeType.isEquivalentTo(expectedTypeNode):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
 
-    def visitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> ASTTypedNode | ASTLiteralTypeNode:
+    def visitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> ASTTypedNode | ASTTypeNode:
         if expectedType is None:
             return self.visitNode(node)
 
@@ -62,7 +62,7 @@ class Typechecker(ASTVisitor):
     
     def visitTypeExpression(self, node: ASTNode) -> ASTTypedNode:
         analyzedNode = self.visitNode(node)
-        if analyzedNode.isLiteralTypeNode():
+        if analyzedNode.isTypeNode():
             return analyzedNode
         
         if isLiteralTypeOfTypeNode(analyzedNode.type):
@@ -182,7 +182,7 @@ class Typechecker(ASTVisitor):
             resultType = ASTPiNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
         return self.visitNode(resultType)
     
-    def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTTypedNode | ASTLiteralTypeNode:
+    def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTTypedNode | ASTTypeNode:
         if binding.isValueBinding():
             if binding.value.isType():
                 return ASTLiteralTypeNode(node.sourcePosition, binding.value)
@@ -216,7 +216,7 @@ class Typechecker(ASTVisitor):
         body = self.withEnvironment(lambdaEnvironment).visitNodeWithExpectedTypeExpression(node.body, node.resultType)
 
         ## Compute the lambda type.
-        bodyType = getTypeOfTypedNodeOrLiteralType(body, node.sourcePosition)
+        bodyType = getTypeOfAnalyzedNode(body, node.sourcePosition)
         typedPi = ASTTypedPiNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType, bodyType, node.sourcePosition), argumentBinding, bodyType)
 
         ## Make the lambda node.
@@ -264,13 +264,15 @@ class Typechecker(ASTVisitor):
         elif len(node.alternatives) == 1:
             return self.visitNode(node.alternatives[0])
 
-        elementTypes = []
+        alternativeTypeExpressions = []
         typedAlternatives = []
         for alternative in node.alternatives:
             typedExpression = self.visitNode(alternative)
-            elementTypes.append(typedExpression.type)
+            alternativeTypeExpressions.append(getTypeOfAnalyzedNode(typedExpression, typedExpression.sourcePosition))
             typedAlternatives.append(typedExpression)
-        return ASTTypedOverloadsNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes)), typedAlternatives)
+
+        overloadsType = reduceOverloadsTypeNode(ASTOverloadsTypeNode(node.sourcePosition, alternativeTypeExpressions))
+        return ASTTypedOverloadsNode(node.sourcePosition, overloadsType, typedAlternatives)
 
     def visitTupleNode(self, node: ASTTupleNode):
         if len(node.elements) == 0:
@@ -278,13 +280,24 @@ class Typechecker(ASTVisitor):
         elif len(node.elements) == 1:
             return self.visitNode(node.elements[0])
         
-        elementTypes = []
+        elementTypeExpressions = []
         typedElements = []
         for expression in node.elements:
             typedExpression = self.visitNode(expression)
-            elementTypes.append(typedExpression.type)
+            elementTypeExpressions.append(getTypeOfAnalyzedNode(typedExpression, typedExpression.sourcePosition))
             typedElements.append(typedExpression)
-        return ASTTypedTupleNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes)), typedElements)
+        
+        tupleType = reduceTupleTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
+        return ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements)
+
+    def visitOverloadsTypeNode(self, node: ASTProductTypeNode):
+        return node
+
+    def visitProductTypeNode(self, node: ASTProductTypeNode):
+        return node
+
+    def visitSumTypeNode(self, node: ASTProductTypeNode):
+        return node
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         return node
@@ -316,7 +329,7 @@ class SubstitutionContext:
         self.bindingSubstitutionNodes = dict()
         self.bindingSubstitutionBindings = dict()
 
-    def lookSubstitutionForBindingInNode(self, binding: SymbolBinding, oldNode: ASTTypedNode) -> ASTTypedNode | ASTLiteralTypeNode:
+    def lookSubstitutionForBindingInNode(self, binding: SymbolBinding, oldNode: ASTTypedNode) -> ASTTypedNode | ASTTypeNode:
         if binding in self.bindingSubstitutionNodes:
             return self.applySourcePositionToSubstitution(self.bindingSubstitutionNodes[binding], oldNode.sourcePosition)
         if binding in self.bindingSubstitutionBindings:
@@ -328,7 +341,7 @@ class SubstitutionContext:
             return self.parent.lookSubstitutionForBindingInNode(binding, oldNode)
         return oldNode
 
-    def setSubstitutionNodeForBinding(self, binding: SymbolBinding, substitution: ASTTypedNode | ASTLiteralTypeNode) -> None:
+    def setSubstitutionNodeForBinding(self, binding: SymbolBinding, substitution: ASTTypedNode | ASTTypeNode) -> None:
         self.bindingSubstitutionNodes[binding] = substitution
 
     def setSubstitutionBindingForBinding(self, binding: SymbolBinding, newBinding: SymbolBinding) -> None:
@@ -344,7 +357,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         super().__init__()
         self.substitutionContext = substitutionContext
 
-    def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTLiteralTypeNode:
+    def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
         return node.accept(self)
 
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> ASTLiteralTypeNode:
@@ -398,12 +411,12 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedElements.append(self.visitNode(element))
         return ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements)
     
-def getTypeOfTypedNodeOrLiteralType(node: ASTTypedNode | ASTLiteralTypeNode, sourcePosition: SourcePosition) -> ASTTypedNode | ASTLiteralTypeNode:
-    if node.isLiteralTypeNode():
-        return ASTLiteralTypeNode(sourcePosition, node.value.getType())
+def getTypeOfAnalyzedNode(node: ASTTypedNode | ASTTypeNode, sourcePosition: SourcePosition) -> ASTTypedNode | ASTTypeNode:
+    if node.isTypeNode():
+        return ASTLiteralTypeNode(sourcePosition, node.getTypeUniverse())
     return node.type
 
-def betaReduceFunctionalNodeWithArgument(functionalNode: ASTTypedNode | ASTLiteralTypeNode, argument: ASTTypedNode | ASTLiteralTypeNode):
+def betaReduceFunctionalNodeWithArgument(functionalNode: ASTTypedNode | ASTTypeNode, argument: ASTTypedNode | ASTTypeNode):
     assert functionalNode.isTypedFunctionalNode()
     typedFunctionalNode: ASTTypedFunctionalNode = functionalNode
     argumentBinding = typedFunctionalNode.argumentBinding
@@ -414,13 +427,13 @@ def betaReduceFunctionalNodeWithArgument(functionalNode: ASTTypedNode | ASTLiter
 
     return ASTBetaReducer(substitutionContext).visitNode(forAllBody)
     
-def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition) -> ASTTypedLiteralNode | ASTLiteralTypeNode:
+def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition) -> ASTTypedLiteralNode | ASTTypeNode:
     if value.isType():
         return ASTLiteralTypeNode(sourcePosition, value)
     return ASTTypedLiteralNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, value.getType()), value)
 
 def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
-    hasLiteralArgument = node.argument.isLiteralTypeNode() or node.argument.isTypedLiteralNode()
+    hasLiteralArgument = node.argument.isTypeNode() or node.argument.isTypedLiteralNode()
     if not hasLiteralArgument:
         return node
 
@@ -446,6 +459,25 @@ def reducePiNode(node: ASTTypedPiNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
         forAllValue = PiValue(node.type.value, [], [], node.argumentBinding, node.body)
         return ASTLiteralTypeNode(node.sourcePosition, forAllValue)
+    return node
+
+def reduceOverloadsTypeNode(node: ASTOverloadsTypeNode):
+    if len(node.alternativeTypes) == 1:
+        return node.alternativeTypes[0]
+    return node
+
+def reduceTupleTypeNode(node: ASTProductTypeNode):
+    if len(node.elementTypes) == 0:
+        return ASTLiteralTypeNode(node.sourcePosition, UnitType)
+    elif len(node.elementTypes) == 1:
+        return node.elementTypes[0]
+    return node
+
+def reduceSumTypeNode(node: ASTSumTypeNode):
+    if len(node.alternativeTypes) == 0:
+        return ASTLiteralTypeNode(node.sourcePosition, AbsurdType)
+    elif len(node.alternativeTypes) == 1:
+        return node.alternativeTypes[0]
     return node
 
 def reduceLambdaNode(node: ASTTypedLambdaNode):

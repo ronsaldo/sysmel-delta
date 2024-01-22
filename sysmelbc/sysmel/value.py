@@ -320,6 +320,54 @@ class ProductType(BaseType):
         cls.ProductTypeCache[productKey] = productType
         return productType
 
+class OverloadsTypeValue(TypedValue):
+    def __init__(self, type: TypedValue, alternatives: tuple) -> None:
+        super().__init__()
+        self.alternatives = alternatives
+        self.type = type
+
+    def getType(self):
+        return self.type
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not self.type.isEquivalentTo(other.getType()): return False
+        if len(self.alternatives) != len(other.alternatives): return False
+        for i in range(len(self.alternatives)):
+            if not self.alternatives[i].isEquivalentTo(other.alternatives[i]):
+                return False
+
+        return True
+
+    def toJson(self):
+        return {'overloads': list(map(lambda v: v.toJson(), self.alternatives))}
+
+class OverloadsType(BaseType):
+    def __init__(self, elementTypes: list[TypedValue]) -> None:
+        self.elementTypes = elementTypes
+
+    def makeWithAlternatives(self, elements) -> ProductTypeValue:
+        return OverloadsTypeValue(self, elements)
+
+    def getType(self):
+        return TypeType
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not isinstance(other, ProductType): return False
+
+        if len(self.elementTypes) != len(other.elementTypes): return False
+        for i in range(len(self.elementTypes)):
+            if not self.elementTypes[i].isEquivalentTo(other.elementTypes[i]):
+                return False
+
+        return True
+
+    def toJson(self):
+        return {'overloadsType': list(map(lambda v: v.toJson(), self.elementTypes))}
+    
+    @classmethod
+    def makeWithAlternativeTypes(cls, elementTypes: list[TypedValue]):
+        return cls(tuple(elementTypes))
+
 class RecordTypeValue(ProductTypeValue):
     def toJson(self):
         result = dict()
@@ -465,6 +513,9 @@ class ASTNode(TypedValue):
     def isEquivalentTo(self, other) -> bool:
         return self == other
 
+    def isTypeNode(self) -> bool:
+        return False
+
     def isLiteralTypeNode(self) -> bool:
         return False
 
@@ -492,13 +543,27 @@ class ASTNode(TypedValue):
     def isTypedLambdaNode(self) -> bool:
         return False
 
-class ASTLiteralTypeNode(ASTNode):
+class ASTTypeNode(ASTNode):
+    def isTypeNode(self) -> bool:
+        return True
+    
+    def getTypeUniverse(self) -> TypedValue:
+        return TypeUniverse.getWithIndex(self.computeTypeUniverseIndex())
+
+    @abstractmethod
+    def computeTypeUniverseIndex(self) -> int:
+        pass
+
+class ASTLiteralTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, value: TypedValue) -> None:
         super().__init__(sourcePosition)
         self.value = value
 
     def prettyPrint(self) -> str:
         return str(self.value)
+
+    def getTypeUniverse(self) -> TypedValue:
+        return self.value.getType()
 
     def computeTypeUniverseIndex(self) -> int:
         return self.value.getTypeUniverseIndex()
@@ -626,7 +691,7 @@ class SymbolValueBinding(SymbolBinding):
     def evaluateInActivationEnvironmentAt(self, activationEnvironment, sourcePosition: SourcePosition) -> TypedValue:
         return self.value
 
-    def evaluateSubstitutionInContextAt(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode | ASTLiteralTypeNode:
+    def evaluateSubstitutionInContextAt(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode | ASTTypeNode:
         if self.value.isType():
             return ASTLiteralTypeNode(sourcePosition, self.value)
         return ASTTypedLiteralNode(sourcePosition, self.getTypeExpression(), self.value)
