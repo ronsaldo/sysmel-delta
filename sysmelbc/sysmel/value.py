@@ -175,6 +175,13 @@ class NatValue(TypedValue):
     def __div__(self, other):
         return NatValue(self.value / other.value)
 
+    def quotientWith(self, other):
+        return NatValue(int(self.value / other.value))
+
+    def remainderWith(self, other):
+        quotient = int(self.value / other.value)
+        return NatValue(self.value - quotient*other.value)
+
 class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
         super().__init__()
@@ -201,6 +208,13 @@ class IntegerValue(TypedValue):
     def __div__(self, other):
         return IntegerValue(self.value / other.value)
     
+    def quotientWith(self, other):
+        return NatValue(int(self.value / other.value))
+
+    def remainderWith(self, other):
+        quotient = int(self.value / other.value)
+        return NatValue(self.value - quotient*other.value)
+
 class FloatValue(TypedValue):
     def __init__(self, value: float) -> None:
         super().__init__()
@@ -958,9 +972,24 @@ TopLevelEnvironment = TopLevelEnvironment.withBaseType(StringType)
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(ASTNodeType)
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-    ['+', [NatType, NatType, NatType], lambda x, y: x + y],
+    ['+', [NatType, NatType, NatType],             lambda x, y: x + y],
     ['+', [IntegerType, IntegerType, IntegerType], lambda x, y: x + y],
-    ['+', [FloatType, FloatType, FloatType], lambda x, y: x + y]
+    ['+', [FloatType, FloatType, FloatType],       lambda x, y: x + y],
+
+    ['-', [NatType, NatType, NatType],             lambda x, y: x - y],
+    ['-', [IntegerType, IntegerType, IntegerType], lambda x, y: x - y],
+    ['-', [FloatType, FloatType, FloatType],       lambda x, y: x - y],
+
+    ['*', [NatType, NatType, NatType],             lambda x, y: x * y],
+    ['*', [IntegerType, IntegerType, IntegerType], lambda x, y: x * y],
+    ['*', [FloatType, FloatType, FloatType],       lambda x, y: x * y],
+
+    ['//', [NatType, NatType, NatType],             lambda x, y: x.quotientWith(y)],
+    ['//', [IntegerType, IntegerType, IntegerType], lambda x, y: x.quotientWith(y)],
+    ['/', [FloatType, FloatType, FloatType],        lambda x, y: x / y],
+
+    ['%', [NatType, NatType, NatType],             lambda x, y: x.remainderWith(y)],
+    ['%', [IntegerType, IntegerType, IntegerType], lambda x, y: x.remainderWith(y)],
 ], TopLevelEnvironment)
 
 ## Boolean :: False | True.
