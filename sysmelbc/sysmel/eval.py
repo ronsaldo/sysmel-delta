@@ -71,6 +71,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return node.value
 
+    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode) -> TypedValue:
+        assert False
+
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode) -> TypedValue:
         alternatives = list()
         for alternative in node.alternatives:

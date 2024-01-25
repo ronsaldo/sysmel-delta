@@ -147,6 +147,17 @@ class Typechecker(ASTVisitor):
         functional = self.visitNode(node.functional)
         if functional.isTypedErrorNode():
             return ASTTypedApplicationNode(node.sourcePosition, functional.type, functional, self.visitNode(node.argument))
+        
+        if isMacroValueNode(functional):
+            macroValue = functional.value
+            if macroValue.expectsMacroEvaluationContext():
+                macroValue = macroValue(MacroContext(node.sourcePosition, self.lexicalEnvironment))
+            macroEvaluationResult = macroValue(node)
+
+            if macroEvaluationResult.isMacroValue():
+                return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, macroEvaluationResult.getType()), macroEvaluationResult)
+            assert isinstance(macroEvaluationResult, ASTNode)
+            return self.visitNode(macroEvaluationResult)
 
         if functional.isTypedPiNodeOrLiteralValue():
             typedArgument, resultType = self.betaReducePiWithArgument(functional, node.argument)
@@ -273,6 +284,9 @@ class Typechecker(ASTVisitor):
 
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode):
         return node
+    
+    def visitLocalDefinitionNode(self, node: ASTLocalDefinitionNode):
+        assert False
 
     def visitMessageSendNode(self, node: ASTMessageSendNode):
         selector, errorNode = self.evaluateSymbol(node.selector)
@@ -358,6 +372,9 @@ class Typechecker(ASTVisitor):
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
+
+    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode):
+        assert False
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         return node
@@ -543,6 +560,9 @@ def reduceTypedOverloadedApplicationNode(node: ASTTypedOverloadedApplicationNode
 
 def isLiteralTypeOfTypeNode(node: ASTNode):
     return (node.isLiteralTypeNode() or node.isTypedLiteralNode()) and node.value.isTypeUniverse()
+
+def isMacroValueNode(node: ASTNode):
+    return node.isTypedLiteralNode() and node.value.isMacroValue()
 
 def reduceType(node: ASTNode):
     if node.isTypedLiteralNode() and isLiteralTypeOfTypeNode(node.type):

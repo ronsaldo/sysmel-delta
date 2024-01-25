@@ -134,13 +134,17 @@ class PiValue(FunctionalValue):
         return True
     
 class PrimitiveFunction(TypedValue):
-    def __init__(self, type: TypedValue, value, name: Symbol = None) -> None:
+    def __init__(self, type: TypedValue, value, name: Symbol = None, isMacro = False) -> None:
         self.type = type
         self.name = name
         self.value = value
+        self.isMacro = isMacro
 
     def isFunctionalValue(self) -> bool:
         return True
+
+    def isMacroValue(self) -> bool:
+        return self.isMacro
 
     def getType(self):
         return self.type
@@ -160,6 +164,9 @@ class CurriedFunctionalValue(TypedValue):
     def isFunctionalValue(self) -> bool:
         return True
 
+    def isMacroValue(self) -> bool:
+        return self.innerFunction.isMacroValue()
+
     def getType(self):
         return self.type
 
@@ -177,6 +184,12 @@ class CurryingFunctionalValue(TypedValue):
 
     def isFunctionalValue(self) -> bool:
         return True
+
+    def isMacroValue(self) -> bool:
+        return self.innerFunction.isMacroValue()
+    
+    def expectsMacroEvaluationContext(self) -> bool:
+        return self.type.argumentBinding.hasTypeOf(MacroContextType)
 
     def getType(self):
         return self.type
@@ -197,7 +210,7 @@ def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePo
     else:
         return makeFunctionTypeFromTo(signature[0], (makeSimpleFunctionType(signature[1:], sourcePosition)), sourcePosition)
 
-def makePrimitiveFunction(name: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition()):
+def makePrimitiveFunction(name: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False):
     assert len(signature) >= 2
     nameSymbol = None
     if name is not None:
@@ -205,16 +218,23 @@ def makePrimitiveFunction(name: str, signature: list[TypedValue], function, sour
 
     if len(signature) == 2:
         functionType = makeSimpleFunctionType(signature)
-        return PrimitiveFunction(functionType, function, nameSymbol)
+        return PrimitiveFunction(functionType, function, nameSymbol, isMacro = isMacro)
     else:
-        innerFunction = makePrimitiveFunction(nameSymbol, signature[1:], function, sourcePosition)
+        innerFunction = makePrimitiveFunction(nameSymbol, signature[1:], function, sourcePosition, isMacro = isMacro)
         functionType = makeFunctionTypeFromTo(signature[0], innerFunction.getType(), sourcePosition)
         return CurryingFunctionalValue(functionType, innerFunction, nameSymbol)
 
 def addPrimitiveFunctionDefinitionsToEnvironment(definitions, environment):
-    for functionName, signature, function in definitions:
-        environment = environment.withPrimitiveFunction(makePrimitiveFunction(functionName, signature, function))
+    for functionName, signature, function, extraFlags in definitions:
+        isMacro = 'macro' in extraFlags
+        environment = environment.withPrimitiveFunction(makePrimitiveFunction(functionName, signature, function, isMacro = isMacro))
     return environment
+
+def letTypeWithMacro(macroContext: MacroContext, localName: ASTNode, expectedType: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTLocalDefinitionNode(macroContext.sourcePosition, localName, expectedType, localValue)
+
+def letWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTLocalDefinitionNode(macroContext.sourcePosition, localName, None, localValue)
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(AbsurdType)
@@ -228,24 +248,27 @@ TopLevelEnvironment = TopLevelEnvironment.withBaseType(StringType)
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(ASTNodeType)
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-    ['+', [NatType, NatType, NatType],             lambda x, y: x + y],
-    ['+', [IntegerType, IntegerType, IntegerType], lambda x, y: x + y],
-    ['+', [FloatType, FloatType, FloatType],       lambda x, y: x + y],
+    ['let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
+    ['let:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
 
-    ['-', [NatType, NatType, NatType],             lambda x, y: x - y],
-    ['-', [IntegerType, IntegerType, IntegerType], lambda x, y: x - y],
-    ['-', [FloatType, FloatType, FloatType],       lambda x, y: x - y],
+    ['+', [NatType, NatType, NatType],             lambda x, y: x + y, []],
+    ['+', [IntegerType, IntegerType, IntegerType], lambda x, y: x + y, []],
+    ['+', [FloatType, FloatType, FloatType],       lambda x, y: x + y, []],
 
-    ['*', [NatType, NatType, NatType],             lambda x, y: x * y],
-    ['*', [IntegerType, IntegerType, IntegerType], lambda x, y: x * y],
-    ['*', [FloatType, FloatType, FloatType],       lambda x, y: x * y],
+    ['-', [NatType, NatType, NatType],             lambda x, y: x - y, []],
+    ['-', [IntegerType, IntegerType, IntegerType], lambda x, y: x - y, []],
+    ['-', [FloatType, FloatType, FloatType],       lambda x, y: x - y, []],
 
-    ['//', [NatType, NatType, NatType],             lambda x, y: x.quotientWith(y)],
-    ['//', [IntegerType, IntegerType, IntegerType], lambda x, y: x.quotientWith(y)],
-    ['/', [FloatType, FloatType, FloatType],        lambda x, y: x / y],
+    ['*', [NatType, NatType, NatType],             lambda x, y: x * y, []],
+    ['*', [IntegerType, IntegerType, IntegerType], lambda x, y: x * y, []],
+    ['*', [FloatType, FloatType, FloatType],       lambda x, y: x * y, []],
 
-    ['%', [NatType, NatType, NatType],             lambda x, y: x.remainderWith(y)],
-    ['%', [IntegerType, IntegerType, IntegerType], lambda x, y: x.remainderWith(y)],
+    ['//', [NatType, NatType, NatType],             lambda x, y: x.quotientWith(y), []],
+    ['//', [IntegerType, IntegerType, IntegerType], lambda x, y: x.quotientWith(y), []],
+    ['/', [FloatType, FloatType, FloatType],        lambda x, y: x / y, []],
+
+    ['%', [NatType, NatType, NatType],             lambda x, y: x.remainderWith(y), []],
+    ['%', [IntegerType, IntegerType, IntegerType], lambda x, y: x.remainderWith(y), []],
 ], TopLevelEnvironment)
 
 ## Boolean :: False | True.
