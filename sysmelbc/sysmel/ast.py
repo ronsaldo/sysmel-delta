@@ -478,9 +478,9 @@ class ASTTypedLambdaNode(ASTTypedFunctionalNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
-class ASTTypedLocalDefinitionNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, binding: SymbolLocalBinding, valueExpression: ASTNode) -> None:
-        super().__init__(sourcePosition)
+class ASTTypedLocalDefinitionNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolLocalBinding, valueExpression: ASTNode) -> None:
+        super().__init__(sourcePosition, type)
         self.binding = binding
         self.valueExpression = valueExpression
 

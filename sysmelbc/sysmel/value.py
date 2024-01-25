@@ -601,6 +601,9 @@ class ASTTypeNode(ASTNode):
     def computeTypeUniverseIndex(self) -> int:
         pass
 
+    def getTypeExpressionAt(self, sourcePosition: SourcePosition):
+        return ASTLiteralTypeNode(sourcePosition, self.getTypeUniverse())
+
 class ASTLiteralTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, value: TypedValue) -> None:
         super().__init__(sourcePosition)
@@ -644,6 +647,9 @@ class ASTTypedNode(ASTNode):
 
     def computeTypeUniverseIndex(self) -> int:
         return self.type.computeTypeUniverseIndex()
+    
+    def getTypeExpressionAt(self, sourcePosition: SourcePosition) -> ASTTypeNode:
+        return self.type
 
 class ASTTypedLiteralNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, value: TypedValue) -> None:
@@ -758,14 +764,14 @@ class SymbolLocalBinding(SymbolBinding):
         self.typeExpression = typeExpression
         self.valueExpression = valueExpression
 
-    def evaluateInActivationEnvironmentAt(self, activationEnvironment, sourcePosition: SourcePosition) -> TypedValue:
-        assert False
-
-    def evaluateSubstitutionInContextAt(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode | ASTTypeNode:
-        assert False
-
     def getTypeExpression(self) -> ASTTypeNode:
         return self.typeExpression
+
+    def getCaptureNestingLevel(self) -> int:
+        return 0
+    
+    def toJson(self):
+        return {'name': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
 class SymbolArgumentBinding(SymbolBinding):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode) -> None:

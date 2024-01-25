@@ -72,7 +72,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         return node.value
 
     def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode) -> TypedValue:
-        assert False
+        value = self.visitNode(node.valueExpression)
+        self.activationEnvironment.setBindingValue(node.binding, value)
+        return value
 
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode) -> TypedValue:
         alternatives = list()

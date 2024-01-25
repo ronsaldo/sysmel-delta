@@ -6,8 +6,8 @@
 ##2 // 3.
 ##1, 2
 
-##let: #x with: 42.
-##x
+let: #plusOne with: (:(Nat)x :: Nat) :=> x + 1.
+plusOne(2)
 
 #*
 ## returnInt :: () => Int32.

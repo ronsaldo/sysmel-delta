@@ -117,7 +117,7 @@ def parseLiteralCharacter(state: ParserState) -> tuple[ParserState, ASTNode]:
 def parseLiteralSymbol(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.SYMBOL
-    symbolValue = token.getValue()[1:]
+    symbolValue = token.getStringValue()[1:]
     if symbolValue[0] == '"':
         assert symbolValue[0] == '"' and symbolValue[-1] == '"'
         symbolValue = parseCEscapedString(symbolValue[1:-1])

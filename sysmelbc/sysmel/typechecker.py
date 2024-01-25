@@ -152,7 +152,7 @@ class Typechecker(ASTVisitor):
             macroValue = functional.value
             if macroValue.expectsMacroEvaluationContext():
                 macroValue = macroValue(MacroContext(node.sourcePosition, self.lexicalEnvironment))
-            macroEvaluationResult = macroValue(node)
+            macroEvaluationResult = macroValue(node.argument)
 
             if macroEvaluationResult.isMacroValue():
                 return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, macroEvaluationResult.getType()), macroEvaluationResult)
@@ -286,7 +286,25 @@ class Typechecker(ASTVisitor):
         return node
     
     def visitLocalDefinitionNode(self, node: ASTLocalDefinitionNode):
-        assert False
+        if node.initialValueExpression is None and node.expectedTypeExpression is None:
+            return self.makeSemanticError(node.sourcePosition, "Local definition node requires at least an initial value or an expected type expression.")
+        
+        typecheckedValue = self.visitNodeWithExpectedTypeExpression(node.initialValueExpression, node.expectedTypeExpression)
+        localName = self.evaluateOptionalSymbol(node.nameExpression)
+        if localName is None:
+            return typecheckedValue
+        
+        ## Use a symbol value binding if possible.
+        if typecheckedValue.isTypedLiteralNode() or typecheckedValue.isLiteralTypeNode():
+            valueBinding = SymbolValueBinding(node.sourcePosition, localName, typecheckedValue.value)
+            self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(valueBinding)
+            return typecheckedValue
+        
+        ## Make a local variable.
+        bindingTypeExpression = typecheckedValue.getTypeExpressionAt(node.sourcePosition)
+        localBinding = SymbolLocalBinding(node.sourcePosition, localName, bindingTypeExpression, typecheckedValue)
+        self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(localBinding)
+        return ASTTypedLocalDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue)
 
     def visitMessageSendNode(self, node: ASTMessageSendNode):
         selector, errorNode = self.evaluateSymbol(node.selector)
@@ -308,8 +326,13 @@ class Typechecker(ASTVisitor):
         
         resultType = UnitType
         typedElements = []
-        for expression in node.elements:
+        expressionCount = len(node.elements)
+        for i in range(expressionCount):
+            expression = node.elements[i]
             typedExpression = self.visitNode(expression)
+            if i + 1 < expressionCount and (typedExpression.isTypedLiteralNode() or typedExpression.isLiteralTypeNode()):
+                continue
+
             resultType = typedExpression.type
             typedElements.append(typedExpression)
         return ASTTypedSequenceNode(node.sourcePosition, resultType, typedElements)
@@ -461,6 +484,9 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
+
+    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode):
+        assert False
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
         reducedType = self.visitNode(node.type)
