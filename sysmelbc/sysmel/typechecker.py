@@ -1,4 +1,5 @@
 from .ast import *
+from .environment import *
 
 class ErrorAccumulator:
     def __init__(self) -> None:

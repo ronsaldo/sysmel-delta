@@ -1,6 +1,7 @@
 from typing import Any
 from .ast import *
 from .value import *
+from .environment import *
 
 class ASTEvaluator(ASTTypecheckedVisitor):
     def __init__(self, activationEnvironment: FunctionalActivationEnvironment) -> None:
