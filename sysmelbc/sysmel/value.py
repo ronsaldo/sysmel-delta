@@ -123,9 +123,6 @@ class UnitTypeClass(BaseType):
     def getSingleton(self) -> UnitTypeValue:
         return self.singleton
 
-class NatTypeClass(BaseType):
-    pass
-
 class IntegerTypeClass(BaseType):
     pass
 
@@ -144,10 +141,35 @@ class ASTNodeTypeClass(BaseType):
 class MacroContextTypeClass(BaseType):
     pass
 
+class PrimitiveIntegerTypeClass(BaseType):
+    def __init__(self, name: str, valueSize: int) -> None:
+        super().__init__(name)
+        self.valueSize = valueSize
+
+    @abstractmethod
+    def normalizeIntegerValue(self, value: int) -> int:
+        pass
+
+class PrimitiveUnsignedIntegerTypeClass(PrimitiveIntegerTypeClass):
+    def __init__(self, name: str, valueSize: int) -> None:
+        super().__init__(name, valueSize)
+        self.mask = (1<<(valueSize*8)) - 1
+
+    def normalizeIntegerValue(self, value: int) -> int:
+        return value & self.mask
+
+class PrimitiveSignedIntegerTypeClass(PrimitiveIntegerTypeClass):
+    def __init__(self, name: str, valueSize: int) -> None:
+        super().__init__(name, valueSize)
+        self.mask = (1<<(valueSize*8)) - 1
+        self.signBitMask = 1<<(valueSize*8 - 1)
+
+    def normalizeIntegerValue(self, value: int) -> int:
+        return (value & (self.signBitMask - 1)) - (value & self.signBitMask)
+
 AbsurdType = AbsurdTypeClass("Absurd")
 UnitType = UnitTypeClass("Unit", "unit")
 
-NatType = NatTypeClass("Nat")
 IntegerType = IntegerTypeClass("Integer")
 FloatType = FloatTypeClass("Float")
 CharacterType = CharacterTypeClass("Character")
@@ -155,42 +177,15 @@ StringType = StringTypeClass("String")
 ASTNodeType = ASTNodeTypeClass("ASTNode")
 MacroContextType = MacroContextTypeClass("MacroContext")
 
-class NatValue(TypedValue):
-    def __init__(self, value: int) -> None:
-        super().__init__()
-        self.value = value
+Int8Type  = PrimitiveSignedIntegerTypeClass("Int32", 1)
+Int16Type = PrimitiveSignedIntegerTypeClass("Int32", 2)
+Int32Type = PrimitiveSignedIntegerTypeClass("Int32", 4)
+Int64Type = PrimitiveSignedIntegerTypeClass("Int64", 8)
 
-    def getType(self) -> TypedValue:
-        return NatType
-
-    def isEquivalentTo(self, other: TypedValue) -> bool:
-        return isinstance(other, self.__class__) and self.value == other.value
-
-    def toJson(self):
-        return self.value
-    
-    def __add__(self, other):
-        return NatValue(self.value + other.value)
-
-    def __sub__(self, other):
-        result = self.value - other.value
-        if result < 0:
-            raise Exception("Nat underflow")
-
-        return NatValue(result)
-
-    def __mul__(self, other):
-        return NatValue(self.value * other.value)
-
-    def __div__(self, other):
-        return NatValue(self.value / other.value)
-
-    def quotientWith(self, other):
-        return NatValue(int(self.value / other.value))
-
-    def remainderWith(self, other):
-        quotient = int(self.value / other.value)
-        return NatValue(self.value - quotient*other.value)
+UInt8Type  = PrimitiveUnsignedIntegerTypeClass("UInt32", 1)
+UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 2)
+UInt32Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 4)
+UInt64Type = PrimitiveUnsignedIntegerTypeClass("UInt64", 8)
 
 class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
@@ -219,11 +214,11 @@ class IntegerValue(TypedValue):
         return IntegerValue(self.value / other.value)
     
     def quotientWith(self, other):
-        return NatValue(int(self.value / other.value))
+        return IntegerValue(int(self.value / other.value))
 
     def remainderWith(self, other):
         quotient = int(self.value / other.value)
-        return NatValue(self.value - quotient*other.value)
+        return IntegerValue(self.value - quotient*other.value)
 
 class FloatValue(TypedValue):
     def __init__(self, value: float) -> None:

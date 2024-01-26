@@ -94,10 +94,10 @@ def parseCEscapedString(string: str) -> str:
         unescaped += c
     return unescaped
 
-def parseLiteralNat(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLiteralInteger(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.NAT
-    return state, ASTLiteralNode(token.sourcePosition, NatValue(int(token.getValue())))
+    return state, ASTLiteralNode(token.sourcePosition, IntegerValue(int(token.getValue())))
 
 def parseLiteralFloat(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
@@ -124,7 +124,7 @@ def parseLiteralSymbol(state: ParserState) -> tuple[ParserState, ASTNode]:
     return state, ASTLiteralNode(token.sourcePosition, Symbol.intern(symbolValue))
 
 def parseLiteral(state: ParserState) -> tuple[ParserState, ASTNode]:
-    if state.peekKind() == TokenKind.NAT: return parseLiteralNat(state)
+    if state.peekKind() == TokenKind.NAT: return parseLiteralInteger(state)
     elif state.peekKind() == TokenKind.FLOAT: return parseLiteralFloat(state)
     elif state.peekKind() == TokenKind.STRING: return parseLiteralString(state)
     elif state.peekKind() == TokenKind.CHARACTER: return parseLiteralCharacter(state)

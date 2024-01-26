@@ -240,7 +240,6 @@ TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(AbsurdType)
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(UnitType)
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleton())
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(NatType)
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(IntegerType)
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(FloatType)
 TopLevelEnvironment = TopLevelEnvironment.withBaseType(CharacterType)
@@ -251,23 +250,18 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
     ['let:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
 
-    ['+', [NatType, NatType, NatType],             lambda x, y: x + y, []],
     ['+', [IntegerType, IntegerType, IntegerType], lambda x, y: x + y, []],
     ['+', [FloatType, FloatType, FloatType],       lambda x, y: x + y, []],
 
-    ['-', [NatType, NatType, NatType],             lambda x, y: x - y, []],
     ['-', [IntegerType, IntegerType, IntegerType], lambda x, y: x - y, []],
     ['-', [FloatType, FloatType, FloatType],       lambda x, y: x - y, []],
 
-    ['*', [NatType, NatType, NatType],             lambda x, y: x * y, []],
     ['*', [IntegerType, IntegerType, IntegerType], lambda x, y: x * y, []],
     ['*', [FloatType, FloatType, FloatType],       lambda x, y: x * y, []],
 
-    ['//', [NatType, NatType, NatType],             lambda x, y: x.quotientWith(y), []],
     ['//', [IntegerType, IntegerType, IntegerType], lambda x, y: x.quotientWith(y), []],
     ['/', [FloatType, FloatType, FloatType],        lambda x, y: x / y, []],
 
-    ['%', [NatType, NatType, NatType],             lambda x, y: x.remainderWith(y), []],
     ['%', [IntegerType, IntegerType, IntegerType], lambda x, y: x.remainderWith(y), []],
 ], TopLevelEnvironment)
 
