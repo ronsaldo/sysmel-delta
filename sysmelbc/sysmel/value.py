@@ -187,6 +187,8 @@ UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 2)
 UInt32Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 4)
 UInt64Type = PrimitiveUnsignedIntegerTypeClass("UInt64", 8)
 
+PrimitiveIntegerTypes = [Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type]
+
 class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
         super().__init__()
@@ -310,8 +312,9 @@ class ProductTypeValue(TypedValue):
 class ProductType(BaseType):
     ProductTypeCache = dict()
 
-    def __init__(self, elementTypes: list[TypedValue]) -> None:
+    def __init__(self, elementTypes: list[TypedValue], name = None) -> None:
         self.elementTypes = elementTypes
+        self.name = name
 
     def makeWithElements(self, elements) -> ProductTypeValue:
         return ProductTypeValue(self, elements)
@@ -402,9 +405,10 @@ class RecordTypeValue(ProductTypeValue):
         return result
     
 class RecordType(ProductType):
-    def __init__(self, elementTypes: list[TypedValue], fields: list[TypedValue]) -> None:
+    def __init__(self, elementTypes: list[TypedValue], fields: list[TypedValue], name = None) -> None:
         self.elementTypes = elementTypes
         self.fields = fields
+        self.name = name
 
     def makeWithElements(self, elements) -> RecordTypeValue:
         return RecordTypeValue(self, elements)
@@ -428,8 +432,9 @@ class SumTypeValue(TypedValue):
 class SumType(BaseType):
     SumTypeCache = dict()
 
-    def __init__(self, variantTypes: list[TypedValue]) -> None:
+    def __init__(self, variantTypes: list[TypedValue], name = None) -> None:
         self.variantTypes = variantTypes
+        self.name = name
 
     def makeWithTypeIndexAndValue(self, variantIndex: int, value: TypedValue) -> SumTypeValue:
         return SumTypeValue(self, variantIndex, value)
@@ -439,7 +444,11 @@ class SumType(BaseType):
 
     def toJson(self):
         return {'sumType': list(map(lambda v: v.toJson(), self.variantTypes))}
-    
+
+    @classmethod
+    def makeNamedWithVariantTypes(cls, name, variantTypes: list[TypedValue]):
+        return cls(name, tuple(variantTypes))
+
     @classmethod
     def makeWithVariantTypes(cls, variantTypes: list[TypedValue]):
         key = tuple(variantTypes)

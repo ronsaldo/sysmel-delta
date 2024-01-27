@@ -236,42 +236,63 @@ def letTypeWithMacro(macroContext: MacroContext, localName: ASTNode, expectedTyp
 def letWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
     return ASTLocalDefinitionNode(macroContext.sourcePosition, localName, None, localValue)
 
+## Boolean :: False | True.
+FalseType = UnitTypeClass("False", "false")
+TrueType = UnitTypeClass("True", "true")
+BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType])
+
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(AbsurdType)
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(UnitType)
+for baseType in [
+        AbsurdType, UnitType,
+        IntegerType, CharacterType, StringType, FalseType, TrueType, BooleanType,
+        Int8Type, Int16Type, Int32Type, Int64Type,
+        UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+        ASTNodeType, 
+    ]:
+    TopLevelEnvironment = TopLevelEnvironment.withBaseType(baseType)
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleton())
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(IntegerType)
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(FloatType)
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(CharacterType)
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(StringType)
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(ASTNodeType)
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
     ['let:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
-
-    ['+', [IntegerType, IntegerType, IntegerType], lambda x, y: x + y, []],
-    ['+', [FloatType, FloatType, FloatType],       lambda x, y: x + y, []],
-
-    ['-', [IntegerType, IntegerType, IntegerType], lambda x, y: x - y, []],
-    ['-', [FloatType, FloatType, FloatType],       lambda x, y: x - y, []],
-
-    ['*', [IntegerType, IntegerType, IntegerType], lambda x, y: x * y, []],
-    ['*', [FloatType, FloatType, FloatType],       lambda x, y: x * y, []],
-
-    ['//', [IntegerType, IntegerType, IntegerType], lambda x, y: x.quotientWith(y), []],
-    ['/', [FloatType, FloatType, FloatType],        lambda x, y: x / y, []],
-
-    ['%', [IntegerType, IntegerType, IntegerType], lambda x, y: x.remainderWith(y), []],
 ], TopLevelEnvironment)
 
-## Boolean :: False | True.
-FalseType = UnitTypeClass("False", "false")
-TrueType = UnitTypeClass("True", "true")
-BooleanType = SumType.makeWithVariantTypes([FalseType, TrueType])
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(FalseType)
+for primitiveNumberType in [IntegerType, FloatType] + PrimitiveIntegerTypes:
+    TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['+',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x + y, []],
+        ['-',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x - y, []],
+        ['*',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x * y, []],
+
+        ['asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
+        ['asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
+        ['asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
+        ['asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+
+        ['asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
+        ['asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
+        ['asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
+        ['asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []]
+    ], TopLevelEnvironment)
+
+for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
+    TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['//',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.quotientWith(y), []],
+        ['%',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.remainderWith(y), []],
+    ], TopLevelEnvironment)
+
+for primitiveNumberType in [IntegerType, CharacterType, FloatType]:
+    TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['i8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
+        ['i16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
+        ['i32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
+        ['i64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+        ['u8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
+        ['u16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
+        ['u32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
+        ['u64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []]
+    ], TopLevelEnvironment)
+
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(FalseType.getSingleton())
-TopLevelEnvironment = TopLevelEnvironment.withBaseType(TrueType)
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(TrueType.getSingleton())
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Type"), TypeType)
