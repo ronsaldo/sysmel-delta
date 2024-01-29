@@ -315,10 +315,31 @@ def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
     functionIdentifier = ASTIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
     return state, ASTApplicationNode(state.sourcePositionFrom(startPosition), functionIdentifier, arguments)
 
+def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ASTNode]:
+    startPosition = state.position
+    state, receiver = parseBinaryExpressionSequence(state)
+    if state.peekKind() != TokenKind.KEYWORD:
+        return state, receiver
+
+    symbolValue = ""
+    arguments = []
+    firstKeywordSourcePosition = state.peek(0).sourcePosition
+    lastKeywordSourcePosition = firstKeywordSourcePosition
+    while state.peekKind() == TokenKind.KEYWORD:
+        keywordToken = state.next()
+        lastKeywordSourcePosition = keywordToken.sourcePosition
+        symbolValue += keywordToken.getStringValue()
+        
+        state, argument = parseBinaryExpressionSequence(state)
+        arguments.append(argument)
+
+    selector = ASTLiteralNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
+    return state, ASTMessageSendNode(state.sourcePositionFrom(startPosition), receiver, selector, arguments)
+
 def parseCommaExpressionElement(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.KEYWORD:
         return parseKeywordApplication(state)
-    return parseBinaryExpressionSequence(state)
+    return parseKeywordMessageSend(state)
 
 def parseCommaExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position

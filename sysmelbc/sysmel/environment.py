@@ -296,6 +296,13 @@ TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleto
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
     ['let:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
+
+    ['const', [TypeType, TypeType], DecoratedType.makeConst, []],
+    ['volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],
+    ['array:', [TypeType, IntegerType, TypeType], ArrayType.makeWithElementTypeAndSize, []],
+    ['pointer', [TypeType, TypeType], PointerType.makeWithBaseType, []],
+    ['ref', [TypeType, TypeType], ReferenceType.makeWithBaseType, []],
+    ['tempRef', [TypeType, TypeType], TemporaryReferenceType.makeWithBaseType, []],
 ], TopLevelEnvironment)
 
 for primitiveNumberType in [IntegerType, FloatType] + PrimitiveIntegerTypes:

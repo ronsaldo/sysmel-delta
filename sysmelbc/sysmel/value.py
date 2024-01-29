@@ -52,6 +52,21 @@ class TypedValue(ABC):
     
     def expectsMacroEvaluationContext(self) -> bool:
         return False
+    
+    def isDecoratedType(self) -> bool:
+        return False
+
+    def isArrayType(self) -> bool:
+        return False
+
+    def isPointerType(self) -> bool:
+        return False
+
+    def isReferenceType(self) -> bool:
+        return False
+
+    def isTemporaryReferenceType(self) -> bool:
+        return False
 
 class TypeUniverse(TypedValue):
     InstancedUniverses = dict()
@@ -183,13 +198,13 @@ StringType = StringTypeClass("String")
 ASTNodeType = ASTNodeTypeClass("ASTNode")
 MacroContextType = MacroContextTypeClass("MacroContext")
 
-Int8Type  = PrimitiveSignedIntegerTypeClass("Int32", 1)
-Int16Type = PrimitiveSignedIntegerTypeClass("Int32", 2)
+Int8Type  = PrimitiveSignedIntegerTypeClass("Int8", 1)
+Int16Type = PrimitiveSignedIntegerTypeClass("Int16", 2)
 Int32Type = PrimitiveSignedIntegerTypeClass("Int32", 4)
 Int64Type = PrimitiveSignedIntegerTypeClass("Int64", 8)
 
-UInt8Type  = PrimitiveUnsignedIntegerTypeClass("UInt32", 1)
-UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 2)
+UInt8Type  = PrimitiveUnsignedIntegerTypeClass("UInt8", 1)
+UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt16", 2)
 UInt32Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 4)
 UInt64Type = PrimitiveUnsignedIntegerTypeClass("UInt64", 8)
 
@@ -464,7 +479,99 @@ class SumType(BaseType):
         sumType = cls(key)
         cls.SumTypeCache[key] = sumType
         return sumType
+
+class DerivedType(BaseType):
+    def __init__(self, baseType) -> None:
+        self.baseType = baseType
+
+    def getType(self):
+        return self.baseType.getType()
+
+class DecoratedType(DerivedType):
+    Const = 1<<0
+    Volatile = 1<<1
     
+    def __init__(self, baseType, decorations: int) -> None:
+        super().__init__(baseType)
+        self.decorations = decorations
+
+    @classmethod
+    def makeWithDecorations(cls, baseType: TypedValue, decorations: int):
+        if baseType.isDecoratedType():
+            return cls(baseType.baseType, baseType.decorations | decorations)
+        return cls(baseType, decorations)
+
+    @classmethod
+    def makeConst(cls, baseType: TypedValue):
+        return cls.makeWithDecorations(baseType, cls.Const)
+
+    @classmethod
+    def makeVolatile(cls, baseType: TypedValue):
+        return cls.makeWithDecorations(baseType, cls.Volatile)
+
+    def isDecoratedType(self) -> bool:
+        return True
+
+    def toJson(self):
+        return {'decoratedType': self.baseType.toJson(), 'decorations': self.decorations}
+
+class ArrayType(DerivedType):
+    def __init__(self, baseType: TypedValue, size: int) -> None:
+        super().__init__(baseType)
+        self.size = size
+
+    @classmethod
+    def makeWithElementTypeAndSize(cls, elementType: TypedValue, size: IntegerValue):
+        return cls(elementType, size.value)
+
+    def isArrayType(self) -> bool:
+        return True
+
+    def toJson(self):
+        return {'arrayType': self.baseType.toJson(), 'size': self.size}
+
+class PointerType(DerivedType):
+    def __init__(self, baseType) -> None:
+        super().__init__(baseType)
+
+    @classmethod
+    def makeWithBaseType(cls, baseType):
+        return cls(baseType)
+
+    def isPointerType(self) -> bool:
+        return True
+
+    def toJson(self):
+        return {'pointerType': self.baseType.toJson()}
+
+class ReferenceType(DerivedType):
+    def __init__(self, baseType) -> None:
+        super().__init__(baseType)
+
+    @classmethod
+    def makeWithBaseType(cls, baseType):
+        return cls(baseType)
+
+    def isReferenceType(self) -> bool:
+        return True
+
+    def toJson(self):
+        return {'refType': self.baseType.toJson()}
+
+class TemporaryReferenceType(DerivedType):
+    def __init__(self, baseType) -> None:
+        super().__init__(baseType)
+
+    @classmethod
+    def makeWithBaseType(cls, baseType):
+        return cls(baseType)
+
+    def isTemporaryReferenceType(self) -> bool:
+        return True
+    
+    def toJson(self):
+        return {'tempRefType': self.baseType.toJson()}
+
 class SymbolTypeClass(BaseType):
     pass
 
