@@ -218,7 +218,10 @@ class Typechecker(ASTVisitor):
 
         resultType = node.resultType
         for argument in reversed(node.arguments):
-            resultType = ASTPiNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
+            if argument.isExistential:
+                resultType = ASTSigmaNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
+            else:
+                resultType = ASTPiNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
         return self.visitNode(resultType)
     
     def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTTypedNode | ASTTypeNode:
@@ -269,7 +272,19 @@ class Typechecker(ASTVisitor):
         body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
         typedPi = ASTTypedPiNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), argumentBinding, functionalEnvironment.captureBindings, body)
         return reducePiNode(typedPi)
-    
+
+    def visitSigmaNode(self, node: ASTSigmaNode):
+        argumentName = self.evaluateOptionalSymbol(node.argumentName)
+        argumentType = self.visitOptionalTypeExpression(node.argumentType)
+        if argumentName is None and argumentType is None:
+            argumentType = ASTLiteralTypeNode(UnitType)
+
+        argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType)
+        functionalEnvironment = FunctionalAnalysisEnvironment(self.lexicalEnvironment, argumentBinding, node.sourcePosition)
+        body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
+        typedSigma = ASTTypedSigmaNode(node.sourcePosition, mergeTypeUniversesOfTypeNodes(argumentType,  body, node.sourcePosition), argumentBinding, functionalEnvironment.captureBindings, body)
+        return reduceSigmaNode(typedSigma)
+
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
         innerEnvironment = LexicalEnvironment(self.lexicalEnvironment)
         return Typechecker(innerEnvironment, self.errorAccumulator).visitNode(node)
@@ -380,6 +395,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedPiNode(self, node: ASTTypedPiNode):
+        return node
+
+    def visitTypedSigmaNode(self, node: ASTTypedSigmaNode):
         return node
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
@@ -670,6 +688,12 @@ def reducePiNode(node: ASTTypedPiNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
         piValue = PiValue(node.type.value, node.argumentBinding, [], [], node.body)
         return ASTLiteralTypeNode(node.sourcePosition, piValue)
+    return node
+
+def reduceSigmaNode(node: ASTTypedPiNode):
+    if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
+        sigmaValue = SigmaValue(node.type.value, node.argumentBinding, [], [], node.body)
+        return ASTLiteralTypeNode(node.sourcePosition, sigmaValue)
     return node
 
 def reduceLambdaNode(node: ASTTypedLambdaNode):

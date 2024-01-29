@@ -166,15 +166,17 @@ def parseArgument(state: ParserState) -> tuple[ParserState, ASTNode]:
     assert state.peekKind() == TokenKind.COLON
     state.advance()
 
-    isPi = False
-    if state.peekKind() == TokenKind.STAR:
+    isImplicit = False
+    isExistential = False
+    while state.peekKind() in [TokenKind.STAR, TokenKind.QUESTION]:
+        isImplicit = isImplicit or state.peekKind() == TokenKind.STAR
+        isExistential = isExistential or state.peekKind() == TokenKind.QUESTION
         state.advance()
-        isPi = True
 
     state, typeExpression = parseOptionalParenthesis(state)
     state, nameExpression = parseOptionalNameExpression(state)
 
-    return state, ASTArgumentNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isPi)    
+    return state, ASTArgumentNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential)    
 
 def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position

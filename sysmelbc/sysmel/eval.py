@@ -62,6 +62,11 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
         return PiValue(type, node.argumentBinding, node.captureBindings, capturedValues, node.body)
 
+    def visitTypedSigmaNode(self, node: ASTTypedSigmaNode) -> TypedValue:
+        type = self.visitNode(node.type)
+        capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
+        return SigmaValue(type, node.argumentBinding, node.captureBindings, capturedValues, node.body)
+
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.evaluateBindingAt(node.binding, node.sourcePosition)
 

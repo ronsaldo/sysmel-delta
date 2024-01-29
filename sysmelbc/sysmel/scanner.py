@@ -7,7 +7,7 @@ TokenKind = Enum('TokenKind', [
 
     'CHARACTER', 'FLOAT', 'IDENTIFIER', 'NAT', 'KEYWORD', 'MULTI_KEYWORD', 'OPERATOR', 'STRING', 'SYMBOL',
     'LEFT_PARENT', 'RIGHT_PARENT', 'LEFT_BRACKET', 'RIGHT_BRACKET', 'LEFT_CURLY_BRACKET', 'RIGHT_CURLY_BRACKET',
-    'LESS_THAN', 'GREATER_THAN', 'STAR',
+    'LESS_THAN', 'GREATER_THAN', 'STAR', 'QUESTION',
     'COLON', 'COLON_COLON', 'BAR',
     'ASSIGNMENT', 'ASSIGNMENT_ARROW', 'SEMICOLON', 'COMMA', 'DOT', 'ELLIPSIS',
     'QUOTE', 'QUASI_QUOTE', 'QUASI_UNQUOTE', 'SPLICE',
@@ -336,6 +336,8 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
             token.kind = TokenKind.GREATER_THAN
         elif tokenValue == b'*':
             token.kind = TokenKind.STAR
+        elif tokenValue == b'?':
+            token.kind = TokenKind.QUESTION
         return state, token
 
     state.advance()

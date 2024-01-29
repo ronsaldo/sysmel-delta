@@ -28,6 +28,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitSigmaNode(self, node):
+        pass
+
+    @abstractmethod
     def visitFunctionNode(self, node):
         pass
 
@@ -100,6 +104,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedSigmaNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedIdentifierReferenceNode(self, node):
         pass
 
@@ -132,17 +140,18 @@ class ASTVisitor(ABC):
         pass
 
 class ASTArgumentNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isPi: bool = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False) -> None:
         super().__init__(sourcePosition)
         self.typeExpression = typeExpression
         self.nameExpression = nameExpression
-        self.isPi = isPi
+        self.isImplicit = isImplicit
+        self.isExistential = isExistential
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitArgumentNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isPi': self.isPi}
+        return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}
 
 class ASTArgumentApplicationNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, argument: ASTNode) -> None:
@@ -226,6 +235,19 @@ class ASTPiNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'PiNode', 'argumentType': optionalASTNodeToJson(self.argumentType), 'argumentName': optionalASTNodeToJson(self.argumentName), 'body': optionalASTNodeToJson(self.body)}
 
+class ASTSigmaNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, argumentType: ASTNode, argumentName: ASTNode, body: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.argumentType = argumentType
+        self.argumentName = argumentName
+        self.body = body
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitSigmaNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'SigmaNode', 'argumentType': optionalASTNodeToJson(self.argumentType), 'argumentName': optionalASTNodeToJson(self.argumentName), 'body': optionalASTNodeToJson(self.body)}
+
 class ASTFunctionNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, functionalType: ASTFunctionalTypeNode, body: ASTNode) -> None:
         super().__init__(sourcePosition)
@@ -239,9 +261,9 @@ class ASTFunctionNode(ASTNode):
         return {'kind': 'Function', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
     
 class ASTLambdaNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, isImplicitPiArgument: bool, argumentType: ASTNode, argumentName: ASTNode, resultType: ASTNode, body: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, isImplicitArgument: bool, argumentType: ASTNode, argumentName: ASTNode, resultType: ASTNode, body: ASTNode) -> None:
         super().__init__(sourcePosition)
-        self.isImplicitPiArgument = isImplicitPiArgument
+        self.isImplicitArgument = isImplicitArgument
         self.argumentType = argumentType
         self.argumentName = argumentName
         self.resultType = resultType
@@ -469,6 +491,16 @@ class ASTTypedPiNode(ASTTypedFunctionalNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedPi', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
+class ASTTypedSigmaNode(ASTTypedFunctionalNode):
+    def isTypedSigmaNode(self) -> bool:
+        return True
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedSigmaNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedSigma', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
+
 class ASTTypedLambdaNode(ASTTypedFunctionalNode):
     def isTypedLambdaNode(self) -> bool:
         return True
@@ -578,6 +610,11 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitOptionalNode(node.argumentName)
         self.visitNode(node.body)
 
+    def visitSigmaNode(self, node: ASTSigmaNode):
+        self.visitOptionalNode(node.argumentType)
+        self.visitOptionalNode(node.argumentName)
+        self.visitNode(node.body)
+
     def visitFunctionNode(self, node: ASTFunctionNode):
         self.visitNode(node.functionalType)
         self.visitNode(node.body)
@@ -633,6 +670,11 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.argument)
 
     def visitTypedPiNode(self, node: ASTTypedPiNode):
+        self.visitNode(node.type)
+        self.visitNode(node.argumentBinding.typeExpression)
+        self.visitNode(node.body)
+
+    def visitTypedSigmaNode(self, node: ASTTypedSigmaNode):
         self.visitNode(node.type)
         self.visitNode(node.argumentBinding.typeExpression)
         self.visitNode(node.body)
@@ -708,6 +750,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitPiNode(self, node):
+        assert False
+
+    def visitSigmaNode(self, node):
         assert False
 
     def visitFunctionNode(self, node):

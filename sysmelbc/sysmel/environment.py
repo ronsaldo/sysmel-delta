@@ -169,9 +169,19 @@ class PiValue(FunctionalValue):
         return self.type
 
     def toJson(self):
-        return {'forAll': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
+        return {'pi': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
     
     def isPi(self) -> bool:
+        return True
+    
+class SigmaValue(FunctionalValue):
+    def getType(self):
+        return self.type
+
+    def toJson(self):
+        return {'sigma': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
+    
+    def isSigma(self) -> bool:
         return True
     
 class PrimitiveFunction(TypedValue):
