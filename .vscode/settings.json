@@ -6,6 +6,12 @@
         "initializer_list": "c",
         "ranges": "c",
         "span": "c",
-        "utility": "c"
+        "utility": "c",
+        "typeinfo": "c",
+        "compare": "c",
+        "functional": "c",
+        "ostream": "c",
+        "tuple": "c",
+        "type_traits": "c"
     }
 }

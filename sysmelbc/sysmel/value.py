@@ -298,7 +298,7 @@ class CharacterValue(TypedValue):
 class StringValue(TypedValue):
     def __init__(self, value: str) -> None:
         super().__init__()
-        self.value = str
+        self.value = value
 
     def getType(self):
         return StringType

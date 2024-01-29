@@ -25,4 +25,4 @@ procedure: #returnInt with: {
 entryPoint: returnInt.
 *#
 
-Int32 const pointer array: 42
+##Int32 const pointer array: 42
