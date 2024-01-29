@@ -192,7 +192,7 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
             return state, state.makeTokenStartingFrom(TokenKind.NAT, initialState)
         
         ## Decimal point.
-        if state.peek() == b'.' and isDigit(state.peek(1)):
+        if state.peek() == b'.'[0] and isDigit(state.peek(1)):
             state.advanceCount(2)
             while isDigit(state.peek()):
                 state.advance()

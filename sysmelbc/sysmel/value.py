@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import json
 from typing import Any
+import math
+import struct
 
 class TypedValue(ABC):
     @abstractmethod
@@ -147,26 +149,12 @@ class UnitTypeClass(BaseType):
 class IntegerTypeClass(BaseType):
     pass
 
-class FloatTypeClass(BaseType):
-    pass
-
-class CharacterTypeClass(BaseType):
-    pass
-
-class StringTypeClass(BaseType):
-    pass
-
-class ASTNodeTypeClass(BaseType):
-    pass
-
-class MacroContextTypeClass(BaseType):
-    pass
-
-class PrimitiveIntegerTypeClass(BaseType):
+class PrimitiveTypeClass(BaseType):
     def __init__(self, name: str, valueSize: int) -> None:
         super().__init__(name)
         self.valueSize = valueSize
 
+class PrimitiveIntegerTypeClass(PrimitiveTypeClass):
     @abstractmethod
     def normalizeIntegerValue(self, value: int) -> int:
         pass
@@ -179,6 +167,14 @@ class PrimitiveUnsignedIntegerTypeClass(PrimitiveIntegerTypeClass):
     def normalizeIntegerValue(self, value: int) -> int:
         return value & self.mask
 
+class PrimitiveCharacterTypeClass(PrimitiveIntegerTypeClass):
+    def __init__(self, name: str, valueSize: int) -> None:
+        super().__init__(name, valueSize)
+        self.mask = (1<<(valueSize*8)) - 1
+
+    def normalizeIntegerValue(self, value: int) -> int:
+        return value & self.mask
+    
 class PrimitiveSignedIntegerTypeClass(PrimitiveIntegerTypeClass):
     def __init__(self, name: str, valueSize: int) -> None:
         super().__init__(name, valueSize)
@@ -188,12 +184,37 @@ class PrimitiveSignedIntegerTypeClass(PrimitiveIntegerTypeClass):
     def normalizeIntegerValue(self, value: int) -> int:
         return (value & (self.signBitMask - 1)) - (value & self.signBitMask)
 
+class PrimitiveFloatTypeClass(BaseType):
+    def normalizeFloatValue(self, value: float) -> float:
+        return value
+
+class PrimitiveFloat32TypeClass(PrimitiveFloatTypeClass):
+    def normalizeFloatValue(self, value: float) -> float:
+        return struct.unpack('f', struct.pack('f', value))[0]
+
+class PrimitiveFloat64TypeClass(PrimitiveFloatTypeClass):
+    pass
+
+class StringTypeClass(BaseType):
+    pass
+
+class ASTNodeTypeClass(BaseType):
+    pass
+
+class MacroContextTypeClass(BaseType):
+    pass
+
 AbsurdType = AbsurdTypeClass("Absurd")
 UnitType = UnitTypeClass("Unit", "unit")
 
 IntegerType = IntegerTypeClass("Integer")
-FloatType = FloatTypeClass("Float")
-CharacterType = CharacterTypeClass("Character")
+Float32Type = PrimitiveFloat64TypeClass("Float32")
+Float64Type = PrimitiveFloat64TypeClass("Float64")
+
+Char8Type  = PrimitiveCharacterTypeClass("Char8", 1)
+Char16Type = PrimitiveCharacterTypeClass("Char16", 2)
+Char32Type = PrimitiveCharacterTypeClass("Char32", 4)
+
 StringType = StringTypeClass("String")
 ASTNodeType = ASTNodeTypeClass("ASTNode")
 MacroContextType = MacroContextTypeClass("MacroContext")
@@ -208,7 +229,9 @@ UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt16", 2)
 UInt32Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 4)
 UInt64Type = PrimitiveUnsignedIntegerTypeClass("UInt64", 8)
 
-PrimitiveIntegerTypes = [Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type]
+PrimitiveIntegerTypes = [Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type, Char8Type, Char16Type, Char32Type]
+PrimitiveFloatTypes = [Float32Type, Float64Type]
+NumberTypes = [IntegerType] + PrimitiveIntegerTypes + PrimitiveFloatTypes
 
 class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
@@ -224,32 +247,130 @@ class IntegerValue(TypedValue):
     def toJson(self):
         return self.value
 
+    def __neg__(self, other):
+        return self.__class__(-self.value)
+
+    def __invert__(self, other):
+        return self.__class__(-1 - self.value)
+
     def __add__(self, other):
-        return IntegerValue(self.value + other.value)
+        return self.__class__(self.value + other.value)
 
     def __sub__(self, other):
-        return IntegerValue(self.value - other.value)
+        return self.__class__(self.value - other.value)
 
     def __mul__(self, other):
-        return IntegerValue(self.value * other.value)
+        return self.__class__(self.value * other.value)
 
-    def __div__(self, other):
-        return IntegerValue(self.value / other.value)
-    
+    def __and__(self, other):
+        return self.__class__(self.value & other.value)
+
+    def __or__(self, other):
+        return self.__class__(self.value | other.value)
+
+    def __xor__(self, other):
+        return self.__class__(self.value ^ other.value)
+
+    def __lshift__(self, other):
+        return self.__class__(self.value << other.value)
+
+    def __rshift__(self, other):
+        return self.__class__(self.value >> other.value)
+
     def quotientWith(self, other):
-        return IntegerValue(int(self.value / other.value))
+        return self.__class__(int(self.value / other.value))
 
     def remainderWith(self, other):
         quotient = int(self.value / other.value)
-        return IntegerValue(self.value - quotient*other.value)
+        return self.__class__(self.value - quotient*other.value)
 
-class FloatValue(TypedValue):
-    def __init__(self, value: float) -> None:
-        super().__init__()
-        self.value = value
+    def castToInteger(self):
+        return self
+
+    def castToPrimitiveIntegerType(self, targetType):
+        return PrimitiveIntegerValue(targetType, self.value)
+
+    def castToPrimitiveCharacterType(self, targetType):
+        return PrimitiveCharacterValue(targetType, self.value)
+    
+    def castToPrimitiveFloatType(self, targetType):
+        return PrimitiveFloatValue(targetType, float(self.value))
+    
+class PrimitiveIntegerValue(TypedValue):
+    def __init__(self, type: TypedValue, value: int) -> None:
+        self.type = type
+        self.value = type.normalizeIntegerValue(value)
 
     def getType(self):
-        return FloatType
+        return self.type
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        return isinstance(other, self.__class__) and self.type == other.type and self.value == other.value
+
+    def __neg__(self, other):
+        return self.__class__(self.type, -self.value)
+
+    def __invert__(self, other):
+        return self.__class__(self.type, -1 - self.value)
+
+    def __add__(self, other):
+        return self.__class__(self.type, self.value + other.value)
+
+    def __sub__(self, other):
+        return self.__class__(self.type, self.value - other.value)
+
+    def __mul__(self, other):
+        return self.__class__(self.type, self.value * other.value)
+    
+    def quotientWith(self, other):
+        return self.__class__(self.type, int(self.value / other.value))
+
+    def remainderWith(self, other):
+        quotient = int(self.value / other.value)
+        return self.__class__(self.type, self.value - quotient*other.value)
+
+    def __and__(self, other):
+        return self.__class__(self.type, self.value & other.value)
+
+    def __or__(self, other):
+        return self.__class__(self.type, self.value | other.value)
+
+    def __xor__(self, other):
+        return self.__class__(self.type, self.value ^ other.value)
+
+    def __lshift__(self, other):
+        return self.__class__(self.type, self.value << other.value)
+
+    def __rshift__(self, other):
+        return self.__class__(self.type, self.value >> other.value)
+        
+    def castToInteger(self):
+        return IntegerValue(self.value)
+
+    def castToPrimitiveIntegerType(self, targetType):
+        return PrimitiveIntegerValue(targetType, self.value)
+
+    def castToPrimitiveCharacterType(self, targetType):
+        return PrimitiveCharacterValue(targetType, self.value)
+
+    def castToPrimitiveFloatType(self, targetType):
+        return PrimitiveFloatValue(targetType, float(self.value))
+    
+    def toJson(self):
+        return self.value
+    
+class PrimitiveCharacterValue(PrimitiveIntegerValue):
+    def toJson(self):
+        return chr(self.value)
+
+class PrimitiveFloatValue(TypedValue):
+    def __init__(self, type: TypedValue, value: float) -> None:
+        super().__init__()
+        self.type = type
+        self.value = type.normalizeFloatValue(value)
+
+    def getType(self):
+        return self.type
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         return isinstance(other, self.__class__) and self.value == other.value
@@ -257,44 +378,36 @@ class FloatValue(TypedValue):
     def toJson(self):
         return self.value
 
+    def __neg__(self, other):
+        return self.__class__(-self.value)
+    
     def __add__(self, other):
-        return FloatValue(self.value + other.value)
+        return self.__class__(self.type, self.value + other.value)
 
     def __sub__(self, other):
-        return FloatValue(self.value - other.value)
+        return self.__class__(self.type, self.value - other.value)
 
     def __mul__(self, other):
-        return FloatValue(self.value * other.value)
+        return self.__class__(self.type, self.value * other.value)
 
     def __div__(self, other):
-        return FloatValue(self.value / other.value)
-    
-class CharacterValue(TypedValue):
-    def __init__(self, value: int) -> None:
-        super().__init__()
-        self.value = value
+        return self.__class__(self.type, self.value / other.value)
 
-    def getType(self):
-        return CharacterType
+    def sqrt(self):
+        return self.__class__(self.type, math.sqrt(self.value))
 
-    def isEquivalentTo(self, other: TypedValue) -> bool:
-        return isinstance(other, self.__class__) and self.value == other.value
+    def castToInteger(self):
+        return IntegerValue(int(self.value))
 
-    def toJson(self):
-        return self.value
+    def castToPrimitiveIntegerType(self, targetType):
+        return PrimitiveIntegerValue(targetType, int(self.value))
 
-    def __add__(self, other):
-        return CharacterValue(self.value + other.value)
+    def castToPrimitiveCharacterType(self, targetType):
+        return PrimitiveCharacterValue(targetType, int(self.value))
 
-    def __sub__(self, other):
-        return CharacterValue(self.value - other.value)
+    def castToPrimitiveFloatType(self, targetType):
+        return PrimitiveFloatValue(targetType, self.value)
 
-    def __mul__(self, other):
-        return CharacterValue(self.value * other.value)
-
-    def __div__(self, other):
-        return CharacterValue(self.value / other.value)
-    
 class StringValue(TypedValue):
     def __init__(self, value: str) -> None:
         super().__init__()

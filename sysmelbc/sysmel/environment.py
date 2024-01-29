@@ -285,9 +285,11 @@ BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType]
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
         AbsurdType, UnitType,
-        IntegerType, CharacterType, StringType, FalseType, TrueType, BooleanType,
+        IntegerType, StringType, FalseType, TrueType, BooleanType,
         Int8Type, Int16Type, Int32Type, Int64Type,
         UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+        Char8Type, Char16Type, Char32Type,
+        Float32Type, Float64Type,
         ASTNodeType, 
     ]:
     TopLevelEnvironment = TopLevelEnvironment.withBaseType(baseType)
@@ -305,8 +307,10 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['tempRef', [TypeType, TypeType], TemporaryReferenceType.makeWithBaseType, []],
 ], TopLevelEnvironment)
 
-for primitiveNumberType in [IntegerType, FloatType] + PrimitiveIntegerTypes:
+for primitiveNumberType in NumberTypes:
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['negated',  [primitiveNumberType, primitiveNumberType], lambda x: -x, []],
+
         ['+',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x + y, []],
         ['-',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x - y, []],
         ['*',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x * y, []],
@@ -319,25 +323,48 @@ for primitiveNumberType in [IntegerType, FloatType] + PrimitiveIntegerTypes:
         ['asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
         ['asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
         ['asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
-        ['asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []]
+        ['asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+
+        ['asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
+        ['asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
+        ['asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
+
+        ['asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
+        ['asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['bitInvert',  [primitiveNumberType, primitiveNumberType], lambda x: ~x, []],
+
         ['//',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.quotientWith(y), []],
         ['%',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.remainderWith(y), []],
     ], TopLevelEnvironment)
 
-for primitiveNumberType in [IntegerType, CharacterType, FloatType]:
+for primitiveNumberType in PrimitiveFloatTypes:
+    TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['/',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x / y, []],
+        ['sqrt',  [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
+    ], TopLevelEnvironment)
+
+for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
         ['i8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
         ['i16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
         ['i32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
         ['i64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+
         ['u8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
         ['u16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
         ['u32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
-        ['u64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []]
+        ['u64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+
+        ['c8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
+        ['c16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
+        ['c32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
+
+        ['f32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
+        ['f64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
     ], TopLevelEnvironment)
 
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(FalseType.getSingleton())

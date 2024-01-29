@@ -102,7 +102,7 @@ def parseLiteralInteger(state: ParserState) -> tuple[ParserState, ASTNode]:
 def parseLiteralFloat(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.FLOAT
-    return state, ASTLiteralNode(token.sourcePosition, FloatValue(float(token.getValue())))
+    return state, ASTLiteralNode(token.sourcePosition, PrimitiveFloatValue(Float64Type, float(token.getValue())))
 
 def parseLiteralString(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
@@ -112,7 +112,7 @@ def parseLiteralString(state: ParserState) -> tuple[ParserState, ASTNode]:
 def parseLiteralCharacter(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.CHARACTER
-    return state, ASTLiteralNode(token.sourcePosition, CharacterValue(ord(parseCEscapedString(token.getStringValue()[1:-1])[0])))
+    return state, ASTLiteralNode(token.sourcePosition, PrimitiveCharacterValue(Char32Type, ord(parseCEscapedString(token.getStringValue()[1:-1])[0])))
 
 def parseLiteralSymbol(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
