@@ -100,11 +100,13 @@ class Typechecker(ASTVisitor):
 
     def visitApplicationNode(self, node: ASTApplicationNode):
         functional = self.visitNode(node.functional)
+        isImplicit = node.kind == ASTApplicationNode.Bracket
+
         if len(node.arguments) == 0:
-            return self.visitNode(ASTArgumentApplicationNode(node.sourcePosition, functional, ASTLiteralNode(node.sourcePosition, UnitType.getSingleton())))
+            return self.visitNode(ASTArgumentApplicationNode(node.sourcePosition, functional, ASTLiteralNode(node.sourcePosition, UnitType.getSingleton()), isImplicit = isImplicit))
 
         for argument in node.arguments:
-            functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument))
+            functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument, isImplicit = isImplicit))
         return functional
     
     def betaReducePiWithArgument(self, piNode: ASTNode, argument: ASTNode):

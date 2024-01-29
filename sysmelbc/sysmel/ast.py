@@ -154,10 +154,11 @@ class ASTArgumentNode(ASTNode):
         return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}
 
 class ASTArgumentApplicationNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, argument: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, argument: ASTNode, isImplicit = False) -> None:
         super().__init__(sourcePosition)
         self.functional = functional
         self.argument = argument
+        self.isImplicit = isImplicit
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitArgumentApplicationNode(self)
@@ -166,16 +167,21 @@ class ASTArgumentApplicationNode(ASTNode):
         return {'kind': 'ArgumentApplication', 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
     
 class ASTApplicationNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, arguments: list[ASTNode]) -> None:
+    Normal = 0
+    Bracket = 1
+    CurlyBracket = 2
+
+    def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, arguments: list[ASTNode], kind = Normal) -> None:
         super().__init__(sourcePosition)
         self.functional = functional
         self.arguments = arguments
+        self.kind = True
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitApplicationNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'Application', 'functional': self.functional.toJson(), 'arguments': list(map(optionalASTNodeToJson, self.arguments))}
+        return {'kind': 'Application', 'functional': self.functional.toJson(), 'arguments': list(map(optionalASTNodeToJson, self.arguments)), 'kind': self.kind}
 
 class ASTBinaryExpressionSequenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
