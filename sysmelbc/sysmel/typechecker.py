@@ -553,7 +553,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         bodyContext.addSubstitutionsForCaptureBindings(node.captureBindings)
 
         reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
-        return ASTTypedPiNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody)
+        return reducePiNode(ASTTypedPiNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody))
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         return node.binding.evaluateSubstitutionInContextFor(self.substitutionContext, node)
@@ -568,7 +568,19 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         bodyContext.addSubstitutionsForCaptureBindings(node.captureBindings)
 
         reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
-        return ASTTypedLambdaNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody)
+        return reduceLambdaNode(ASTTypedLambdaNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody))
+
+    def visitTypedSigmaNode(self, node: ASTTypedLambdaNode):
+        argumentBinding = node.argumentBinding
+        newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
+        newType = self.visitNode(node.type)
+        
+        bodyContext = SubstitutionContext(self.substitutionContext)
+        bodyContext.setSubstitutionBindingForBinding(argumentBinding, newArgumentBinding)
+        bodyContext.addSubstitutionsForCaptureBindings(node.captureBindings)
+
+        reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
+        return reduceSigmaNode(ASTTypedSigmaNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody))
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
