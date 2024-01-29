@@ -5,15 +5,9 @@
 
 typedef enum sdvm_type_e
 {
-    SdvmTypeVoid = 0,
-    SdvmTypeInteger = 1,
-    SdvmTypePointer = 2,
-    SdvmTypeProcedureHandle = 3,
-    SdvmTypeFatPointer = 5,
-    SdvmTypeFloat = 6,
-    SdvmTypeFloatVector = 7,
-    SdvmTypeIntegerVector = 8,
-    SdvmTypeInfo = 9,
+#define SDVM_TYPE_DEF(name, code) SdvmType ## name = code,
+#include "type.inc"
+#undef SDVM_TYPE_DEF
 } sdvm_type_t;
 
 #define SDVM_ENCODE_OPCODE(isConstant, opcode, destinationType, arg0Type, arg1Type) \
@@ -31,6 +25,7 @@ typedef enum sdvm_opcode_e
     SdvmInst ## name = SDVM_ENCODE_OPCODE(0, SdvmOp ## opcode, SdvmType ## type, SdvmType ## arg0Type, SdvmType ## arg1Type),
 #include "opcode.inc"
 #undef SDVM_CONSTANT_DEF
+#undef SDVM_OPCODE_DEF
 #undef SDVM_INSTRUCTION_DEF
 } sdvm_opcode_t;
 

@@ -5,3 +5,5 @@ from .scanner import SourceCode, SourcePosition, scanFileNamed
 from .parser import parseFileNamed
 from .typechecker import *
 from .eval import *
+from .sdvmInstructionTypes import *
+from .sdvmInstructions import *
