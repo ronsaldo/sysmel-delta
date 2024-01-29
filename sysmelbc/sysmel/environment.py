@@ -86,10 +86,52 @@ class LexicalEnvironment(ChildEnvironment):
     
     def isLexicalEnvironment(self) -> bool:
         return True
+    
+class FunctionalAnalysisEnvironment(LexicalEnvironment):
+    def __init__(self, parent: AbstractEnvironment, argumentBinding: SymbolArgumentBinding, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(parent, sourcePosition)
+        self.argumentBinding = argumentBinding
+        self.captureBindings = []
+        self.capturedBindingMap = dict()
 
+    def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
+        if self.argumentBinding is not None and symbol == self.argumentBinding.name:
+            return self.argumentBinding
+        return None
+    
+    def getOrCreateCaptureForBinding(self, binding: SymbolBinding | None) -> SymbolBinding | None:
+        if binding is None: return binding
+        if binding.isValueBinding(): return binding
+        if binding in self.capturedBindingMap:
+            return self.capturedBindingMap[binding]
+        
+        capturedBinding = SymbolCaptureBinding(binding.sourcePosition, binding.name, binding)
+        self.capturedBindingMap[binding] = capturedBinding
+        self.captureBindings.append(capturedBinding)
+        return capturedBinding
+
+    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
+        binding = self.lookLocalSymbol(symbol)
+        if binding is not None:
+            return binding
+
+        if self.parent is not None:
+            return self.getOrCreateCaptureForBinding(self.parent.lookSymbolRecursively(symbol))
+        return None
+
+    def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
+        parentResult = []
+        if self.parent is not None:
+            parentResult = list(map(self.getOrCreateCaptureForBinding, self.parent.lookSymbolBindingListRecursively(symbol)))
+
+        binding = self.lookLocalSymbol(symbol)
+        if binding is not None:
+            return [binding] + parentResult
+        else:
+            return parentResult
+        
 class FunctionalActivationEnvironment:
-    def __init__(self, parent = None):
-        self.parent = parent
+    def __init__(self):
         self.bindingValues = dict()
 
     def setBindingValue(self, binding: SymbolBinding, value: TypedValue):
@@ -99,15 +141,14 @@ class FunctionalActivationEnvironment:
         if binding in self.bindingValues:
             return self.bindingValues[binding]
         
-        if self.parent is None:
-            raise Exception('%s: Binding for %s does not have an active value.' % (str(sourcePosition), repr(binding.name)))
-        return self.parent.lookBindingValueAt(binding, sourcePosition)
+        raise Exception('%s: Binding for %s does not have an active value.' % (str(sourcePosition), repr(binding.name)))
     
 class FunctionalValue(TypedValue):
-    def __init__(self, type: TypedValue, environment: FunctionalActivationEnvironment, argumentBinding: SymbolArgumentBinding, body) -> None:
+    def __init__(self, type: TypedValue, argumentBinding: SymbolArgumentBinding, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body) -> None:
         self.type = type
-        self.environment = environment
         self.argumentBinding = argumentBinding
+        self.captureBindings = captureBindings
+        self.captureBindingValues = captureBindingValues
         self.body = body
 
     def isPurelyFunctional(self) -> bool:
@@ -201,7 +242,7 @@ class CurryingFunctionalValue(TypedValue):
         return CurriedFunctionalValue(self.innerFunction.getType(), arguments, self.innerFunction)
 
 def makeFunctionTypeFromTo(first: TypedValue, second: TypedValue, sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
-    return PiValue(first.getType(), None, SymbolArgumentBinding(None, None, ASTLiteralTypeNode(sourcePosition, first)), ASTLiteralTypeNode(sourcePosition, second))
+    return PiValue(first.getType(), SymbolArgumentBinding(None, None, ASTLiteralTypeNode(sourcePosition, first)), [], [], ASTLiteralTypeNode(sourcePosition, second))
 
 def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     assert len(signature) >= 2

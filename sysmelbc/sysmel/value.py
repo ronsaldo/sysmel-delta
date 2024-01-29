@@ -11,6 +11,12 @@ class TypedValue(ABC):
     def toJson(self):
         pass
 
+    def isASTNode(self):
+        return False
+    
+    def isSymbolBinding(self):
+        return False
+
     def isOverloadsType(self) -> bool:
         return False
 
@@ -555,6 +561,9 @@ class ASTNode(TypedValue):
     def prettyPrint(self) -> str:
         return json.dumps(self.toJson())
 
+    def isASTNode(self):
+        return True
+
     def isEquivalentTo(self, other) -> bool:
         return self == other
 
@@ -691,6 +700,9 @@ class SymbolBinding(ABC):
         self.sourcePosition = sourcePosition
         self.name = name
 
+    def isSymbolBinding(self):
+        return True
+    
     def evaluateInActivationEnvironmentAt(self, activationEnvironment, sourcePosition: SourcePosition) -> TypedValue:
         return activationEnvironment.lookBindingValueAt(self, sourcePosition)
 
@@ -738,6 +750,23 @@ class ASTTypedIdentifierReferenceNode(ASTTypedNode):
 
     def toJson(self) -> dict:
         return {'kind': 'TypedIdentifierReference', 'type': self.type.toJson(), 'binding': self.binding.toJson()}
+
+class SymbolCaptureBinding(SymbolBinding):
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, capturedBinding: SymbolBinding) -> None:
+        super().__init__(sourcePosition, name)
+        self.capturedBinding = capturedBinding
+
+    def getTypeExpression(self) -> TypedValue:
+        return self.capturedBinding.getTypeExpression()
+    
+    def getCaptureNestingLevel(self) -> int:
+        return self.capturedBinding.getCaptureNestingLevel() + 1
+
+    def getCanonicalBinding(self):
+        return self.capturedBinding.getCanonicalBinding()
+    
+    def toJson(self):
+        return {'name': repr(self.name)}
 
 class SymbolValueBinding(SymbolBinding):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, value: TypedValue) -> None:

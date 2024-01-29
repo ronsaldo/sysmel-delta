@@ -59,14 +59,16 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
     def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
         type = self.visitNode(node.type)
-        return PiValue(type, self.activationEnvironment, node.argumentBinding, node.body)
+        capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
+        return PiValue(type, node.argumentBinding, node.captureBindings, capturedValues, node.body)
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.evaluateBindingAt(node.binding, node.sourcePosition)
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.visitNode(node.type)
-        return LambdaValue(type, self.activationEnvironment, node.argumentBinding, node.body)
+        capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
+        return LambdaValue(type, node.argumentBinding, node.captureBindings, capturedValues, node.body)
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return node.value
@@ -99,8 +101,11 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         return productType.makeWithElements(tuple(elements))
 
 def evaluateFunctionalValueWithParameter(functionalValue: FunctionalValue, argumentValue: TypedValue):
-    activationEnvironment = FunctionalActivationEnvironment(functionalValue.environment)
+    activationEnvironment = FunctionalActivationEnvironment()
     activationEnvironment.setBindingValue(functionalValue.argumentBinding, argumentValue)
+    for i in range(len(functionalValue.captureBindings)):
+        activationEnvironment.setBindingValue(functionalValue.captureBindings[i], functionalValue.captureBindingValues[i])
+
     return ASTEvaluator(activationEnvironment).evaluate(functionalValue.body)
 
 LambdaValue.__call__ = evaluateFunctionalValueWithParameter

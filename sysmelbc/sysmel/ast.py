@@ -450,9 +450,10 @@ class ASTTypedErrorNode(ASTTypedNode):
         return {'kind': 'TypedError', 'type': self.type.toJson(), 'message': self.message, 'innerNodes': list(map(optionalASTNodeToJson, self.innerNodes))}
 
 class ASTTypedFunctionalNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, argumentBinding: SymbolArgumentBinding, body: ASTTypedNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, argumentBinding: SymbolArgumentBinding, captureBindings: list[SymbolCaptureBinding], body: ASTTypedNode) -> None:
         super().__init__(sourcePosition, type)
         self.argumentBinding = argumentBinding
+        self.captureBindings = captureBindings
         self.body = body
 
     def isTypedFunctionalNode(self) -> bool:
@@ -633,18 +634,21 @@ class ASTSequentialVisitor(ASTVisitor):
 
     def visitTypedPiNode(self, node: ASTTypedPiNode):
         self.visitNode(node.type)
-        self.visitNode(node.argumentType)
+        self.visitNode(node.argumentBinding.typeExpression)
         self.visitNode(node.body)
 
+    def visitTypedErrorNode(self, node: ASTTypedErrorNode):
+        return node
+    
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         self.visitNode(node.type)
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
         self.visitNode(node.type)
-        self.visitNode(node.argumentType)
+        self.visitNode(node.argumentBinding.typeExpression)
         self.visitNode(node.body)
 
-    def visitTypedLiteralNode(self, node: ASTLiteralNode):
+    def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         self.visitNode(node.type)
 
     def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode):

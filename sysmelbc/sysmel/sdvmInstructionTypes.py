@@ -37,5 +37,5 @@ def sdvmConstantDef(name: str, opcode: int, type: SdvmTypeDef, description: str)
 def sdvmOpcodeDef(name: str, opcode: int, description: str):
     return SdvmOpcodeDef(name, opcode, description)
 
-def sdvmInstructionDef(name: str, opcode: int, description: str):
-    return SdvmOpcodeDef(name, opcode, description)
+def sdvmInstructionDef(name: str, opcode: int, type: SdvmTypeDef, arg0Type: SdvmTypeDef, arg1Type: SdvmTypeDef, description: str):
+    return SdvmInstructionDef(name, opcode, type, arg0Type, arg1Type, description)
