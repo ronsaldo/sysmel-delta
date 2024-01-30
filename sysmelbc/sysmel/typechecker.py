@@ -164,13 +164,15 @@ class Typechecker(ASTVisitor):
             return resultType
         
         if functional.type.isOverloadsTypeNode():
+            acceptedAlternativeArguments = []
             acceptedAlternativeTypes = []
             acceptedAlternativeIndices = []
             index = 0
-            typedArgument = self.visitNode(node.argument)
+            analyzedArgument = self.visitNode(node.argument)
             for alternativeType in functional.type.alternativeTypes:
-                alternativeTypedArgument, resultType, errorMessage = self.attemptBetaReducePiWithTypedArgument(alternativeType, typedArgument)
+                alternativeTypedArgument, resultType, errorMessage = self.attemptBetaReducePiWithTypedArgument(alternativeType, analyzedArgument)
                 if errorMessage is None:
+                    acceptedAlternativeArguments.append(alternativeTypedArgument)
                     acceptedAlternativeTypes.append(resultType)
                     acceptedAlternativeIndices.append(index)
                 index += 1
@@ -179,7 +181,7 @@ class Typechecker(ASTVisitor):
                 return self.makeSemanticError(functional.sourcePosition, "No matching alternative for overloading function application.", functional, typedArgument)
 
             overloadedApplicationType = ASTOverloadsTypeNode(node.sourcePosition, acceptedAlternativeTypes)
-            return reduceTypedOverloadedApplicationNode(ASTTypedOverloadedApplicationNode(node.sourcePosition, overloadedApplicationType, functional, typedArgument, acceptedAlternativeIndices))
+            return reduceTypedOverloadedApplicationNode(ASTTypedOverloadedApplicationNode(node.sourcePosition, overloadedApplicationType, functional, acceptedAlternativeArguments, acceptedAlternativeIndices))
 
         if not functional.type.isTypedPiNodeOrLiteralValue():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
@@ -681,8 +683,9 @@ def reduceTypedOverloadedApplicationNode(node: ASTTypedOverloadedApplicationNode
         alternativesWithApplication = []
         for i in range(len(resultOverloadsType.alternativeTypes)):
             alternative = overloadsNode.alternatives[node.alternativeIndices[i]]
+            argument = node.alternativeArguments[i]
             resultType = resultOverloadsType.alternativeTypes[i]
-            alternativesWithApplication.append(reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, alternative, node.argument)))
+            alternativesWithApplication.append(reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, alternative, argument)))
         return reduceTypedOverloadsNode(ASTTypedOverloadsNode(node.sourcePosition, node.type, alternativesWithApplication))
     return node
 

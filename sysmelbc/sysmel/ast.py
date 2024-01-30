@@ -450,17 +450,17 @@ class ASTTypedApplicationNode(ASTTypedNode):
         return {'kind': 'TypedApplication', 'type': self.type.toJson(), 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
 
 class ASTTypedOverloadedApplicationNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, overloads: ASTTypedNode, argument: ASTTypedNode, alternativeIndices: list[int]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, overloads: ASTTypedNode, alternativeArguments: list[ASTTypedNode], alternativeIndices: list[int]) -> None:
         super().__init__(sourcePosition, type)
         self.overloads = overloads
-        self.argument = argument
+        self.alternativeArguments = alternativeArguments
         self.alternativeIndices = alternativeIndices
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedOverloadedApplicationNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedOverloadedApplication', 'type': self.type.toJson(), 'overloads': self.overloads.toJson(), 'argument': self.argument.toJson(), 'alternativeIndices': self.alternativeIndices}
+        return {'kind': 'TypedOverloadedApplication', 'type': self.type.toJson(), 'overloads': self.overloads.toJson(), 'alternativeArguments': list(map(optionalASTNodeToJson, self.alternativeArguments)), 'alternativeIndices': self.alternativeIndices}
 
 class ASTTypedErrorNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, message: str, innerNodes: list[ASTNode]) -> None:
