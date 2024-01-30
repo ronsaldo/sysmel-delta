@@ -39,6 +39,17 @@ class Typechecker(ASTVisitor):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
 
+    def attemptToVisitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode) -> tuple[ASTTypedNode | ASTTypeNode, str | None]:
+        if expectedTypeExpression is None:
+            return self.visitNode(node), None
+
+        typedNode = self.visitNode(node)
+        expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
+        if not self.doesTypedNodeConformToTypeExpression(typedNode, expectedTypeNode):
+            return typedNode, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint())
+        
+        return typedNode, None
+
     def doesTypedNodeConformToTypeExpression(self, typedNode: ASTTypedNode | ASTTypeNode, expectedTypeExpression: ASTNode | None) -> ASTTypedNode | ASTTypeNode | None:
         typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
@@ -109,7 +120,7 @@ class Typechecker(ASTVisitor):
             functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument, isImplicit = isImplicit))
         return functional
     
-    def betaReducePiWithArgument(self, piNode: ASTNode, argument: ASTNode):
+    def attemptBetaReducePiWithTypedArgument(self, piNode: ASTNode, argument: ASTNode):
         substitutionContext = SubstitutionContext()
         if piNode.isPiLiteralValue():
             piValue: FunctionalValue = piNode.value
@@ -121,29 +132,14 @@ class Typechecker(ASTVisitor):
             argumentBinding = typedFunctionalNode.argumentBinding
             piBody = typedFunctionalNode.body
 
-        typedArgument = self.visitNodeWithExpectedTypeExpression(argument, argumentBinding.getTypeExpression())
+        typedArgument, errorMessage = self.attemptToVisitNodeWithExpectedTypeExpression(argument, argumentBinding.getTypeExpression())
+        if errorMessage is not None:
+            return typedArgument, None, errorMessage
+
         substitutionContext.setSubstitutionNodeForBinding(argumentBinding, typedArgument)
 
         reduced = ASTBetaReducer(substitutionContext).visitNode(piBody)
-        return typedArgument, reduced
-    
-    def attemptBetaReducePiWithTypedArgument(self, piNode: ASTNode, typedArgument: ASTNode):
-        substitutionContext = SubstitutionContext()
-        if piNode.isPiLiteralValue():
-            piValue: FunctionalValue = piNode.value
-            argumentBinding = piValue.argumentBinding
-            piBody = piValue.body
-        else:
-            assert piNode.isTypedPiNode()
-            typedFunctionalNode: ASTTypedFunctionalNode = piNode
-            argumentBinding = typedFunctionalNode.argumentBinding
-            piBody = typedFunctionalNode.body
-
-        if not self.doesTypedNodeConformToTypeExpression(typedArgument, argumentBinding.getTypeExpression()):
-            return None
-
-        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, typedArgument)
-        return ASTBetaReducer(substitutionContext).visitNode(piBody)
+        return typedArgument, reduced, errorMessage
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         functional = self.visitNode(node.functional)
@@ -162,7 +158,9 @@ class Typechecker(ASTVisitor):
             return self.visitNode(macroEvaluationResult)
 
         if functional.isTypedPiNodeOrLiteralValue():
-            typedArgument, resultType = self.betaReducePiWithArgument(functional, node.argument)
+            typedArgument, resultType, errorMessage = self.attemptBetaReducePiWithTypedArgument(functional, node.argument)
+            if errorMessage is not None:
+                return self.makeSemanticError(node.sourcePosition, errorMessage, functional, typedArgument)
             return resultType
         
         if functional.type.isOverloadsTypeNode():
@@ -171,8 +169,8 @@ class Typechecker(ASTVisitor):
             index = 0
             typedArgument = self.visitNode(node.argument)
             for alternativeType in functional.type.alternativeTypes:
-                resultType = self.attemptBetaReducePiWithTypedArgument(alternativeType, typedArgument)
-                if resultType is not None:
+                alternativeTypedArgument, resultType, errorMessage = self.attemptBetaReducePiWithTypedArgument(alternativeType, typedArgument)
+                if errorMessage is None:
                     acceptedAlternativeTypes.append(resultType)
                     acceptedAlternativeIndices.append(index)
                 index += 1
@@ -187,7 +185,9 @@ class Typechecker(ASTVisitor):
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
             return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument))
         
-        typedArgument, resultType = self.betaReducePiWithArgument(functional.type, node.argument)
+        typedArgument, resultType, errorMessage = self.attemptBetaReducePiWithTypedArgument(functional.type, node.argument)
+        if errorMessage is not None:
+            return self.makeSemanticError(node.sourcePosition, errorMessage, functional, typedArgument)
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, functional, typedArgument))
 
     def visitArgumentNode(self, node: ASTArgumentNode):
