@@ -100,7 +100,7 @@ class TypeUniverse(TypedValue):
 
     def getTypeUniverseIndex(self) -> int:
         return self.index
-
+    
 TypeType = TypeUniverse.getWithIndex(0)
 
 class BaseType(TypedValue):
@@ -787,6 +787,14 @@ class ASTNode(TypedValue):
     def isEquivalentTo(self, other) -> bool:
         return self == other
 
+    def performEquivalenceCheckInEnvironment(self, other, environment) -> bool:
+        if self == other: return True
+        if other.isTypedIdentifierReferenceNode() and other.binding.isImplicitValueBinding():
+            assert not self.isTypedIdentifierReferenceNode()
+            assert False
+
+        return self.isEquivalentTo(other), environment
+
     def isTypeNode(self) -> bool:
         return False
     
@@ -947,6 +955,9 @@ class SymbolBinding(ABC):
     def isValueBinding(self) -> bool:
         return False
 
+    def isImplicitValueBinding(self) -> bool:
+        return False
+
     ## The nesting level of the capture. This corresponds with the Bruijn index of the binding if lambdas only have a single argument.
     @abstractmethod
     def getCaptureNestingLevel(self) -> int:
@@ -959,8 +970,18 @@ class ASTTypedIdentifierReferenceNode(ASTTypedNode):
 
     def isEquivalentTo(self, other) -> bool:
         if self == other: return True
-        if not isinstance(other, self.__class__): return False
+        if not other.isTypedIdentifierReferenceNode(): return False
         return self.binding.isEquivalentTo(other.binding)
+
+    def performEquivalenceCheckInEnvironment(self, other, environment) -> bool:
+        if self == other: return True, environment
+        if other.isTypedIdentifierReferenceNode() and other.binding.isEquivalentTo(self.binding): return True, environment
+
+        if self.binding.isImplicitValueBinding() and not environment.hasSubstitutionForImplicitValueBinding(self.binding):
+            if other.isTypedIdentifierReferenceNode() and other.binding.isImplicitValueBinding():
+                return False
+            return True, environment.withImplicitValueBindingSubstitution(self.binding, other)
+        return super().performEquivalenceCheckInEnvironment(other, environment)
 
     def isTypedIdentifierReferenceNode(self) -> bool:
         return True
@@ -1024,22 +1045,39 @@ class SymbolLocalBinding(SymbolBinding):
         return 0
     
     def toJson(self):
-        return {'name': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
+        return {'localBinding': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
 class SymbolArgumentBinding(SymbolBinding):
-    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode, isImplicit = False) -> None:
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
+        self.isImplicit = isImplicit
 
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.typeExpression
 
     def getCaptureNestingLevel(self) -> int:
-        return 1
+        return 0
     
     def hasTypeOf(self, expectedType: TypedValue):
         return self.typeExpression.isLiteralTypeNode() and self.typeExpression.value.isEquivalentTo(expectedType)
 
     def toJson(self):
-        return {'name': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
+        return {'argument': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
+class SymbolImplicitValueBinding(SymbolBinding):
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode) -> None:
+        super().__init__(sourcePosition, name)
+        self.typeExpression = typeExpression
+    
+    def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
+        return self.typeExpression
+
+    def getCaptureNestingLevel(self) -> int:
+        return 0
+    
+    def isImplicitValueBinding(self) -> bool:
+        return True
+
+    def toJson(self):
+        return {'implicitValue': repr(self.name), 'typeExpression': self.typeExpression.toJson()}

@@ -39,6 +39,10 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         return SumType.makeWithElementTypes(alternativeTypes)
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        for implicitBinding, implicitValueNode in node.implicitValueSubstitutions:
+            implicitValue = self.visitNode(implicitValueNode)
+            self.activationEnvironment.setBindingValue(implicitBinding, implicitValue)
+
         functional = self.visitNode(node.functional)
         argument = self.visitNode(node.argument)
         return functional(argument)

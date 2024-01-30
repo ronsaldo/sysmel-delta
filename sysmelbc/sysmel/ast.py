@@ -1,4 +1,3 @@
-from .scanner import SourcePosition
 from .value import *
 from abc import ABC, abstractmethod
 
@@ -175,7 +174,7 @@ class ASTApplicationNode(ASTNode):
         super().__init__(sourcePosition)
         self.functional = functional
         self.arguments = arguments
-        self.kind = True
+        self.kind = kind
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitApplicationNode(self)
@@ -267,9 +266,9 @@ class ASTFunctionNode(ASTNode):
         return {'kind': 'Function', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
     
 class ASTLambdaNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, isImplicitArgument: bool, argumentType: ASTNode, argumentName: ASTNode, resultType: ASTNode, body: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, hasImplicitArgument: bool, argumentType: ASTNode, argumentName: ASTNode, resultType: ASTNode, body: ASTNode) -> None:
         super().__init__(sourcePosition)
-        self.isImplicitArgument = isImplicitArgument
+        self.hasImplicitArgument = hasImplicitArgument
         self.argumentType = argumentType
         self.argumentName = argumentName
         self.resultType = resultType
@@ -438,10 +437,11 @@ class ASTSumTypeNode(ASTTypeNode):
         return {'kind': 'SumType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
     
 class ASTTypedApplicationNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, functional: ASTTypedNode, argument: ASTTypedNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, functional: ASTTypedNode, argument: ASTTypedNode, implicitValueSubstitutions: list[tuple[SymbolBinding, ASTNode]]) -> None:
         super().__init__(sourcePosition, type)
         self.functional = functional
         self.argument = argument
+        self.implicitValueSubstitutions = implicitValueSubstitutions
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedApplicationNode(self)
@@ -450,10 +450,11 @@ class ASTTypedApplicationNode(ASTTypedNode):
         return {'kind': 'TypedApplication', 'type': self.type.toJson(), 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
 
 class ASTTypedOverloadedApplicationNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, overloads: ASTTypedNode, alternativeArguments: list[ASTTypedNode], alternativeIndices: list[int]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, overloads: ASTTypedNode, alternativeImplicitValueSubstitutions: list[tuple[SymbolImplicitValueBinding, ASTNode]], argument: ASTTypedNode, alternativeIndices: list[int]) -> None:
         super().__init__(sourcePosition, type)
         self.overloads = overloads
-        self.alternativeArguments = alternativeArguments
+        self.alternativeImplicitValueSubstitutions = alternativeImplicitValueSubstitutions
+        self.argument = argument
         self.alternativeIndices = alternativeIndices
 
     def accept(self, visitor: ASTVisitor):
@@ -672,6 +673,9 @@ class ASTSequentialVisitor(ASTVisitor):
             self.visitNode(expression)
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        for binding, substitution in node.implicitValueSubstitutions:
+            self.visitNode(substitution)
+
         self.visitNode(node.functional)
         self.visitNode(node.argument)
 
@@ -703,6 +707,10 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.valueExpression)
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
+        for alternativeImplicitValueSubstitutions in node.alternativeImplicitValueSubstitutions:
+            for binding, substitution in alternativeImplicitValueSubstitutions:
+                self.visitNode(substitution)
+
         self.visitNode(node.overloads)
         self.visitNode(node.argument)
         self.visitNode(node.type)

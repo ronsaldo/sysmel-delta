@@ -27,6 +27,18 @@ class AbstractEnvironment(ABC):
     def withSymbolValueBinding(self, symbol: Symbol, value: TypedValue, sourcePosition: SourcePosition = None):
         return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, symbol, value))
 
+    def withImplicitValueBindingSubstitution(self, binding: SymbolValueBinding, substitution: ASTNode):
+        return ChildEnvironmentWithBindingSubstitution(self, binding, substitution)
+
+    def hasSubstitutionForImplicitValueBinding(self, binding) -> bool:
+        return False
+
+    def findSubstitutionForImplicitValueBinding(self, binding) -> ASTNode | None:
+        return None
+    
+    def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
+        return []
+
 class EmptyEnvironment(AbstractEnvironment):
     Singleton = None
 
@@ -69,6 +81,19 @@ class ChildEnvironment(AbstractEnvironment):
         else:
             return parentResult
 
+    def hasSubstitutionForImplicitValueBinding(self, binding) -> bool:
+        if self.parent is not None:
+            return self.parent.hasSubstitutionForImplicitValueBinding(binding)
+        return False
+
+    def findSubstitutionForImplicitValueBinding(self, binding) -> ASTNode | None:
+        return None
+
+    def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
+        if self == targetEnvironment: return []
+        if self.parent is not None: return self.parent.getImplicitValueSubstitutionsUpTo(targetEnvironment)
+        return []
+
 class ChildEnvironmentWithBinding(ChildEnvironment):
     def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding) -> None:
         super().__init__(parent)
@@ -78,6 +103,15 @@ class ChildEnvironmentWithBinding(ChildEnvironment):
         if symbol == self.binding.name:
             return self.binding
         return None
+
+class ChildEnvironmentWithBindingSubstitution(ChildEnvironment):
+    def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding, substitution: ASTNode) -> None:
+        super().__init__(parent)
+        self.binding = binding
+        self.substitution = substitution
+
+    def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
+        return [(self.binding, self.substitution)] + self.parent.getImplicitValueSubstitutionsUpTo(targetEnvironment)
 
 class LexicalEnvironment(ChildEnvironment):
     def __init__(self, parent: AbstractEnvironment, sourcePosition: SourcePosition = None) -> None:
