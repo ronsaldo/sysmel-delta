@@ -205,7 +205,7 @@ class Typechecker(ASTVisitor):
 
         if not functional.type.isTypedPiNodeOrLiteralValue():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
-            return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument))
+            return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument), [])
         
         pendingInferenceArgument, typedArgument, resultType, implicitValueSubstitutions, errorMessage = self.attemptBetaReducePiWithTypedArgument(functional.type, node.argument, isImplicitApplication = node.isImplicit)
         if errorMessage is not None:
@@ -238,7 +238,7 @@ class Typechecker(ASTVisitor):
         resultType = node.functionalType.resultType
         body = node.body
         for argument in reversed(node.functionalType.arguments):
-            body = ASTLambdaNode(argument.sourcePosition, argument.isPi, argument.typeExpression, argument.nameExpression, resultType, body)
+            body = ASTLambdaNode(argument.sourcePosition, argument.isImplicit, argument.typeExpression, argument.nameExpression, resultType, body)
             resultType = None
         return self.visitNode(body)
 
@@ -375,6 +375,9 @@ class Typechecker(ASTVisitor):
 
             resultType = typedExpression.type
             typedElements.append(typedExpression)
+
+        if len(typedElements) == 1:
+            return typedElements[0]
         return ASTTypedSequenceNode(node.sourcePosition, resultType, typedElements)
 
     def visitOverloadsNode(self, node: ASTOverloadsNode):
@@ -682,15 +685,25 @@ def getTypeOfAnalyzedNode(node: ASTTypedNode | ASTTypeNode, sourcePosition: Sour
     return node.type
 
 def betaReduceFunctionalNodeWithArgument(functionalNode: ASTTypedNode | ASTTypeNode, argument: ASTTypedNode | ASTTypeNode):
-    assert functionalNode.isTypedFunctionalNode()
-    typedFunctionalNode: ASTTypedFunctionalNode = functionalNode
-    argumentBinding = typedFunctionalNode.argumentBinding
-    forAllBody = typedFunctionalNode.body
+    if functionalNode.isTypedFunctionalNode():
+        typedFunctionalNode: ASTTypedFunctionalNode = functionalNode
+        argumentBinding = typedFunctionalNode.argumentBinding
+        body = typedFunctionalNode.body
 
-    substitutionContext = SubstitutionContext()
-    substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
+        assert len(typedFunctionalNode.captureBindings) == 0
 
-    return ASTBetaReducer(substitutionContext).visitNode(forAllBody)
+        substitutionContext = SubstitutionContext()
+        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
+    else:
+        assert functionalNode.isTypedLiteralNode() or functionalNode.isLiteralTypeNode()
+        functionalValue: FunctionalValue = functionalNode.value
+        argumentBinding = functionalValue.argumentBinding
+        body = functionalValue.body
+        assert len(functionalValue.captureBindings) == 0
+
+        substitutionContext = SubstitutionContext()
+        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
+    return ASTBetaReducer(substitutionContext).visitNode(body)
     
 def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition) -> ASTTypedLiteralNode | ASTTypeNode:
     if value.isType():
@@ -698,19 +711,19 @@ def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition
     return ASTTypedLiteralNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, value.getType()), value)
 
 def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
-    hasLiteralArgument = node.argument.isTypeNode() or node.argument.isTypedLiteralNode()
-    if not hasLiteralArgument:
-        return node
-    
     if len(node.implicitValueSubstitutions) != 0:
         return ASTBetaReducer(SubstitutionContext()).visitNode(node)
 
+    hasTypeArgument = node.argument.isTypeNode()
+    hasLiteralArgument = node.argument.isLiteralTypeNode() or node.argument.isTypedLiteralNode()
     hasLiteralFunctionalNode = node.isLiteralTypeNode() or node.isTypedLiteralNode()
-    if node.functional.isTypedLambdaNode() or node.functional.isTypedPiNode():
-        return betaReduceFunctionalNodeWithArgument(node.functional, node.argument)
-    
-    if hasLiteralFunctionalNode and node.value.isPurelyFunctional():
+    hasBetaReducibleFunctional = node.functional.isTypedLambdaNode() or node.functional.isTypedPiNode() or node.functional.isTypedLiteralReducibleFunctionalValue()
+
+    if hasLiteralFunctionalNode and node.value.isPurelyFunctional() and hasLiteralArgument:
         return makeTypedLiteralForValueAt(TypedValue = node.functional.value(node.argument.value))
+
+    if hasTypeArgument and hasBetaReducibleFunctional:
+        return betaReduceFunctionalNodeWithArgument(node.functional, node.argument)
 
     return node
 

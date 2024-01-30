@@ -195,10 +195,16 @@ class FunctionalValue(TypedValue):
         return self.type
 
 class LambdaValue(FunctionalValue):
+    def isReducibleFunctionalValue(self) -> bool:
+        return True
+
     def toJson(self):
         return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class PiValue(FunctionalValue):
+    def isReducibleFunctionalValue(self) -> bool:
+        return True
+
     def getType(self):
         return self.type
 

@@ -46,6 +46,9 @@ class TypedValue(ABC):
     def isFunctionalValue(self) -> bool:
         return False
 
+    def isReducibleFunctionalValue(self) -> bool:
+        return False
+
     def isMacroValue(self) -> bool:
         return False
 
@@ -828,6 +831,12 @@ class ASTNode(TypedValue):
     def isTypedLambdaNode(self) -> bool:
         return False
     
+    def isTypedLiteralFunctionalValue(self) -> bool:
+        return False
+
+    def isTypedLiteralReducibleFunctionalValue(self) -> bool:
+        return False
+
     def isTypedOverloadsNode(self) -> bool:
         return False
 
@@ -875,6 +884,12 @@ class ASTLiteralTypeNode(ASTTypeNode):
     def isPiLiteralValue(self) -> bool:
         return self.value.isPi()
 
+    def isTypedLiteralFunctionalValue(self) -> bool:
+        return self.value.isFunctionalValue()
+    
+    def isTypedLiteralReducibleFunctionalValue(self) -> bool:
+        return self.value.isReducibleFunctionalValue()
+
     def accept(self, visitor):
         return visitor.visitLiteralTypeNode(self)
 
@@ -905,6 +920,12 @@ class ASTTypedLiteralNode(ASTTypedNode):
 
     def isPiLiteralValue(self) -> bool:
         return self.value.isPi()
+
+    def isTypedLiteralFunctionalValue(self) -> bool:
+        return self.value.isFunctionalValue()
+
+    def isTypedLiteralReducibleFunctionalValue(self) -> bool:
+        return self.value.isReducibleFunctionalValue()
 
     def isEquivalentTo(self, other: ASTNode) -> bool:
         if self == other:
