@@ -4,7 +4,14 @@ from typing import Any
 import math
 import struct
 
+class TypedValueVisitor(ABC):
+    def visitGenericTypedValue(self, value):
+        pass
+
 class TypedValue(ABC):
+    def accept(self, visitor: TypedValueVisitor):
+        return visitor.visitGenericTypedValue(self)
+        
     @abstractmethod
     def getType(self):
         pass
@@ -43,6 +50,12 @@ class TypedValue(ABC):
     def isPi(self) -> bool:
         return False
 
+    def isLambda(self) -> bool:
+        return False
+
+    def isSigma(self) -> bool:
+        return False
+    
     def isEquivalentTo(self, other) -> bool:
         return self == other
 

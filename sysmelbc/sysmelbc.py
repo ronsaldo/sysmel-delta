@@ -18,12 +18,15 @@ for arg in sys.argv[1:]:
 
     typechecked, typecheckedSucceeded = Typechecker(makeScriptAnalysisEnvironment(module, ast.sourcePosition, arg)).typecheckASTAndPrintErrors(ast)
     ##print(json.dumps(typechecked.toJson()))
-    print(typechecked.prettyPrint())
+    ##print(typechecked.prettyPrint())
     if not typecheckedSucceeded:
         sys.exit(1)
 
     evalResult = ASTEvaluator(FunctionalActivationEnvironment()).evaluate(typechecked)
     print(evalResult.prettyPrint())
 
-# TODO: Compile the module.
+# Compile the module.
+hirModule = HIRModuleFrontend().compileModule(module)
+print(hirModule.prettyPrint())
+
     

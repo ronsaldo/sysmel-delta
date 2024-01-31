@@ -249,6 +249,9 @@ class FunctionalValue(TypedValue):
         return self.type
 
 class LambdaValue(FunctionalValue):
+    def isLambda(self) -> bool:
+        return True
+
     def isReducibleFunctionalValue(self) -> bool:
         return True
     
