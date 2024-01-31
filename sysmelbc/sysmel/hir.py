@@ -34,10 +34,16 @@ class HIRConstantValue(HIRValue):
             self.type = self.context.getConstantValue(self.value.getType())
         return self.type
 
+class HIRFunctionalDefinition:
+    def __init__(self, context: HIRContext) -> None:
+        self.context = context
+
 class HIRFunctionalValue(HIRValue):
-    def __init__(self, context: HIRContext, type: HIRValue) -> None:
+    def __init__(self, context: HIRContext, type: HIRValue, capturedValues: list[HIRValue], definition: HIRFunctionalDefinition) -> None:
         super().__init__(context)
         self.type = type
+        self.capturedValues = capturedValues
+        self.definition = definition
     
     def getType(self):
         return self.type
@@ -85,31 +91,31 @@ class HIRModuleFrontend:
 
     def translateLambda(self, lambdaValue: LambdaValue):
         lambdaType = self.translateValue(lambdaValue.getType())
-        hirLambda = HIRLambdaValue(self.context, lambdaType)
+        hirLambdaDefinition = HIRFunctionalDefinition(self.context)
+        hirLambda = HIRLambdaValue(self.context, lambdaType, [], hirLambdaDefinition)
         self.translatedValueDictionary[lambdaValue] = hirLambda
-        HIRFunctionalTranslator(self).translateLambdaInto(lambdaValue, hirLambda)
+        HIRFunctionalTranslator(self).translateFunctionalValueInto(lambdaValue, hirLambdaDefinition)
         return hirLambda
 
     def translatePi(self, piValue: LambdaValue):
         piType = self.translateValue(piValue.getType())
-        hirPi = HIRPiValue(self.context, piType)
+        hirPiDefinition = HIRFunctionalDefinition(self.context)
+        hirPi = HIRPiValue(self.context, piType, [], hirPiDefinition)
         self.translatedValueDictionary[piValue] = hirPi
-        HIRFunctionalTranslator(self).translatePiInto(piValue, hirPi)
+        HIRFunctionalTranslator(self).translateFunctionalValueInto(piValue, hirPiDefinition)
         return hirPi
 
     def translateSigma(self, piValue: LambdaValue):
-        assert False
-
+        sigmaType = self.translateValue(piValue.getType())
+        hirSigmaDefinition = HIRFunctionalDefinition(self.context)
+        hirSigma = HIRSigmaValue(self.context, hirSigma, [], hirSigmaDefinition)
+        self.translatedValueDictionary[piValue] = hirSigma
+        HIRFunctionalTranslator(self).translateFunctionalValueInto(piValue, hirSigmaDefinition)
+        return hirSigma
 
 class HIRFunctionalTranslator:
     def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:
         self.moduleFrontend = moduleFrontend
 
-    def translateLambdaInto(self, piValue, hirLambdaValue) -> None:
-        return
-
-    def translatePiInto(self, piValue, hirPiValue) -> None:
-        return
-    
-    def translateSigmaInto(self, piValue, hirSigmaValue) -> None:
-        return
+    def translateFunctionalValueInto(self, functionalValue: FunctionalValue, functionalDefinition: HIRFunctionalDefinition) -> None:
+        pass
