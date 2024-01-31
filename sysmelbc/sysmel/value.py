@@ -882,7 +882,7 @@ class ASTLiteralTypeNode(ASTTypeNode):
         self.value = value
 
     def prettyPrint(self) -> str:
-        return str(self.value)
+        return self.value.prettyPrint()
 
     def getTypeUniverse(self) -> TypedValue:
         return self.value.getType()

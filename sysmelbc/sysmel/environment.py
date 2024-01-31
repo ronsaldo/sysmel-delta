@@ -231,12 +231,13 @@ class FunctionalActivationEnvironment:
         raise Exception('%s: Binding for %s does not have an active value.' % (str(sourcePosition), repr(binding.name)))
     
 class FunctionalValue(TypedValue):
-    def __init__(self, type: TypedValue, argumentBinding: SymbolArgumentBinding, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body) -> None:
+    def __init__(self, type: TypedValue, argumentBinding: SymbolArgumentBinding, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None) -> None:
         self.type = type
         self.argumentBinding = argumentBinding
         self.captureBindings = captureBindings
         self.captureBindingValues = captureBindingValues
         self.body = body
+        self.sourcePosition = sourcePosition
 
     def isPurelyFunctional(self) -> bool:
         return True
@@ -250,6 +251,10 @@ class FunctionalValue(TypedValue):
 class LambdaValue(FunctionalValue):
     def isReducibleFunctionalValue(self) -> bool:
         return True
+    
+    def prettyPrint(self) -> str:
+        assert self.type.isPi()
+        return '(:(%s)%s :: %s) :=> ...' % (self.type.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.type.argumentBinding.name), self.type.body.prettyPrint())
 
     def toJson(self):
         return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
@@ -263,7 +268,10 @@ class PiValue(FunctionalValue):
 
     def toJson(self):
         return {'pi': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
-    
+
+    def prettyPrint(self) -> str:
+        return '(:(%s)%s :: %s)' % (self.type.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.type.argumentBinding.name), self.type.body.prettyPrint())
+
     def isPi(self) -> bool:
         return True
     
@@ -273,7 +281,10 @@ class SigmaValue(FunctionalValue):
 
     def toJson(self):
         return {'sigma': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
-    
+
+    def prettyPrint(self) -> str:
+        return '(:?(%s)%s :: %s)' % (self.type.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.type.argumentBinding.name), self.type.body.prettyPrint())
+
     def isSigma(self) -> bool:
         return True
     
@@ -343,6 +354,12 @@ class CurryingFunctionalValue(TypedValue):
 
     def __call__(self, *arguments) -> TypedValue:
         return CurriedFunctionalValue(self.innerFunction.getType(), arguments, self.innerFunction)
+
+def optionalIdentifierToString(symbol: TypedValue) -> str:
+    if symbol is None:
+        return '_'
+    else:
+        return str(symbol)
 
 def makeFunctionTypeFromTo(first: TypedValue, second: TypedValue, sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     return PiValue(first.getType(), SymbolArgumentBinding(None, None, ASTLiteralTypeNode(sourcePosition, first)), [], [], ASTLiteralTypeNode(sourcePosition, second))

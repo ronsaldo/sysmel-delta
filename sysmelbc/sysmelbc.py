@@ -6,6 +6,7 @@ import json
 import os.path
 
 module = None
+# Evaluate the command line arguments
 for arg in sys.argv[1:]:
     if module is None:
         moduleName, ext = os.path.splitext(os.path.basename(arg))
@@ -24,3 +25,5 @@ for arg in sys.argv[1:]:
     evalResult = ASTEvaluator(FunctionalActivationEnvironment()).evaluate(typechecked)
     print(evalResult.prettyPrint())
 
+# TODO: Compile the module.
+    

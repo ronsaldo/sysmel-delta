@@ -798,19 +798,19 @@ def reduceType(node: ASTNode):
 
 def reducePiNode(node: ASTTypedPiNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        piValue = PiValue(node.type.value, node.argumentBinding, [], [], node.body)
+        piValue = PiValue(node.type.value, node.argumentBinding, [], [], node.body, node.sourcePosition)
         return ASTLiteralTypeNode(node.sourcePosition, piValue)
     return node
 
 def reduceSigmaNode(node: ASTTypedPiNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        sigmaValue = SigmaValue(node.type.value, node.argumentBinding, [], [], node.body)
+        sigmaValue = SigmaValue(node.type.value, node.argumentBinding, [], [], node.body, node.sourcePosition)
         return ASTLiteralTypeNode(node.sourcePosition, sigmaValue)
     return node
 
 def reduceLambdaNode(node: ASTTypedLambdaNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        lambdaValue = LambdaValue(node.type.value, node.argumentBinding, [], [], node.body)
+        lambdaValue = LambdaValue(node.type.value, node.argumentBinding, [], [], node.body, node.sourcePosition)
         return ASTTypedLiteralNode(node.sourcePosition, node.type, lambdaValue)
     return node
 
