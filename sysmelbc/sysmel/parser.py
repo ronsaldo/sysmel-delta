@@ -92,6 +92,7 @@ def parseCEscapedString(string: str) -> str:
             c = string[i]
             c = C_ESCAPE_TABLE.get(c, c)
         unescaped += c
+        i += 1
     return unescaped
 
 def parseLiteralInteger(state: ParserState) -> tuple[ParserState, ASTNode]:

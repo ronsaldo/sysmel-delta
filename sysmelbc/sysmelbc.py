@@ -9,7 +9,7 @@ for arg in sys.argv[1:]:
     if not ASTErrorVisitor().checkASTAndPrintErrors(ast):
         sys.exit(1)
 
-    typechecked, typecheckedSucceeded = Typechecker(makeDefaultEvaluationEnvironment()).typecheckASTAndPrintErrors(ast)
+    typechecked, typecheckedSucceeded = Typechecker(makeScriptAnalysisEnvironment(ast.sourcePosition, arg)).typecheckASTAndPrintErrors(ast)
     print(json.dumps(typechecked.toJson()))
     if not typecheckedSucceeded:
         sys.exit(1)

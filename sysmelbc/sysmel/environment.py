@@ -1,14 +1,24 @@
 from .value import *
 from .ast import *
+import os.path
 
 class AbstractEnvironment(ABC):
     @abstractmethod
     def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
         pass
 
+    def lookScriptDirectory(self) -> str:
+        return None
+
+    def lookScriptName(self) -> str:
+        return None
+
     def isLexicalEnvironment(self) -> bool:
         return False
-    
+
+    def isScriptEnvironment(self) -> bool:
+        return False
+
     def withBaseType(self, baseType: BaseType, sourcePosition: SourcePosition = None):
         assert baseType.name is not None
         return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, Symbol.intern(baseType.name), baseType))
@@ -61,6 +71,16 @@ class ChildEnvironment(AbstractEnvironment):
     def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
         return None
     
+    def lookScriptDirectory(self) -> str:
+        if self.parent is not None:
+            return self.parent.lookScriptDirectory()
+        return None
+
+    def lookScriptName(self) -> str:
+        if self.parent is not None:
+            return self.parent.lookScriptName()
+        return None
+
     def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
         binding = self.lookLocalSymbol(symbol)
         if binding is not None:
@@ -120,7 +140,29 @@ class LexicalEnvironment(ChildEnvironment):
     
     def isLexicalEnvironment(self) -> bool:
         return True
-    
+
+class ScriptEnvironment(LexicalEnvironment):
+    def __init__(self, parent: AbstractEnvironment, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script') -> None:
+        super().__init__(parent, sourcePosition)
+        self.scriptDirectory = scriptDirectory
+        self.scriptName = scriptName
+        self.scriptDirectoryBinding = SymbolValueBinding(sourcePosition, Symbol.intern('__SourceDirectory__'), StringValue(self.scriptDirectory))
+        self.scriptNameBinding = SymbolValueBinding(sourcePosition, Symbol.intern('__SourceName__'), StringValue(self.scriptName))
+
+    def lookScriptDirectory(self) -> str:
+        return self.scriptDirectory
+
+    def lookScriptName(self) -> str:
+        return self.scriptName
+        
+    def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
+        if symbol == self.scriptDirectoryBinding.name:
+            return self.scriptDirectoryBinding
+        if symbol == self.scriptNameBinding.name:
+            return self.scriptNameBinding
+
+        return super().lookLocalSymbol(symbol)
+
 class FunctionalAnalysisEnvironment(LexicalEnvironment):
     def __init__(self, parent: AbstractEnvironment, argumentBinding: SymbolArgumentBinding, sourcePosition: SourcePosition = None) -> None:
         super().__init__(parent, sourcePosition)
@@ -348,6 +390,23 @@ def publicMutableWithMacro(macroContext: MacroContext, localName: ASTNode, local
 def moduleEntryPointMacro(macroContext: MacroContext, entryPointValue: ASTNode) -> ASTNode:
     return ASTModuleEntryPointNode(macroContext.sourcePosition, entryPointValue)
 
+def loadSourceNamedMacro(macroContext: MacroContext, sourceName: ASTNode) -> ASTNode:
+    from .parser import parseFileNamed
+    sourceNameStringValue, errorNode = macroContext.typechecker.evaluateString(sourceName)
+    if errorNode is not None:
+        return errorNode
+    
+    sourceNameString = sourceNameStringValue.value
+    scriptDirectory = macroContext.lexicalEnvironment.lookScriptDirectory()
+    scriptPath = os.path.join(scriptDirectory, sourceNameString)
+    
+    try:
+        sourceAST = parseFileNamed(scriptPath)
+        scriptEnvironment = makeScriptAnalysisEnvironment(sourceAST.sourcePosition, scriptPath)
+        return macroContext.typechecker.loadSourceASTWithEnvironment(sourceAST, scriptEnvironment, macroContext.sourcePosition)
+    except FileNotFoundError:
+        return ASTErrorNode(macroContext.sourcePosition, 'Failed to find source file "%s".' % sourceNameString)
+
 ## Boolean :: False | True.
 FalseType = UnitTypeClass("False", "false")
 TrueType = UnitTypeClass("True", "true")
@@ -377,6 +436,7 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['public:type:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeMutableWithMacro, ['macro']],
     ['public:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicMutableWithMacro, ['macro']],
 
+    ['loadSourceNamed:', [MacroContextType, ASTNodeType, ASTNodeType], loadSourceNamedMacro, ['macro']],
     ['moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['const', [TypeType, TypeType], DecoratedType.makeConst, []],
@@ -452,5 +512,7 @@ TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(TrueType.getSingleto
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Type"), TypeType)
 
-def makeDefaultEvaluationEnvironment() -> LexicalEnvironment:
-    return LexicalEnvironment(TopLevelEnvironment)
+def makeScriptAnalysisEnvironment(sourcePosition: SourcePosition, scriptPath: str) -> LexicalEnvironment:
+    scriptDirectory = os.path.dirname(scriptPath)
+    scriptName = os.path.basename(scriptPath)
+    return ScriptEnvironment(TopLevelEnvironment, sourcePosition, scriptDirectory, scriptName)

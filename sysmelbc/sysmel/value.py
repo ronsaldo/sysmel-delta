@@ -764,9 +764,10 @@ class EmptySourcePosition:
         return '<no position>'
 
 class MacroContext(TypedValue):
-    def __init__(self, sourcePosition: SourcePosition, lexicalEnvironment) -> None:
+    def __init__(self, sourcePosition: SourcePosition, lexicalEnvironment, typechecker) -> None:
         self.sourcePosition = sourcePosition
         self.lexicalEnvironment = lexicalEnvironment
+        self.typechecker = typechecker
 
     def getType(self):
         return MacroContextType

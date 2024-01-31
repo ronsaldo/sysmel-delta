@@ -68,6 +68,9 @@ class Typechecker(ASTVisitor):
     def evaluateSymbol(self, node: ASTNode) -> Symbol | None:
         return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, SymbolType))
 
+    def evaluateString(self, node: ASTNode) -> Symbol | None:
+        return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, StringType))
+
     def evaluateOptionalSymbol(self, node: ASTNode) -> Symbol | None:
         if node is None:
             return None
@@ -165,7 +168,7 @@ class Typechecker(ASTVisitor):
         if isMacroValueNode(functional):
             macroValue = functional.value
             if macroValue.expectsMacroEvaluationContext():
-                macroValue = macroValue(MacroContext(node.sourcePosition, self.lexicalEnvironment))
+                macroValue = macroValue(MacroContext(node.sourcePosition, self.lexicalEnvironment, self))
             macroEvaluationResult = macroValue(node.argument)
 
             if macroEvaluationResult.isMacroValue():
@@ -235,7 +238,7 @@ class Typechecker(ASTVisitor):
         assert False
 
     def visitErrorNode(self, node: ASTErrorNode):
-        errorNode = ASTTypedErrorNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), node.message)
+        errorNode = ASTTypedErrorNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), node.message, [])
         self.errorAccumulator.add(errorNode)
         return errorNode
 
@@ -470,6 +473,19 @@ class Typechecker(ASTVisitor):
     
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
         return node
+    
+    def loadSourceASTWithEnvironment(self, ast: ASTNode, scriptEnvironment: ScriptEnvironment, sourcePosition):
+        scriptTypechecker = Typechecker(scriptEnvironment, self.errorAccumulator)
+        hasErrorNodes = False
+        errorVisitor = ASTErrorVisitor()
+        errorVisitor.visitNode(ast)
+        for errorNode in errorVisitor.errorNodes:
+            scriptTypechecker.visitNode(errorNode)
+            hasErrorNodes = True
+
+        if hasErrorNodes:
+            return self.makeSemanticError(sourcePosition, "Parse error when loading source file.", ast)
+        return scriptTypechecker.visitNode(ast)
 
 class SubstitutionContext:
     def __init__(self, parent = None) -> None:
