@@ -63,11 +63,15 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitLocalDefinitionNode(self, node):
+    def visitBindingDefinitionNode(self, node):
         pass
 
     @abstractmethod
     def visitMessageSendNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitModuleEntryPointNode(self, node):
         pass
 
     @abstractmethod
@@ -119,7 +123,7 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitTypedLocalDefinitionNode(self, node):
+    def visitTypedBindingDefinitionNode(self, node):
         pass
 
     @abstractmethod
@@ -136,6 +140,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedTupleNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedModuleEntryPointNode(self, node):
         pass
 
 class ASTArgumentNode(ASTNode):
@@ -280,18 +288,20 @@ class ASTLambdaNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Lambda', 'argumentType': optionalASTNodeToJson(self.argumentType), 'argumentName': optionalASTNodeToJson(self.argumentName), 'resultType': optionalASTNodeToJson(self.resultType), 'body': self.body.toJson()}
 
-class ASTLocalDefinitionNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, expectedTypeExpression: ASTNode | None, initialValueExpression: ASTNode) -> None:
+class ASTBindingDefinitionNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, expectedTypeExpression: ASTNode | None, initialValueExpression: ASTNode, isMutable = False, isPublic = False) -> None:
         super().__init__(sourcePosition)
         self.nameExpression = nameExpression
         self.expectedTypeExpression = expectedTypeExpression
         self.initialValueExpression = initialValueExpression
+        self.isMutable = isMutable
+        self.isPublic = isPublic
 
     def accept(self, visitor: ASTVisitor):
-        return visitor.visitLocalDefinitionNode(self)
+        return visitor.visitBindingDefinitionNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'LocalDefinitionNode', 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'expectedTypeExpression': optionalASTNodeToJson(self.expectedTypeExpression), 'initialValueExpression': optionalASTNodeToJson(self.initialValueExpression)}
+        return {'kind': 'BindingDefinitionNode', 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'expectedTypeExpression': optionalASTNodeToJson(self.expectedTypeExpression), 'initialValueExpression': optionalASTNodeToJson(self.initialValueExpression)}
 
 class ASTBlockNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, functionalType: ASTFunctionalTypeNode, body: ASTNode) -> None:
@@ -436,6 +446,17 @@ class ASTSumTypeNode(ASTTypeNode):
     def toJson(self) -> dict:
         return {'kind': 'SumType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
     
+class ASTModuleEntryPointNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, entryPoint: ASTTypeNode) -> None:
+        super().__init__(sourcePosition)
+        self.entryPoint = entryPoint
+    
+    def accept(self, visitor):
+        return visitor.visitModuleEntryPointNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'ModuleEntryPoint', 'entryPoint': self.entryPoint.toJson()}
+    
 class ASTTypedApplicationNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, functional: ASTTypedNode, argument: ASTTypedNode, implicitValueSubstitutions: list[tuple[SymbolBinding, ASTNode]]) -> None:
         super().__init__(sourcePosition, type)
@@ -518,17 +539,19 @@ class ASTTypedLambdaNode(ASTTypedFunctionalNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
-class ASTTypedLocalDefinitionNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolLocalBinding, valueExpression: ASTNode) -> None:
+class ASTTypedBindingDefinitionNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolLocalBinding, valueExpression: ASTNode, isMutable = False, isPublic = False) -> None:
         super().__init__(sourcePosition, type)
         self.binding = binding
         self.valueExpression = valueExpression
+        self.isMutable = isMutable
+        self.isPublic = isPublic
 
     def accept(self, visitor: ASTVisitor):
-        return visitor.visitTypedLocalDefinitionNode(self)
+        return visitor.visitTypedBindingDefinitionNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedLocalDefinitionNode', 'binding': self.binding.toJson(), 'valueExpression': self.valueExpression.toJson()}
+        return {'kind': 'TypedBindingDefinitionNode', 'binding': self.binding.toJson(), 'valueExpression': self.valueExpression.toJson()}
 
 
 class ASTTypedOverloadsNode(ASTTypedNode):
@@ -566,6 +589,17 @@ class ASTTypedTupleNode(ASTTypedNode):
 
     def toJson(self) -> dict:
         return {'kind': 'TypedTuple', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
+    
+class ASTTypedModuleEntryPointNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, entryPoint: ASTTypeNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.entryPoint = entryPoint
+    
+    def accept(self, visitor):
+        return visitor.visitTypedModuleEntryPointNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedModuleEntryPoint', 'type': self.type.toJson(), 'entryPoint': self.entryPoint.toJson()}
     
 def optionalASTNodeToJson(node: ASTNode | None) -> dict | None:
     if node is None:
@@ -637,7 +671,7 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitLiteralTypeNode(self, node):
         pass
 
-    def visitLocalDefinitionNode(self, node: ASTLocalDefinitionNode):
+    def visitBindingDefinitionNode(self, node: ASTBindingDefinitionNode):
         self.visitOptionalNode(node.nameExpression)
         self.visitOptionalNode(node.expectedTypeExpression)
         self.visitOptionalNode(node.initialValueExpression)
@@ -672,6 +706,9 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.alternativeTypes:
             self.visitNode(expression)
 
+    def visitModuleEntryPointNode(self, node: ASTModuleEntryPointNode):
+        self.visitNode(node.entryPoint)
+
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         for binding, substitution in node.implicitValueSubstitutions:
             self.visitNode(substitution)
@@ -703,7 +740,7 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         self.visitNode(node.type)
 
-    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode):
+    def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode):
         self.visitNode(node.valueExpression)
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
@@ -729,6 +766,9 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.type)
         for expression in node.elements:
             self.visitNode(expression)
+
+    def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
+        self.visitNode(node.entryPoint)
 
 class ASTErrorVisitor(ASTSequentialVisitor):
     def __init__(self) -> None:
@@ -787,10 +827,13 @@ class ASTTypecheckedVisitor(ASTVisitor):
     def visitLiteralNode(self, node):
         assert False
 
-    def visitLocalDefinitionNode(self, node):
+    def visitBindingDefinitionNode(self, node):
         assert False
 
     def visitMessageSendNode(self, node):
+        assert False
+
+    def visitModuleEntryPointNode(self, node):
         assert False
 
     def visitOverloadsNode(self, node):

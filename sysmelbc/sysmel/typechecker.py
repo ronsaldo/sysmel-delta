@@ -160,7 +160,7 @@ class Typechecker(ASTVisitor):
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         functional = self.visitNode(node.functional)
         if functional.isTypedErrorNode():
-            return ASTTypedApplicationNode(node.sourcePosition, functional.type, functional, self.visitNode(node.argument))
+            return ASTTypedApplicationNode(node.sourcePosition, functional.type, functional, self.visitNode(node.argument), [])
         
         if isMacroValueNode(functional):
             macroValue = functional.value
@@ -181,7 +181,8 @@ class Typechecker(ASTVisitor):
             assert pendingInferenceArgument is None
             return resultType
         
-        if functional.type.isOverloadsTypeNode():
+        functionalType = getTypeOfAnalyzedNode(functional, node.sourcePosition)
+        if functionalType.isOverloadsTypeNode():
             acceptedAlternativeTypes = []
             acceptedAlternativeIndices = []
             acceptedAlternativeImplicitValueSubstitutions = []
@@ -203,11 +204,11 @@ class Typechecker(ASTVisitor):
             overloadedApplicationType = ASTOverloadsTypeNode(node.sourcePosition, acceptedAlternativeTypes)
             return reduceTypedOverloadedApplicationNode(ASTTypedOverloadedApplicationNode(node.sourcePosition, overloadedApplicationType, functional, acceptedAlternativeImplicitValueSubstitutions, typedArgument, acceptedAlternativeIndices))
 
-        if not functional.type.isTypedPiNodeOrLiteralValue():
+        if not functionalType.isTypedPiNodeOrLiteralValue():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
             return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument), [])
         
-        pendingInferenceArgument, typedArgument, resultType, implicitValueSubstitutions, errorMessage = self.attemptBetaReducePiWithTypedArgument(functional.type, node.argument, isImplicitApplication = node.isImplicit)
+        pendingInferenceArgument, typedArgument, resultType, implicitValueSubstitutions, errorMessage = self.attemptBetaReducePiWithTypedArgument(functionalType, node.argument, isImplicitApplication = node.isImplicit)
         if errorMessage is not None:
             return self.makeSemanticError(node.sourcePosition, errorMessage, functional, typedArgument)
         
@@ -217,6 +218,13 @@ class Typechecker(ASTVisitor):
             return self.visitNode(nextApplication)
 
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, functional, typedArgument, implicitValueSubstitutions))
+    
+    def visitModuleEntryPointNode(self, node: ASTModuleEntryPointNode):
+        entryPoint = self.visitNode(node.entryPoint)
+        entryPointType = getTypeOfAnalyzedNode(entryPoint, node.sourcePosition)
+        if not entryPointType.isTypedPiNodeOrLiteralValue():
+            return self.makeSemanticError(entryPoint.sourcePosition, "Module entry point must be a function.", entryPoint)
+        return ASTTypedModuleEntryPointNode(node.sourcePosition, entryPointType, entryPoint)
 
     def visitArgumentNode(self, node: ASTArgumentNode):
         assert False
@@ -278,7 +286,7 @@ class Typechecker(ASTVisitor):
         argumentName = self.evaluateOptionalSymbol(node.argumentName)
         argumentType = self.visitOptionalTypeExpression(node.argumentType)
         if argumentName is None and argumentType is None:
-            argumentType = ASTLiteralTypeNode(UnitType)
+            argumentType = ASTLiteralTypeNode(node.sourcePosition, UnitType)
 
         argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType, isImplicit = node.hasImplicitArgument)
         functionalEnvironment = FunctionalAnalysisEnvironment(self.lexicalEnvironment, argumentBinding, node.sourcePosition)
@@ -325,7 +333,7 @@ class Typechecker(ASTVisitor):
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode):
         return node
     
-    def visitLocalDefinitionNode(self, node: ASTLocalDefinitionNode):
+    def visitBindingDefinitionNode(self, node: ASTBindingDefinitionNode):
         if node.initialValueExpression is None and node.expectedTypeExpression is None:
             return self.makeSemanticError(node.sourcePosition, "Local definition node requires at least an initial value or an expected type expression.")
         
@@ -344,7 +352,7 @@ class Typechecker(ASTVisitor):
         bindingTypeExpression = typecheckedValue.getTypeExpressionAt(node.sourcePosition)
         localBinding = SymbolLocalBinding(node.sourcePosition, localName, bindingTypeExpression, typecheckedValue)
         self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(localBinding)
-        return ASTTypedLocalDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue)
+        return ASTTypedBindingDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue, isMutable = node.isMutable, isPublic = node.isPublic)
 
     def visitMessageSendNode(self, node: ASTMessageSendNode):
         selector, errorNode = self.evaluateSymbol(node.selector)
@@ -445,7 +453,7 @@ class Typechecker(ASTVisitor):
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
 
-    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode):
+    def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode):
         assert False
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
@@ -458,6 +466,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
+        return node
+    
+    def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
         return node
 
 class SubstitutionContext:
@@ -543,7 +554,7 @@ class ASTCaptureBindingFinder(ASTSequentialVisitor):
         super().__init__()
         self.context = context
 
-    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode):
+    def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode):
         self.visitNode(node.valueExpression)
         self.context.addLocalBinding(node.binding)
 
@@ -627,7 +638,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
 
-    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode):
+    def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode):
         assert False
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
@@ -678,6 +689,9 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         for element in node.elements:
             reducedElements.append(self.visitNode(element))
         return ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements)
+    
+    def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
+        return ASTTypedModuleEntryPointNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.entryPoint))
     
 def getTypeOfAnalyzedNode(node: ASTTypedNode | ASTTypeNode, sourcePosition: SourcePosition) -> ASTTypedNode | ASTTypeNode:
     if node.isTypeNode():

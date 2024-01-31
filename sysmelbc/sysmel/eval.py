@@ -82,7 +82,7 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return node.value
 
-    def visitTypedLocalDefinitionNode(self, node: ASTTypedLocalDefinitionNode) -> TypedValue:
+    def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode) -> TypedValue:
         value = self.visitNode(node.valueExpression)
         self.activationEnvironment.setBindingValue(node.binding, value)
         return value
@@ -108,6 +108,10 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
         productType = self.visitNode(node.type)
         return productType.makeWithElements(tuple(elements))
+
+    def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode) -> TypedValue:
+        entryPoint = self.visitNode(node.entryPoint)
+        return entryPoint
 
 def evaluateFunctionalValueWithParameter(functionalValue: FunctionalValue, argumentValue: TypedValue):
     activationEnvironment = FunctionalActivationEnvironment()

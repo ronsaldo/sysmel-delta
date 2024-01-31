@@ -322,10 +322,31 @@ def addPrimitiveFunctionDefinitionsToEnvironment(definitions, environment):
     return environment
 
 def letTypeWithMacro(macroContext: MacroContext, localName: ASTNode, expectedType: ASTNode, localValue: ASTNode) -> ASTNode:
-    return ASTLocalDefinitionNode(macroContext.sourcePosition, localName, expectedType, localValue)
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, expectedType, localValue)
 
 def letWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
-    return ASTLocalDefinitionNode(macroContext.sourcePosition, localName, None, localValue)
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, None, localValue)
+
+def letTypeMutableWithMacro(macroContext: MacroContext, localName: ASTNode, expectedType: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, expectedType, localValue, isMutable = True)
+
+def letMutableWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, None, localValue, isMutable = True)
+
+def publicTypeWithMacro(macroContext: MacroContext, localName: ASTNode, expectedType: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, expectedType, localValue, isPublic = True)
+
+def publicWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, None, localValue, isPublic = True)
+
+def publicTypeMutableWithMacro(macroContext: MacroContext, localName: ASTNode, expectedType: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, expectedType, localValue, isMutable = True, isPublic = True)
+
+def publicMutableWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, None, localValue, isMutable = True, isPublic = True)
+
+def moduleEntryPointMacro(macroContext: MacroContext, entryPointValue: ASTNode) -> ASTNode:
+    return ASTModuleEntryPointNode(macroContext.sourcePosition, entryPointValue)
 
 ## Boolean :: False | True.
 FalseType = UnitTypeClass("False", "false")
@@ -348,6 +369,15 @@ TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleto
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
     ['let:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
+    ['let:type:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeMutableWithMacro, ['macro']],
+    ['let:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letMutableWithMacro, ['macro']],
+
+    ['public:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeWithMacro, ['macro']],
+    ['public:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicWithMacro, ['macro']],
+    ['public:type:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeMutableWithMacro, ['macro']],
+    ['public:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicMutableWithMacro, ['macro']],
+
+    ['moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['const', [TypeType, TypeType], DecoratedType.makeConst, []],
     ['volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],
