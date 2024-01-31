@@ -289,12 +289,16 @@ class SigmaValue(FunctionalValue):
         return True
     
 class PrimitiveFunction(TypedValue):
-    def __init__(self, type: TypedValue, value, name: Symbol = None, isMacro = False) -> None:
+    def __init__(self, type: TypedValue, value, name: Symbol = None, isMacro = False, isPure = True) -> None:
         self.type = type
         self.name = name
         self.value = value
         self.isMacro = isMacro
+        self.isPure = isPure
 
+    def isPurelyFunctional(self) -> bool:
+        return self.isPure
+    
     def isFunctionalValue(self) -> bool:
         return True
 
@@ -316,6 +320,9 @@ class CurriedFunctionalValue(TypedValue):
         self.arguments = arguments
         self.innerFunction = innerFunction
 
+    def isPurelyFunctional(self) -> bool:
+        return self.innerFunction.isPurelyFunctional()
+    
     def isFunctionalValue(self) -> bool:
         return True
 

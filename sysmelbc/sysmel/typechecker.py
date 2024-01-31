@@ -756,11 +756,11 @@ def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
 
     hasTypeArgument = node.argument.isTypeNode()
     hasLiteralArgument = node.argument.isLiteralTypeNode() or node.argument.isTypedLiteralNode()
-    hasLiteralFunctionalNode = node.isLiteralTypeNode() or node.isTypedLiteralNode()
+    hasLiteralFunctionalNode = node.functional.isLiteralTypeNode() or node.functional.isTypedLiteralNode()
     hasBetaReducibleFunctional = node.functional.isTypedLambdaNode() or node.functional.isTypedPiNode() or node.functional.isTypedLiteralReducibleFunctionalValue()
 
-    if hasLiteralFunctionalNode and node.value.isPurelyFunctional() and hasLiteralArgument:
-        return makeTypedLiteralForValueAt(TypedValue = node.functional.value(node.argument.value))
+    if hasLiteralFunctionalNode and node.functional.value.isPurelyFunctional() and hasLiteralArgument:
+        return makeTypedLiteralForValueAt(node.functional.value(node.argument.value), node.sourcePosition)
 
     if hasTypeArgument and hasBetaReducibleFunctional:
         return betaReduceFunctionalNodeWithArgument(node.functional, node.argument)

@@ -55,7 +55,7 @@ class TypedValue(ABC):
     def isMacroValue(self) -> bool:
         return False
 
-    def isPurelyFunction(self) -> bool:
+    def isPurelyFunctional(self) -> bool:
         return False
     
     def expectsMacroEvaluationContext(self) -> bool:
