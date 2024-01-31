@@ -12,6 +12,12 @@ class AbstractEnvironment(ABC):
 
     def lookScriptName(self) -> str:
         return None
+    
+    def lookModule(self) -> Module:
+        return None
+
+    def lookFunctionalAnalysisEnvironment(self):
+        return None
 
     def isLexicalEnvironment(self) -> bool:
         return False
@@ -71,29 +77,27 @@ class ChildEnvironment(AbstractEnvironment):
     def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
         return None
     
+    def lookFunctionalAnalysisEnvironment(self):
+        return self.parent.lookScriptDirectory()
+
     def lookScriptDirectory(self) -> str:
-        if self.parent is not None:
-            return self.parent.lookScriptDirectory()
-        return None
+        return self.parent.lookScriptDirectory()
 
     def lookScriptName(self) -> str:
-        if self.parent is not None:
-            return self.parent.lookScriptName()
-        return None
+        return self.parent.lookScriptName()
+    
+    def lookModule(self) -> Module:
+        return self.parent.lookModule()
 
     def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
         binding = self.lookLocalSymbol(symbol)
         if binding is not None:
             return binding
 
-        if self.parent is not None:
-            return self.parent.lookSymbolRecursively(symbol)
-        return None
+        return self.parent.lookSymbolRecursively(symbol)
 
     def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
-        parentResult = []
-        if self.parent is not None:
-            parentResult = self.parent.lookSymbolBindingListRecursively(symbol)
+        parentResult = parentResult = self.parent.lookSymbolBindingListRecursively(symbol)
 
         binding = self.lookLocalSymbol(symbol)
         if binding is not None:
@@ -102,17 +106,14 @@ class ChildEnvironment(AbstractEnvironment):
             return parentResult
 
     def hasSubstitutionForImplicitValueBinding(self, binding) -> bool:
-        if self.parent is not None:
-            return self.parent.hasSubstitutionForImplicitValueBinding(binding)
-        return False
+        return self.parent.hasSubstitutionForImplicitValueBinding(binding)
 
     def findSubstitutionForImplicitValueBinding(self, binding) -> ASTNode | None:
         return None
 
     def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
         if self == targetEnvironment: return []
-        if self.parent is not None: return self.parent.getImplicitValueSubstitutionsUpTo(targetEnvironment)
-        return []
+        return self.parent.getImplicitValueSubstitutionsUpTo(targetEnvironment)
 
 class ChildEnvironmentWithBinding(ChildEnvironment):
     def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding) -> None:
@@ -141,6 +142,17 @@ class LexicalEnvironment(ChildEnvironment):
     def isLexicalEnvironment(self) -> bool:
         return True
 
+class ModuleEnvironment(ChildEnvironment):
+    def __init__(self, parent: AbstractEnvironment, module: Module) -> None:
+        super().__init__(parent)
+        self.module = module
+    
+    def isModuleEnvironment(self) -> bool:
+        return True
+    
+    def lookModule(self) -> Module:
+        return self.module
+    
 class ScriptEnvironment(LexicalEnvironment):
     def __init__(self, parent: AbstractEnvironment, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script') -> None:
         super().__init__(parent, sourcePosition)
@@ -170,6 +182,9 @@ class FunctionalAnalysisEnvironment(LexicalEnvironment):
         self.captureBindings = []
         self.capturedBindingMap = dict()
 
+    def lookFunctionalAnalysisEnvironment(self):
+        return self
+
     def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
         if self.argumentBinding is not None and symbol == self.argumentBinding.name:
             return self.argumentBinding
@@ -191,14 +206,10 @@ class FunctionalAnalysisEnvironment(LexicalEnvironment):
         if binding is not None:
             return binding
 
-        if self.parent is not None:
-            return self.getOrCreateCaptureForBinding(self.parent.lookSymbolRecursively(symbol))
-        return None
+        return self.getOrCreateCaptureForBinding(self.parent.lookSymbolRecursively(symbol))
 
     def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
-        parentResult = []
-        if self.parent is not None:
-            parentResult = list(map(self.getOrCreateCaptureForBinding, self.parent.lookSymbolBindingListRecursively(symbol)))
+        parentResult = list(map(self.getOrCreateCaptureForBinding, self.parent.lookSymbolBindingListRecursively(symbol)))
 
         binding = self.lookLocalSymbol(symbol)
         if binding is not None:
@@ -397,12 +408,13 @@ def loadSourceNamedMacro(macroContext: MacroContext, sourceName: ASTNode) -> AST
         return errorNode
     
     sourceNameString = sourceNameStringValue.value
+    module = macroContext.lexicalEnvironment.lookModule()
     scriptDirectory = macroContext.lexicalEnvironment.lookScriptDirectory()
     scriptPath = os.path.join(scriptDirectory, sourceNameString)
     
     try:
         sourceAST = parseFileNamed(scriptPath)
-        scriptEnvironment = makeScriptAnalysisEnvironment(sourceAST.sourcePosition, scriptPath)
+        scriptEnvironment = makeScriptAnalysisEnvironment(module, sourceAST.sourcePosition, scriptPath)
         return macroContext.typechecker.loadSourceASTWithEnvironment(sourceAST, scriptEnvironment, macroContext.sourcePosition)
     except FileNotFoundError:
         return ASTErrorNode(macroContext.sourcePosition, 'Failed to find source file "%s".' % sourceNameString)
@@ -512,7 +524,7 @@ TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(TrueType.getSingleto
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Type"), TypeType)
 
-def makeScriptAnalysisEnvironment(sourcePosition: SourcePosition, scriptPath: str) -> LexicalEnvironment:
+def makeScriptAnalysisEnvironment(module: Module, sourcePosition: SourcePosition, scriptPath: str) -> LexicalEnvironment:
     scriptDirectory = os.path.dirname(scriptPath)
     scriptName = os.path.basename(scriptPath)
-    return ScriptEnvironment(TopLevelEnvironment, sourcePosition, scriptDirectory, scriptName)
+    return ScriptEnvironment(ModuleEnvironment(TopLevelEnvironment, module), sourcePosition, scriptDirectory, scriptName)

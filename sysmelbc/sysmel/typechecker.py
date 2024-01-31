@@ -227,7 +227,7 @@ class Typechecker(ASTVisitor):
         entryPointType = getTypeOfAnalyzedNode(entryPoint, node.sourcePosition)
         if not entryPointType.isTypedPiNodeOrLiteralValue():
             return self.makeSemanticError(entryPoint.sourcePosition, "Module entry point must be a function.", entryPoint)
-        return ASTTypedModuleEntryPointNode(node.sourcePosition, entryPointType, entryPoint)
+        return ASTTypedModuleEntryPointNode(node.sourcePosition, entryPointType, entryPoint, self.lexicalEnvironment.lookModule())
 
     def visitArgumentNode(self, node: ASTArgumentNode):
         assert False
@@ -344,18 +344,28 @@ class Typechecker(ASTVisitor):
         localName = self.evaluateOptionalSymbol(node.nameExpression)
         if localName is None:
             return typecheckedValue
-        
+
+        ## Make sure this is a correct place for a public binding
+        if node.isPublic:
+            if self.lexicalEnvironment.lookFunctionalAnalysisEnvironment() is not None:
+                return self.makeSemanticError(node.sourcePosition, "Cannot have public bindings inside of functions..", typecheckedValue)
+            module = self.lexicalEnvironment.lookModule()
+
         ## Use a symbol value binding if possible.
         if typecheckedValue.isTypedLiteralNode() or typecheckedValue.isLiteralTypeNode():
             valueBinding = SymbolValueBinding(node.sourcePosition, localName, typecheckedValue.value)
+            if node.isPublic:
+                module.exportBinding(valueBinding)
             self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(valueBinding)
             return typecheckedValue
         
         ## Make a local variable.
         bindingTypeExpression = typecheckedValue.getTypeExpressionAt(node.sourcePosition)
         localBinding = SymbolLocalBinding(node.sourcePosition, localName, bindingTypeExpression, typecheckedValue)
+        if node.isPublic:
+            module.exportBinding(localBinding)
         self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(localBinding)
-        return ASTTypedBindingDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue, isMutable = node.isMutable, isPublic = node.isPublic)
+        return ASTTypedBindingDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue, isMutable = node.isMutable, isPublic = node.isPublic, module = module)
 
     def visitMessageSendNode(self, node: ASTMessageSendNode):
         selector, errorNode = self.evaluateSymbol(node.selector)

@@ -540,12 +540,13 @@ class ASTTypedLambdaNode(ASTTypedFunctionalNode):
         return {'kind': 'TypedLambda', 'type': self.type.toJson(), 'argumentBinding': self.argumentBinding.toJson(), 'body': self.body.toJson()}
 
 class ASTTypedBindingDefinitionNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolLocalBinding, valueExpression: ASTNode, isMutable = False, isPublic = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolLocalBinding, valueExpression: ASTNode, isMutable = False, isPublic = False, module: Module = None) -> None:
         super().__init__(sourcePosition, type)
         self.binding = binding
         self.valueExpression = valueExpression
         self.isMutable = isMutable
         self.isPublic = isPublic
+        self.module = module
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedBindingDefinitionNode(self)
@@ -591,9 +592,10 @@ class ASTTypedTupleNode(ASTTypedNode):
         return {'kind': 'TypedTuple', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
     
 class ASTTypedModuleEntryPointNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, entryPoint: ASTTypeNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, entryPoint: ASTTypeNode, module: Module) -> None:
         super().__init__(sourcePosition, type)
         self.entryPoint = entryPoint
+        self.module = module
     
     def accept(self, visitor):
         return visitor.visitTypedModuleEntryPointNode(self)

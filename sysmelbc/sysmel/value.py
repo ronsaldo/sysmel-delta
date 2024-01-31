@@ -13,6 +13,9 @@ class TypedValue(ABC):
     def toJson(self):
         pass
 
+    def prettyPrint(self) -> str:
+        return json.dumps(self.toJson())
+    
     def isASTNode(self):
         return False
     
@@ -82,7 +85,11 @@ class TypeUniverse(TypedValue):
     def toJson(self):
         if self.index == 0: return "Type"
         return "Type@%d" % self.index
-    
+
+    def prettyPrint(self) -> str:
+        if self.index == 0: return "Type"
+        return "Type@%d" % self.index
+        
     def getType(self):
         return self.__class__.getWithIndex(self.index + 1)
 
@@ -110,6 +117,9 @@ class BaseType(TypedValue):
     def __init__(self, name: str) -> None:
         self.name = name
 
+    def prettyPrint(self) -> str:
+        return self.name
+    
     def getType(self) -> TypedValue:
         return TypeType
 
@@ -153,9 +163,10 @@ class IntegerTypeClass(BaseType):
     pass
 
 class PrimitiveTypeClass(BaseType):
-    def __init__(self, name: str, valueSize: int) -> None:
+    def __init__(self, name: str, valueSize: int, literalSuffix = '') -> None:
         super().__init__(name)
         self.valueSize = valueSize
+        self.literalSuffix = literalSuffix
 
 class PrimitiveIntegerTypeClass(PrimitiveTypeClass):
     @abstractmethod
@@ -163,31 +174,31 @@ class PrimitiveIntegerTypeClass(PrimitiveTypeClass):
         pass
 
 class PrimitiveUnsignedIntegerTypeClass(PrimitiveIntegerTypeClass):
-    def __init__(self, name: str, valueSize: int) -> None:
-        super().__init__(name, valueSize)
+    def __init__(self, name: str, valueSize: int, literalSuffix) -> None:
+        super().__init__(name, valueSize, literalSuffix)
         self.mask = (1<<(valueSize*8)) - 1
 
     def normalizeIntegerValue(self, value: int) -> int:
         return value & self.mask
 
 class PrimitiveCharacterTypeClass(PrimitiveIntegerTypeClass):
-    def __init__(self, name: str, valueSize: int) -> None:
-        super().__init__(name, valueSize)
+    def __init__(self, name: str, valueSize: int, literalSuffix) -> None:
+        super().__init__(name, valueSize, literalSuffix)
         self.mask = (1<<(valueSize*8)) - 1
 
     def normalizeIntegerValue(self, value: int) -> int:
         return value & self.mask
     
 class PrimitiveSignedIntegerTypeClass(PrimitiveIntegerTypeClass):
-    def __init__(self, name: str, valueSize: int) -> None:
-        super().__init__(name, valueSize)
+    def __init__(self, name: str, valueSize: int, literalSuffix) -> None:
+        super().__init__(name, valueSize, literalSuffix)
         self.mask = (1<<(valueSize*8)) - 1
         self.signBitMask = 1<<(valueSize*8 - 1)
 
     def normalizeIntegerValue(self, value: int) -> int:
         return (value & (self.signBitMask - 1)) - (value & self.signBitMask)
 
-class PrimitiveFloatTypeClass(BaseType):
+class PrimitiveFloatTypeClass(PrimitiveTypeClass):
     def normalizeFloatValue(self, value: float) -> float:
         return value
 
@@ -207,30 +218,34 @@ class ASTNodeTypeClass(BaseType):
 class MacroContextTypeClass(BaseType):
     pass
 
+class ModuleTypeClass(BaseType):
+    pass
+
 AbsurdType = AbsurdTypeClass("Absurd")
 UnitType = UnitTypeClass("Unit", "unit")
 
 IntegerType = IntegerTypeClass("Integer")
-Float32Type = PrimitiveFloat64TypeClass("Float32")
-Float64Type = PrimitiveFloat64TypeClass("Float64")
+Float32Type = PrimitiveFloat32TypeClass("Float32", 4, 'f32')
+Float64Type = PrimitiveFloat64TypeClass("Float64", 8, 'f64')
 
-Char8Type  = PrimitiveCharacterTypeClass("Char8", 1)
-Char16Type = PrimitiveCharacterTypeClass("Char16", 2)
-Char32Type = PrimitiveCharacterTypeClass("Char32", 4)
+Char8Type  = PrimitiveCharacterTypeClass("Char8", 1, 'c8')
+Char16Type = PrimitiveCharacterTypeClass("Char16", 2, 'c16')
+Char32Type = PrimitiveCharacterTypeClass("Char32", 4, 'c32')
 
 StringType = StringTypeClass("String")
 ASTNodeType = ASTNodeTypeClass("ASTNode")
 MacroContextType = MacroContextTypeClass("MacroContext")
+ModuleType = ModuleTypeClass("Module")
 
-Int8Type  = PrimitiveSignedIntegerTypeClass("Int8", 1)
-Int16Type = PrimitiveSignedIntegerTypeClass("Int16", 2)
-Int32Type = PrimitiveSignedIntegerTypeClass("Int32", 4)
-Int64Type = PrimitiveSignedIntegerTypeClass("Int64", 8)
+Int8Type  = PrimitiveSignedIntegerTypeClass("Int8", 1, 'i8')
+Int16Type = PrimitiveSignedIntegerTypeClass("Int16", 2, 'i16')
+Int32Type = PrimitiveSignedIntegerTypeClass("Int32", 4, 'i32')
+Int64Type = PrimitiveSignedIntegerTypeClass("Int64", 8, 'i64')
 
-UInt8Type  = PrimitiveUnsignedIntegerTypeClass("UInt8", 1)
-UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt16", 2)
-UInt32Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 4)
-UInt64Type = PrimitiveUnsignedIntegerTypeClass("UInt64", 8)
+UInt8Type  = PrimitiveUnsignedIntegerTypeClass("UInt8", 1, 'u8')
+UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt16", 2, 'u16')
+UInt32Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 4, 'u32')
+UInt64Type = PrimitiveUnsignedIntegerTypeClass("UInt64", 8, 'u64')
 
 PrimitiveIntegerTypes = [Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type, Char8Type, Char16Type, Char32Type]
 PrimitiveFloatTypes = [Float32Type, Float64Type]
@@ -240,6 +255,9 @@ class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
         super().__init__()
         self.value = value
+
+    def prettyPrint(self) -> str:
+        return str(self.value)
 
     def getType(self) -> TypedValue:
         return IntegerType
@@ -303,6 +321,9 @@ class PrimitiveIntegerValue(TypedValue):
     def __init__(self, type: TypedValue, value: int) -> None:
         self.type = type
         self.value = type.normalizeIntegerValue(value)
+
+    def prettyPrint(self) -> str:
+        return str(self.value) + self.type.literalSuffix
 
     def getType(self):
         return self.type
@@ -371,6 +392,9 @@ class PrimitiveFloatValue(TypedValue):
         super().__init__()
         self.type = type
         self.value = type.normalizeFloatValue(value)
+
+    def prettyPrint(self) -> str:
+        return str(self.value) + self.type.literalSuffix
 
     def getType(self):
         return self.type
@@ -782,9 +806,6 @@ class ASTNode(TypedValue):
     def getType(self):
         return ASTNodeType
     
-    def prettyPrint(self) -> str:
-        return json.dumps(self.toJson())
-
     def isASTNode(self):
         return True
 
@@ -1103,3 +1124,32 @@ class SymbolImplicitValueBinding(SymbolBinding):
 
     def toJson(self):
         return {'implicitValue': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
+
+class Module(TypedValue):
+    def __init__(self, name: TypedValue) -> None:
+        super().__init__()
+        self.name = name
+        self.exportedBindings = []
+        self.exportedBindingValues = {}
+        self.entryPoint = None
+
+    def exportBinding(self, binding: SymbolBinding):
+        if binding in self.exportedBindings:
+            return
+        self.exportedBindings.append(binding)
+
+    def setExportedBindingValue(self, binding: SymbolBinding, value: TypedValue):
+        assert binding in self.exportedBindingValues
+        self.exportedBindingValues[binding] = value
+
+    def getType(self):
+        return ModuleType
+    
+    def toJson(self):
+        return {'module': str(self.name), 'entryPointBinding': optionalToJson(self.entryPoint)}
+
+def optionalToJson(value: TypedValue | None):
+    if value is None:
+        return None
+    else:
+        return value.toJson()
