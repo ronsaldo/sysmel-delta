@@ -20,8 +20,11 @@ class HIRValue:
         self.context = context
 
     @abstractmethod
-    def getType():
+    def getType(self):
         pass
+
+    def fullPrintString(self) -> str:
+        return str(self)
 
 class HIRConstantValue(HIRValue):
     def __init__(self, context: HIRContext, value: TypedValue) -> None:
@@ -37,6 +40,105 @@ class HIRConstantValue(HIRValue):
 class HIRFunctionalDefinition:
     def __init__(self, context: HIRContext) -> None:
         self.context = context
+        self.firstBasicBlock: HIRBasicBlock = None
+        self.lastBasicBlock: HIRBasicBlock = None
+
+    def addBasicBlock(self, basicBlock, position = None):
+        assert basicBlock.parent is None
+        assert basicBlock.previous is None
+        assert basicBlock.next is None
+
+        basicBlock.next = position
+        basicBlock.previous = None
+        if basicBlock.next is not None:
+            basicBlock.previous = basicBlock.next.previous
+
+        if basicBlock.next is not None:
+            basicBlock.next.previous = basicBlock
+        else:
+            self.lastBasicBlock = basicBlock
+
+        if basicBlock.previous is not None:
+            basicBlock.previous.next = basicBlock
+        else:
+            self.firstBasicBlock = basicBlock
+
+    def addBasicBlockAfter(self, basicBlock, position = None):
+        assert basicBlock.parent is None
+        assert basicBlock.previous is None
+        assert basicBlock.next is None
+
+        basicBlock.previous = position
+        basicBlock.next = None
+        if basicBlock.next is not None:
+            basicBlock.next = basicBlock.previous.next
+
+        if basicBlock.next is not None:
+            basicBlock.next.previous = basicBlock
+        else:
+            self.lastBasicBlock = basicBlock
+
+        if basicBlock.previous is not None:
+            basicBlock.previous.next = basicBlock
+        else:
+            self.firstBasicBlock = basicBlock
+
+    def basicBlocks(self):
+        position = self.firstBasicBlock
+        while position is not None:
+            nextPosition = position.next
+            yield position
+            position = nextPosition
+
+    def fullPrintString(self) -> str:
+        result = '{\n'
+        for basicBlock in self.basicBlocks():
+            result += basicBlock.fullPrintString()
+        result += '}'
+        return result
+
+class HIRLocalValue(HIRValue):
+    pass
+
+class HIRBasicBlock(HIRLocalValue):
+    def __init__(self, context: HIRContext, name: str = None) -> None:
+        super().__init__(context)
+        self.name = name
+        self.parent: HIRFunctionalDefinition = None
+        self.previous: HIRBasicBlock = None
+        self.next: HIRBasicBlock = None
+        self.firstInstruction: HIRInstruction = None
+        self.lastInstruction: HIRInstruction = None
+
+    def instructions(self):
+        position = self.firstInstruction
+        while position is not None:
+            nextPosition = position.next
+            yield position
+            position = nextPosition
+
+    def fullPrintString(self) -> str:
+        result = self.name
+        result += ":\n"
+        for instruction in self.instructions():
+            result += '    '
+            result += instruction.fullPrintString
+            result += '\n'
+        return result
+
+class HIRInstruction(HIRLocalValue):
+    def __init__(self, context: HIRContext) -> None:
+        super().__init__(context)
+        self.parent: HIRBasicBlock = None
+        self.previous: HIRInstruction = None
+        self.next: HIRInstruction = None
+
+class HIRBuilder:
+    def __init__(self, context: HIRContext) -> None:
+        self.context = context
+
+    def newBasicBlock(self, name: str = None) -> HIRBasicBlock:
+        return HIRBasicBlock(self.context, name)
 
 class HIRFunctionalValue(HIRValue):
     def __init__(self, context: HIRContext, type: HIRValue, capturedValues: list[HIRValue], definition: HIRFunctionalDefinition) -> None:
@@ -47,6 +149,19 @@ class HIRFunctionalValue(HIRValue):
     
     def getType(self):
         return self.type
+
+    def fullPrintString(self) -> str:
+        result = self.__class__.__name__ + "["
+        isFirst = True
+        for capturedValue in self.capturedValues:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ", "
+            result += str(capturedValue)
+        result += "] := "
+        result += self.definition.fullPrintString()
+        return result
 
 class HIRLambdaValue(HIRFunctionalValue):
     pass
@@ -63,7 +178,10 @@ class HIRModule:
         self.entryPoint: HIRValue = None
 
     def prettyPrint(self) -> str:
-        return str(self.entryPoint)
+        result = ""
+        if self.entryPoint is not None:
+            result += self.entryPoint.fullPrintString()
+        return result
 
 class HIRModuleFrontend:
     def __init__(self, context = HIRContext()) -> None:
@@ -116,6 +234,9 @@ class HIRModuleFrontend:
 class HIRFunctionalTranslator:
     def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:
         self.moduleFrontend = moduleFrontend
+        self.hirContext = self.moduleFrontend
+        self.hirBuilder = HIRBuilder(self.hirContext)
 
     def translateFunctionalValueInto(self, functionalValue: FunctionalValue, functionalDefinition: HIRFunctionalDefinition) -> None:
-        pass
+        entryBlock = self.hirBuilder.newBasicBlock('entry')
+        functionalDefinition.addBasicBlock(entryBlock)
