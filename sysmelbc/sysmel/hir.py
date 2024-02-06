@@ -223,12 +223,12 @@ class HIRModuleFrontend:
         HIRFunctionalTranslator(self).translateFunctionalValueInto(piValue, hirPiDefinition)
         return hirPi
 
-    def translateSigma(self, piValue: LambdaValue):
-        sigmaType = self.translateValue(piValue.getType())
+    def translateSigma(self, sigmaValue: LambdaValue):
+        sigmaType = self.translateValue(sigmaValue.getType())
         hirSigmaDefinition = HIRFunctionalDefinition(self.context)
-        hirSigma = HIRSigmaValue(self.context, hirSigma, [], hirSigmaDefinition)
-        self.translatedValueDictionary[piValue] = hirSigma
-        HIRFunctionalTranslator(self).translateFunctionalValueInto(piValue, hirSigmaDefinition)
+        hirSigma = HIRSigmaValue(self.context, sigmaType, [], hirSigmaDefinition)
+        self.translatedValueDictionary[sigmaValue] = hirSigma
+        HIRFunctionalTranslator(self).translateFunctionalValueInto(sigmaValue, hirSigmaDefinition)
         return hirSigma
 
 class HIRFunctionalTranslator:
