@@ -21,6 +21,18 @@ class TypedValueVisitor(ABC):
     def visitSigmaValue(self, value):
         pass
 
+    @abstractmethod
+    def visitPrimitiveFunction(self, value):
+        pass
+
+    @abstractmethod
+    def visitCurriedFunctionalValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitCurryingFunctionalValue(self, value):
+        pass
+
 class TypedValue(ABC):
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitGenericTypedValue(self)

@@ -35,6 +35,18 @@ class GHIRValue(ABC):
     
     def prettyPrint(self) -> str:
         return GHIRGraphPrinter().printGraphWithValue(self)
+    
+    def isCurriedFunction(self) -> bool:
+        return False
+
+    def isCurryingFunction(self) -> bool:
+        return False
+    
+    def replaceWith(self, replacement):
+        return replacement
+
+    def simplify(self):
+        return self
 
 class GHIRGraphPrinter:
     def __init__(self) -> None:
@@ -79,6 +91,62 @@ class GHIRConstantValue(GHIRValue):
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := constant %s' % (valueName, self.value.prettyPrint()))
 
+class GHIRPrimitiveFunction(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, name: str, compileTimeImplementation = None) -> None:
+        super().__init__(context)
+        self.type = type
+        self.name = name
+        self.compileTimeImplementation = compileTimeImplementation
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def getName(self) -> str:
+        return self.name
+    
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        graphPrinter.printLine('%s := primitive %s : %s' % (valueName, self.name, type))
+
+class GHIRCurryingFunction(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, innerFunction: GHIRValue) -> None:
+        super().__init__(context)
+        self.type = type
+        self.innerFunction = innerFunction
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        innerFunction = graphPrinter.printValue(self.innerFunction)
+        graphPrinter.printLine('%s := currying over %s' % (valueName, innerFunction))
+
+    def isCurryingFunction(self) -> bool:
+        return True
+
+class GHIRCurriedFunction(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, innerFunction: GHIRValue, partialApplications: list[GHIRValue]) -> None:
+        super().__init__(context)
+        self.type = type
+        self.innerFunction = innerFunction
+        self.partialApplications = partialApplications
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        innerFunction = graphPrinter.printValue(self.innerFunction)
+        partialApplicationList = ''
+        for applicationValue in self.partialApplications:
+            if len(partialApplicationList) != 0:
+                partialApplicationList += ', '
+            partialApplicationList += graphPrinter.printValue(applicationValue)
+
+        graphPrinter.printLine('%s := currying %s with [%s]' % (valueName, innerFunction, partialApplicationList))
+
+    def isCurriedFunction(self) -> bool:
+        return True
+    
 class GHIRLocalBindingValue(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, name: str = None) -> None:
         super().__init__(context)
@@ -87,6 +155,9 @@ class GHIRLocalBindingValue(GHIRValue):
 
     def getType(self) -> GHIRValue:
         return self.type
+
+    def getName(self) -> str:
+        return self.name
 
 class GHIRCaptureBindingValue(GHIRLocalBindingValue):
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
@@ -180,6 +251,19 @@ class GHIRApplicationValue(GHIRValue):
 
         graphPrinter.printLine('%s := apply %s [%s] : %s' % (valueName, functional, argumentList, type))
 
+    def simplify(self):
+        if len(self.arguments) == 0: return self
+
+        if self.functional.isCurryingFunction():
+            curryingFunction: GHIRCurryingFunction = self.functional
+            curriedApplication = GHIRCurriedFunction(self.context, self.type, curryingFunction.innerFunction, self.arguments)
+            return self.replaceWith(curriedApplication.simplify())
+        elif self.functional.isCurriedFunction():
+            curriedApplication: GHIRCurriedFunction = self.functional
+            uncurriedApplication = GHIRApplicationValue(self.context, self.type, curriedApplication.innerFunction, curriedApplication.partialApplications + self.arguments)
+            return self.replaceWith(uncurriedApplication.simplify())
+        return self
+
 class GHIRModule(GHIRValue):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
@@ -238,12 +322,27 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
         return translatedValue
-    
+
+    def visitPrimitiveFunction(self, value: PrimitiveFunction):
+        type = self.translateValue(value.uncurriedType)
+        return GHIRPrimitiveFunction(self.context, type, self.optionalSymbolToString(value.primitiveName), value.value)
+
+    def visitCurriedFunctionalValue(self, value: CurriedFunctionalValue):
+        type = self.translateValue(value.type)
+        innerFunction = self.translateValue(value.innerFunction)
+        arguments = list(map(lambda arg: self.translateValue(arg), list(value.arguments)))
+        return GHIRCurriedFunction(self.context, type, innerFunction, arguments).simplify()
+
+    def visitCurryingFunctionalValue(self, value:  CurryingFunctionalValue):
+        innerFunction = self.translateValue(value.innerFunction)
+        type = self.translateValue(value.type)
+        return GHIRCurryingFunction(self.context, type, innerFunction).simplify()
+
     def translateFunctionalValueDefinition(self, functionalValue: FunctionalValue) -> GHIRFunctionalDefinitionValue:
         captures = list(map(self.translateCaptureBinding, functionalValue.captureBindings))
         argument = self.translateArgumentBinding(functionalValue.argumentBinding)
         body = self.translateExpression(functionalValue.body)
-        return GHIRFunctionalDefinitionValue(self.context, captures, [argument], body)
+        return GHIRFunctionalDefinitionValue(self.context, captures, [argument], body).simplify()
     
     def translateCaptureBinding(self, binding: SymbolCaptureBinding) -> GHIRCaptureBindingValue:
         type = self.translateExpression(binding.getTypeExpression())
@@ -273,7 +372,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         functional = self.translateExpression(node.functional)
         argument = self.translateExpression(node.argument)
         type = self.translateExpression(node.type)
-        return GHIRApplicationValue(self.context, type, functional, [argument])
+        return GHIRApplicationValue(self.context, type, functional, [argument]).simplify()
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         assert False
@@ -313,4 +412,4 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def optionalSymbolToString(self, symbol: Symbol) -> str | None:
         if symbol is None: return None
-        return str(symbol)
+        return symbol.value

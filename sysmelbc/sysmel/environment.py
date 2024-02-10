@@ -301,12 +301,17 @@ class SigmaValue(FunctionalValue):
         return True
     
 class PrimitiveFunction(TypedValue):
-    def __init__(self, type: TypedValue, value, name: Symbol = None, isMacro = False, isPure = True) -> None:
+    def __init__(self, type: TypedValue, uncurriedType: TypedValue, value, name: Symbol = None, primitiveName: Symbol = None, isMacro = False, isPure = True) -> None:
         self.type = type
+        self.uncurriedType = uncurriedType
         self.name = name
+        self.primitiveName = primitiveName
         self.value = value
         self.isMacro = isMacro
         self.isPure = isPure
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitPrimitiveFunction(self)
 
     def isPurelyFunctional(self) -> bool:
         return self.isPure
@@ -332,6 +337,9 @@ class CurriedFunctionalValue(TypedValue):
         self.arguments = arguments
         self.innerFunction = innerFunction
 
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitCurriedFunctionalValue(self)
+
     def isPurelyFunctional(self) -> bool:
         return self.innerFunction.isPurelyFunctional()
     
@@ -355,6 +363,9 @@ class CurryingFunctionalValue(TypedValue):
         self.type = type
         self.name = name
         self.innerFunction = innerFunction
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitCurryingFunctionalValue(self)
 
     def isFunctionalValue(self) -> bool:
         return True
@@ -390,24 +401,33 @@ def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePo
     else:
         return makeFunctionTypeFromTo(signature[0], (makeSimpleFunctionType(signature[1:], sourcePosition)), sourcePosition)
 
-def makePrimitiveFunction(name: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False):
+def makeUncurriedFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
+    assert len(signature) >= 2
+    if len(signature) == 2:
+        return makeFunctionTypeFromTo(signature[0], signature[1], sourcePosition)
+    else:
+        argumentTupleType = ProductType.makeWithElementTypes(signature[:-1])
+        return makeFunctionTypeFromTo(argumentTupleType, signature[1], sourcePosition)
+
+def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False, previousArgumentTypes: list[TypedValue] = []):
     assert len(signature) >= 2
     nameSymbol = None
     if name is not None:
         nameSymbol = Symbol.intern(name)
 
     if len(signature) == 2:
-        functionType = makeSimpleFunctionType(signature)
-        return PrimitiveFunction(functionType, function, nameSymbol, isMacro = isMacro)
+        functionType = makeSimpleFunctionType(signature, sourcePosition)
+        uncurriedFunctionType = makeUncurriedFunctionType(previousArgumentTypes + signature, sourcePosition)
+        return PrimitiveFunction(functionType, uncurriedFunctionType, function, nameSymbol, Symbol.intern(primitiveName), isMacro = isMacro)
     else:
-        innerFunction = makePrimitiveFunction(nameSymbol, signature[1:], function, sourcePosition, isMacro = isMacro)
+        innerFunction = makePrimitiveFunction(name, primitiveName, signature[1:], function, sourcePosition, isMacro = isMacro, previousArgumentTypes = previousArgumentTypes + [signature[0]])
         functionType = makeFunctionTypeFromTo(signature[0], innerFunction.getType(), sourcePosition)
         return CurryingFunctionalValue(functionType, innerFunction, nameSymbol)
 
 def addPrimitiveFunctionDefinitionsToEnvironment(definitions, environment):
-    for functionName, signature, function, extraFlags in definitions:
+    for functionName, primitiveName, signature, function, extraFlags in definitions:
         isMacro = 'macro' in extraFlags
-        environment = environment.withPrimitiveFunction(makePrimitiveFunction(functionName, signature, function, isMacro = isMacro))
+        environment = environment.withPrimitiveFunction(makePrimitiveFunction(functionName, primitiveName, signature, function, isMacro = isMacro))
     return environment
 
 def letTypeWithMacro(macroContext: MacroContext, localName: ASTNode, expectedType: ASTNode, localValue: ASTNode) -> ASTNode:
@@ -474,85 +494,89 @@ for baseType in [
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleton())
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-    ['let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
-    ['let:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
-    ['let:type:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeMutableWithMacro, ['macro']],
-    ['let:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letMutableWithMacro, ['macro']],
+    ['let:type:with:', 'Macro::let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
+    ['let:with:', 'Macro::let:with:',[MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
+    ['let:type:mutableWith:', 'Macro::let:type:mutableWith:',[MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeMutableWithMacro, ['macro']],
+    ['let:mutableWith:', 'Macro::let:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letMutableWithMacro, ['macro']],
 
-    ['public:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeWithMacro, ['macro']],
-    ['public:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicWithMacro, ['macro']],
-    ['public:type:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeMutableWithMacro, ['macro']],
-    ['public:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicMutableWithMacro, ['macro']],
+    ['public:type:with:', 'Macro::public:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeWithMacro, ['macro']],
+    ['public:with:', 'Macro::public:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicWithMacro, ['macro']],
+    ['public:type:mutableWith:', 'Macro::public:type:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeMutableWithMacro, ['macro']],
+    ['public:mutableWith:', 'Macro::public:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicMutableWithMacro, ['macro']],
 
-    ['loadSourceNamed:', [MacroContextType, ASTNodeType, ASTNodeType], loadSourceNamedMacro, ['macro']],
-    ['moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
+    ['loadSourceNamed:', 'Macro::loadSourceNamed:', [MacroContextType, ASTNodeType, ASTNodeType], loadSourceNamedMacro, ['macro']],
+    ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
 
-    ['const', [TypeType, TypeType], DecoratedType.makeConst, []],
-    ['volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],
-    ['array:', [TypeType, IntegerType, TypeType], ArrayType.makeWithElementTypeAndSize, []],
-    ['pointer', [TypeType, TypeType], PointerType.makeWithBaseType, []],
-    ['ref', [TypeType, TypeType], ReferenceType.makeWithBaseType, []],
-    ['tempRef', [TypeType, TypeType], TemporaryReferenceType.makeWithBaseType, []],
+    ['const', 'Type::const', [TypeType, TypeType], DecoratedType.makeConst, []],
+    ['volatile', 'Type::volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],
+    ['array:', 'Type::array:', [TypeType, IntegerType, TypeType], ArrayType.makeWithElementTypeAndSize, []],
+    ['pointer', 'Type::pointer', [TypeType, TypeType], PointerType.makeWithBaseType, []],
+    ['ref', 'Type::ref', [TypeType, TypeType], ReferenceType.makeWithBaseType, []],
+    ['tempRef', 'Type::tempRef', [TypeType, TypeType], TemporaryReferenceType.makeWithBaseType, []],
 ], TopLevelEnvironment)
 
 for primitiveNumberType in NumberTypes:
+    prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['negated',  [primitiveNumberType, primitiveNumberType], lambda x: -x, []],
+        ['negated', prefix + 'negated', [primitiveNumberType, primitiveNumberType], lambda x: -x, []],
 
-        ['+',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x + y, []],
-        ['-',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x - y, []],
-        ['*',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x * y, []],
+        ['+', prefix + '+',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x + y, []],
+        ['-', prefix + '-',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x - y, []],
+        ['*', prefix + '*',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x * y, []],
 
-        ['asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
-        ['asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
-        ['asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
-        ['asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+        ['asInt8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
+        ['asInt16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
+        ['asInt32', prefix + 'asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
+        ['asInt64', prefix + 'asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
 
-        ['asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
-        ['asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
-        ['asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
-        ['asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+        ['asUInt8',  prefix + 'asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
+        ['asUInt16', prefix + 'asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
+        ['asUInt32', prefix + 'asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
+        ['asUInt64', prefix + 'asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
 
-        ['asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
-        ['asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
-        ['asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
+        ['asChar8',  prefix + 'asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
+        ['asChar16', prefix + 'asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
+        ['asChar32', prefix + 'asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
 
-        ['asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
-        ['asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
+        ['asFloat32', prefix + 'asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
+        ['asFloat64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
+    prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['bitInvert',  [primitiveNumberType, primitiveNumberType], lambda x: ~x, []],
+        ['bitInvert', prefix + 'bitInvert',  [primitiveNumberType, primitiveNumberType], lambda x: ~x, []],
 
-        ['//',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.quotientWith(y), []],
-        ['%',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.remainderWith(y), []],
+        ['//', prefix + '//',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.quotientWith(y), []],
+        ['%', prefix + '%',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.remainderWith(y), []],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in PrimitiveFloatTypes:
+    prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['/',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x / y, []],
-        ['sqrt',  [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
+        ['/', prefix + '/',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x / y, []],
+        ['sqrt', prefix + 'sqrt',  [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
+    prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['i8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
-        ['i16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
-        ['i32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
-        ['i64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+        ['i8',  prefix + 'i8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
+        ['i16', prefix + 'i16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
+        ['i32', prefix + 'i32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
+        ['i64', prefix + 'i64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
 
-        ['u8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
-        ['u16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
-        ['u32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
-        ['u64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+        ['u8',  prefix + 'u8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
+        ['u16', prefix + 'u16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
+        ['u32', prefix + 'u32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
+        ['u64', prefix + 'u64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
 
-        ['c8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
-        ['c16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
-        ['c32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
+        ['c8',  prefix + 'c8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
+        ['c16', prefix + 'c16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
+        ['c32', prefix + 'c32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
 
-        ['f32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
-        ['f64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
+        ['f32', prefix + 'f32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
+        ['f64', prefix + 'f64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
     ], TopLevelEnvironment)
 
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(FalseType.getSingleton())
