@@ -37,9 +37,14 @@ class HIRConstantValue(HIRValue):
             self.type = self.context.getConstantValue(self.value.getType())
         return self.type
 
+    def __str__(self) -> str:
+        return 'constant ' + self.value.prettyPrint()
+
 class HIRFunctionalDefinition:
     def __init__(self, context: HIRContext) -> None:
         self.context = context
+        self.captures: list[HIRFunctionalCaptureValue] = []
+        self.arguments: list[HIRFunctionalArgumentValue] = []
         self.firstBasicBlock: HIRBasicBlock = None
         self.lastBasicBlock: HIRBasicBlock = None
 
@@ -91,24 +96,69 @@ class HIRFunctionalDefinition:
             position = nextPosition
 
     def fullPrintString(self) -> str:
-        result = '{\n'
+        result = 'captures ['
+        isFirst = True
+        for capture in self.captures:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += capture.fullPrintString()
+
+        result += '] arguments ['
+        isFirst = True
+        for argument in self.arguments:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += argument.fullPrintString()
+        result += '] {\n'
         for basicBlock in self.basicBlocks():
             result += basicBlock.fullPrintString()
         result += '}'
         return result
 
 class HIRLocalValue(HIRValue):
+    def __init__(self, context: HIRContext, type: HIRValue, name: str = None) -> None:
+        super().__init__(context)
+        self.type = type
+        self.name = name
+
+class HIRFunctionalCaptureValue(HIRLocalValue):
+    pass
+
+class HIRFunctionalArgumentValue(HIRLocalValue):
     pass
 
 class HIRBasicBlock(HIRLocalValue):
     def __init__(self, context: HIRContext, name: str = None) -> None:
-        super().__init__(context)
-        self.name = name
+        super().__init__(context, None, name)
         self.parent: HIRFunctionalDefinition = None
         self.previous: HIRBasicBlock = None
         self.next: HIRBasicBlock = None
         self.firstInstruction: HIRInstruction = None
         self.lastInstruction: HIRInstruction = None
+
+    def addInstruction(self, instruction, position = None):
+        assert instruction.parent is None
+        assert instruction.previous is None
+        assert instruction.next is None
+
+        instruction.next = position
+        instruction.previous = None
+        if instruction.next is not None:
+            instruction.previous = instruction.next.previous
+
+        if instruction.next is not None:
+            instruction.next.previous = instruction
+        else:
+            self.lastInstruction = instruction
+
+        if instruction.previous is not None:
+            instruction.previous.next = instruction
+        else:
+            self.firstInstruction = instruction
 
     def instructions(self):
         position = self.firstInstruction
@@ -122,23 +172,62 @@ class HIRBasicBlock(HIRLocalValue):
         result += ":\n"
         for instruction in self.instructions():
             result += '    '
-            result += instruction.fullPrintString
+            result += instruction.fullPrintString()
             result += '\n'
         return result
+    
+    def isLastTerminator(self) -> bool:
+        return self.lastInstruction is not None and self.lastInstruction.isTerminator()
 
 class HIRInstruction(HIRLocalValue):
-    def __init__(self, context: HIRContext) -> None:
-        super().__init__(context)
+    def __init__(self, context: HIRContext, type: HIRValue) -> None:
+        super().__init__(context, type)
         self.parent: HIRBasicBlock = None
         self.previous: HIRInstruction = None
         self.next: HIRInstruction = None
 
+    def isTerminator(self) -> bool:
+        return False
+
+class HIRTerminatorInstruction(HIRInstruction):
+    def isTerminator(self) -> bool:
+        return True
+
+class HIRReturnInstruction(HIRTerminatorInstruction):
+    def __init__(self, context: HIRContext, value: HIRValue) -> None:
+        super().__init__(context, None)
+        self.value = value
+
+    def fullPrintString(self) -> str:
+        return 'return ' + str(self.value)
+    
 class HIRBuilder:
     def __init__(self, context: HIRContext) -> None:
         self.context = context
+        self.insertionBlock: HIRBasicBlock = None
+        self.insertionPoint: HIRInstruction = None
 
     def newBasicBlock(self, name: str = None) -> HIRBasicBlock:
         return HIRBasicBlock(self.context, name)
+
+    def beginBasicBlockHere(self, basicBlock: HIRBasicBlock):
+        self.insertionBlock = basicBlock
+        self.insertionPoint = None
+
+    def newBasicBlockHere(self, name: str = None) -> HIRBasicBlock:
+        basicBlock = self.newBasicBlock(name)
+        self.beginBasicBlockHere(basicBlock)
+        return basicBlock
+    
+    def addInstruction(self, instruction: HIRInstruction) -> HIRInstruction:
+        self.insertionBlock.addInstruction(instruction, self.insertionPoint)
+        return instruction
+    
+    def isLastTerminator(self) -> bool:
+        return self.insertionBlock is not None and self.insertionBlock.isLastTerminator()
+    
+    def returnValue(self, value: HIRValue) -> HIRInstruction:
+        return self.addInstruction(HIRReturnInstruction(self.context, value))
 
 class HIRFunctionalValue(HIRValue):
     def __init__(self, context: HIRContext, type: HIRValue, capturedValues: list[HIRValue], definition: HIRFunctionalDefinition) -> None:
@@ -231,12 +320,89 @@ class HIRModuleFrontend:
         HIRFunctionalTranslator(self).translateFunctionalValueInto(sigmaValue, hirSigmaDefinition)
         return hirSigma
 
-class HIRFunctionalTranslator:
+class HIRFunctionalTranslator(ASTTypecheckedVisitor):
     def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:
         self.moduleFrontend = moduleFrontend
         self.hirContext = self.moduleFrontend
         self.hirBuilder = HIRBuilder(self.hirContext)
+        self.bindingValueMap = dict()
 
     def translateFunctionalValueInto(self, functionalValue: FunctionalValue, functionalDefinition: HIRFunctionalDefinition) -> None:
-        entryBlock = self.hirBuilder.newBasicBlock('entry')
+        captureValues = []
+        for captureBinding in functionalValue.captureBindings:
+            captureType = self.visitNode(captureBinding.getTypeExpression())
+            captureValue = HIRFunctionalCaptureValue(self.hirContext, captureType, optionalSymbolToString(functionalValue.argumentBinding.name))
+            self.bindingValueMap[functionalValue.argumentBinding] = captureValue
+            captureValues.append(captureValue)
+
+        functionalDefinition.captures = captureValues
+
+        argumentType = self.visitNode(functionalValue.argumentBinding.getTypeExpression())
+        argumentValue = HIRFunctionalArgumentValue(self.hirContext, argumentType, optionalSymbolToString(functionalValue.argumentBinding.name))
+        self.bindingValueMap[functionalValue.argumentBinding] = argumentValue
+        functionalDefinition.arguments = [argumentValue]
+
+        entryBlock = self.hirBuilder.newBasicBlockHere('entry')
         functionalDefinition.addBasicBlock(entryBlock)
+
+        resultValue = self.visitNode(functionalValue.body)
+        if not self.hirBuilder.isLastTerminator():
+            self.hirBuilder.returnValue(resultValue)
+
+    def visitNode(self, node) -> HIRValue:
+        return node.accept(self)
+
+    def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> TypedValue:
+        return self.moduleFrontend.translateValue(node.value)
+
+    def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
+        assert False
+
+    def visitProductTypeNode(self, node: ASTProductTypeNode):
+        assert False
+
+    def visitSumTypeNode(self, node: ASTSumTypeNode):
+        assert False
+
+    def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
+        assert False
+
+    def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
+        assert False
+
+    def visitTypedErrorNode(self, node: ASTTypedErrorNode) -> TypedValue:
+        assert False
+
+    def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
+        assert False
+
+    def visitTypedSigmaNode(self, node: ASTTypedSigmaNode) -> TypedValue:
+        assert False
+
+    def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
+        assert False
+
+    def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
+        assert False
+
+    def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
+        return self.hirContext.translateValue(node.value)
+
+    def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode) -> TypedValue:
+        assert False
+
+    def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode) -> TypedValue:
+        assert False
+
+    def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
+        assert False
+
+    def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
+        assert False
+
+    def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode) -> TypedValue:
+        assert False
+
+def optionalSymbolToString(symbol: Symbol) -> str:
+    if symbol is None: return None
+    return str(symbol)
