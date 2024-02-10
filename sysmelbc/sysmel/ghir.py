@@ -230,6 +230,82 @@ class GHIRSigmaValue(GHIRFunctionalValue):
     def getFunctionalValueKindName(self) -> str:
         return 'sigma'
 
+class GHIRProductType(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
+        super().__init__(context)
+        self.type = type
+        self.elements = elements
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        elementList = ''
+        for element in self.elements:
+            if len(elementList) != 0:
+                elementList += ', '
+            elementList += graphPrinter.printValue(element)
+
+        graphPrinter.printLine('%s := productType [%s] : %s' % (valueName, elementList, type))
+
+class GHIRSumType(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
+        super().__init__(context)
+        self.type = type
+        self.elements = elements
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        elementList = ''
+        for element in self.elements:
+            if len(elementList) != 0:
+                elementList += ', '
+            elementList += graphPrinter.printValue(element)
+
+        graphPrinter.printLine('%s := sumType [%s] : %s' % (valueName, elementList, type))
+
+class GHIRSequence(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, expressions: list[GHIRValue]) -> None:
+        super().__init__(context)
+        self.type = type
+        self.expressions = expressions
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        expressionList = ''
+        for expression in self.expressions:
+            if len(expressionList) != 0:
+                expressionList += ', '
+            expressionList += graphPrinter.printValue(expression)
+
+        graphPrinter.printLine('%s := sequence [%s] : %s' % (valueName, expressionList, type))
+
+class GHIRMakeTupleExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
+        super().__init__(context)
+        self.type = type
+        self.elements = elements
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        elementList = ''
+        for element in self.elements:
+            if len(elementList) != 0:
+                elementList += ', '
+            elementList += graphPrinter.printValue(element)
+
+        graphPrinter.printLine('%s := makeTuple [%s] : %s' % (valueName, elementList, type))
+
 class GHIRApplicationValue(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
         super().__init__(context)
@@ -307,21 +383,21 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         translatedValue = GHIRLambdaValue(self.context, type)
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
-        return translatedValue
+        return translatedValue.simplify()
 
     def visitPiValue(self, value: PiValue):
         type = self.translateValue(value.getType())
         translatedValue = GHIRPiValue(self.context, type)
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
-        return translatedValue
+        return translatedValue.simplify()
 
     def visitSigmaValue(self, value: SigmaValue):
         type = self.translateValue(value.getType())
         translatedValue = GHIRSigmaValue(self.context, type)
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
-        return translatedValue
+        return translatedValue.simplify()
 
     def visitPrimitiveFunction(self, value: PrimitiveFunction):
         type = self.translateValue(value.uncurriedType)
@@ -363,10 +439,14 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         assert False
 
     def visitProductTypeNode(self, node: ASTProductTypeNode):
-        assert False
+        type = self.translateExpression(node.type)
+        elements = list(map(self.translateExpression), node.elements)
+        return GHIRProductType(self.context, type, elements).simplify()
 
     def visitSumTypeNode(self, node: ASTSumTypeNode):
-        assert False
+        type = self.translateExpression(node.type)
+        elements = list(map(self.translateExpression), node.elements)
+        return GHIRSumType(self.context, type, elements).simplify()
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         functional = self.translateExpression(node.functional)
@@ -396,16 +476,22 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         return self.translateValue(node.value)
 
     def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode) -> TypedValue:
-        assert False
+        value = self.translateExpression(node.valueExpression)
+        self.translatedBindingValueDictionary[node.binding] = value
+        return value
 
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode) -> TypedValue:
         assert False
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
-        assert False
+        type = self.translateExpression(node.type)
+        expressions = list(map(self.translateExpression), node.elements)
+        return GHIRSequence(self.context, type, expressions).simplify()
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
-        assert False
+        type = self.translateExpression(node.type)
+        elements = list(map(self.translateExpression), node.elements)
+        return GHIRMakeTupleExpression(self.context, type, elements).simplify()
 
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode) -> TypedValue:
         assert False
