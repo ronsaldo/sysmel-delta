@@ -26,7 +26,8 @@ for arg in sys.argv[1:]:
     print(evalResult.prettyPrint())
 
 # Compile the module.
-hirModule = HIRModuleFrontend().compileModule(module)
-print(hirModule.prettyPrint())
-
+##hirModule = HIRModuleFrontend().compileModule(module)
+##print(hirModule.prettyPrint())
     
+ghirModule = GHIRModuleFrontend().compileModule(module)
+print(ghirModule.prettyPrint())

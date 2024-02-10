@@ -1,7 +1,7 @@
 from .value import *
 from abc import ABC, abstractmethod
 
-class ASTVisitor(TypedValueVisitor):
+class ASTVisitor(ABC):
     @abstractmethod
     def visitApplicationNode(self, node):
         pass

@@ -249,6 +249,9 @@ class FunctionalValue(TypedValue):
         return self.type
 
 class LambdaValue(FunctionalValue):
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitLambdaValue(self)
+    
     def isLambda(self) -> bool:
         return True
 
@@ -263,6 +266,9 @@ class LambdaValue(FunctionalValue):
         return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class PiValue(FunctionalValue):
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitPiValue(self)
+
     def isReducibleFunctionalValue(self) -> bool:
         return True
 
@@ -279,6 +285,9 @@ class PiValue(FunctionalValue):
         return True
     
 class SigmaValue(FunctionalValue):
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitSigmaValue(self)
+
     def getType(self):
         return self.type
 

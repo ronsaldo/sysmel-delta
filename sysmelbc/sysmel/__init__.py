@@ -5,6 +5,6 @@ from .scanner import SourceCode, SourcePosition, scanFileNamed
 from .parser import parseFileNamed
 from .typechecker import *
 from .eval import *
-from .hir import *
+from .ghir import *
 from .sdvmInstructionTypes import *
 from .sdvmInstructions import *

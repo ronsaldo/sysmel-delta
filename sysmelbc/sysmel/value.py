@@ -5,11 +5,24 @@ import math
 import struct
 
 class TypedValueVisitor(ABC):
+    @abstractmethod
     def visitGenericTypedValue(self, value):
         pass
 
+    @abstractmethod
+    def visitLambdaValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitPiValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitSigmaValue(self, value):
+        pass
+
 class TypedValue(ABC):
-    def accept(self, visitor: TypedValueVisitor):
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitGenericTypedValue(self)
         
     @abstractmethod
