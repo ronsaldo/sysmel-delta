@@ -1,1 +1,1 @@
-moduleEntryPoint: (:: Int32) :=> 0i32.
+moduleEntryPoint: (:(Int32)argc :: Int32) :=> argc + 1i32.

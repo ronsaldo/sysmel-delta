@@ -149,6 +149,8 @@ class HIRBasicBlock(HIRLocalValue):
         instruction.previous = None
         if instruction.next is not None:
             instruction.previous = instruction.next.previous
+        else:
+            instruction.previous = self.lastInstruction
 
         if instruction.next is not None:
             instruction.next.previous = instruction
@@ -193,6 +195,19 @@ class HIRTerminatorInstruction(HIRInstruction):
     def isTerminator(self) -> bool:
         return True
 
+class HIRCallInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, functional: HIRValue, arguments: list[HIRValue]) -> None:
+        super().__init__(context, None)
+        self.functional = functional
+        self.arguments = arguments
+
+    def fullPrintString(self) -> str:
+        result = 'call ' + str(self.functional)
+        for argument in self.arguments:
+            result += ' '
+            result += str(argument)
+        return result
+    
 class HIRReturnInstruction(HIRTerminatorInstruction):
     def __init__(self, context: HIRContext, value: HIRValue) -> None:
         super().__init__(context, None)
@@ -200,7 +215,14 @@ class HIRReturnInstruction(HIRTerminatorInstruction):
 
     def fullPrintString(self) -> str:
         return 'return ' + str(self.value)
-    
+
+class HIRUnreachable(HIRTerminatorInstruction):
+    def __init__(self, context: HIRContext) -> None:
+        super().__init__(context, None)
+
+    def fullPrintString(self) -> str:
+        return 'unreachable'
+
 class HIRBuilder:
     def __init__(self, context: HIRContext) -> None:
         self.context = context
@@ -225,7 +247,10 @@ class HIRBuilder:
     
     def isLastTerminator(self) -> bool:
         return self.insertionBlock is not None and self.insertionBlock.isLastTerminator()
-    
+
+    def call(self, function: HIRValue, arguments: list[HIRValue]) -> HIRInstruction:
+        return self.addInstruction(HIRCallInstruction(self.context, function, arguments))
+
     def returnValue(self, value: HIRValue) -> HIRInstruction:
         return self.addInstruction(HIRReturnInstruction(self.context, value))
 
@@ -365,7 +390,9 @@ class HIRFunctionalTranslator(ASTTypecheckedVisitor):
         assert False
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
-        assert False
+        functional = self.visitNode(node.functional)
+        argument = self.visitNode(node.argument)
+        return self.hirBuilder.call(functional, [argument])
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         assert False
@@ -380,7 +407,7 @@ class HIRFunctionalTranslator(ASTTypecheckedVisitor):
         assert False
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
-        assert False
+        return self.bindingValueMap[node.binding]
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         assert False
