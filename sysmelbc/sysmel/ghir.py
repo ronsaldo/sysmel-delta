@@ -159,6 +159,27 @@ class GHIRSigmaValue(GHIRFunctionalValue):
     def getFunctionalValueKindName(self) -> str:
         return 'sigma'
 
+class GHIRApplicationValue(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
+        super().__init__(context)
+        self.type = type
+        self.functional = functional
+        self.arguments = arguments
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        functional = graphPrinter.printValue(self.functional)
+        argumentList = ''
+        for argument in self.arguments:
+            if len(argumentList) != 0:
+                argumentList += ', '
+            argumentList += graphPrinter.printValue(argument)
+
+        graphPrinter.printLine('%s := apply %s [%s] : %s' % (valueName, functional, argumentList, type))
+
 class GHIRModule(GHIRValue):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
@@ -249,7 +270,10 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         assert False
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
-        assert False
+        functional = self.translateExpression(node.functional)
+        argument = self.translateExpression(node.argument)
+        type = self.translateExpression(node.type)
+        return GHIRApplicationValue(self.context, type, functional, [argument])
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         assert False
@@ -264,7 +288,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         assert False
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
-        assert False
+        return self.translatedBindingValueDictionary[node.binding]
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         assert False
