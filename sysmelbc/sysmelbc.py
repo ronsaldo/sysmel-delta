@@ -25,9 +25,6 @@ for arg in sys.argv[1:]:
     evalResult = ASTEvaluator(FunctionalActivationEnvironment()).evaluate(typechecked)
     print(evalResult.prettyPrint())
 
-# Compile the module.
-##hirModule = HIRModuleFrontend().compileModule(module)
-##print(hirModule.prettyPrint())
-    
+# Compile the HIR module.
 ghirModule = GHIRModuleFrontend().compileModule(module)
 print(ghirModule.prettyPrint())

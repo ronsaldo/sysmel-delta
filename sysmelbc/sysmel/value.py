@@ -156,6 +156,8 @@ class BaseType(TypedValue):
         self.name = name
 
     def prettyPrint(self) -> str:
+        if self.name is None:
+            return str(self.__class__)
         return self.name
     
     def getType(self) -> TypedValue:

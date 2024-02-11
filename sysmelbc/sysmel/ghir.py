@@ -6,6 +6,7 @@ from .ast import *
 class GHIRContext:
     def __init__(self) -> None:
         self.constantValues = dict()
+        self.simpleFunctionTypes = dict()
 
     def getConstantValue(self, value: TypedValue):
         if value in self.constantValues:
@@ -14,10 +15,21 @@ class GHIRContext:
         constantValue = GHIRConstantValue(self, value)
         self.constantValues[value] = constantValue
         return constantValue
+    
+    def getSimpleFunctionType(self, type, argumentTypes, resultType):
+        hashKey = (type, tuple(argumentTypes), resultType)
+        if hashKey in self.simpleFunctionTypes:
+            return self.simpleFunctionTypes[hashKey]
+        
+        simpleFunctionType = GHIRSimpleFunctionType(self, type, argumentTypes, resultType)
+        self.simpleFunctionTypes[hashKey] = simpleFunctionType
+        return simpleFunctionType
+        
 
 class GHIRValue(ABC):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
+        self.userValues = []
 
     def getName(self) -> str | None:
         return None
@@ -41,10 +53,51 @@ class GHIRValue(ABC):
 
     def isCurryingFunction(self) -> bool:
         return False
-    
-    def replaceWith(self, replacement):
-        return replacement
 
+    def isFunctionalDefinition(self) -> bool:
+        return False
+
+    def isCaptureless(self) -> bool:
+        return True
+
+    def hasArgumentDependency(self) -> bool:
+        return False
+
+    @abstractmethod
+    def usedValues(self):
+        return []
+
+    @abstractmethod
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
+
+    def replacedUsedValueInListWith(self, list, usedValue, replacement):
+        newList = []
+        for element in list:
+            if element is usedValue:
+                newList.append(replacement)
+                replacement.registerUserValue(self)
+            else:
+                newList.append(element)
+        return newList
+
+    def registerUserValue(self, userValue):
+        if userValue not in self.userValues:
+            self.userValues.append(userValue)
+
+    def registerInUsedValues(self):
+        for usedValue in self.usedValues():
+            usedValue.registerUserValue(self)
+
+    def replaceWith(self, replacement):
+        for userValue in self.userValues:
+            userValue.replaceUsedValueWith(replacement)
+        self.userValues = []
+        return replacement
+    
+    def getUserCount(self) -> int:
+        return len(self.userValues)
+    
     def simplify(self):
         return self
 
@@ -86,17 +139,29 @@ class GHIRConstantValue(GHIRValue):
     def getType(self) -> GHIRValue:
         if self.type is None:
             self.type = self.context.getConstantValue(self.value.getType())
+            self.type.registerUserValue(self)
         return self.type
 
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := constant %s' % (valueName, self.value.prettyPrint()))
 
+    def usedValues(self):
+        if self.type is not None:
+            yield self.type
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+
 class GHIRPrimitiveFunction(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, name: str, compileTimeImplementation = None) -> None:
         super().__init__(context)
+        assert type is not None
         self.type = type
         self.name = name
         self.compileTimeImplementation = compileTimeImplementation
+        self.registerInUsedValues()
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -108,11 +173,20 @@ class GHIRPrimitiveFunction(GHIRValue):
         type = graphPrinter.printValue(self.type)
         graphPrinter.printLine('%s := primitive %s : %s' % (valueName, self.name, type))
 
+    def usedValues(self):
+        yield self.type
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+
 class GHIRCurryingFunction(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, innerFunction: GHIRValue) -> None:
         super().__init__(context)
         self.type = type
         self.innerFunction = innerFunction
+        self.registerInUsedValues()
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -124,12 +198,25 @@ class GHIRCurryingFunction(GHIRValue):
     def isCurryingFunction(self) -> bool:
         return True
 
+    def usedValues(self):
+        yield self.type
+        yield self.innerFunction
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.innerFunction is usedValue:
+            self.innerFunction = replacement
+            replacement.registerUserValue(self)
+
 class GHIRCurriedFunction(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, innerFunction: GHIRValue, partialApplications: list[GHIRValue]) -> None:
         super().__init__(context)
         self.type = type
         self.innerFunction = innerFunction
         self.partialApplications = partialApplications
+        self.registerInUsedValues()
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -147,9 +234,25 @@ class GHIRCurriedFunction(GHIRValue):
     def isCurriedFunction(self) -> bool:
         return True
     
+    def usedValues(self):
+        yield self.type
+        yield self.innerFunction
+        for argument in self.partialApplications:
+            yield argument
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.innerFunction is usedValue:
+            self.innerFunction = replacement
+            replacement.registerUserValue(self)
+        self.partialApplications = self.replacedUsedValueInListWith(self.partialApplications, usedValue, replacement)
+
 class GHIRLocalBindingValue(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, name: str = None) -> None:
         super().__init__(context)
+        assert type is not None
         self.type = type
         self.name = name
 
@@ -159,6 +262,14 @@ class GHIRLocalBindingValue(GHIRValue):
     def getName(self) -> str:
         return self.name
 
+    def usedValues(self):
+        yield self.type
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+                                                                    
 class GHIRCaptureBindingValue(GHIRLocalBindingValue):
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := capture %s' % (valueName, graphPrinter.printValue(self.type)))
@@ -167,6 +278,43 @@ class GHIRArgumentBindingValue(GHIRLocalBindingValue):
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := argument %s' % (valueName, graphPrinter.printValue(self.type)))
 
+class GHIRSimpleFunctionType(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, arguments: list[GHIRValue], resultType: GHIRValue) -> None:    
+        super().__init__(context)
+        self.type = type
+        self.arguments = arguments
+        self.resultType = resultType
+
+    def getType(self) -> GHIRValue:
+        return None
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        argumentList = ''
+        for argument in self.arguments:
+            if len(argumentList) != 0:
+                argumentList += ', '
+            argumentList += graphPrinter.printValue(argument)
+
+        resultType = graphPrinter.printValue(self.resultType)
+        graphPrinter.printLine('%s := functionType [%s] -> %s : %s' % (valueName, argumentList, resultType, type))
+
+    def usedValues(self):
+        yield self.type
+        for argument in self.arguments:
+            yield argument
+        yield self.resultType
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+
+        self.arguments = self.replacedUsedValueInListWith(self.arguments, usedValue, replacement)
+        if self.resultType is usedValue:
+            self.resultType = replacement
+            replacement.registerUserValue(self)
+
 class GHIRFunctionalDefinitionValue(GHIRValue):
     def __init__(self, context: GHIRContext, captures: list[GHIRCaptureBindingValue] = [], arguments: list[GHIRArgumentBindingValue] = [], body: GHIRValue = None) -> None:
         super().__init__(context)
@@ -174,6 +322,18 @@ class GHIRFunctionalDefinitionValue(GHIRValue):
         self.arguments = arguments
         self.body = body
         
+    def isFunctionalDefinition(self) -> bool:
+        return True
+
+    def isCaptureless(self) -> bool:
+        return len(self.captures) == 0
+
+    def hasArgumentDependency(self) -> bool:
+        for argument in self.arguments:
+            if argument.getUserCount() > 0:
+                return True
+        return False
+
     def getType(self) -> GHIRValue:
         return None
 
@@ -192,6 +352,20 @@ class GHIRFunctionalDefinitionValue(GHIRValue):
 
         body = graphPrinter.printValue(self.body)
         graphPrinter.printLine('%s := definition captures [%s] arguments [%s] body %s' % (valueName, captureList, argumentList, body))
+
+    def usedValues(self):
+        for capture in self.captures:
+            yield capture
+        for argument in self.arguments:
+            yield argument
+        yield self.body
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        self.captures = self.replacedUsedValueInListWith(self.captures, usedValue, replacement)
+        self.arguments = self.replacedUsedValueInListWith(self.arguments, usedValue, replacement)
+        if self.body is usedValue:
+            self.body = replacement
+            replacement.registerUserValue(self)
 
 class GHIRFunctionalValue(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, definition: GHIRFunctionalDefinitionValue = None, captures: list[GHIRValue] = []) -> None:
@@ -218,6 +392,21 @@ class GHIRFunctionalValue(GHIRValue):
     def getFunctionalValueKindName(self) -> str:
         pass
 
+    def usedValues(self):
+        yield self.type
+        yield self.definition
+        for capture in self.captures:
+            yield capture
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.definition is usedValue:
+            self.definition = replacement
+            replacement.registerUserValue(self)
+        self.captures = self.replacedUsedValueInListWith(self.captures, usedValue, replacement)
+
 class GHIRLambdaValue(GHIRFunctionalValue):
     def getFunctionalValueKindName(self) -> str:
         return 'lambda'
@@ -225,6 +414,14 @@ class GHIRLambdaValue(GHIRFunctionalValue):
 class GHIRPiValue(GHIRFunctionalValue):
     def getFunctionalValueKindName(self) -> str:
         return 'pi'
+    
+    def simplify(self):
+        if self.definition.isFunctionalDefinition() and self.definition.isCaptureless() and not self.definition.hasArgumentDependency():
+            argumentTypes = list(map(lambda arg: arg.getType(), self.definition.arguments))
+            resultType = self.definition.body
+            simpleFunctionType = self.context.getSimpleFunctionType(self.getType(), argumentTypes, resultType)
+            return self.replaceWith(simpleFunctionType)
+        return super().simplify()
 
 class GHIRSigmaValue(GHIRFunctionalValue):
     def getFunctionalValueKindName(self) -> str:
@@ -249,6 +446,17 @@ class GHIRProductType(GHIRValue):
 
         graphPrinter.printLine('%s := productType [%s] : %s' % (valueName, elementList, type))
 
+    def usedValues(self):
+        yield self.type
+        for element in self.elements:
+            yield element
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
+
 class GHIRSumType(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
         super().__init__(context)
@@ -267,6 +475,17 @@ class GHIRSumType(GHIRValue):
             elementList += graphPrinter.printValue(element)
 
         graphPrinter.printLine('%s := sumType [%s] : %s' % (valueName, elementList, type))
+
+    def usedValues(self):
+        yield self.type
+        for element in self.elements:
+            yield element
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
 class GHIRSequence(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, expressions: list[GHIRValue]) -> None:
@@ -287,6 +506,17 @@ class GHIRSequence(GHIRValue):
 
         graphPrinter.printLine('%s := sequence [%s] : %s' % (valueName, expressionList, type))
 
+    def usedValues(self):
+        yield self.type
+        for expression in self.expressions:
+            yield expression
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        self.expressions = self.replacedUsedValueInListWith(self.expressions, usedValue, replacement)
+
 class GHIRMakeTupleExpression(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
         super().__init__(context)
@@ -305,6 +535,17 @@ class GHIRMakeTupleExpression(GHIRValue):
             elementList += graphPrinter.printValue(element)
 
         graphPrinter.printLine('%s := makeTuple [%s] : %s' % (valueName, elementList, type))
+
+    def usedValues(self):
+        yield self.type
+        for element in self.elements:
+            yield element
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
 class GHIRApplicationValue(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
@@ -340,6 +581,21 @@ class GHIRApplicationValue(GHIRValue):
             return self.replaceWith(uncurriedApplication.simplify())
         return self
 
+    def usedValues(self):
+        yield self.type
+        yield self.functional
+        for argument in self.arguments:
+            yield argument
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.functional is usedValue:
+            self.functional = replacement
+            replacement.registerUserValue(self)
+        self.arguments = self.replacedUsedValueInListWith(self.arguments, usedValue, replacement)
+
 class GHIRModule(GHIRValue):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
@@ -352,6 +608,15 @@ class GHIRModule(GHIRValue):
         if self.entryPoint is not None:
             graphPrinter.printLine('module entryPoint: %s' % graphPrinter.printValue(self.entryPoint))
   
+    def usedValues(self):
+        if self.entryPoint is not None:
+            yield self.entryPoint
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.entryPoint is usedValue:
+            self.entryPoint = replacement
+            replacement.registerUserValue(self)
+
 class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def __init__(self, context = GHIRContext()) -> None:
         self.context = context
