@@ -790,16 +790,34 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         assert False
 
     def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
-        assert False
+        type = self.translateExpression(node.type)
+        captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
+        argumentBinding = self.translateArgumentBinding(node.argumentBinding)
+        body = self.translateExpression(node.body)
+        functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
+        capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
+        return GHIRPiValue(self.context, type, functionDefinition, capturedValues).simplify()
 
     def visitTypedSigmaNode(self, node: ASTTypedSigmaNode) -> TypedValue:
-        assert False
+        type = self.translateExpression(node.type)
+        captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
+        argumentBinding = self.translateArgumentBinding(node.argumentBinding)
+        body = self.translateExpression(node.body)
+        functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
+        capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
+        return GHIRSigmaValue(self.context, type, functionDefinition, capturedValues).simplify()
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.translatedBindingValueDictionary[node.binding]
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
-        assert False
+        type = self.translateExpression(node.type)
+        captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
+        argumentBinding = self.translateArgumentBinding(node.argumentBinding)
+        body = self.translateExpression(node.body)
+        functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
+        capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
+        return GHIRLambdaValue(self.context, type, functionDefinition, capturedValues).simplify()
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return self.translateValue(node.value)
