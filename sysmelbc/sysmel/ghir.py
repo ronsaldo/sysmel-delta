@@ -706,6 +706,43 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateValue(value.type)
         return GHIRCurryingFunction(self.context, type, innerFunction).simplify()
 
+    def visitProductType(self, value: ProductType):
+        type = self.translateValue(value.getType())
+        elementTypes = list(map(self.translateValue, value.elementTypes))
+        return self.context.getProductType(type, elementTypes)
+
+    def visitRecordType(self, value):
+        assert False
+
+    def visitSumType(self, value):
+        type = self.translateValue(value.getType())
+        elementTypes = list(map(self.translateValue, value.elementTypes))
+        return self.context.getSumType(type, elementTypes)
+
+    def visitDecoratedType(self, value):
+        assert False
+
+    def visitArrayType(self, value: ArrayType):
+        type = self.translateValue(value.getType())
+        baseType = self.translateValue(value.baseType)
+        size = IntegerValue(value.size)
+        return self.context.getArrayType(type, baseType, size)
+
+    def visitPointerType(self, value: PointerType):
+        type = self.translateValue(value.getType())
+        baseType = self.translateValue(value.baseType)
+        return self.context.getPointerType(type, baseType)
+
+    def visitReferenceType(self, value):
+        type = self.translateValue(value.getType())
+        baseType = self.translateValue(value.baseType)
+        return self.context.getReferenceType(type, baseType)
+
+    def visitTemporaryReferenceType(self, value):
+        type = self.translateValue(value.getType())
+        baseType = self.translateValue(value.baseType)
+        return self.context.getTemporaryReferenceType(type, baseType)
+
     def translateFunctionalValueDefinition(self, functionalValue: FunctionalValue) -> GHIRFunctionalDefinitionValue:
         captures = list(map(self.translateCaptureBinding, functionalValue.captureBindings))
         argument = self.translateArgumentBinding(functionalValue.argumentBinding)

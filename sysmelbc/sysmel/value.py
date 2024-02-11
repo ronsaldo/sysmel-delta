@@ -33,6 +33,38 @@ class TypedValueVisitor(ABC):
     def visitCurryingFunctionalValue(self, value):
         pass
 
+    @abstractmethod
+    def visitProductType(self, value):
+        pass
+
+    @abstractmethod
+    def visitRecordType(self, value):
+        pass
+
+    @abstractmethod
+    def visitSumType(self, value):
+        pass
+
+    @abstractmethod
+    def visitDecoratedType(self, value):
+        pass
+
+    @abstractmethod
+    def visitArrayType(self, value):
+        pass
+
+    @abstractmethod
+    def visitPointerType(self, value):
+        pass
+
+    @abstractmethod
+    def visitReferenceType(self, value):
+        pass
+
+    @abstractmethod
+    def visitTemporaryReferenceType(self, value):
+        pass
+    
 class TypedValue(ABC):
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitGenericTypedValue(self)
@@ -495,6 +527,9 @@ class ProductTypeValue(TypedValue):
         self.elements = elements
         self.type = type
 
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitProductTypeValue(self)
+
     def getType(self):
         return self.type
 
@@ -516,6 +551,9 @@ class ProductType(BaseType):
     def __init__(self, elementTypes: list[TypedValue], name = None) -> None:
         self.elementTypes = elementTypes
         self.name = name
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitProductType(self)
 
     def makeWithElements(self, elements) -> ProductTypeValue:
         return ProductTypeValue(self, elements)
@@ -598,6 +636,9 @@ class OverloadsType(BaseType):
         return cls(tuple(elementTypes))
 
 class RecordTypeValue(ProductTypeValue):
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitRecordTypeValue(self)
+
     def toJson(self):
         result = dict()
         for i in range(len(self.elements)):
@@ -610,6 +651,9 @@ class RecordType(ProductType):
         self.elementTypes = elementTypes
         self.fields = fields
         self.name = name
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitRecordType(self)
 
     def makeWithElements(self, elements) -> RecordTypeValue:
         return RecordTypeValue(self, elements)
@@ -636,6 +680,9 @@ class SumType(BaseType):
     def __init__(self, variantTypes: list[TypedValue], name = None) -> None:
         self.variantTypes = variantTypes
         self.name = name
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitSumType(self)
 
     def makeWithTypeIndexAndValue(self, variantIndex: int, value: TypedValue) -> SumTypeValue:
         return SumTypeValue(self, variantIndex, value)
@@ -675,6 +722,9 @@ class DecoratedType(DerivedType):
         super().__init__(baseType)
         self.decorations = decorations
 
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitDecoratedType(self)
+
     @classmethod
     def makeWithDecorations(cls, baseType: TypedValue, decorations: int):
         if baseType.isDecoratedType():
@@ -700,6 +750,9 @@ class ArrayType(DerivedType):
         super().__init__(baseType)
         self.size = size
 
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitArrayType(self)
+
     @classmethod
     def makeWithElementTypeAndSize(cls, elementType: TypedValue, size: IntegerValue):
         return cls(elementType, size.value)
@@ -713,6 +766,9 @@ class ArrayType(DerivedType):
 class PointerType(DerivedType):
     def __init__(self, baseType) -> None:
         super().__init__(baseType)
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitPointerType(self)
 
     @classmethod
     def makeWithBaseType(cls, baseType):
@@ -728,6 +784,9 @@ class ReferenceType(DerivedType):
     def __init__(self, baseType) -> None:
         super().__init__(baseType)
 
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitReferenceType(self)
+
     @classmethod
     def makeWithBaseType(cls, baseType):
         return cls(baseType)
@@ -741,6 +800,9 @@ class ReferenceType(DerivedType):
 class TemporaryReferenceType(DerivedType):
     def __init__(self, baseType) -> None:
         super().__init__(baseType)
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitTemporaryReferenceType(self)
 
     @classmethod
     def makeWithBaseType(cls, baseType):
