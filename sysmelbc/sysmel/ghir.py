@@ -7,6 +7,8 @@ class GHIRContext:
     def __init__(self) -> None:
         self.constantValues = dict()
         self.simpleFunctionTypes = dict()
+        self.productTypes = dict()
+        self.sumTypes = dict()
 
     def getConstantValue(self, value: TypedValue):
         if value in self.constantValues:
@@ -24,7 +26,24 @@ class GHIRContext:
         simpleFunctionType = GHIRSimpleFunctionType(self, type, argumentTypes, resultType)
         self.simpleFunctionTypes[hashKey] = simpleFunctionType
         return simpleFunctionType
+
+    def getProductType(self, type, elements):
+        hashKey = (type, tuple(elements))
+        if hashKey in self.productTypes:
+            return self.productTypes[hashKey]
         
+        productType = GHIRProductType(self, type, elements)
+        self.productTypes[hashKey] = productType
+        return productType
+
+    def getSumType(self, type, elements):
+        hashKey = (type, tuple(elements))
+        if hashKey in self.sumTypes:
+            return self.sumTypes[hashKey]
+        
+        sumType = GHIRSumType(self, type, elements)
+        self.sumTypes[hashKey] = sumType
+        return sumType
 
 class GHIRValue(ABC):
     def __init__(self, context: GHIRContext) -> None:
@@ -426,6 +445,14 @@ class GHIRPiValue(GHIRFunctionalValue):
 class GHIRSigmaValue(GHIRFunctionalValue):
     def getFunctionalValueKindName(self) -> str:
         return 'sigma'
+
+    def simplify(self):
+        if self.definition.isFunctionalDefinition() and self.definition.isCaptureless() and not self.definition.hasArgumentDependency():
+            argumentTypes = list(map(lambda arg: arg.getType(), self.definition.arguments))
+            resultType = self.definition.body
+            productType = self.context.getProductType(self.getType(), argumentTypes + [resultType])
+            return self.replaceWith(productType)
+        return super().simplify()
 
 class GHIRProductType(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
