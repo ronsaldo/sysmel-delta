@@ -7,7 +7,7 @@ def sdvmModuleFourCC(cc):
 SdvmModuleMagic = sdvmModuleFourCC('SDVM')
 SdvmModuleVersion = 1
 
-SdvmModuleHeaderSize = 16
+SdvmModuleHeaderSize = 24
 SdvmModuleSectionHeaderSize = 12
 
 SdvmModuleSectionTypeNull = 0
@@ -29,6 +29,8 @@ class SDVMModule:
         self.exportTableSection = SDVMExportTableSection()
         self.importTableSection = SDVMImportTableSection()
         self.sections: list[SDVMModuleSection] = [SDVMNullSection(), self.constantSection, self.textSection, self.exportTableSection, self.importTableSection]
+        self.entryPoint = 0
+        self.entryPointClosure = 0
 
     def encode(self) -> bytearray:
         startOffset = SdvmModuleHeaderSize + SdvmModuleSectionHeaderSize * len(self.sections)
@@ -36,7 +38,7 @@ class SDVMModule:
             startOffset += section.finish(startOffset)
 
         result = bytearray()
-        result += struct.pack('<IIII', SdvmModuleMagic, SdvmModuleVersion, self.pointerSize, len(self.sections))
+        result += struct.pack('<IIIIII', SdvmModuleMagic, SdvmModuleVersion, self.pointerSize, len(self.sections), self.entryPoint, self.entryPointClosure)
         for section in self.sections:
             result += struct.pack('<III', section.sectionType, section.fileOffset, len(section.contents))
         for section in self.sections:
@@ -53,6 +55,9 @@ class SDVMModuleSection:
         self.sectionType = sectionType
         self.contents = bytearray()
         self.fileOffset = 0
+
+    def getSize(self) -> int:
+        return self.size
 
     def finish(self, fileOffset) -> int:
         self.fileOffset = fileOffset

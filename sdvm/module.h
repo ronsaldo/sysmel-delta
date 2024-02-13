@@ -25,6 +25,8 @@ typedef struct sdvm_moduleHeader_s
     uint32_t version;
     uint32_t pointerSize;
     uint32_t sectionHeaderCount;
+    uint32_t entryPoint;
+    uint32_t entryPointClosure;
 } sdvm_moduleHeader_t;
 
 typedef struct sdvm_moduleSectionHeader_s
