@@ -28,3 +28,7 @@ for arg in sys.argv[1:]:
 # Compile the HIR module.
 ghirModule = GHIRModuleFrontend().compileModule(module)
 print(ghirModule.prettyPrint())
+
+# Compile the sdvm module
+SDVMModule().saveToFileNamed("test.sdvm")
+

@@ -1,4 +1,4 @@
-#include "image.h"
+#include "module.h"
 #include "instruction.h"
 #include <stdio.h>
 

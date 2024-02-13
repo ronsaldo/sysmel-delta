@@ -8,3 +8,4 @@ from .eval import *
 from .ghir import *
 from .sdvmInstructionTypes import *
 from .sdvmInstructions import *
+from .sdvmModule import *

@@ -1,4 +1,4 @@
 ##moduleEntryPoint: (:: Int32) :=> 0i32.
-##let: #myAdd with: (:(Int32)x :(Int32)y :: Int32) :=> x + y.
 
-moduleEntryPoint: (:(Int32)argc :: Int32) :=> argc + 1i32.
+##moduleEntryPoint: (:(Int32)argc :: Int32) :=> argc + 1i32.
+moduleEntryPoint: (:: Int32) :=> 0i32.
