@@ -30,5 +30,7 @@ ghirModule = GHIRModuleFrontend().compileModule(module)
 print(ghirModule.prettyPrint())
 
 # Compile the sdvm module
-SDVMModule().saveToFileNamed("test.sdvm")
+sdvmModule = SDVMModuleFrontEnd().compileGHIRModule(ghirModule)
+print(sdvmModule.prettyPrint())
+sdvmModule.saveToFileNamed("test.sdvm")
 

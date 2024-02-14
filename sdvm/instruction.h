@@ -12,7 +12,7 @@ typedef enum sdvm_type_e
 
 #define SDVM_ENCODE_OPCODE(isConstant, opcode, destinationType, arg0Type, arg1Type) \
     (isConstant \
-        ? (1 | (opcode << 1)) \
+        ? (1 | (opcode << 1) | (destinationType << 8)) \
         : (opcode << 1) | (destinationType << 12) | (arg0Type << 16) | (arg1Type << 20))
 
 typedef enum sdvm_opcode_e
@@ -28,5 +28,16 @@ typedef enum sdvm_opcode_e
 #undef SDVM_OPCODE_DEF
 #undef SDVM_INSTRUCTION_DEF
 } sdvm_opcode_t;
+
+/**
+ * Instruction and inline constants are 64 bits long. The destination index is implicit.
+
+ * Constants have the following format (Least significant bit is 1):
+ * Payload/52 - DestinationType/4 - Opcode/7 bits - 1/1
+ * 
+ * Instructions have the following format (Least significant bit is 0):
+ * Arg1/20 - Arg0/20 - Instruction spec (Arg1Type/4 - Arg0Type/4 - DestinationType/4 - Opcode/11 - 0/1)/24
+ */
+typedef uint64_t sdvm_constOrInstruction_t;
 
 #endif //SDVM_INSTRUCTION_H

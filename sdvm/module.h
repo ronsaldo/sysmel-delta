@@ -12,9 +12,6 @@ typedef enum sdvm_moduleSectionType_e
     SdvmModuleSectionTypeText = SDVM_IM_FOUR_CC('t', 'e', 'x', 't'),
     SdvmModuleSectionTypeFunctionTable = SDVM_IM_FOUR_CC('f', 'u', 'n', 't'),
 
-    SdvmModuleSectionTypeExportTable = SDVM_IM_FOUR_CC('e', 'x', 'p', 't'),
-    SdvmModuleSectionTypeImportTable = SDVM_IM_FOUR_CC('i', 'm', 'p', 't'),
-
     SdvmModuleSectionTypeDebugLineStart = SDVM_IM_FOUR_CC('d', 'l', 'n', 's'),
     SdvmModuleSectionTypeDebugLineEnd = SDVM_IM_FOUR_CC('d', 'l', 'n', 'e'),
 } sdvm_moduleSectionType_t;
@@ -35,5 +32,11 @@ typedef struct sdvm_moduleSectionHeader_s
     uint32_t offset;
     uint32_t size;
 } sdvm_moduleSectionHeader_t;
+
+typedef struct sdvm_functionTableEntry_s
+{
+    uint32_t textSectionOffset;
+    uint32_t textSectionSize;
+} sdvm_functionTableEntry_t;
 
 #endif //SDVM_MODULE_H

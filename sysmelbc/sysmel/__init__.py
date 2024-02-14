@@ -9,3 +9,4 @@ from .ghir import *
 from .sdvmInstructionTypes import *
 from .sdvmInstructions import *
 from .sdvmModule import *
+from .sdvmFrontend import *
