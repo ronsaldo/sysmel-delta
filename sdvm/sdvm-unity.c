@@ -1,0 +1,6 @@
+#include "sdvm.c"
+#include "module.c"
+#include "instruction.c"
+#include "dynarray.c"
+#include "dwarf.c"
+#include "errors.c"

@@ -7,4 +7,4 @@ OBJ="$OUT/obj"
 set -ex
 mkdir -p $BIN $OBJ
 
-gcc -Wall -Wextra -g -I. -o $BIN/sdvm sdvm/sdvm.c sdvm/module.c sdvm/instruction.c
+gcc -Wall -Wextra -g -I. -o $BIN/sdvm sdvm/sdvm-unity.c
