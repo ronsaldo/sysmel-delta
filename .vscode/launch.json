@@ -11,6 +11,14 @@
             "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",
             "console": "integratedTerminal",
             "args": ["samples/entry.sysmel"]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch",
+            "program": "${workspaceFolder}/build/bin/sdvm",
+            "args": ["test.sdvm"],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

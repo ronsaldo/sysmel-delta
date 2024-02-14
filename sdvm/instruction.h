@@ -2,6 +2,10 @@
 #define SDVM_INSTRUCTION_H
 
 #include <stdint.h>
+#include <stdbool.h>
+
+#define SDVM_TYPE_BITS 4
+#define SDVM_TYPE_MASK ((1<<SDVM_TYPE_BITS) - 1)
 
 typedef enum sdvm_type_e
 {
@@ -39,5 +43,33 @@ typedef enum sdvm_opcode_e
  * Arg1/20 - Arg0/20 - Instruction spec (Arg1Type/4 - Arg0Type/4 - DestinationType/4 - Opcode/11 - 0/1)/24
  */
 typedef uint64_t sdvm_constOrInstruction_t;
+
+typedef struct sdvm_decodedConstOrInstruction_s
+{
+    bool isConstant;
+    uint32_t opcode;
+    uint32_t baseOpcode;
+    sdvm_type_t destType;
+    union
+    {
+        struct
+        {
+            sdvm_type_t arg0Type;
+            sdvm_type_t arg1Type;
+            int32_t arg0;
+            int32_t arg1;
+        } instruction;
+
+        struct
+        {
+            int64_t signedPayload;
+            int64_t unsignedPayload;
+        } constant;
+    };
+} sdvm_decodedConstOrInstruction_t;
+
+const char *sdvm_instruction_typeToString(sdvm_type_t type);
+const char *sdvm_instruction_fullOpcodeToString(sdvm_opcode_t opcode);
+sdvm_decodedConstOrInstruction_t sdvm_instruction_decode(sdvm_constOrInstruction_t instruction);
 
 #endif //SDVM_INSTRUCTION_H
