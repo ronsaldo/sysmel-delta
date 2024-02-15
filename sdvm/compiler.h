@@ -89,9 +89,7 @@ typedef struct sdvm_functionCompilationState_s
     sdvm_moduleCompilationState_t *moduleState;
 
     sdvm_constOrInstruction_t *instructions;
-    uint32_t constantInstructionCount;
-    uint32_t totalInstructionCount;
-    sdvm_decodedConstOrInstruction_t *allDecodedInstructions;
+    uint32_t instructionCount;
     sdvm_decodedConstOrInstruction_t *decodedInstructions;
 } sdvm_functionCompilationState_t;
 

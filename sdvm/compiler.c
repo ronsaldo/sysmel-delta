@@ -96,7 +96,7 @@ void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
 
 void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state)
 {
-    free(state->allDecodedInstructions);
+    free(state->decodedInstructions);
 }
 
 static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_functionTableEntry_t *functionTableEntry)
@@ -106,15 +106,13 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         .module = moduleState->module,
         .moduleState = moduleState,
         .instructions = (sdvm_constOrInstruction_t*)moduleState->module->textSectionData + functionTableEntry->textSectionOffset,
-        .constantInstructionCount = functionTableEntry->firstInstructionOffset / sizeof(sdvm_constOrInstruction_t),
-        .totalInstructionCount = functionTableEntry->textSectionSize / sizeof(sdvm_constOrInstruction_t)
+        .instructionCount = functionTableEntry->textSectionSize / sizeof(sdvm_constOrInstruction_t)
     };
 
     // Decode all of the instructions.
-    functionState.allDecodedInstructions = calloc(functionState.totalInstructionCount, sizeof(sdvm_decodedConstOrInstruction_t));
-    functionState.decodedInstructions = functionState.allDecodedInstructions + functionState.constantInstructionCount;
-    for(uint32_t i = 0; i < functionState.totalInstructionCount; ++i)
-        functionState.allDecodedInstructions[i] = sdvm_instruction_decode(functionState.instructions[i]);
+    functionState.decodedInstructions = calloc(functionState.instructionCount, sizeof(sdvm_decodedConstOrInstruction_t));
+    for(uint32_t i = 0; i < functionState.instructionCount; ++i)
+        functionState.decodedInstructions[i] = sdvm_instruction_decode(functionState.instructions[i]);
 
     // x86 ret
     uint8_t x86Ret[] = {0xc3};

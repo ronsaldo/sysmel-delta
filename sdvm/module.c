@@ -140,24 +140,22 @@ void sdvm_module_dumpFunction(sdvm_module_t *module, size_t index)
 
     sdvm_functionTableEntry_t *function = module->functionTable + index - 1;
     sdvm_constOrInstruction_t *instructions = (sdvm_constOrInstruction_t *)module->textSectionData + function->textSectionOffset;
-    uint32_t constantInstructionCount = function->firstInstructionOffset / sizeof(sdvm_constOrInstruction_t);
-    uint32_t totalInstructionCount = function->textSectionSize / sizeof(sdvm_constOrInstruction_t);
+    uint32_t instructionCount = function->textSectionSize / sizeof(sdvm_constOrInstruction_t);
 
     printf("%d:\n", (int)index);
-    for(uint32_t i = 0; i < totalInstructionCount; ++i)
+    for(uint32_t i = 0; i < instructionCount; ++i)
     {
         sdvm_decodedConstOrInstruction_t decodedInstruction = sdvm_instruction_decode(instructions[i]);
-        int index = i - constantInstructionCount;
         
         // Is this a constant?
         if(decodedInstruction.isConstant)
         {
-            printf("    $%d : %s := %s(%lld)\n", index, sdvm_instruction_typeToString(decodedInstruction.destType), sdvm_instruction_fullOpcodeToString(decodedInstruction.opcode), (long long)decodedInstruction.constant.signedPayload);
+            printf("    $%d : %s := %s(%lld)\n", i, sdvm_instruction_typeToString(decodedInstruction.destType), sdvm_instruction_fullOpcodeToString(decodedInstruction.opcode), (long long)decodedInstruction.constant.signedPayload);
         }
         else
         {
             printf("    $%d : %s := %s(%d : %s, %d : %s)\n",
-                index, sdvm_instruction_typeToString(decodedInstruction.destType),
+                i, sdvm_instruction_typeToString(decodedInstruction.destType),
                 sdvm_instruction_fullOpcodeToString(decodedInstruction.opcode),
                 decodedInstruction.instruction.arg0, sdvm_instruction_typeToString(decodedInstruction.instruction.arg0Type),
                 decodedInstruction.instruction.arg1, sdvm_instruction_typeToString(decodedInstruction.instruction.arg1Type));

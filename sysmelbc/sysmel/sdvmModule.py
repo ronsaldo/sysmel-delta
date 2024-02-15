@@ -117,7 +117,7 @@ class SDVMFunctionTableSection(SDVMModuleSection):
 
         self.contents = bytearray()
         for function in self.functions:
-            self.contents += struct.pack('<III', function.textSectionOffset, function.textSectionSize, function.firstInstructionOffset)
+            self.contents += struct.pack('<II', function.textSectionOffset, function.textSectionSize)
 
     def prettyPrint(self) -> str:
         result = super().prettyPrint()
@@ -177,7 +177,6 @@ class SDVMFunction:
         self.instructions = []
         self.textSectionOffset = 0
         self.textSectionSize = 0
-        self.firstInstructionOffset = 0
         self.isFinished = False
         self.index = None
 
@@ -217,18 +216,17 @@ class SDVMFunction:
     def enumerateInstructions(self):
         constantCount = len(self.constants)
         for i in range(constantCount):
-            self.constants[i].index = i - constantCount
+            self.constants[i].index = i
 
         instructionCount = len(self.instructions)
         for i in range(instructionCount):
-            self.instructions[i].index = i
+            self.instructions[i].index = constantCount + i
 
     def encodeInstructions(self):
         self.enumerateInstructions()
         encodedInstructions = bytearray()
         for constant in self.constants:
             encodedInstructions += constant.encode()
-        self.firstInstructionOffset = len(encodedInstructions)
         for instruction in self.instructions:
             encodedInstructions += instruction.encode()
         return encodedInstructions

@@ -38,7 +38,6 @@ typedef struct sdvm_functionTableEntry_s
 {
     uint32_t textSectionOffset;
     uint32_t textSectionSize;
-    uint32_t firstInstructionOffset;
 } sdvm_functionTableEntry_t;
 
 typedef struct sdvm_module_s
