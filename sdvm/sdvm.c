@@ -1,4 +1,5 @@
 #include "module.h"
+#include "compiler.h"
 #include "instruction.h"
 #include <stdio.h>
 #include <string.h>
@@ -53,7 +54,18 @@ int main(int argc, const char *argv[])
 
     sdvm_module_dump(module);
 
+    sdvm_compiler_t *compiler = sdvm_compiler_create();
+    bool compilationSucceeded = sdvm_compiler_compileModule(compiler, module);
     sdvm_module_destroy(module);
+
+    if (!compilationSucceeded)
+    {
+        sdvm_compiler_destroy(compiler);
+        fprintf(stderr, "Failed to compile module from file %s\n", moduleFileName);
+        return 1;
+    }
+
+    sdvm_compiler_destroy(compiler);
 
     return 0;
 } 
