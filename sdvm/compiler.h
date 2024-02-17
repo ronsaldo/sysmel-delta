@@ -110,15 +110,23 @@ typedef struct sdvm_moduleCompilationState_s
     sdvm_compilerSymbolHandle_t *functionTableSymbols;
 } sdvm_moduleCompilationState_t;
 
+typedef struct sdvm_compilerInstruction_s
+{
+    int32_t index;
+    sdvm_decodedConstOrInstruction_t decoding;
+    uint32_t firstUsageIndex;
+    uint32_t lastUsageIndex;
+} sdvm_compilerInstruction_t;
+
 typedef struct sdvm_functionCompilationState_s
 {
     sdvm_compiler_t *compiler;
     sdvm_module_t *module;
     sdvm_moduleCompilationState_t *moduleState;
 
-    sdvm_constOrInstruction_t *instructions;
+    sdvm_constOrInstruction_t *sourceInstructions;
     uint32_t instructionCount;
-    sdvm_decodedConstOrInstruction_t *decodedInstructions;
+    sdvm_compilerInstruction_t *instructions;
 } sdvm_functionCompilationState_t;
 
 static inline size_t sdvm_compiler_alignSizeTo(size_t size, size_t alignment)

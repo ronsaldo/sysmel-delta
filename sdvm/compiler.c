@@ -136,7 +136,7 @@ void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
 
 void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state)
 {
-    free(state->decodedInstructions);
+    free(state->instructions);
 }
 
 static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_functionTableEntry_t *functionTableEntry)
@@ -145,14 +145,22 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         .compiler = moduleState->compiler,
         .module = moduleState->module,
         .moduleState = moduleState,
-        .instructions = (sdvm_constOrInstruction_t*)moduleState->module->textSectionData + functionTableEntry->textSectionOffset,
+        .sourceInstructions = (sdvm_constOrInstruction_t*)moduleState->module->textSectionData + functionTableEntry->textSectionOffset,
         .instructionCount = functionTableEntry->textSectionSize / sizeof(sdvm_constOrInstruction_t)
     };
 
     // Decode all of the instructions.
-    functionState.decodedInstructions = calloc(functionState.instructionCount, sizeof(sdvm_decodedConstOrInstruction_t));
+    functionState.instructions = calloc(functionState.instructionCount, sizeof(sdvm_compilerInstruction_t));
     for(uint32_t i = 0; i < functionState.instructionCount; ++i)
-        functionState.decodedInstructions[i] = sdvm_instruction_decode(functionState.instructions[i]);
+    {
+        sdvm_compilerInstruction_t *instruction = functionState.instructions + i;
+        instruction->decoding = sdvm_instruction_decode(functionState.sourceInstructions[i]);
+        instruction->index = UINT32_MAX;
+        instruction->firstUsageIndex = UINT32_MAX;
+        instruction->lastUsageIndex = 0;
+    }
+
+    // TODO: Compute the live ranges.
 
     // Ask the backend to compile the function.
     sdvm_compiler_x64_compileModuleFunction(&functionState);
