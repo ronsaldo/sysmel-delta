@@ -132,6 +132,7 @@ SDVM_API uint32_t sdvm_compilerSymbolTable_addName(sdvm_compilerSymbolTable_t *s
 SDVM_API sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createSectionSymbol(sdvm_compilerSymbolTable_t *symbolTable, uint32_t sectionIndex);
 SDVM_API sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createUndefinedSymbol(sdvm_compilerSymbolTable_t *symbolTable, const char *name, sdvm_compilerSymbolKind_t kind, sdvm_compilerSymbolBinding_t binding);
 SDVM_API void sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(sdvm_compilerSymbolTable_t *symbolTable, sdvm_compilerSymbolHandle_t symbolHandle, uint32_t sectionSymbolIndex, int64_t offset);
+SDVM_API void sdvm_compilerSymbolTable_setSymbolSize(sdvm_compilerSymbolTable_t *symbolTable, sdvm_compilerSymbolHandle_t symbolHandle, uint64_t size);
 
 SDVM_API void sdvm_compilerObjectSection_initialize(sdvm_compilerObjectSection_t *section);
 SDVM_API void sdvm_compilerObjectSection_destroy(sdvm_compilerObjectSection_t *section);
@@ -143,6 +144,8 @@ SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState
 SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state);
 
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
+
+SDVM_API size_t sdvm_compiler_addInstruction(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);
 

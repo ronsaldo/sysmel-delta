@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *state);
+
 void sdvm_compilerSymbolTable_initialize(sdvm_compilerSymbolTable_t *symbolTable)
 {
     sdvm_dynarray_initialize(&symbolTable->strings, 1, 4096);
@@ -58,6 +60,13 @@ void sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(sdvm_compilerSymbolT
     sdvm_compilerSymbol_t *symbol = (sdvm_compilerSymbol_t*)symbolTable->symbols.data + symbolHandle - 1;
     symbol->section = sectionSymbolIndex;
     symbol->value = offset;
+}
+
+void sdvm_compilerSymbolTable_setSymbolSize(sdvm_compilerSymbolTable_t *symbolTable, sdvm_compilerSymbolHandle_t symbolHandle, uint64_t size)
+{
+    SDVM_ASSERT(0 < symbolHandle && symbolHandle <= symbolTable->symbols.size);
+    sdvm_compilerSymbol_t *symbol = (sdvm_compilerSymbol_t*)symbolTable->symbols.data + symbolHandle - 1;
+    symbol->size = size;
 }
 
 void sdvm_compilerObjectSection_initialize(sdvm_compilerObjectSection_t *section)
@@ -145,11 +154,17 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
     for(uint32_t i = 0; i < functionState.instructionCount; ++i)
         functionState.decodedInstructions[i] = sdvm_instruction_decode(functionState.instructions[i]);
 
-    // x86 ret
-    uint8_t x86Ret[] = {0xc3};
-    sdvm_dynarray_addAll(&functionState.compiler->textSection.contents, sizeof(x86Ret), x86Ret);
+    // Ask the backend to compile the function.
+    sdvm_compiler_x64_compileModuleFunction(&functionState);
     
+    // Destroy the function compilation state.
+    sdvm_functionCompilationState_destroy(&functionState);
     return true;
+}
+
+SDVM_API size_t sdvm_compiler_addInstruction(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction)
+{
+    return sdvm_dynarray_addAll(&compiler->textSection.contents, instructionSize, instruction);
 }
 
 bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module)
@@ -173,9 +188,13 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
         sdvm_functionTableEntry_t *functionTableEntry = module->functionTable + i;
-        sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&compiler->symbolTable, state.functionTableSymbols[i], compiler->textSection.symbolIndex, compiler->textSection.contents.size);        
+        size_t startOffset = compiler->textSection.contents.size;
+        sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&compiler->symbolTable, state.functionTableSymbols[i], compiler->textSection.symbolIndex, startOffset);
         if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry))
             hasSucceeded = false;
+
+        size_t endOffset = compiler->textSection.contents.size;
+        sdvm_compilerSymbolTable_setSymbolSize(&compiler->symbolTable, state.functionTableSymbols[i], endOffset - startOffset);
     }
 
     free(state.functionTableSymbols);
