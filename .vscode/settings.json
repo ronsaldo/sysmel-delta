@@ -12,6 +12,9 @@
         "functional": "c",
         "ostream": "c",
         "tuple": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "assert.h": "c",
+        "module.h": "c",
+        "elf.h": "c"
     }
 }

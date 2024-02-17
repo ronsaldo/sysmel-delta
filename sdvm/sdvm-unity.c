@@ -1,5 +1,7 @@
 #include "sdvm.c"
 #include "compiler.c"
+#include "compilerElf.c"
+#include "compilerX86.c"
 #include "module.c"
 #include "instruction.c"
 #include "dynarray.c"

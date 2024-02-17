@@ -10,6 +10,14 @@
 
 typedef struct sdvm_module_s sdvm_module_t;
 
+typedef enum sdvm_compilerSectionFlags_e
+{
+    SdvmCompSectionFlagNone = 0,
+    SdvmCompSectionFlagWrite = 1<<0,
+    SdvmCompSectionFlagRead = 1<<1,
+    SdvmCompSectionFlagExec = 1<<2,
+} sdvm_compilerSectionFlags_t;
+
 typedef enum sdvm_compilerSymbolKind_e
 {
     SdvmCompSymbolKindNull = 0,
@@ -50,6 +58,12 @@ typedef struct sdvm_compilerRelocation_s
 typedef struct sdvm_compilerObjectSection_s
 {
     uint32_t symbolIndex;
+    uint32_t alignment;
+    uint32_t flags;
+    const char *name;
+    const char *relSectionName;
+    const char *relaSectionName;
+
     sdvm_dynarray_t contents;
     sdvm_dynarray_t relocations;
 } sdvm_compilerObjectSection_t;
@@ -75,6 +89,13 @@ typedef struct sdvm_compiler_s
     };
 } sdvm_compiler_t;
 
+
+typedef struct sdvm_compilerObjectFile_s
+{
+    size_t size;
+    uint8_t *data;
+} sdvm_compilerObjectFile_t;
+
 typedef struct sdvm_moduleCompilationState_s
 {
     sdvm_compiler_t *compiler;
@@ -92,6 +113,11 @@ typedef struct sdvm_functionCompilationState_s
     uint32_t instructionCount;
     sdvm_decodedConstOrInstruction_t *decodedInstructions;
 } sdvm_functionCompilationState_t;
+
+static inline size_t sdvm_compiler_alignSizeTo(size_t size, size_t alignment)
+{
+    return (size + alignment - 1) & (-alignment);
+}
 
 SDVM_API void sdvm_compilerSymbolTable_initialize(sdvm_compilerSymbolTable_t *symbolTable);
 SDVM_API void sdvm_compilerSymbolTable_destroy(sdvm_compilerSymbolTable_t *symbolTable);
@@ -111,5 +137,12 @@ SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t 
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compileObjectFile_allocate(size_t size);
+SDVM_API void sdvm_compileObjectFile_destroy(sdvm_compilerObjectFile_t *objectFile);
+SDVM_API bool sdvm_compileObjectFile_saveToFileNamed(sdvm_compilerObjectFile_t *objectFile, const char *fileName);
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler);
+SDVM_API bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
 
 #endif //SDVM_COMPILER_H

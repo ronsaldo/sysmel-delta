@@ -17,6 +17,7 @@ void printVersion(void)
 int main(int argc, const char *argv[])
 {
     const char *moduleFileName = NULL;
+    const char *outputFileName = "a.out";
 
     for(int i = 1; i < argc; ++i)
     {
@@ -31,6 +32,10 @@ int main(int argc, const char *argv[])
             {
                 printVersion();
                 return 0;
+            }
+            else if(!strcmp(argv[i], "-o"))
+            {
+                outputFileName = argv[++i];
             }
         }
         else
@@ -63,6 +68,15 @@ int main(int argc, const char *argv[])
         sdvm_compiler_destroy(compiler);
         fprintf(stderr, "Failed to compile module from file %s\n", moduleFileName);
         return 1;
+    }
+
+    // Save the object file
+    if(!sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(compiler, outputFileName))
+    {
+        sdvm_compiler_destroy(compiler);
+        fprintf(stderr, "Failed to encode the object file %s\n", outputFileName);
+        return 1;
+
     }
 
     sdvm_compiler_destroy(compiler);

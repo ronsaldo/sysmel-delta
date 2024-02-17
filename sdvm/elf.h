@@ -9,7 +9,7 @@ typedef uint16_t sdvm_elf64_half_t;
 typedef uint32_t sdvm_elf64_word_t;
 typedef int32_t sdvm_elf64_sword_t;
 typedef uint64_t sdvm_elf64_xword_t;
-typedef int64_t sdvm_elf64_xsword_t;
+typedef int64_t sdvm_elf64_sxword_t;
 
 enum {
     SDVM_EI_MAG0 = 0,
@@ -137,5 +137,18 @@ typedef struct sdvm_elf64_symbol_s
     sdvm_elf64_addr_t value;
     sdvm_elf64_xword_t size;
 } sdvm_elf64_symbol_t;
+
+typedef struct sdvm_elf64_rel_s
+{
+    sdvm_elf64_addr_t offset;
+    sdvm_elf64_xword_t info;
+} sdvm_elf64_rel_t;
+
+typedef struct sdvm_elf64_rela_s
+{
+    sdvm_elf64_addr_t offset;
+    sdvm_elf64_xword_t info;
+    sdvm_elf64_sxword_t addend;
+} sdvm_elf64_rela_t;
 
 #endif //SDVM_ELF_H

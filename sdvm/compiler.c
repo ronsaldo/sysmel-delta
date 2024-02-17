@@ -2,6 +2,7 @@
 #include "module.h"
 #include "assert.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 void sdvm_compilerSymbolTable_initialize(sdvm_compilerSymbolTable_t *symbolTable)
 {
@@ -44,6 +45,7 @@ void sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(sdvm_compilerSymbolT
 
 void sdvm_compilerObjectSection_initialize(sdvm_compilerObjectSection_t *section)
 {
+    section->alignment = 1;
     sdvm_dynarray_initialize(&section->contents, 1, 4096);
     sdvm_dynarray_initialize(&section->relocations, sizeof(sdvm_compilerRelocation_t), 512);
 }
@@ -61,12 +63,24 @@ sdvm_compiler_t *sdvm_compiler_create(void)
 
     sdvm_compilerObjectSection_initialize(&compiler->textSection);
     compiler->textSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 1);
+    compiler->textSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagExec;
+    compiler->textSection.name = ".text";
+    compiler->textSection.relSectionName = ".text.rel";
+    compiler->textSection.relaSectionName = ".text.rela";
 
     sdvm_compilerObjectSection_initialize(&compiler->rodataSection);
-    compiler->textSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 2);
+    compiler->rodataSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 2);
+    compiler->rodataSection.flags = SdvmCompSectionFlagRead;
+    compiler->rodataSection.name = ".rodata";
+    compiler->rodataSection.relSectionName = ".rodata.rel";
+    compiler->rodataSection.relaSectionName = ".rodata.rela";
 
     sdvm_compilerObjectSection_initialize(&compiler->dataSection);
-    compiler->textSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 3);
+    compiler->dataSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 3);
+    compiler->dataSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagWrite;
+    compiler->dataSection.name = ".data";
+    compiler->dataSection.relSectionName = ".data.rel";
+    compiler->dataSection.relaSectionName = ".data.rela";
 
     return compiler;
 }
@@ -147,3 +161,29 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     return hasSucceeded;
 }
 
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compileObjectFile_allocate(size_t size)
+{
+    sdvm_compilerObjectFile_t *objectFile = calloc(1, sizeof(sdvm_compilerObjectFile_t));
+    objectFile->size = size;
+    objectFile->data = calloc(1, size);
+    return objectFile;
+}
+
+SDVM_API void sdvm_compileObjectFile_destroy(sdvm_compilerObjectFile_t *objectFile)
+{
+    free(objectFile->data);
+    free(objectFile);
+}
+
+SDVM_API bool sdvm_compileObjectFile_saveToFileNamed(sdvm_compilerObjectFile_t *objectFile, const char *fileName)
+{
+    FILE *outFile = fopen(fileName, "wb");
+    if(!outFile)
+        return false;
+
+    bool succeeded = fwrite(objectFile->data, objectFile->size, 1, outFile) == 1;
+    fclose(outFile);
+    
+    return succeeded;
+}
