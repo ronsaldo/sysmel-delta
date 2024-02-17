@@ -21,6 +21,13 @@ typedef struct sdvm_compilerElfFileLayout_s
     size_t relocationSectionContents[SDVM_COMPILER_SECTION_COUNT];
     size_t sectionHeaderStringsSize;
     size_t sectionHeaderStrings;
+
+    size_t symbolStringTable;
+    size_t symbolStringTableSectionIndex;
+    size_t symbolTable;
+    size_t symbolTableSectionIndex;
+    size_t symbolCount;
+    size_t localSymbolCount;
 } sdvm_compilerElfFileLayout_t;
 
 typedef struct sdvm_compilerElfStringSectionState_s
@@ -89,9 +96,44 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
     }
 
     // Symbols
+    if(compiler->symbolTable.symbols.size != 0)
+    {
+        // String table
+        layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(".strtab");
+        layout.symbolStringTable = layout.size;
+        layout.symbolStringTableSectionIndex = layout.sectionHeaderCount++;
+        layout.size += compiler->symbolTable.strings.size;
+
+        // Symbol table
+        layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(".symtab");
+        layout.symbolTable = layout.size;
+        layout.symbolTableSectionIndex = layout.sectionHeaderCount++;
+        layout.localSymbolCount = 1;
+
+        // Count the local symbols.
+        size_t compilerSymbolCount = compiler->symbolTable.symbols.size;
+        sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
+        for(size_t i = 0; i < compilerSymbolCount; ++i)
+        {
+            sdvm_compilerSymbol_t *symbol = symbols + i;
+            if(symbol->binding == SdvmCompSymbolBindingLocal)
+                symbol->objectSymbolIndex = layout.localSymbolCount++;
+        }
+
+        // Count the non-local symbols.
+        layout.symbolCount = layout.localSymbolCount;
+        for(size_t i = 0; i < compilerSymbolCount; ++i)
+        {
+            sdvm_compilerSymbol_t *symbol = symbols + i;
+            if(symbol->binding != SdvmCompSymbolBindingLocal)
+                symbol->objectSymbolIndex = layout.symbolCount++;
+        }
+
+        layout.size += sizeof(sdvm_elf64_symbol_t)*layout.symbolCount;
+    }
 
     // Section header strings
-    layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(".shstr");
+    layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(".shstrtab");
     layout.sectionHeaderStrings = layout.size;
     layout.size += layout.sectionHeaderStringsSize;
     ++layout.sectionHeaderCount;
@@ -101,6 +143,30 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
     layout.size += sizeof(sdvm_elf64_sectionHeader_t) * layout.sectionHeaderCount;
 
     return layout;
+}
+
+static uint32_t sdvm_compilerElf64_mapSymbolBinding(sdvm_compilerSymbolBinding_t binding)
+{
+    switch(binding)
+    {
+    case SdvmCompSymbolBindingLocal: return SDVM_STB_LOCAL;
+    case SdvmCompSymbolBindingWeak: return SDVM_STB_WEAK;
+    default: return SDVM_STB_GLOBAL;
+    }
+}
+
+static uint32_t sdvm_compilerElf64_mapSymbolKind(sdvm_compilerSymbolKind_t kind)
+{
+    switch(kind)
+    {
+    case SdvmCompSymbolKindFile: return SDVM_STT_FILE;
+    case SdvmCompSymbolKindSection: return SDVM_STT_SECTION;
+    case SdvmCompSymbolKindFunction: return SDVM_STT_FUNC;
+    case SdvmCompSymbolKindVariable: return SDVM_STT_OBJECT;
+
+    case SdvmCompSymbolKindNull:
+    default: return SDVM_STT_NOTYPE;
+    }
 }
 
 sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
@@ -175,6 +241,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         elfSection->addressAlignment = section->alignment;
         elfSection->offset = layout.relocationSectionContents[i];
         elfSection->size = section->relocations.size;
+        elfSection->entrySize = useRela ? sizeof(sdvm_elf64_rela_t) : sizeof(sdvm_elf64_rel_t);
 
         if(useRela)
         {
@@ -188,9 +255,44 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         }
     }
 
+    // Symbols
+    if(compiler->symbolTable.symbols.size != 0)
+    {
+        sdvm_elf64_sectionHeader_t *symbolStringTableSection = sectionHeaders + layout.symbolStringTableSectionIndex;
+        symbolStringTableSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".strtab");
+        symbolStringTableSection->type = SDVM_SHT_STRTAB;
+        symbolStringTableSection->offset = layout.symbolStringTable;
+        symbolStringTableSection->size = compiler->symbolTable.strings.size;
+        memcpy(objectFile->data + layout.symbolStringTable, compiler->symbolTable.strings.data, compiler->symbolTable.strings.size);
+
+        sdvm_elf64_sectionHeader_t *symbolTableSection = sectionHeaders + layout.symbolTableSectionIndex;
+        symbolTableSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".symtab");
+        symbolTableSection->type = SDVM_SHT_SYMTAB;
+        symbolTableSection->offset = layout.symbolTable;
+        symbolTableSection->size = layout.symbolCount * sizeof(sdvm_elf64_symbol_t);
+        symbolTableSection->entrySize = sizeof(sdvm_elf64_symbol_t);
+        symbolTableSection->info = layout.localSymbolCount;
+        symbolTableSection->link = layout.symbolStringTableSectionIndex;
+
+        sdvm_elf64_symbol_t *elfSymbols = (sdvm_elf64_symbol_t*)(objectFile->data + layout.symbolTable);
+        
+        size_t compilerSymbolCount = compiler->symbolTable.symbols.size;
+        sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
+        for(size_t i = 0; i < compilerSymbolCount; ++i)
+        {
+            sdvm_compilerSymbol_t *symbol = symbols + i;
+            sdvm_elf64_symbol_t *elfSymbol = elfSymbols + symbol->objectSymbolIndex;
+            elfSymbol->info = SDVM_ELF64_SYM_INFO(sdvm_compilerElf64_mapSymbolKind(symbol->kind), sdvm_compilerElf64_mapSymbolBinding(symbol->binding));
+            elfSymbol->sectionHeaderIndex = symbol->section;
+            elfSymbol->value = symbol->value;
+            elfSymbol->name = symbol->name;
+            elfSymbol->size = symbol->size;
+        }
+    }
+
     // Section header strings
     sdvm_elf64_sectionHeader_t *sectionHeaderStringsSection = sectionHeaders + header->sectionHeaderNameStringTableIndex;
-    sectionHeaderStringsSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".shstr");
+    sectionHeaderStringsSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".shstrtab");
     sectionHeaderStringsSection->type = SDVM_SHT_STRTAB;
     sectionHeaderStringsSection->offset = layout.sectionHeaderStrings;
     sectionHeaderStringsSection->size = layout.sectionHeaderStringsSize;

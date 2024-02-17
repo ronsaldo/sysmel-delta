@@ -21,6 +21,7 @@ typedef enum sdvm_compilerSectionFlags_e
 typedef enum sdvm_compilerSymbolKind_e
 {
     SdvmCompSymbolKindNull = 0,
+    SdvmCompSymbolKindFile,
     SdvmCompSymbolKindSection,
     SdvmCompSymbolKindFunction,
     SdvmCompSymbolKindVariable,
@@ -38,12 +39,17 @@ typedef enum sdvm_compilerSymbolBinding_e
 
 typedef struct sdvm_compilerSymbol_s
 {
+    uint32_t name;
+    uint32_t section;
+    uint32_t objectSymbolIndex;
+
     uint8_t kind;
     uint8_t binding;
     uint8_t flags;
     uint8_t reserved;
-    uint32_t section;
+
     int64_t value;
+    uint64_t size;
 } sdvm_compilerSymbol_t;
 
 typedef uint32_t sdvm_compilerSymbolHandle_t;
@@ -70,6 +76,7 @@ typedef struct sdvm_compilerObjectSection_s
 
 typedef struct sdvm_compilerSymbolTable_s
 {
+    sdvm_dynarray_t strings;
     sdvm_dynarray_t symbols;
 } sdvm_compilerSymbolTable_t;
 
@@ -121,8 +128,9 @@ static inline size_t sdvm_compiler_alignSizeTo(size_t size, size_t alignment)
 
 SDVM_API void sdvm_compilerSymbolTable_initialize(sdvm_compilerSymbolTable_t *symbolTable);
 SDVM_API void sdvm_compilerSymbolTable_destroy(sdvm_compilerSymbolTable_t *symbolTable);
+SDVM_API uint32_t sdvm_compilerSymbolTable_addName(sdvm_compilerSymbolTable_t *symbolTable, const char *name);
 SDVM_API sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createSectionSymbol(sdvm_compilerSymbolTable_t *symbolTable, uint32_t sectionIndex);
-SDVM_API sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createUndefinedSymbol(sdvm_compilerSymbolTable_t *symbolTable, sdvm_compilerSymbolKind_t kind, sdvm_compilerSymbolBinding_t binding);
+SDVM_API sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createUndefinedSymbol(sdvm_compilerSymbolTable_t *symbolTable, const char *name, sdvm_compilerSymbolKind_t kind, sdvm_compilerSymbolBinding_t binding);
 SDVM_API void sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(sdvm_compilerSymbolTable_t *symbolTable, sdvm_compilerSymbolHandle_t symbolHandle, uint32_t sectionSymbolIndex, int64_t offset);
 
 SDVM_API void sdvm_compilerObjectSection_initialize(sdvm_compilerObjectSection_t *section);

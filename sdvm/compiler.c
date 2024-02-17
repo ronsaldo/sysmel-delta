@@ -6,11 +6,16 @@
 
 void sdvm_compilerSymbolTable_initialize(sdvm_compilerSymbolTable_t *symbolTable)
 {
+    sdvm_dynarray_initialize(&symbolTable->strings, 1, 4096);
+    char nulChar = 0;
+    sdvm_dynarray_add(&symbolTable->strings, &nulChar);
+
     sdvm_dynarray_initialize(&symbolTable->symbols, sizeof(sdvm_compilerSymbol_t), 4096);
 }
 
 void sdvm_compilerSymbolTable_destroy(sdvm_compilerSymbolTable_t *symbolTable)
 {
+    sdvm_dynarray_destroy(&symbolTable->strings);
     sdvm_dynarray_destroy(&symbolTable->symbols);
 }
 
@@ -25,9 +30,21 @@ sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createSectionSymbol(sdvm_co
     return sdvm_dynarray_add(&symbolTable->symbols, &symbol);
 }
 
-sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createUndefinedSymbol(sdvm_compilerSymbolTable_t *symbolTable, sdvm_compilerSymbolKind_t kind, sdvm_compilerSymbolBinding_t binding)
+uint32_t sdvm_compilerSymbolTable_addName(sdvm_compilerSymbolTable_t *symbolTable, const char *name)
+{
+    if(!name || !*name)
+        return 0;
+
+    uint32_t nameIndex = symbolTable->strings.size;
+    size_t nameLength = strlen(name);
+    sdvm_dynarray_addAll(&symbolTable->strings, nameLength + 1, name);
+    return nameIndex;
+}
+
+sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createUndefinedSymbol(sdvm_compilerSymbolTable_t *symbolTable, const char *name, sdvm_compilerSymbolKind_t kind, sdvm_compilerSymbolBinding_t binding)
 {
     sdvm_compilerSymbol_t symbol = {
+        .name = sdvm_compilerSymbolTable_addName(symbolTable, name),
         .kind = kind,
         .binding = binding
     };
@@ -143,7 +160,12 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     // Declare the function symbols.
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
-        state.functionTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, SdvmCompSymbolKindFunction, SdvmCompSymbolBindingLocal);
+        char functionName[32];
+        sprintf(functionName, "module.fun%04d", (int)i);
+        if(module->header->entryPoint && !module->header->entryPointClosure && module->header->entryPoint == i + 1)
+            state.functionTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, "moduleEntry", SdvmCompSymbolKindFunction, SdvmCompSymbolBindingGlobal);
+        else
+            state.functionTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, functionName, SdvmCompSymbolKindFunction, SdvmCompSymbolBindingLocal);
     }
 
     // Compile the function symbols.
