@@ -57,7 +57,7 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    sdvm_module_dump(module);
+    //sdvm_module_dump(module);
 
     sdvm_compiler_t *compiler = sdvm_compiler_create();
     bool compilationSucceeded = sdvm_compiler_compileModule(compiler, module);

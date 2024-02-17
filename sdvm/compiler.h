@@ -110,12 +110,19 @@ typedef struct sdvm_moduleCompilationState_s
     sdvm_compilerSymbolHandle_t *functionTableSymbols;
 } sdvm_moduleCompilationState_t;
 
+
+typedef struct sdvm_compilerLiveInterval_s
+{
+    uint32_t index;
+    uint32_t firstUsage;
+    uint32_t lastUsage;
+} sdvm_compilerLiveInterval_t;
+
 typedef struct sdvm_compilerInstruction_s
 {
     int32_t index;
     sdvm_decodedConstOrInstruction_t decoding;
-    uint32_t firstUsageIndex;
-    uint32_t lastUsageIndex;
+    sdvm_compilerLiveInterval_t liveInterval;
 } sdvm_compilerInstruction_t;
 
 typedef struct sdvm_functionCompilationState_s
@@ -151,7 +158,11 @@ SDVM_API void sdvm_compiler_destroy(sdvm_compiler_t *compiler);
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state);
 
+SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval);
+
+SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
+SDVM_API void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state);
 
 SDVM_API size_t sdvm_compiler_addInstruction(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
 

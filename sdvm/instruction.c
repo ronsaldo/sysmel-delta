@@ -27,6 +27,12 @@ const char *sdvm_instruction_fullOpcodeToString(sdvm_opcode_t opcode)
     }
 }
 
+
+SDVM_API bool sdvm_instruction_typeExpectsInstruction(sdvm_type_t type)
+{
+    return type != SdvmTypeVoid && type != SdvmTypeInfo;
+}
+
 static int sdvm_intruction_decodeArg(uint32_t argValue)
 {
     return (argValue & ((1<<19) - 1)) - (argValue & (1<<19));
@@ -53,6 +59,8 @@ sdvm_decodedConstOrInstruction_t sdvm_instruction_decode(sdvm_constOrInstruction
         decoded.instruction.arg1Type = (decoded.opcode >> 20) & SDVM_TYPE_MASK;
         decoded.instruction.arg0 = sdvm_intruction_decodeArg(instruction >> 24);
         decoded.instruction.arg1 = sdvm_intruction_decodeArg(instruction >> 44);
+        decoded.arg0IsInstruction = sdvm_instruction_typeExpectsInstruction(decoded.instruction.arg0Type);
+        decoded.arg1IsInstruction = sdvm_instruction_typeExpectsInstruction(decoded.instruction.arg1Type);
     }
 
     return decoded;

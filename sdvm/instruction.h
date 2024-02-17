@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "common.h"
 
 #define SDVM_TYPE_BITS 4
 #define SDVM_TYPE_MASK ((1<<SDVM_TYPE_BITS) - 1)
@@ -46,7 +47,10 @@ typedef uint64_t sdvm_constOrInstruction_t;
 
 typedef struct sdvm_decodedConstOrInstruction_s
 {
-    bool isConstant;
+    uint8_t isConstant : 1;
+    uint8_t arg0IsInstruction : 1;
+    uint8_t arg1IsInstruction : 1;
+
     uint32_t opcode;
     uint32_t baseOpcode;
     sdvm_type_t destType;
@@ -68,8 +72,9 @@ typedef struct sdvm_decodedConstOrInstruction_s
     };
 } sdvm_decodedConstOrInstruction_t;
 
-const char *sdvm_instruction_typeToString(sdvm_type_t type);
-const char *sdvm_instruction_fullOpcodeToString(sdvm_opcode_t opcode);
-sdvm_decodedConstOrInstruction_t sdvm_instruction_decode(sdvm_constOrInstruction_t instruction);
+SDVM_API const char *sdvm_instruction_typeToString(sdvm_type_t type);
+SDVM_API const char *sdvm_instruction_fullOpcodeToString(sdvm_opcode_t opcode);
+SDVM_API bool sdvm_instruction_typeExpectsInstruction(sdvm_type_t type);
+SDVM_API sdvm_decodedConstOrInstruction_t sdvm_instruction_decode(sdvm_constOrInstruction_t instruction);
 
 #endif //SDVM_INSTRUCTION_H

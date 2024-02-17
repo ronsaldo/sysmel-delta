@@ -13,6 +13,8 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
 {
     sdvm_compiler_t *compiler = state->compiler;
 
+    sdvm_functionCompilationState_dump(state);
+
     sdvm_compiler_x86_ret(compiler);
     return true;
 }

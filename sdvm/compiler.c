@@ -139,6 +139,85 @@ void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *stat
     free(state->instructions);
 }
 
+static void sdvm_compilerLiveInterval_initialize(sdvm_compilerLiveInterval_t *interval, uint32_t index)
+{
+    interval->index = index;
+    interval->firstUsage = UINT32_MAX;
+    interval->lastUsage = 0;
+}
+
+static void sdvm_compilerLiveInterval_insertUsage(sdvm_compilerLiveInterval_t *interval, uint32_t usage)
+{
+    if(usage < interval->firstUsage)
+        interval->firstUsage = usage;
+    if(usage > interval->lastUsage)
+        interval->lastUsage = usage;
+}
+
+bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval)
+{
+    return interval->firstUsage <= interval->lastUsage;
+}
+
+void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilationState_t *state)
+{
+    // Intialize the live intervals
+    for(uint32_t i = 0; i < state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        sdvm_compilerLiveInterval_initialize(&instruction->liveInterval, i);
+    }
+
+    // Compute the live intervals.
+    for(uint32_t i = 0; i < state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        if(instruction->decoding.isConstant)
+            continue;
+
+        if(instruction->decoding.arg0IsInstruction)
+        {
+            sdvm_compilerInstruction_t *arg0Instruction = state->instructions + instruction->decoding.instruction.arg0;
+            sdvm_compilerLiveInterval_insertUsage(&arg0Instruction->liveInterval, i);
+        }
+
+        if(instruction->decoding.arg1IsInstruction)
+        {
+            sdvm_compilerInstruction_t *arg1Instruction = state->instructions + instruction->decoding.instruction.arg1;
+            sdvm_compilerLiveInterval_insertUsage(&arg1Instruction->liveInterval, i);
+        }
+    }
+}
+
+void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
+{
+    for(uint32_t i = 0; i < state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        
+        // Is this a constant?
+        if(instruction->decoding.isConstant)
+        {
+            printf("    $%d : %s := %s(%lld)", i, sdvm_instruction_typeToString(instruction->decoding.destType), sdvm_instruction_fullOpcodeToString(instruction->decoding.opcode), (long long)instruction->decoding.constant.signedPayload);
+        }
+        else
+        {
+            printf("    $%d : %s := %s(%d : %s, %d : %s)",
+                i, sdvm_instruction_typeToString(instruction->decoding.destType),
+                sdvm_instruction_fullOpcodeToString(instruction->decoding.opcode),
+                instruction->decoding.instruction.arg0, sdvm_instruction_typeToString(instruction->decoding.instruction.arg0Type),
+                instruction->decoding.instruction.arg1, sdvm_instruction_typeToString(instruction->decoding.instruction.arg1Type));
+        }
+
+        if(sdvm_compilerLiveInterval_hasUsage(&instruction->liveInterval))
+            printf(" usage [%u, %u]", instruction->liveInterval.firstUsage, instruction->liveInterval.lastUsage);
+        else
+            printf(" unused");
+        
+        printf("\n");
+    }
+}
+
 static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_functionTableEntry_t *functionTableEntry)
 {
     sdvm_functionCompilationState_t functionState = {
@@ -155,12 +234,10 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
     {
         sdvm_compilerInstruction_t *instruction = functionState.instructions + i;
         instruction->decoding = sdvm_instruction_decode(functionState.sourceInstructions[i]);
-        instruction->index = UINT32_MAX;
-        instruction->firstUsageIndex = UINT32_MAX;
-        instruction->lastUsageIndex = 0;
     }
 
-    // TODO: Compute the live ranges.
+    // Compute the live intervals.
+    sdvm_functionCompilationState_computeLiveIntervals(&functionState);
 
     // Ask the backend to compile the function.
     sdvm_compiler_x64_compileModuleFunction(&functionState);
