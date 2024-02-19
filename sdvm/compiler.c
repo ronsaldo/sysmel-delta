@@ -247,9 +247,14 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
     return true;
 }
 
-SDVM_API size_t sdvm_compiler_addInstruction(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction)
+SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction)
 {
     return sdvm_dynarray_addAll(&compiler->textSection.contents, instructionSize, instruction);
+}
+
+SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte)
+{
+    return sdvm_dynarray_add(&compiler->textSection.contents, &byte);
 }
 
 bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module)

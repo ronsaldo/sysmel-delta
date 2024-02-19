@@ -164,7 +164,8 @@ SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCo
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state);
 
-SDVM_API size_t sdvm_compiler_addInstruction(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
+SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
+SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);
 
