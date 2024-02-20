@@ -10,6 +10,30 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitIntegerValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitPrimitiveIntegerValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitPrimitiveCharacterValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitPrimitiveFloatValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitStringValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitSymbol(self, value):
+        pass
+
+    @abstractmethod
     def visitLambdaValue(self, value):
         pass
 
@@ -328,6 +352,9 @@ class IntegerValue(TypedValue):
         super().__init__()
         self.value = value
 
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitIntegerValue(self)
+
     def prettyPrint(self) -> str:
         return str(self.value)
 
@@ -394,6 +421,9 @@ class PrimitiveIntegerValue(TypedValue):
         self.type = type
         self.value = type.normalizeIntegerValue(value)
 
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitPrimitiveIntegerValue(self)
+
     def prettyPrint(self) -> str:
         return str(self.value) + self.type.literalSuffix
 
@@ -456,6 +486,9 @@ class PrimitiveIntegerValue(TypedValue):
         return self.value
     
 class PrimitiveCharacterValue(PrimitiveIntegerValue):
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitPrimitiveCharacterValue(self)
+
     def toJson(self):
         return chr(self.value)
 
@@ -464,6 +497,9 @@ class PrimitiveFloatValue(TypedValue):
         super().__init__()
         self.type = type
         self.value = type.normalizeFloatValue(value)
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitPrimitiveFloatValue(self)
 
     def prettyPrint(self) -> str:
         return str(self.value) + self.type.literalSuffix
@@ -511,6 +547,9 @@ class StringValue(TypedValue):
     def __init__(self, value: str) -> None:
         super().__init__()
         self.value = value
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitStringValue(self)
 
     def getType(self):
         return StringType
@@ -830,6 +869,9 @@ class Symbol(TypedValue):
     
     def __str__(self) -> str:
         return '#' + repr(self.value)
+    
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitSymbol(self)
 
     @classmethod
     def intern(cls, value: str):

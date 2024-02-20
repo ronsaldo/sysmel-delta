@@ -26,6 +26,7 @@ class HIRContext:
         self.uint64Type = HIRPrimitiveIntegerType(self, 'UInt64', False, 8, 8)
         self.float32Type = HIRPrimitiveFloatType(self, 'Float32', 4, 4)
         self.float64Type = HIRPrimitiveFloatType(self, 'Float64', 8, 8)
+        self.basicBlockType = HIRBasicBlockType(self, 'BasicBlock', pointerSize, pointerSize)
 
     def getTypeUniverse(self, index):
         if index not in self.typeUniverses:
@@ -39,6 +40,9 @@ class HIRValue(ABC):
     @abstractmethod
     def getType(self):
         pass
+
+    def isTerminatorInstruction(self) -> bool:
+        return False
 
 class HIRTypeValue(HIRValue):
     def  __init__(self, context: HIRContext) -> None:
@@ -99,6 +103,9 @@ class HIRAnyType(HIRPrimitiveType):
 class HIRUnitType(HIRPrimitiveType):
     pass
 
+class HIRBasicBlockType(HIRPrimitiveType):
+    pass
+
 class HIRPrimitiveBooleanType(HIRPrimitiveType):
     pass
 
@@ -141,6 +148,25 @@ class HIRConstant(HIRValue):
     def getType(self):
         return self.type
 
+class HIRConstantPrimitive(HIRConstant):
+    pass
+
+class HIRConstantPrimitiveInteger(HIRConstantPrimitive):
+    def __init__(self, context: HIRContext, type: HIRValue, value: int) -> None:
+        super().__init__(context, type)
+        self.value = value
+
+    def __str__(self) -> str:
+        return '%s(%d)' % (str(self.type), self.value)
+
+class HIRConstantPrimitiveFloat(HIRConstantPrimitive):
+    def __init__(self, context: HIRContext, type: HIRValue, value: float) -> None:
+        super().__init__(context, type)
+        self.value = value
+
+    def __str__(self) -> str:
+        return '%s(%f)' % (str(self.type), self.value)
+    
 class HIRGlobalValue(HIRConstant):
     def __init__(self, context: HIRContext, type: HIRValue) -> None:
         super().__init__(context, type)
@@ -158,28 +184,144 @@ class HIRGlobalValue(HIRConstant):
 class HIRFunctionalDefinition(HIRGlobalValue):
     def __init__(self, context: HIRContext, type: HIRValue) -> None:
         super().__init__(context, type)
+        self.captures = []
+        self.arguments = []
         self.firstBasicBlock: HIRBasicBlock = None
         self.lastBasicBlock: HIRBasicBlock = None
 
+    def addBasicBlock(self, basicBlock):
+        if self.lastBasicBlock is None:
+            self.firstBasicBlock = self.lastBasicBlock = basicBlock
+        else:
+            basicBlock.previousBasicBlock = self.lastBasicBlock
+            self.lastBasicBlock.nextBasicBlock = basicBlock
+            self.lastBasicBlock = basicBlock
+
+    def enumerateLocalValues(self):
+        index = 0
+        for localValue in self.allLocalValues():
+            localValue.localValueIndex = index
+            index += 1
+
+    def allLocalValues(self):
+        for capture in self.captures:
+            yield capture
+        for argument in self.arguments:
+            yield argument
+        for basicBlock in self.basicBlocks():
+            yield basicBlock
+            for instruction in basicBlock.instructions():
+                yield instruction
+
+    def basicBlocks(self):
+        position = self.firstBasicBlock
+        while position is not None:
+            yield position
+            position = position.nextBasicBlock
+
     def fullPrintString(self) -> str:
+        self.enumerateLocalValues()
         result = str(self)
         result += ' := ['
-        result += ']'
-        result += '('
+        isFirst = True
+        for capture in self.captures:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += capture.fullPrintString()
+
+        result += '] ('
+        isFirst = True
+        for argument in self.arguments:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += argument.fullPrintString()
+
         result += ') : '
         result += str(self.type)
         result += ' {\n'
+        for basicBlock in self.basicBlocks():
+            result += basicBlock.fullPrintString()
         result += '}\n'
         return result
 
 class HIRFunctionalLocalValue(HIRValue):
-    pass
+    def __init__(self, context: HIRContext, type: HIRValue, name: str = None) -> None:
+        super().__init__(context)
+        self.name: str = name
+        self.type = type
+        self.localValueIndex = 0
+    
+    def getType(self):
+        return self.type
+
+    def __str__(self) -> str:
+        if self.name is not None:
+            return '$%s|%d' % (self.name, self.localValueIndex)
+        return '$%d' % self.localValueIndex
+
+class HIRFunctionalCaptureValue(HIRFunctionalLocalValue):
+    def fullPrintString(self) -> str:
+        return '%s : %s' % (str(self), str(self.type)) 
+
+class HIRFunctionalArgumentValue(HIRFunctionalLocalValue):
+    def fullPrintString(self) -> str:
+        return '%s : %s' % (str(self), str(self.type)) 
 
 class HIRBasicBlock(HIRFunctionalLocalValue):
-    pass
+    def __init__(self, context: HIRContext, name: str = None) -> None:
+        super().__init__(context, context.basicBlockType, name)
+        self.previousBasicBlock: HIRBasicBlock = None
+        self.nextBasicBlock: HIRBasicBlock = None
+        self.firstInstruction: HIRInstruction = None
+        self.lastInstruction: HIRInstruction = None
+
+    def addInstruction(self, instruction):
+        if self.lastInstruction is None:
+            self.firstInstruction = self.lastInstruction = instruction
+        else:
+            instruction.previousInstruction = self.lastInstruction
+            self.lastInstruction.nextInstruction = instruction
+            self.lastInstruction = instruction
+
+    def instructions(self):
+        position = self.firstInstruction
+        while position is not None:
+            yield position
+            position = position.nextInstruction
+
+    def fullPrintString(self) -> str:
+        result = str(self)
+        result += ':\n'
+        for instruction in self.instructions():
+            result += '    '
+            result += instruction.fullPrintString()
+            result += '\n'
+        return result
 
 class HIRInstruction(HIRFunctionalLocalValue):
-    pass
+    def __init__(self, context: HIRContext, type: HIRValue, name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.previousInstruction: HIRInstruction = None
+        self.nextInstruction: HIRInstruction = None
+
+class HIRTerminatorInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, name: str = None) -> None:
+        super().__init__(context, context.unitType, name)
+    
+    def isTerminatorInstruction(self) -> bool:
+        return True
+
+class HIRReturnInstruction(HIRTerminatorInstruction):
+    def __init__(self, context: HIRContext, result: HIRValue) -> None:
+        super().__init__(context)
+        self.result = result
+
+    def fullPrintString(self) -> str:
+        return 'return %s' % str(self.result)
 
 class HIRConstantLambda(HIRConstant):
     def __init__(self, context: HIRContext, type: HIRConstant, captures: list[HIRConstant], definition: HIRFunctionalDefinition) -> None:
@@ -201,6 +343,33 @@ class HIRConstantLambda(HIRConstant):
         result += '] : '
         result += str(self.type)
         return result
+
+class HIRBuilder:
+    def __init__(self, context: HIRContext, functional: HIRFunctionalDefinition) -> None:
+        self.context = context
+        self.functional = functional
+        self.basicBlock = None
+    
+    def newBasicBlock(self, name: str):
+        return HIRBasicBlock(self.context, name)
+
+    def beginBasicBlock(self, basicBlock: HIRBasicBlock) -> HIRBasicBlock:
+        self.functional.addBasicBlock(basicBlock)
+        self.basicBlock = basicBlock
+        return basicBlock
+
+    def beginNewBasicBlock(self, name: str) -> HIRBasicBlock:
+        return self.beginBasicBlock(self.newBasicBlock(name))
+    
+    def isLastTerminator(self) -> bool:
+        return self.basicBlock is not None and self.basicBlock.lastInstruction is not None and self.basicBlock.lastInstruction.isTerminatorInstruction()
+    
+    def addInstruction(self, instruction: HIRInstruction) -> HIRValue:
+        self.basicBlock.addInstruction(instruction)
+        return instruction
+    
+    def returnValue(self, value) -> HIRInstruction:
+        return self.addInstruction(HIRReturnInstruction(self.context, value))
 
 class HIRModule(HIRValue):
     def __init__(self, context: HIRContext) -> None:
@@ -237,7 +406,6 @@ class HIRModuleFrontend:
         self.module = HIRModule(self.context)
         self.translatedValueDictionary = dict()
         self.translatedConstantValueDictionary = dict()
-        
 
         for baseType, targetType in [
             [UnitType, self.context.unitType],
@@ -277,6 +445,9 @@ class HIRModuleFrontend:
     def visitConstantValue(self, graphValue: GHIRConstantValue) -> HIRValue:
         return self.translateConstantTypedValue(graphValue.value)
     
+    def visitPrimitiveIntegerValue(self, value: PrimitiveIntegerValue) -> HIRValue:
+        return HIRConstantPrimitiveInteger(self.context, self.translatedConstantValueDictionary[value.type], value.value)
+
     def visitLambdaValue(self, graphValue: GHIRLambdaValue) -> HIRValue:
         lambdaType = self.translateGraphValue(graphValue.type)
         definition = self.translateGraphValue(graphValue.definition)
@@ -287,6 +458,7 @@ class HIRModuleFrontend:
         hirDefinition = HIRFunctionalDefinition(self.context, None)
         self.translatedValueDictionary[graphValue] = hirDefinition
         self.module.addGlobalValue(hirDefinition)
+        HIRFunctionalDefinitionFrontend(self).translateFunctionDefinitionInto(graphValue, hirDefinition)
         return hirDefinition
     
     def visitSimpleFunctionType(self, graphValue: GHIRSimpleFunctionType) -> HIRValue:
@@ -295,3 +467,38 @@ class HIRModuleFrontend:
         hirFunctionType.argumentTypes = list(map(self.translateGraphValue, graphValue.arguments))
         hirFunctionType.resultType = self.translateGraphValue(graphValue.resultType)
         return hirFunctionType
+    
+class HIRFunctionalDefinitionFrontend:
+    def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:
+        self.context = moduleFrontend.context
+        self.moduleFrontend = moduleFrontend
+        self.functionalDefinition: HIRFunctionalDefinition = None
+        self.localBindings = dict()
+        self.builder: HIRBuilder = None
+    
+    def translateFunctionDefinitionInto(self, graphFunctionalDefinition: GHIRFunctionalDefinitionValue, hirDefinition: HIRFunctionalDefinition):
+        self.functionalDefinition = hirDefinition
+        for graphCapture in graphFunctionalDefinition.captures:
+            capture = HIRFunctionalCaptureValue(self.context, self.moduleFrontend.translateGraphValue(graphCapture.type))
+            self.localBindings[graphCapture] = capture
+            self.functionalDefinition.captures.append(capture)
+
+        for graphArgument in graphFunctionalDefinition.arguments:
+            argument = HIRFunctionalCaptureValue(self.context, self.moduleFrontend.translateGraphValue(graphArgument.type))
+            self.localBindings[graphArgument] = argument
+            self.functionalDefinition.arguments.append(argument)
+
+        self.builder = HIRBuilder(self.context, self.functionalDefinition)
+        self.builder.beginNewBasicBlock('entry')
+
+        resultValue = self.translateGraphValue(graphFunctionalDefinition.body)
+        if not self.builder.isLastTerminator():
+            self.builder.returnValue(resultValue)
+
+    def translateGraphValue(self, graphValue: GHIRValue) -> HIRValue:
+        if graphValue in self.localBindings:
+            return self.localBindings[graphValue]
+        
+        return self.moduleFrontend.translateGraphValue(graphValue)
+
+        

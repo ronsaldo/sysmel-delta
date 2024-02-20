@@ -734,6 +734,24 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitGenericTypedValue(self, value: TypedValue):
         return self.context.getConstantValue(value)
 
+    def visitIntegerValue(self, value):
+        return self.context.getConstantValue(value)
+
+    def visitPrimitiveIntegerValue(self, value):
+        return self.context.getConstantValue(value)
+
+    def visitPrimitiveCharacterValue(self, value):
+        return self.context.getConstantValue(value)
+
+    def visitPrimitiveFloatValue(self, value):
+        return self.context.getConstantValue(value)
+
+    def visitStringValue(self, value):
+        return self.context.getConstantValue(value)
+
+    def visitSymbol(self, value):
+        return self.context.getConstantValue(value)
+
     def visitLambdaValue(self, value: LambdaValue):
         type = self.translateValue(value.getType())
         translatedValue = GHIRLambdaValue(self.context, type)
