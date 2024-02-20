@@ -367,15 +367,6 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
         return sdvm_compiler_x86_mov64RegImmU64(compiler, reg->value, sourceLocation->immediateU64);
     case SdvmCompLocationRegister:
         return sdvm_compiler_x86_mov64RegReg(compiler, reg->value, sourceLocation->firstRegister.value);
-    /*SdvmCompLocationNull = 0,
-    SdvmCompLocationImmediateLabel,
-    SdvmCompLocationConstantSection,
-    SdvmCompLocationRegisterPair,
-    SdvmCompLocationSpecificRegister,
-    SdvmCompLocationSpecificRegisterPair,
-    SdvmCompLocationStack,
-    SdvmCompLocationStackPair,
-    */
     default: abort();
     }
 }

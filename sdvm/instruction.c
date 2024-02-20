@@ -45,18 +45,18 @@ sdvm_decodedConstOrInstruction_t sdvm_instruction_decode(sdvm_constOrInstruction
     if(decoded.isConstant)
     {
         decoded.opcode = instruction & ((1<<12) - 1);
-        decoded.baseOpcode = (decoded.opcode >> 1) & ((1<<7) - 1);
-        decoded.destType = (decoded.opcode >> 8) & SDVM_TYPE_MASK;
+        decoded.baseOpcode = (decoded.opcode >> 1) & ((1<<6) - 1);
+        decoded.destType = (decoded.opcode >> 7) & SDVM_TYPE_MASK;
         decoded.constant.signedPayload = (int64_t)instruction >> 12;
         decoded.constant.unsignedPayload = (uint64_t)instruction >> 12;
     }
     else
     {
         decoded.opcode = instruction & ((1<<24) - 1);
-        decoded.baseOpcode = (decoded.opcode >> 1) & ((1<<11) - 1);
-        decoded.destType = (decoded.opcode >> 12) & SDVM_TYPE_MASK;
-        decoded.instruction.arg0Type = (decoded.opcode >> 16) & SDVM_TYPE_MASK;
-        decoded.instruction.arg1Type = (decoded.opcode >> 20) & SDVM_TYPE_MASK;
+        decoded.baseOpcode = (decoded.opcode >> 1) & ((1<<8) - 1);
+        decoded.destType = (decoded.opcode >> 9) & SDVM_TYPE_MASK;
+        decoded.instruction.arg0Type = (decoded.opcode >> 14) & SDVM_TYPE_MASK;
+        decoded.instruction.arg1Type = (decoded.opcode >> 19) & SDVM_TYPE_MASK;
         decoded.instruction.arg0 = sdvm_intruction_decodeArg(instruction >> 24);
         decoded.instruction.arg1 = sdvm_intruction_decodeArg(instruction >> 44);
         decoded.arg0IsInstruction = sdvm_instruction_typeExpectsInstruction(decoded.instruction.arg0Type);

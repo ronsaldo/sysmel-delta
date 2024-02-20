@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "common.h"
 
-#define SDVM_TYPE_BITS 4
+#define SDVM_TYPE_BITS 5
 #define SDVM_TYPE_MASK ((1<<SDVM_TYPE_BITS) - 1)
 
 typedef enum sdvm_type_e
@@ -17,8 +17,8 @@ typedef enum sdvm_type_e
 
 #define SDVM_ENCODE_OPCODE(isConstant, opcode, destinationType, arg0Type, arg1Type) \
     (isConstant \
-        ? (1 | (opcode << 1) | (destinationType << 8)) \
-        : (opcode << 1) | (destinationType << 12) | (arg0Type << 16) | (arg1Type << 20))
+        ? (1 | (opcode << 1) | (destinationType << 7)) \
+        : (opcode << 1) | (destinationType << 9) | (arg0Type << 14) | (arg1Type << 19))
 
 typedef enum sdvm_opcode_e
 {
@@ -38,10 +38,10 @@ typedef enum sdvm_opcode_e
  * Instruction and inline constants are 64 bits long. The destination index is implicit.
 
  * Constants have the following format (Least significant bit is 1):
- * Payload/52 - DestinationType/4 - Opcode/7 bits - 1/1
+ * Payload/52 - DestinationType/4 - Opcode/6 bits - 1/1
  * 
  * Instructions have the following format (Least significant bit is 0):
- * Arg1/20 - Arg0/20 - Instruction spec (Arg1Type/4 - Arg0Type/4 - DestinationType/4 - Opcode/11 - 0/1)/24
+ * Arg1/20 - Arg0/20 - Instruction spec (Arg1Type/5 - Arg0Type/5 - DestinationType/5 - Opcode/8 - 0/1)/24
  */
 typedef uint64_t sdvm_constOrInstruction_t;
 
