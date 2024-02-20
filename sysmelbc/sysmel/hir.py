@@ -78,6 +78,35 @@ class HIRTypeUniverse(HIRTypeValue):
             return 'Type'
         return 'Type@%d' % self.index
 
+class HIRCompositeType(HIRTypeValue):
+    def  __init__(self, context: HIRContext, elements: list[HIRTypeValue]) -> None:
+        super().__init__(context)
+        self.alignment = None
+        self.size = None
+        self.elements = elements
+
+    def getAlignment(self) -> int:
+        return self.alignment
+    
+    def getSize(self) -> int:
+        return self.size
+
+    def getType(self):
+        return self.context.getTypeUniverse(0)
+
+class HIRProductType(HIRCompositeType):
+    def __str__(self) -> str:
+        result = '('
+        isFirst = True
+        for element in self.elements:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += str(element)
+        result += ')'
+        return result
+
 class HIRPrimitiveType(HIRTypeValue):
     def  __init__(self, context: HIRContext, name: str, size: int, alignment: int) -> None:
         super().__init__(context)
@@ -127,7 +156,7 @@ class HIRFunctionType(HIRTypeValue):
         result = '('
         for arg in self.argumentTypes:
             result += str(arg)
-        result += '-> '
+        result += ') -> '
         result += str(self.resultType)
         return result
     
@@ -147,6 +176,15 @@ class HIRConstant(HIRValue):
 
     def getType(self):
         return self.type
+
+class HIRConstantPrimitiveFunction(HIRConstant):
+    def __init__(self, context: HIRContext, type: HIRValue, name: str, compileTimeImplementation = None) -> None:
+        super().__init__(context, type)
+        self.name = name
+        self.compileTimeImplementation = compileTimeImplementation
+
+    def __str__(self) -> str:
+        return '%s <%s>' % (str(self.type), self.name)
 
 class HIRConstantPrimitive(HIRConstant):
     pass
@@ -308,6 +346,24 @@ class HIRInstruction(HIRFunctionalLocalValue):
         self.previousInstruction: HIRInstruction = None
         self.nextInstruction: HIRInstruction = None
 
+class HIRCallInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, type: HIRValue, functional: HIRValue, arguments: list[HIRValue], name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.functional = functional
+        self.arguments = arguments
+
+    def fullPrintString(self) -> str:
+        result = '%s := call %s (' % (str(self.type), str(self.functional))
+        isFirst = True
+        for arg in self.arguments:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += str(arg)
+        result += ')'
+        return result
+    
 class HIRTerminatorInstruction(HIRInstruction):
     def __init__(self, context: HIRContext, name: str = None) -> None:
         super().__init__(context, context.unitType, name)
@@ -368,6 +424,9 @@ class HIRBuilder:
         self.basicBlock.addInstruction(instruction)
         return instruction
     
+    def call(self, resultType: HIRValue, functional: HIRValue, arguments: list[HIRValue]) -> HIRInstruction:
+        return self.addInstruction(HIRCallInstruction(self.context, resultType, functional, arguments))
+    
     def returnValue(self, value) -> HIRInstruction:
         return self.addInstruction(HIRReturnInstruction(self.context, value))
 
@@ -406,6 +465,7 @@ class HIRModuleFrontend:
         self.module = HIRModule(self.context)
         self.translatedValueDictionary = dict()
         self.translatedConstantValueDictionary = dict()
+        self.runtimeDependencyChecker = GHIRRuntimeDependencyChecker()
 
         for baseType, targetType in [
             [UnitType, self.context.unitType],
@@ -445,8 +505,15 @@ class HIRModuleFrontend:
     def visitConstantValue(self, graphValue: GHIRConstantValue) -> HIRValue:
         return self.translateConstantTypedValue(graphValue.value)
     
+    def visitPrimitiveFunction(self, value: GHIRPrimitiveFunction) -> HIRValue:
+        return HIRConstantPrimitiveFunction(self.context, self.translateGraphValue(value.type), value.name, value.compileTimeImplementation)
+    
     def visitPrimitiveIntegerValue(self, value: PrimitiveIntegerValue) -> HIRValue:
         return HIRConstantPrimitiveInteger(self.context, self.translatedConstantValueDictionary[value.type], value.value)
+
+    def visitProductType(self, value: GHIRProductType) -> HIRValue:
+        elements = list(map(self.translateGraphValue, value.elements))
+        return HIRProductType(self.context, elements)
 
     def visitLambdaValue(self, graphValue: GHIRLambdaValue) -> HIRValue:
         lambdaType = self.translateGraphValue(graphValue.type)
@@ -499,6 +566,13 @@ class HIRFunctionalDefinitionFrontend:
         if graphValue in self.localBindings:
             return self.localBindings[graphValue]
         
-        return self.moduleFrontend.translateGraphValue(graphValue)
+        if not self.moduleFrontend.runtimeDependencyChecker.checkValue(graphValue):
+            return self.moduleFrontend.translateGraphValue(graphValue)
 
-        
+        return graphValue.accept(self)
+
+    def visitApplicationValue(self, application: GHIRApplicationValue) -> HIRValue:
+        functional = self.translateGraphValue(application.functional)
+        arguments = list(map(self.translateGraphValue, application.arguments))
+        resultType = self.translateGraphValue(application.type)
+        return self.builder.call(resultType, functional, arguments)

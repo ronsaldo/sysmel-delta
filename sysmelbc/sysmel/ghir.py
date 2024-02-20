@@ -54,6 +54,66 @@ class GHIRVisitor(ABC):
     def visitPrimitiveFunction(self, value):
         pass
 
+    @abstractmethod
+    def visitCurryingFunction(self, value):
+        pass
+
+    @abstractmethod
+    def visitCurriedFunction(self, value):
+        pass
+
+    @abstractmethod
+    def visitCaptureBindingValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitArgumentBindingValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitSimpleFunctionType(self, value):
+        pass
+
+    @abstractmethod
+    def visitFunctionalDefinitionValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitLambdaValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitPiValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitSigmaValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitProductType(self, value):
+        pass
+
+    @abstractmethod
+    def visitSumType(self, value):
+        pass
+
+    @abstractmethod
+    def visitSequence(self, value):
+        pass
+
+    @abstractmethod
+    def visitMakeTupleExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitApplicationValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitModule(self, value):
+        pass
+
 class GHIRValue(ABC):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
@@ -928,3 +988,96 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def optionalSymbolToString(self, symbol: Symbol) -> str | None:
         if symbol is None: return None
         return symbol.value
+
+class GHIRRuntimeDependencyChecker(GHIRVisitor):
+    def __init__(self) -> None:
+        self.dfsState = dict()
+
+    def checkValue(self, value: GHIRValue):
+        if value in self.dfsState:
+            cacheResult = self.dfsState[value]
+            return cacheResult is not False
+
+        self.dfsState[value] = None
+        result = value.accept(self)
+        self.dfsState[value] = result
+        return result
+
+    def visitConstantValue(self, value: GHIRConstantValue):
+        return False
+
+    def visitPrimitiveFunction(self, value: GHIRPrimitiveFunction):
+        return False
+
+    def visitCurryingFunction(self, value: GHIRCurryingFunction):
+        return self.checkValue(value.innerFunction)
+
+    def visitCurriedFunction(self, value: GHIRCurriedFunction):
+        if self.checkValue(value.innerFunction):
+            return True
+        
+        for partialApplication in value.partialApplications:
+            if self.checkValue(partialApplication):
+                return True
+
+        return False
+
+    def visitCaptureBindingValue(self, value: GHIRCaptureBindingValue):
+        return True
+
+    def visitArgumentBindingValue(self, value: GHIRArgumentBindingValue):
+        return True
+
+    def visitSimpleFunctionType(self, value: GHIRSimpleFunctionType):
+        for argument in value.arguments:
+            if self.checkValue(argument):
+                return True
+        return self.checkValue(value.resultType)
+
+    def visitFunctionalDefinitionValue(self, value: GHIRFunctionalDefinitionValue):
+        return False
+
+    def visitFunctionalValue(self, value: GHIRFunctionalValue):
+        for capture in value.captures:
+            if self.checkValue(capture):
+                return True
+        return self.checkValue(value.definition)
+
+    def visitLambdaValue(self, value: GHIRLambdaValue):
+        return self.visitFunctionalValue(value)
+
+    def visitPiValue(self, value: GHIRPiValue):
+        return self.visitFunctionalValue(value)
+
+    def visitSigmaValue(self, value: GHIRSigmaValue):
+        return self.visitFunctionalValue(value)
+
+    def visitProductType(self, value: GHIRProductType):
+        for element in value.elements:
+            if self.checkValue(element):
+                return True
+        return False
+
+    def visitSumType(self, value: GHIRSumType):
+        for element in value.elements:
+            if self.checkValue(element):
+                return True
+        return False
+
+    def visitSequence(self, value: GHIRSequence):
+        for expression in value.expressions:
+            if self.checkValue(expression):
+                return True
+        return False
+
+    def visitMakeTupleExpression(self, value: GHIRMakeTupleExpression):
+        for element in value.elements:
+            if self.checkValue(element):
+                return True
+        return False
+
+    def visitApplicationValue(self, value: GHIRApplicationValue):
+        return True
+
+    def visitModule(self, value: GHIRModule):
+        assert False
