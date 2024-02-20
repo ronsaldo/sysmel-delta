@@ -270,7 +270,10 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
 
     switch (instruction->decoding.opcode)
     {
-    case SdvmInstReturnInteger:
+    case SdvmInstReturnInt8:
+    case SdvmInstReturnInt16:
+    case SdvmInstReturnInt32:
+    case SdvmInstReturnInt64:
     case SdvmInstReturnPointer:
     case SdvmInstReturnProcedureHandle:
         instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_RAX);
@@ -278,9 +281,8 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstReturnGCPointer:
         instruction->arg0Location = sdvm_compilerLocation_specificRegisterPair(sdvm_x86_RAX, sdvm_x86_RDX);
         return;
-    case SdvmInstReturnFloat:
-        instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_XMM0);
-        return;
+    case SdvmInstReturnFloat32:
+    case SdvmInstReturnFloat64:
     case SdvmInstReturnFloatVector128:
         instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_XMM0);
         return;
@@ -325,11 +327,15 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
 
     switch(instruction->decoding.opcode)
     {
-    case SdvmInstReturnInteger:
+    case SdvmInstReturnInt8:
+    case SdvmInstReturnInt16:
+    case SdvmInstReturnInt32:
+    case SdvmInstReturnInt64:
     case SdvmInstReturnPointer:
     case SdvmInstReturnProcedureHandle:
     case SdvmInstReturnGCPointer:
-    case SdvmInstReturnFloat:
+    case SdvmInstReturnFloat32:
+    case SdvmInstReturnFloat64:
     case SdvmInstReturnFloatVector128:
     case SdvmInstReturnIntegerVector128:
     case SdvmInstReturnFloatVector256:

@@ -9,7 +9,7 @@ class SDVMModuleFrontEnd:
     def compileGHIRModule(self, ghirModule: GHIRModule) -> SDVMModule:
         self.module.finishBuilding()
         entryPointFunction = self.module.newFunction()
-        entryPointFunction.inst(SdvmInstReturnInteger, entryPointFunction.constInt32(0))
+        entryPointFunction.inst(SdvmInstReturnInt32, entryPointFunction.constInt32(0))
         self.module.entryPoint = entryPointFunction.index
         self.module.finishBuilding()
         return self.module

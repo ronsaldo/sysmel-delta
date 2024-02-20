@@ -194,6 +194,12 @@ class SDVMFunction:
     def inst(self, definition: SdvmInstructionDef, arg0: SDVMOperand | None = None, arg1: SDVMOperand | None = None) -> SDVMInlineConstant:
         return self.addInstruction(SDVMInstruction(definition, arg0, arg1))
 
+    def constInt8(self, value: int) -> SDVMInlineConstant:
+        return self.const(SdvmConstInt8, value, value)
+
+    def constInt16(self, value: int) -> SDVMInlineConstant:
+        return self.const(SdvmConstInt16, value, value)
+
     def constInt32(self, value: int) -> SDVMInlineConstant:
         return self.const(SdvmConstInt32, value, value)
 

@@ -435,6 +435,39 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_registerPair(sdvm_compile
     return location;
 }
 
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegister(uint8_t size)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegister,
+        .firstRegister = {
+            .kind = SdvmCompRegisterKindInteger,
+            .isPending = true,
+            .size = size
+        }
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegisterPair(uint8_t firstSize, uint8_t secondSize)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegister,
+        .firstRegister = {
+            .kind = SdvmCompRegisterKindInteger,
+            .isPending = true,
+            .size = firstSize
+        },
+        .secondRegister = {
+            .kind = SdvmCompRegisterKindInteger,
+            .isPending = true,
+            .size = secondSize
+        },
+    };
+
+    return location;
+}
+
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegister(sdvm_compilerRegister_t reg)
 {
     sdvm_compilerLocation_t location = {
@@ -456,32 +489,64 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm
     return location;
 }
 
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_type_t type)
+{
+    switch(type)
+    {
+    case SdvmTypeVoid:
+    case SdvmTypeInfo:
+        return sdvm_compilerLocation_null();
+
+    case SdvmTypeInt8:
+        return sdvm_compilerLocation_integerRegister(1);
+    case SdvmTypeInt16:
+        return sdvm_compilerLocation_integerRegister(2);
+    case SdvmTypeInt32:
+        return sdvm_compilerLocation_integerRegister(4);
+    case SdvmTypeInt64:
+        return sdvm_compilerLocation_integerRegister(8);
+
+    case SdvmTypePointer:
+    case SdvmTypeProcedureHandle:
+    case SdvmTypeLabel:
+        return sdvm_compilerLocation_integerRegister(compiler->pointerSize);
+
+    case SdvmTypeGCPointer:
+        return sdvm_compilerLocation_integerRegisterPair(compiler->pointerSize, compiler->pointerSize);
+
+    default:
+        abort();
+    }
+}
+
 void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
+    sdvm_compiler_t *compiler = state->compiler;
+
     if(instruction->decoding.isConstant)
     {
         switch(instruction->decoding.opcode)
         {
         case SdvmConstInt32:
-            instruction->location = sdvm_compilerLocation_constSectionS32(state->compiler, instruction->decoding.constant.signedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionS32(compiler, instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64SExt:
-            instruction->location = sdvm_compilerLocation_constSectionS64(state->compiler, instruction->decoding.constant.signedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionS64(compiler, instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64ZExt:
-            instruction->location = sdvm_compilerLocation_constSectionU64(state->compiler, instruction->decoding.constant.unsignedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionU64(compiler, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstInt64ConstSection:
-            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(state->compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstPointerSExt:
-            instruction->location = sdvm_compilerLocation_constSectionSignedPointer(state->compiler, instruction->decoding.constant.signedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionSignedPointer(compiler, instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstPointerZExt:
-            instruction->location = sdvm_compilerLocation_constSectionUnsignedPointer(state->compiler, instruction->decoding.constant.unsignedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionUnsignedPointer(compiler, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstPointerConstSection:
-            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(state->compiler, state->module, state->compiler->pointerSize, instruction->decoding.constant.unsignedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, compiler->pointerSize, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstGCPointerNull:
             instruction->location = sdvm_compilerLocation_null();
@@ -490,13 +555,13 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             {
                 float value = 0;
                 memcpy(&value, &instruction->decoding.constant.unsignedPayload, 4);
-                instruction->location = sdvm_compilerLocation_constSectionF32(state->compiler, value);
+                instruction->location = sdvm_compilerLocation_constSectionF32(compiler, value);
             }
             break;
         case SdvmConstFloat64Small32:
             abort();
         case SdvmConstFloat64ConstSection:
-            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(state->compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstLabel:
             abort();
@@ -506,6 +571,14 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
 
         return;
     }
+
+    if(instruction->decoding.arg0IsInstruction)
+        instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg0Type);
+
+    if(instruction->decoding.arg1IsInstruction)
+        instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg1Type);
+
+    instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.destType);
 }
 
 static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_functionTableEntry_t *functionTableEntry)
