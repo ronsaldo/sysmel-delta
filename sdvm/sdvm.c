@@ -59,7 +59,7 @@ int main(int argc, const char *argv[])
 
     //sdvm_module_dump(module);
 
-    sdvm_compiler_t *compiler = sdvm_compiler_create();
+    sdvm_compiler_t *compiler = sdvm_compiler_create(module->header->pointerSize);
     bool compilationSucceeded = sdvm_compiler_compileModule(compiler, module);
     sdvm_module_destroy(module);
 

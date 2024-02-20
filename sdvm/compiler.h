@@ -37,14 +37,51 @@ typedef enum sdvm_compilerSymbolBinding_e
     SdvmCompSymbolBindingDllExport,
 } sdvm_compilerSymbolBinding_t;
 
+typedef enum sdvm_compilerRelocationKind_e
+{
+    SdvmCompRelocationNull = 0,
+    SdvmCompRelocationAbsolute8,
+    SdvmCompRelocationAbsolute16,
+    SdvmCompRelocationAbsolute32,
+    SdvmCompRelocationAbsolute64,
+    SdvmCompRelocationRelative8,
+    SdvmCompRelocationRelative16,
+    SdvmCompRelocationRelative32,
+    SdvmCompRelocationRelative64,
+} sdvm_compilerRelocationKind_t;
+
+typedef enum sdvm_compilerLocationKind_e
+{
+    SdvmCompLocationNull = 0,
+    SdvmCompLocationImmediateS32,
+    SdvmCompLocationImmediateU32,
+    SdvmCompLocationImmediateS64,
+    SdvmCompLocationImmediateU64,
+    SdvmCompLocationImmediateF32,
+    SdvmCompLocationImmediateF64,
+    SdvmCompLocationImmediateLabel,
+    SdvmCompLocationConstantSection,
+    SdvmCompLocationRegister,
+    SdvmCompLocationRegisterPair,
+    SdvmCompLocationStack,
+    SdvmCompLocationStackPair,
+} sdvm_compilerLocationKind_t;
+
+typedef enum sdvm_compilerRegisterKind_e
+{
+    SdvmCompRegisterKindInteger = 0,
+    SdvmCompRegisterKindVectorFloat,
+    SdvmCompRegisterKindVectorInteger,
+} sdvm_compilerRegisterKind_t;
+
 typedef struct sdvm_compilerSymbol_s
 {
     uint32_t name;
     uint32_t section;
     uint32_t objectSymbolIndex;
 
-    uint8_t kind;
-    uint8_t binding;
+    sdvm_compilerSymbolKind_t kind;
+    sdvm_compilerSymbolBinding_t binding;
     uint8_t flags;
     uint8_t reserved;
 
@@ -56,6 +93,8 @@ typedef uint32_t sdvm_compilerSymbolHandle_t;
 
 typedef struct sdvm_compilerRelocation_s
 {
+    sdvm_compilerRelocationKind_t kind;
+
     uint32_t symbol;
     uint32_t offset;
     int64_t addend;
@@ -82,6 +121,7 @@ typedef struct sdvm_compilerSymbolTable_s
 
 typedef struct sdvm_compiler_s
 {
+    uint32_t pointerSize;
     sdvm_compilerSymbolTable_t symbolTable;
 
     union {
@@ -95,7 +135,6 @@ typedef struct sdvm_compiler_s
         sdvm_compilerObjectSection_t sections[SDVM_COMPILER_SECTION_COUNT];
     };
 } sdvm_compiler_t;
-
 
 typedef struct sdvm_compilerObjectFile_s
 {
@@ -118,11 +157,49 @@ typedef struct sdvm_compilerLiveInterval_s
     uint32_t lastUsage;
 } sdvm_compilerLiveInterval_t;
 
+typedef struct sdvm_compilerRegister_s
+{
+    sdvm_compilerRegisterKind_t kind;
+    uint8_t isPending : 1;
+    uint8_t size;
+    uint8_t value;
+} sdvm_compilerRegister_t;
+
+typedef struct sdvm_compilerLocation_s
+{
+    sdvm_compilerLocationKind_t kind;
+    union {
+        int32_t immediateS32;
+        int64_t immediateS64;
+        uint32_t immediateU32;
+        uint64_t immediateU64;
+        float immediateF32;
+        double immediateF64;
+        int64_t constantSectionOffset;
+
+        struct {
+            sdvm_compilerRegister_t firstRegister;
+            sdvm_compilerRegister_t secondRegister;
+        };
+
+        struct {
+            int32_t firstStackOffset;
+            int32_t secondStackOffset;
+        };
+    };
+} sdvm_compilerLocation_t;
+
 typedef struct sdvm_compilerInstruction_s
 {
     int32_t index;
     sdvm_decodedConstOrInstruction_t decoding;
     sdvm_compilerLiveInterval_t liveInterval;
+
+    sdvm_compilerLocation_t location;
+    sdvm_compilerLocation_t destinationLocation;
+    sdvm_compilerLocation_t arg0Location;
+    sdvm_compilerLocation_t arg1Location;
+    sdvm_compilerLocation_t scratchLocations;
 } sdvm_compilerInstruction_t;
 
 typedef struct sdvm_functionCompilationState_s
@@ -152,7 +229,7 @@ SDVM_API void sdvm_compilerSymbolTable_setSymbolSize(sdvm_compilerSymbolTable_t 
 SDVM_API void sdvm_compilerObjectSection_initialize(sdvm_compilerObjectSection_t *section);
 SDVM_API void sdvm_compilerObjectSection_destroy(sdvm_compilerObjectSection_t *section);
 
-SDVM_API sdvm_compiler_t *sdvm_compiler_create(void);
+SDVM_API sdvm_compiler_t *sdvm_compiler_create(uint32_t pointerSize);
 SDVM_API void sdvm_compiler_destroy(sdvm_compiler_t *compiler);
 
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);
@@ -160,9 +237,30 @@ SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t 
 
 SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval);
 
+SDVM_API void sdvm_compilerLocation_print(sdvm_compilerLocation_t *location);
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_null(void);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateS32(int32_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateU32(uint32_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int32_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateU64(uint32_t value);
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS32(sdvm_compiler_t *compiler, int32_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionU32(sdvm_compiler_t *compiler, uint32_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS64(sdvm_compiler_t *compiler, int64_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionU64(sdvm_compiler_t *compiler, uint64_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF32(sdvm_compiler_t *compiler, float value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF64(sdvm_compiler_t *compiler, double value);
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_register(sdvm_compilerRegister_t reg);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_registerPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegister(sdvm_compilerRegister_t reg);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister);
+
 SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state);
+SDVM_API void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction);
 
 SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
 SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);

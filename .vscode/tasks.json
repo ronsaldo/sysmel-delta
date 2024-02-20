@@ -7,7 +7,13 @@
             "label": "Build",
             "type": "shell",
             "command": "./build.sh",
-            "group": "build"
+            "problemMatcher": [],
+            "group": "build",
+            "presentation": {
+                "echo": false,
+                "showReuseMessage": false,
+                "clear": true
+            }
         }
     ]
 }

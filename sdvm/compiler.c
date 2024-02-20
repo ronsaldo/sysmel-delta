@@ -3,6 +3,7 @@
 #include "assert.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *state);
 
@@ -82,9 +83,11 @@ void sdvm_compilerObjectSection_destroy(sdvm_compilerObjectSection_t *section)
     sdvm_dynarray_destroy(&section->relocations);
 }
 
-sdvm_compiler_t *sdvm_compiler_create(void)
+sdvm_compiler_t *sdvm_compiler_create(uint32_t pointerSize)
 {
     sdvm_compiler_t *compiler = calloc(1, sizeof(sdvm_compiler_t));
+    compiler->pointerSize = pointerSize;
+
     sdvm_compilerSymbolTable_initialize(&compiler->symbolTable);
 
     sdvm_compilerObjectSection_initialize(&compiler->textSection);
@@ -189,6 +192,51 @@ void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilation
     }
 }
 
+void sdvm_compilerLocation_print(sdvm_compilerLocation_t *location)
+{
+    switch(location->kind)
+    {
+    case SdvmCompLocationNull:
+        printf("null");
+        return;
+    case SdvmCompLocationImmediateS32:
+        printf("imm-s32 %d", location->immediateS32);
+        return;
+    case SdvmCompLocationImmediateU32:
+        printf("imm-u32 %u", location->immediateS32);
+        return;
+    case SdvmCompLocationImmediateS64:
+        printf("imm-s64 %lld", (long long)location->immediateS64);
+        return;
+    case SdvmCompLocationImmediateU64:
+        printf("imm-u64 %llu", (unsigned long long)location->immediateU64);
+        return;
+    case SdvmCompLocationImmediateF32:
+        printf("imm-f32 %f", location->immediateF32);
+        return;
+    case SdvmCompLocationImmediateF64:
+        printf("imm-f64 %f", location->immediateF32);
+        return;
+    case SdvmCompLocationImmediateLabel:
+        printf("imm-label <>");
+        return;
+    case SdvmCompLocationConstantSection:
+        printf("const-sec %lld", (long long)location->constantSectionOffset);
+        return;
+    case SdvmCompLocationRegister:
+        printf("reg %d", location->firstRegister.value);
+        return;
+    case SdvmCompLocationRegisterPair:
+        printf("reg %d:%d", location->firstRegister.value, location->secondRegister.value);
+        return;
+    case SdvmCompLocationStack:
+        printf("stack %d", location->firstStackOffset);
+        return;
+    case SdvmCompLocationStackPair:
+        printf("stack %d:%d", location->firstStackOffset, location->secondStackOffset);
+        return;
+    }
+}
 void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
 {
     for(uint32_t i = 0; i < state->instructionCount; ++i)
@@ -198,15 +246,26 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
         // Is this a constant?
         if(instruction->decoding.isConstant)
         {
-            printf("    $%d : %s := %s(%lld)", i, sdvm_instruction_typeToString(instruction->decoding.destType), sdvm_instruction_fullOpcodeToString(instruction->decoding.opcode), (long long)instruction->decoding.constant.signedPayload);
+            printf("    $%d : %s @ ", i, sdvm_instruction_typeToString(instruction->decoding.destType));
+            sdvm_compilerLocation_print(&instruction->location);
+            printf(" := %s(%lld)", sdvm_instruction_fullOpcodeToString(instruction->decoding.opcode), (long long)instruction->decoding.constant.signedPayload);
         }
         else
         {
-            printf("    $%d : %s := %s(%d : %s, %d : %s)",
-                i, sdvm_instruction_typeToString(instruction->decoding.destType),
+            printf("    $%d : %s @ ", i, sdvm_instruction_typeToString(instruction->decoding.destType));
+            sdvm_compilerLocation_print(&instruction->location);
+
+            printf(" := %s(%d : %s @ ",
                 sdvm_instruction_fullOpcodeToString(instruction->decoding.opcode),
-                instruction->decoding.instruction.arg0, sdvm_instruction_typeToString(instruction->decoding.instruction.arg0Type),
+                instruction->decoding.instruction.arg0, sdvm_instruction_typeToString(instruction->decoding.instruction.arg0Type));
+            sdvm_compilerLocation_print(&instruction->arg0Location);
+
+            printf(", %d : %s @ ",
                 instruction->decoding.instruction.arg1, sdvm_instruction_typeToString(instruction->decoding.instruction.arg1Type));
+            sdvm_compilerLocation_print(&instruction->arg1Location);
+
+            printf(") @ ");
+            sdvm_compilerLocation_print(&instruction->destinationLocation);
         }
 
         if(sdvm_compilerLiveInterval_hasUsage(&instruction->liveInterval))
@@ -215,6 +274,237 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
             printf(" unused");
         
         printf("\n");
+    }
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_null(void)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationNull,
+    };
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_immediateS32(int32_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationImmediateS32,
+        .immediateS32 = value
+    };
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_immediateU32(uint32_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationImmediateU32,
+        .immediateS32 = value
+    };
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int32_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationImmediateS32,
+        .immediateS32 = value
+    };
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_immediateU64(uint32_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationImmediateU32,
+        .immediateS32 = value
+    };
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS32(sdvm_compiler_t *compiler, int32_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationConstantSection,
+        .constantSectionOffset = compiler->rodataSection.contents.size
+    };
+
+    sdvm_dynarray_addAll(&compiler->rodataSection.contents, 4, &value);
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionU32(sdvm_compiler_t *compiler, uint32_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationConstantSection,
+        .constantSectionOffset = compiler->rodataSection.contents.size
+    };
+
+    sdvm_dynarray_addAll(&compiler->rodataSection.contents, 4, &value);
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS64(sdvm_compiler_t *compiler, int64_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationConstantSection,
+        .constantSectionOffset = compiler->rodataSection.contents.size
+    };
+
+    sdvm_dynarray_addAll(&compiler->rodataSection.contents, 8, &value);
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionU64(sdvm_compiler_t *compiler, uint64_t value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationConstantSection,
+        .constantSectionOffset = compiler->rodataSection.contents.size
+    };
+
+    sdvm_dynarray_addAll(&compiler->rodataSection.contents, 8, &value);
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionSignedPointer(sdvm_compiler_t *compiler, int64_t value)
+{
+    if(compiler->pointerSize == 4)
+        return sdvm_compilerLocation_constSectionS32(compiler, (int32_t)value);
+    else
+        return sdvm_compilerLocation_constSectionS64(compiler, value);
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionUnsignedPointer(sdvm_compiler_t *compiler, int64_t value)
+{
+    if(compiler->pointerSize == 4)
+        return sdvm_compilerLocation_constSectionU32(compiler, (uint32_t)value);
+    else
+        return sdvm_compilerLocation_constSectionU64(compiler, value);
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF32(sdvm_compiler_t *compiler, float value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationConstantSection,
+        .constantSectionOffset = compiler->rodataSection.contents.size
+    };
+
+    sdvm_dynarray_addAll(&compiler->rodataSection.contents, 4, &value);
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF64(sdvm_compiler_t *compiler, double value)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationConstantSection,
+        .constantSectionOffset = compiler->rodataSection.contents.size
+    };
+
+    sdvm_dynarray_addAll(&compiler->rodataSection.contents, 8, &value);
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_constSectionWithModuleData(sdvm_compiler_t *compiler, sdvm_module_t *module, size_t size, size_t offset)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationConstantSection,
+        .constantSectionOffset = compiler->rodataSection.contents.size
+    };
+
+    sdvm_dynarray_addAll(&compiler->rodataSection.contents, size, module->constSectionData + offset);
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_register(sdvm_compilerRegister_t reg)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegister,
+        .firstRegister = reg
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_registerPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegister,
+        .firstRegister = firstRegister,
+        .secondRegister = secondRegister,
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegister(sdvm_compilerRegister_t reg)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegister,
+        .firstRegister = reg
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegister,
+        .firstRegister = firstRegister,
+        .secondRegister = secondRegister,
+    };
+
+    return location;
+}
+
+void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
+{
+    if(instruction->decoding.isConstant)
+    {
+        switch(instruction->decoding.opcode)
+        {
+        case SdvmConstInt32:
+            instruction->location = sdvm_compilerLocation_constSectionS32(state->compiler, instruction->decoding.constant.signedPayload);
+            break;
+        case SdvmConstInt64SExt:
+            instruction->location = sdvm_compilerLocation_constSectionS64(state->compiler, instruction->decoding.constant.signedPayload);
+            break;
+        case SdvmConstInt64ZExt:
+            instruction->location = sdvm_compilerLocation_constSectionU64(state->compiler, instruction->decoding.constant.unsignedPayload);
+            break;
+        case SdvmConstInt64ConstSection:
+            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(state->compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
+            break;
+        case SdvmConstPointerSExt:
+            instruction->location = sdvm_compilerLocation_constSectionSignedPointer(state->compiler, instruction->decoding.constant.signedPayload);
+            break;
+        case SdvmConstPointerZExt:
+            instruction->location = sdvm_compilerLocation_constSectionUnsignedPointer(state->compiler, instruction->decoding.constant.unsignedPayload);
+            break;
+        case SdvmConstPointerConstSection:
+            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(state->compiler, state->module, state->compiler->pointerSize, instruction->decoding.constant.unsignedPayload);
+            break;
+        case SdvmConstGCPointerNull:
+            instruction->location = sdvm_compilerLocation_null();
+            break;
+        case SdvmConstFloat32:
+            {
+                float value = 0;
+                memcpy(&value, &instruction->decoding.constant.unsignedPayload, 4);
+                instruction->location = sdvm_compilerLocation_constSectionF32(state->compiler, value);
+            }
+            break;
+        case SdvmConstFloat64Small32:
+            abort();
+        case SdvmConstFloat64ConstSection:
+            instruction->location = sdvm_compilerLocation_constSectionWithModuleData(state->compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
+            break;
+        case SdvmConstLabel:
+            abort();
+        default:
+            abort();
+        }
+
+        return;
     }
 }
 
