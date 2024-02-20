@@ -25,9 +25,13 @@ for arg in sys.argv[1:]:
     evalResult = ASTEvaluator(FunctionalActivationEnvironment()).evaluate(typechecked)
     print(evalResult.prettyPrint())
 
-# Compile the HIR module.
+# Compile the Graph HIR module.
 ghirModule = GHIRModuleFrontend().compileModule(module)
 print(ghirModule.prettyPrint())
+
+# Compile the HIR module.
+hirModule = HIRModuleFrontend().compileGraphModule(ghirModule)
+print(hirModule.prettyPrint())
 
 # Compile the sdvm module
 sdvmModule = SDVMModuleFrontEnd().compileGHIRModule(ghirModule)

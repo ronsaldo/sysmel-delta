@@ -6,6 +6,8 @@ from .parser import parseFileNamed
 from .typechecker import *
 from .eval import *
 from .ghir import *
+from .hir import *
+from .mir import *
 from .sdvmInstructionTypes import *
 from .sdvmInstructions import *
 from .sdvmModule import *

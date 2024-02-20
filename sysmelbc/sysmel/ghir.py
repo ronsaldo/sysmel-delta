@@ -45,6 +45,15 @@ class GHIRContext:
         self.sumTypes[hashKey] = sumType
         return sumType
 
+class GHIRVisitor(ABC):
+    @abstractmethod
+    def visitConstantValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitPrimitiveFunction(self, value):
+        pass
+
 class GHIRValue(ABC):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
@@ -52,6 +61,10 @@ class GHIRValue(ABC):
 
     def getName(self) -> str | None:
         return None
+
+    @abstractmethod
+    def accept(self, visitor: GHIRVisitor):
+        pass
 
     @abstractmethod
     def getType(self):
@@ -155,6 +168,9 @@ class GHIRConstantValue(GHIRValue):
         self.value = value
         self.type = None
 
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitConstantValue(self)
+
     def getType(self) -> GHIRValue:
         if self.type is None:
             self.type = self.context.getConstantValue(self.value.getType())
@@ -182,6 +198,9 @@ class GHIRPrimitiveFunction(GHIRValue):
         self.compileTimeImplementation = compileTimeImplementation
         self.registerInUsedValues()
 
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitPrimitiveFunction(self)
+
     def getType(self) -> GHIRValue:
         return self.type
 
@@ -206,6 +225,9 @@ class GHIRCurryingFunction(GHIRValue):
         self.type = type
         self.innerFunction = innerFunction
         self.registerInUsedValues()
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitCurryingFunction(self)
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -236,6 +258,9 @@ class GHIRCurriedFunction(GHIRValue):
         self.innerFunction = innerFunction
         self.partialApplications = partialApplications
         self.registerInUsedValues()
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitCurriedFunction(self)
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -290,10 +315,16 @@ class GHIRLocalBindingValue(GHIRValue):
             replacement.registerUserValue(self)
                                                                     
 class GHIRCaptureBindingValue(GHIRLocalBindingValue):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitCaptureBindingValue(self)
+
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := capture %s' % (valueName, graphPrinter.printValue(self.type)))
 
 class GHIRArgumentBindingValue(GHIRLocalBindingValue):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitArgumentBindingValue(self)
+
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := argument %s' % (valueName, graphPrinter.printValue(self.type)))
 
@@ -303,6 +334,9 @@ class GHIRSimpleFunctionType(GHIRValue):
         self.type = type
         self.arguments = arguments
         self.resultType = resultType
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitSimpleFunctionType(self)
 
     def getType(self) -> GHIRValue:
         return None
@@ -340,7 +374,10 @@ class GHIRFunctionalDefinitionValue(GHIRValue):
         self.captures = captures
         self.arguments = arguments
         self.body = body
-        
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitFunctionalDefinitionValue(self)
+
     def isFunctionalDefinition(self) -> bool:
         return True
 
@@ -427,10 +464,16 @@ class GHIRFunctionalValue(GHIRValue):
         self.captures = self.replacedUsedValueInListWith(self.captures, usedValue, replacement)
 
 class GHIRLambdaValue(GHIRFunctionalValue):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitLambdaValue(self)
+
     def getFunctionalValueKindName(self) -> str:
         return 'lambda'
 
 class GHIRPiValue(GHIRFunctionalValue):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitPiValue(self)
+
     def getFunctionalValueKindName(self) -> str:
         return 'pi'
     
@@ -443,6 +486,9 @@ class GHIRPiValue(GHIRFunctionalValue):
         return super().simplify()
 
 class GHIRSigmaValue(GHIRFunctionalValue):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitSigmaValue(self)
+
     def getFunctionalValueKindName(self) -> str:
         return 'sigma'
 
@@ -459,6 +505,9 @@ class GHIRProductType(GHIRValue):
         super().__init__(context)
         self.type = type
         self.elements = elements
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitProductType(self)
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -490,6 +539,9 @@ class GHIRSumType(GHIRValue):
         self.type = type
         self.elements = elements
 
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitSumType(self)
+
     def getType(self) -> GHIRValue:
         return self.type
 
@@ -519,6 +571,9 @@ class GHIRSequence(GHIRValue):
         super().__init__(context)
         self.type = type
         self.expressions = expressions
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitSequence(self)
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -550,6 +605,9 @@ class GHIRMakeTupleExpression(GHIRValue):
         self.type = type
         self.elements = elements
 
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitMakeTupleExpression(self)
+
     def getType(self) -> GHIRValue:
         return self.type
 
@@ -580,6 +638,9 @@ class GHIRApplicationValue(GHIRValue):
         self.type = type
         self.functional = functional
         self.arguments = arguments
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitApplicationValue(self)
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -627,6 +688,9 @@ class GHIRModule(GHIRValue):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
         self.entryPoint: GHIRValue = None
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitModule(self)
 
     def getType(self) -> GHIRValue:
         return None
