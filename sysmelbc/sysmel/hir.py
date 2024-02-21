@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from .ghir import *
 
 class HIRContext:
-    def __init__(self, pointerSize = 8) -> None:
+    def __init__(self, pointerSize: int = 8) -> None:
         self.typeUniverses = dict()
         self.pointerSize = pointerSize
         self.pointerAlignment = pointerSize
@@ -34,13 +34,79 @@ class HIRContext:
             self.typeUniverses[index] = HIRTypeUniverse(self, index)
         return self.typeUniverses[index]
 
+class HIRValueVisitor(ABC):
+    @abstractmethod
+    def visitPrimitiveType(self, value):
+        pass
+
+    @abstractmethod
+    def visitFunctionType(self, value):
+        pass
+
+    @abstractmethod
+    def visitConstantPrimitiveFunction(self, value):
+        pass
+
+    @abstractmethod
+    def visitConstantPrimitiveInteger(self, value):
+        pass
+
+    @abstractmethod
+    def visitConstantPrimitiveFloat(self, value):
+        pass
+
+    @abstractmethod
+    def visitFunctionalDefinitionValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitFunctionalCaptureValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitFunctionalArgumentValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitBasicBlock(self, value):
+        pass
+
+    @abstractmethod
+    def visitCallInstruction(self, value):
+        pass
+
+    @abstractmethod
+    def visitReturnInstruction(self, value):
+        pass
+
+    @abstractmethod
+    def visitConstantLambda(self, value):
+        pass
+
+    @abstractmethod
+    def visitModule(self, value):
+        pass
+
 class HIRValue(ABC):
     def __init__(self, context: HIRContext) -> None:
         self.context = context
 
     @abstractmethod
+    def accept(self, visitor: HIRValueVisitor):
+        pass
+
+    @abstractmethod
     def getType(self):
         pass
+
+    def isConstantPrimitiveFunction(self) -> bool:
+        return False
+
+    def isConstantLambda(self) -> bool:
+        return False
+
+    def isFunctionalLocalValue(self) -> bool:
+        return False
 
     def isTerminatorInstruction(self) -> bool:
         return False
@@ -115,6 +181,9 @@ class HIRPrimitiveType(HIRTypeValue):
         self.size = size
         self.alignment = alignment
 
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitPrimitiveType(self)
+
     def getAlignment(self) -> int:
         return self.alignment
     
@@ -156,6 +225,9 @@ class HIRFunctionType(HIRTypeValue):
         self.argumentTypes = []
         self.resultType: HIRValue = None
 
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitFunctionType(self)
+
     def __str__(self) -> str:
         result = '('
         isFirst = True
@@ -192,6 +264,12 @@ class HIRConstantPrimitiveFunction(HIRConstant):
         self.name = name
         self.compileTimeImplementation = compileTimeImplementation
 
+    def isConstantPrimitiveFunction(self) -> bool:
+        return True
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitConstantPrimitiveFunction(self)
+
     def __str__(self) -> str:
         return '%s <%s>' % (str(self.type), self.name)
 
@@ -203,6 +281,9 @@ class HIRConstantPrimitiveInteger(HIRConstantPrimitive):
         super().__init__(context, type)
         self.value = value
 
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitConstantPrimitiveInteger(self)
+
     def __str__(self) -> str:
         return '%s(%d)' % (str(self.type), self.value)
 
@@ -211,6 +292,9 @@ class HIRConstantPrimitiveFloat(HIRConstantPrimitive):
         super().__init__(context, type)
         self.value = value
 
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitConstantPrimitiveFloat(self)
+
     def __str__(self) -> str:
         return '%s(%f)' % (str(self.type), self.value)
     
@@ -218,12 +302,12 @@ class HIRGlobalValue(HIRConstant):
     def __init__(self, context: HIRContext, type: HIRValue) -> None:
         super().__init__(context, type)
         self.name = None
-        self.globalIndex = 0
+        self.globalValueIndex = 0
 
     def __str__(self) -> str:
         if self.name is not None:
-            return '@%s|%d' % (self.name, self.globalIndex)
-        return '@%d' % self.globalIndex
+            return '@%s|%d' % (self.name, self.globalValueIndex)
+        return '@%d' % self.globalValueIndex
     
     def fullPrintString(self) -> str:
         return str(self)
@@ -235,6 +319,9 @@ class HIRFunctionalDefinition(HIRGlobalValue):
         self.arguments = []
         self.firstBasicBlock: HIRBasicBlock = None
         self.lastBasicBlock: HIRBasicBlock = None
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitFunctionalDefinitionValue(self)
 
     def addBasicBlock(self, basicBlock):
         if self.lastBasicBlock is None:
@@ -265,6 +352,24 @@ class HIRFunctionalDefinition(HIRGlobalValue):
         while position is not None:
             yield position
             position = position.nextBasicBlock
+
+    def basicBlocksInReversePostOrder(self):
+        visitedSet = set()
+        visitedList = []
+
+        def visit(basicBlock: HIRBasicBlock):
+            if basicBlock in visitedSet:
+                return
+            
+            visitedSet.add(basicBlock)
+            for successor in basicBlock.successorBlocks():
+                visit(successor)
+            visitedList.append(basicBlock)
+
+        for basicBlock in self.basicBlocks():
+            visit(basicBlock)
+
+        return list(reversed(visitedList))
 
     def fullPrintString(self) -> str:
         self.enumerateLocalValues()
@@ -301,6 +406,9 @@ class HIRFunctionalLocalValue(HIRValue):
         self.name: str = name
         self.type = type
         self.localValueIndex = 0
+
+    def isFunctionalLocalValue(self) -> bool:
+        return True
     
     def getType(self):
         return self.type
@@ -311,10 +419,16 @@ class HIRFunctionalLocalValue(HIRValue):
         return '$%d' % self.localValueIndex
 
 class HIRFunctionalCaptureValue(HIRFunctionalLocalValue):
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitFunctionalCaptureValue(self)
+    
     def fullPrintString(self) -> str:
         return '%s : %s' % (str(self), str(self.type)) 
 
 class HIRFunctionalArgumentValue(HIRFunctionalLocalValue):
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitFunctionalArgumentValue(self)
+
     def fullPrintString(self) -> str:
         return '%s : %s' % (str(self), str(self.type)) 
 
@@ -325,6 +439,9 @@ class HIRBasicBlock(HIRFunctionalLocalValue):
         self.nextBasicBlock: HIRBasicBlock = None
         self.firstInstruction: HIRInstruction = None
         self.lastInstruction: HIRInstruction = None
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitBasicBlock(self)
 
     def addInstruction(self, instruction):
         if self.lastInstruction is None:
@@ -348,6 +465,11 @@ class HIRBasicBlock(HIRFunctionalLocalValue):
             result += instruction.fullPrintString()
             result += '\n'
         return result
+    
+    def successorBlocks(self):
+        if self.lastInstruction is None:
+            return []
+        return self.lastInstruction.successorBlocks()
 
 class HIRInstruction(HIRFunctionalLocalValue):
     def __init__(self, context: HIRContext, type: HIRValue, name: str = None) -> None:
@@ -355,11 +477,17 @@ class HIRInstruction(HIRFunctionalLocalValue):
         self.previousInstruction: HIRInstruction = None
         self.nextInstruction: HIRInstruction = None
 
+    def successorBlocks(self) -> list[HIRBasicBlock]:
+        return []
+
 class HIRCallInstruction(HIRInstruction):
     def __init__(self, context: HIRContext, type: HIRValue, functional: HIRValue, arguments: list[HIRValue], name: str = None) -> None:
         super().__init__(context, type, name)
         self.functional = functional
         self.arguments = arguments
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitCallInstruction(self)
 
     def fullPrintString(self) -> str:
         result = '%s := call %s (' % (str(self.type), str(self.functional))
@@ -385,6 +513,9 @@ class HIRReturnInstruction(HIRTerminatorInstruction):
         super().__init__(context)
         self.result = result
 
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitReturnInstruction(self)
+
     def fullPrintString(self) -> str:
         return 'return %s' % str(self.result)
 
@@ -393,6 +524,12 @@ class HIRConstantLambda(HIRConstant):
         super().__init__(context, type)
         self.captures = captures
         self.definition = definition
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitConstantLambda(self)
+
+    def isConstantLambda(self) -> bool:
+        return True
 
     def __str__(self) -> str:
         result = 'lambda '
@@ -445,6 +582,9 @@ class HIRModule(HIRValue):
         self.entryPoint: HIRValue = None
         self.globalValues: list[HIRGlobalValue] = []
 
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitModule(self)
+
     def getType(self):
         return None
     
@@ -454,7 +594,7 @@ class HIRModule(HIRValue):
     def enumerateGlobalValues(self):
         index = 0
         for globalValue in self.globalValues:
-            globalValue.globalIndex = index
+            globalValue.globalValueIndex = index
             index += 1
 
     def prettyPrint(self) -> str:
@@ -463,6 +603,9 @@ class HIRModule(HIRValue):
         result = ''
         if self.entryPoint is not None:
             result += 'entryPoint: %s\n' % str(self.entryPoint)
+
+        if len(result) != 0:
+            result += '\n'
 
         for globalValue in self.globalValues:
             result += globalValue.fullPrintString()
@@ -477,16 +620,16 @@ class HIRModuleFrontend:
         self.runtimeDependencyChecker = GHIRRuntimeDependencyChecker()
 
         for baseType, targetType in [
-            [UnitType, self.context.unitType],
-            [Int8Type, self.context.int8Type],
-            [Int16Type, self.context.int16Type],
-            [Int32Type, self.context.int32Type],
-            [Int64Type, self.context.int64Type],
-            [Float32Type, self.context.float32Type],
-            [Float64Type, self.context.float64Type],
-            [FalseType, self.context.booleanType],
-            [TrueType, self.context.booleanType],
-            [BooleanType, self.context.booleanType],
+            (UnitType, self.context.unitType),
+            (Int8Type, self.context.int8Type),
+            (Int16Type, self.context.int16Type),
+            (Int32Type, self.context.int32Type),
+            (Int64Type, self.context.int64Type),
+            (Float32Type, self.context.float32Type),
+            (Float64Type, self.context.float64Type),
+            (FalseType, self.context.booleanType),
+            (TrueType, self.context.booleanType),
+            (BooleanType, self.context.booleanType),
         ]:
             self.translatedConstantValueDictionary[baseType] = targetType
 
@@ -560,7 +703,7 @@ class HIRFunctionalDefinitionFrontend:
             self.functionalDefinition.captures.append(capture)
 
         for graphArgument in graphFunctionalDefinition.arguments:
-            argument = HIRFunctionalCaptureValue(self.context, self.moduleFrontend.translateGraphValue(graphArgument.type))
+            argument = HIRFunctionalArgumentValue(self.context, self.moduleFrontend.translateGraphValue(graphArgument.type), graphArgument.name)
             self.localBindings[graphArgument] = argument
             self.functionalDefinition.arguments.append(argument)
 

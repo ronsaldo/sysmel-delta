@@ -1,4 +1,4 @@
-from .ghir import *
+from .mir import *
 from .sdvmInstructions import *
 from .sdvmModule import *
 
@@ -6,7 +6,7 @@ class SDVMModuleFrontEnd:
     def __init__(self) -> None:
         self.module = SDVMModule()
 
-    def compileGHIRModule(self, ghirModule: GHIRModule) -> SDVMModule:
+    def compileMIRModule(self, mirModule: MIRModule) -> SDVMModule:
         self.module.finishBuilding()
         entryPointFunction = self.module.newFunction()
         entryPointFunction.inst(SdvmInstReturnInt32, entryPointFunction.constInt32(0))

@@ -27,14 +27,33 @@ for arg in sys.argv[1:]:
 
 # Compile the Graph HIR module.
 ghirModule = GHIRModuleFrontend().compileModule(module)
+print('-'*60)
+print('GHIR:')
+print('-'*60)
 print(ghirModule.prettyPrint())
 
 # Compile the HIR module.
 hirModule = HIRModuleFrontend().compileGraphModule(ghirModule)
+
+print('-'*60)
+print('HIR:')
+print('-'*60)
 print(hirModule.prettyPrint())
 
-# Compile the sdvm module
-sdvmModule = SDVMModuleFrontEnd().compileGHIRModule(ghirModule)
+# Compile the MIR module.
+mirModule = MIRModuleFrontend().compileHIRModule(hirModule)
+
+print('-'*60)
+print('MIR:')
+print('-'*60)
+print(mirModule.prettyPrint())
+
+# Compile the SDVM module
+sdvmModule = SDVMModuleFrontEnd().compileMIRModule(mirModule)
+
+print('-'*60)
+print('SDVM:')
+print('-'*60)
 print(sdvmModule.prettyPrint())
 sdvmModule.saveToFileNamed("test.sdvm")
 
