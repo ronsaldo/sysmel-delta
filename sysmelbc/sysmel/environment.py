@@ -402,12 +402,8 @@ def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePo
         return makeFunctionTypeFromTo(signature[0], (makeSimpleFunctionType(signature[1:], sourcePosition)), sourcePosition)
 
 def makeUncurriedFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
-    assert len(signature) >= 2
-    if len(signature) == 2:
-        return makeFunctionTypeFromTo(signature[0], signature[1], sourcePosition)
-    else:
-        argumentTupleType = ProductType.makeWithElementTypes(signature[:-1])
-        return makeFunctionTypeFromTo(argumentTupleType, signature[1], sourcePosition)
+    assert len(signature) >= 1
+    return UncurriedSimpleFunctionType(signature[:-1], signature[-1])
 
 def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False, previousArgumentTypes: list[TypedValue] = []):
     assert len(signature) >= 2

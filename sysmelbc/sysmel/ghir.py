@@ -151,6 +151,9 @@ class GHIRValue(ABC):
 
     def isCaptureless(self) -> bool:
         return True
+    
+    def isProductType(self) -> bool:
+        return False
 
     def hasArgumentDependency(self) -> bool:
         return False
@@ -572,6 +575,9 @@ class GHIRProductType(GHIRValue):
     def getType(self) -> GHIRValue:
         return self.type
 
+    def isProductType(self) -> bool:
+        return True
+
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         type = graphPrinter.printValue(self.type)
         elementList = ''
@@ -852,6 +858,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateValue(value.getType())
         elementTypes = list(map(self.translateValue, value.elementTypes))
         return self.context.getProductType(type, elementTypes)
+    
+    def visitUncurriedSimpleFunctionType(self, value: UncurriedSimpleFunctionType):
+        type = self.translateValue(value.getType())
+        argumentTypes = list(map(self.translateValue, value.argumentTypes))
+        resultType = self.translateValue(value.resultType)
+        return self.context.getSimpleFunctionType(type, argumentTypes, resultType)
 
     def visitRecordType(self, value):
         assert False

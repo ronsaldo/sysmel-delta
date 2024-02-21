@@ -27,6 +27,7 @@ class HIRContext:
         self.float32Type = HIRPrimitiveFloatType(self, 'Float32', 4, 4)
         self.float64Type = HIRPrimitiveFloatType(self, 'Float64', 8, 8)
         self.basicBlockType = HIRBasicBlockType(self, 'BasicBlock', pointerSize, pointerSize)
+        self.functionalDefinitionType = HIRFunctionalDefinitionType(self, 'FunctionalDefinition', pointerSize, pointerSize)
 
     def getTypeUniverse(self, index):
         if index not in self.typeUniverses:
@@ -135,6 +136,9 @@ class HIRUnitType(HIRPrimitiveType):
 class HIRBasicBlockType(HIRPrimitiveType):
     pass
 
+class HIRFunctionalDefinitionType(HIRPrimitiveType):
+    pass
+
 class HIRPrimitiveBooleanType(HIRPrimitiveType):
     pass
 
@@ -154,7 +158,12 @@ class HIRFunctionType(HIRTypeValue):
 
     def __str__(self) -> str:
         result = '('
+        isFirst = True
         for arg in self.argumentTypes:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
             result += str(arg)
         result += ') -> '
         result += str(self.resultType)
@@ -220,8 +229,8 @@ class HIRGlobalValue(HIRConstant):
         return str(self)
 
 class HIRFunctionalDefinition(HIRGlobalValue):
-    def __init__(self, context: HIRContext, type: HIRValue) -> None:
-        super().__init__(context, type)
+    def __init__(self, context: HIRContext) -> None:
+        super().__init__(context, context.functionalDefinitionType)
         self.captures = []
         self.arguments = []
         self.firstBasicBlock: HIRBasicBlock = None
@@ -522,7 +531,7 @@ class HIRModuleFrontend:
         return HIRConstantLambda(self.context, lambdaType, captures, definition)
 
     def visitFunctionalDefinitionValue(self, graphValue: GHIRFunctionalDefinitionValue) -> HIRValue:
-        hirDefinition = HIRFunctionalDefinition(self.context, None)
+        hirDefinition = HIRFunctionalDefinition(self.context)
         self.translatedValueDictionary[graphValue] = hirDefinition
         self.module.addGlobalValue(hirDefinition)
         HIRFunctionalDefinitionFrontend(self).translateFunctionDefinitionInto(graphValue, hirDefinition)
