@@ -20,6 +20,14 @@ typedef enum sdvm_type_e
         ? (1 | (opcode << 1) | (destinationType << 7)) \
         : (opcode << 1) | (destinationType << 9) | (arg0Type << 14) | (arg1Type << 19))
 
+#define SDVM_ALU_INSTRUCTION_DEF_(type, opcode) \
+    SDVM_INSTRUCTION_DEF(type ## opcode,  opcode, type, type, type, #type " " #opcode)
+#define SDVM_ALU_INSTRUCTION_DEF(type, opcode) SDVM_ALU_INSTRUCTION_DEF_(type, opcode)
+
+#define SDVM_COMP_INSTRUCTION_DEF_(type, opcode) \
+    SDVM_INSTRUCTION_DEF(type ## opcode,  opcode, Boolean, type, type, #type " " #opcode)
+#define SDVM_COMP_INSTRUCTION_DEF(type, opcode) SDVM_COMP_INSTRUCTION_DEF_(type, opcode)
+
 typedef enum sdvm_opcode_e
 {
 #define SDVM_CONSTANT_DEF(name, opcode, type, description) \

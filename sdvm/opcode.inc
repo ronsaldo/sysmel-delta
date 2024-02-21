@@ -131,23 +131,42 @@ SDVM_INSTRUCTION_DEF(JumpIfTrue, JumpIfTrue, Void, Boolean, Label, "Jump if true
 SDVM_INSTRUCTION_DEF(JumpIfFalse, JumpIfFalse, Void, Boolean, Label, "Jump if false")
 
 // Arithmetic instructions.
-SDVM_INSTRUCTION_DEF(Int32Add, Add, Int32, Int32, Int32, "Int32 addition")
-SDVM_INSTRUCTION_DEF(Int32Sub, Sub, Int32, Int32, Int32, "Int32 subtraction")
-SDVM_INSTRUCTION_DEF(Int32Mul, Mul, Int32, Int32, Int32, "Int32 multiplication")
-SDVM_INSTRUCTION_DEF(Int32Div, Div, Int32, Int32, Int32, "Int32 signed division")
-SDVM_INSTRUCTION_DEF(Int32UDiv, UDiv, Int32, Int32, Int32, "Int32 unsigned division")
-SDVM_INSTRUCTION_DEF(Int32Rem, Rem, Int32, Int32, Int32, "Int32 remainder")
+#define IntegerType Int8
+#include "integerOpcodes.inc"
+#undef IntegerType
 
-SDVM_INSTRUCTION_DEF(Int32And, And, Int32, Int32, Int32, "Int32 bitwise and")
-SDVM_INSTRUCTION_DEF(Int32Or, Or, Int32, Int32, Int32, "Int32 bitwise or")
-SDVM_INSTRUCTION_DEF(Int32Xor, Xor, Int32, Int32, Int32, "Int32 bitwise xor")
-SDVM_INSTRUCTION_DEF(Int32Lsl, Lsl, Int32, Int32, Int32, "Int32 logical shift left")
-SDVM_INSTRUCTION_DEF(Int32Lsr, Lsr, Int32, Int32, Int32, "Int32 logical shift right")
-SDVM_INSTRUCTION_DEF(Int32Asr, Asr, Int32, Int32, Int32, "Int32 arithmetic shit right")
+#define IntegerType Int16
+#include "integerOpcodes.inc"
+#undef IntegerType
 
-SDVM_INSTRUCTION_DEF(Int32Equals, Equals, Int32, Int32, Int32, "Int32 equals")
-SDVM_INSTRUCTION_DEF(Int32NotEquals, NotEquals, Int32, Int32, Int32, "Int32 not equals")
-SDVM_INSTRUCTION_DEF(Int32LessThan, LessThan, Int32, Int32, Int32, "Int32 less than")
-SDVM_INSTRUCTION_DEF(Int32LessOrEquals, LessOrEquals, Int32, Int32, Int32, "Int32 less or equals")
-SDVM_INSTRUCTION_DEF(Int32GreaterThan, GreaterThan, Int32, Int32, Int32, "Int32 greater than")
-SDVM_INSTRUCTION_DEF(Int32GreaterOrEquals, GreaterOrEquals, Int32, Int32, Int32, "Int32 greater or equals")
+#define IntegerType Int32
+#include "integerOpcodes.inc"
+#undef IntegerType
+
+#define IntegerType Int64
+#include "integerOpcodes.inc"
+#undef IntegerType
+
+#define IntegerType UInt8
+#include "integerOpcodes.inc"
+#undef IntegerType
+
+#define IntegerType UInt16
+#include "integerOpcodes.inc"
+#undef IntegerType
+
+#define IntegerType UInt32
+#include "integerOpcodes.inc"
+#undef IntegerType
+
+#define IntegerType UInt64
+#include "integerOpcodes.inc"
+#undef IntegerType
+
+#define FloatType Float32
+#include "floatOpcodes.inc"
+#undef FloatType
+
+#define FloatType Float64
+#include "floatOpcodes.inc"
+#undef FloatType

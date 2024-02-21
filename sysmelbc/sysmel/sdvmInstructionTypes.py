@@ -28,6 +28,8 @@ class SdvmInstructionDef:
         self.arg1Type = arg1Type
         self.description = description
 
+SdvmInstructionDictionary = {}
+
 def sdvmTypeDef(name: str, code: int):
     return SdvmTypeDef(name, code)
 
@@ -38,4 +40,6 @@ def sdvmOpcodeDef(name: str, opcode: int, description: str):
     return SdvmOpcodeDef(name, opcode, description)
 
 def sdvmInstructionDef(name: str, opcode: int, type: SdvmTypeDef, arg0Type: SdvmTypeDef, arg1Type: SdvmTypeDef, description: str):
-    return SdvmInstructionDef(name, opcode, type, arg0Type, arg1Type, description)
+    instDef = SdvmInstructionDef(name, opcode, type, arg0Type, arg1Type, description)
+    SdvmInstructionDictionary[name] = instDef
+    return instDef
