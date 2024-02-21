@@ -113,7 +113,7 @@ typedef struct sdvm_compilerObjectSection_s
     sdvm_dynarray_t relocations;
 } sdvm_compilerObjectSection_t;
 
-typedef struct sdvm_label_s
+typedef struct sdvm_compilerLabel_s
 {
     sdvm_compilerObjectSection_t *section;
     int64_t value;

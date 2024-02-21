@@ -89,6 +89,7 @@ sdvm_compiler_t *sdvm_compiler_create(uint32_t pointerSize)
     compiler->pointerSize = pointerSize;
 
     sdvm_compilerSymbolTable_initialize(&compiler->symbolTable);
+    sdvm_dynarray_initialize(&compiler->labels, sizeof(sdvm_compilerLabel_t), 512);
 
     sdvm_compilerObjectSection_initialize(&compiler->textSection);
     compiler->textSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 1);
@@ -117,6 +118,7 @@ sdvm_compiler_t *sdvm_compiler_create(uint32_t pointerSize)
 void sdvm_compiler_destroy(sdvm_compiler_t *compiler)
 {
     sdvm_compilerSymbolTable_destroy(&compiler->symbolTable);
+    sdvm_dynarray_destroy(&compiler->labels);
 
     sdvm_compilerObjectSection_destroy(&compiler->textSection);
     sdvm_compilerObjectSection_destroy(&compiler->rodataSection);
