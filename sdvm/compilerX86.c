@@ -10,6 +10,16 @@
 #include "x86Regs.inc"
 #undef SDVM_X86_REG_DEF
 
+static const sdvm_compilerRegister_t *sdvm_x64_sysv_integerPassingRegisters[] = {
+    &sdvm_x86_RDI,
+    &sdvm_x86_RSI,
+    &sdvm_x86_RDX,
+    &sdvm_x86_RCX,
+    &sdvm_x86_R8,
+    &sdvm_x86_R9,
+};
+static const uint32_t sdvm_x64_sysv_integerPassingRegisterCount = sizeof(sdvm_x64_sysv_integerPassingRegisters) / sizeof(sdvm_x64_sysv_integerPassingRegisters[0]);
+
 uint8_t sdvm_compiler_x86_modRM(int8_t rm, uint8_t regOpcode, uint8_t mod)
 {
     return (rm & SDVM_X86_REG_HALF_MASK) | ((regOpcode & SDVM_X86_REG_HALF_MASK) << 3) | (mod << 6);
@@ -180,7 +190,7 @@ void sdvm_compiler_x86_mov32RegImm32(sdvm_compiler_t *compiler, sdvm_x86_registe
     sdvm_compiler_addInstructionBytes(compiler, sizeof(instruction), instruction);
 }
 
-void sdvm_compiler_x86_mov32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+void sdvm_compiler_x86_mov32RegReg_noOpt(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
 {
     sdvm_compiler_x86_rex(compiler, false, destination > SDVM_X86_REG_HALF_MASK, false, source > SDVM_X86_REG_HALF_MASK);
 
@@ -192,20 +202,62 @@ void sdvm_compiler_x86_mov32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerI
     sdvm_compiler_addInstructionBytes(compiler, sizeof(instruction), instruction);
 }
 
+void sdvm_compiler_x86_mov32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    if(destination != source)
+        sdvm_compiler_x86_mov32RegReg_noOpt(compiler, destination, source);
+}
+
+void sdvm_compiler_x86_alu32RmReg(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_rex(compiler, false, source > SDVM_X86_REG_HALF_MASK, false, destination > SDVM_X86_REG_HALF_MASK);
+
+    uint8_t instruction[] = {
+        opcode,
+        sdvm_compiler_x86_modRMRegister(destination, source)
+    };
+
+    sdvm_compiler_addInstructionBytes(compiler, sizeof(instruction), instruction);
+}
+
+
+void sdvm_compiler_x86_alu32RmImm32(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, uint8_t regOpcode, uint32_t value)
+{
+    sdvm_compiler_x86_rex(compiler, false, false, false, destination > SDVM_X86_REG_HALF_MASK);
+
+    uint8_t instruction[] = {
+        opcode,
+        sdvm_compiler_x86_modRMRegister(destination, regOpcode),
+        value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF, (value >> 24) & 0xFF,
+    };
+
+    sdvm_compiler_addInstructionBytes(compiler, sizeof(instruction), instruction);
+}
+
+void sdvm_compiler_x86_add32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu32RmReg(compiler, 0x01, destination, source);
+}
+
+void sdvm_compiler_x86_sub32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu32RmReg(compiler, 0x29, destination, source);
+}
+
+void sdvm_compiler_x86_add32RegImm32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu32RmImm32(compiler, 0x81, destination, 0, value);
+}
+
 void sdvm_compiler_x86_sub32RegImm32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value)
 {
     if(value == 0)
         return;
 
-    sdvm_compiler_x86_rex(compiler, false, false, false, destination > SDVM_X86_REG_HALF_MASK);
-
-    uint8_t instruction[] = {
-        0x81,
-        sdvm_compiler_x86_modRMRegister(destination, 5),
-        value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF, (value >> 24) & 0xFF,
-    };
-
-    sdvm_compiler_addInstructionBytes(compiler, sizeof(instruction), instruction);
+    sdvm_compiler_x86_alu32RmImm32(compiler, 0x81, destination, 5, value);
 }
 
 void sdvm_compiler_x86_xor32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
@@ -270,6 +322,36 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
 
     switch (instruction->decoding.opcode)
     {
+    case SdvmInstArgInt8:
+    case SdvmInstArgInt16:
+    case SdvmInstArgInt32:
+    case SdvmInstArgInt64:
+    case SdvmInstArgPointer:
+    case SdvmInstArgProcedureHandle:
+        if(state->usedArgumentIntegerRegisterCount < sdvm_x64_sysv_integerPassingRegisterCount)
+        {
+            instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*sdvm_x64_sysv_integerPassingRegisters[state->usedArgumentIntegerRegisterCount++]);
+        }
+        else
+        {
+            // TODO: Support passing parameters through the stack
+            abort();
+        }
+        return;
+    
+    case SdvmInstArgGCPointer:
+        if(state->usedArgumentIntegerRegisterCount + 1 < sdvm_x64_sysv_integerPassingRegisterCount)
+        {
+            instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*sdvm_x64_sysv_integerPassingRegisters[state->usedArgumentIntegerRegisterCount], *sdvm_x64_sysv_integerPassingRegisters[state->usedArgumentIntegerRegisterCount + 1]);
+            state->usedArgumentIntegerRegisterCount += 2;
+        }
+        else
+        {
+            // TODO: Support passing parameters through the stack
+            abort();
+        }
+        return;
+
     case SdvmInstReturnInt8:
     case SdvmInstReturnInt16:
     case SdvmInstReturnInt32:
@@ -325,8 +407,23 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
 {
     sdvm_compiler_t *compiler = state->compiler;
 
+    sdvm_compilerLocation_t *dest = &instruction->destinationLocation;
+    sdvm_compilerLocation_t *arg0 = &instruction->arg0Location;
+    sdvm_compilerLocation_t *arg1 = &instruction->arg1Location;
+
     switch(instruction->decoding.opcode)
     {
+    case SdvmInstBeginArguments:
+    case SdvmInstArgInt8:
+    case SdvmInstArgInt16:
+    case SdvmInstArgInt32:
+    case SdvmInstArgInt64:
+    case SdvmInstArgUInt8:
+    case SdvmInstArgUInt16:
+    case SdvmInstArgUInt32:
+    case SdvmInstArgUInt64:
+        return true;
+
     case SdvmInstReturnInt8:
     case SdvmInstReturnInt16:
     case SdvmInstReturnInt32:
@@ -343,6 +440,17 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         sdvm_compiler_x64_emitFunctionEpilogue(state);
         sdvm_compiler_x86_ret(compiler);
         return false;
+
+    case SdvmInstInt32Add:
+    case SdvmInstUInt32Add:
+        sdvm_compiler_x86_mov32RegReg(compiler, dest->firstRegister.value, arg0->firstRegister.value);
+        sdvm_compiler_x86_add32RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt32Sub:
+    case SdvmInstUInt32Sub:
+        sdvm_compiler_x86_mov32RegReg(compiler, dest->firstRegister.value, arg0->firstRegister.value);
+        sdvm_compiler_x86_sub32RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
     default:
         abort();
     }

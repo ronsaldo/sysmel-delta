@@ -80,7 +80,9 @@ class SDVMFunctionFrontEnd:
         self.translateBasicBlocksOf(mirFunction)
 
     def translateArgument(self, mirArgument: MIRArgument):
-        pass
+        argumentInstruction = self.function.addArgumentInstruction(SDVMInstruction(self.moduleFrontend.argumentInstructionDictionary[mirArgument.type]))
+        self.translatedValueDictionary[mirArgument] = argumentInstruction
+        return argumentInstruction
 
     def translateCapture(self, mirCapture: MIRArgument):
         pass
@@ -123,6 +125,18 @@ class SDVMFunctionFrontEnd:
     
     def visitConstantInteger(self, instruction: MIRConstantInteger) -> SDVMOperand:
         return self.moduleFrontend.constantTranslationFunctions[instruction.getType()](self.function, instruction.value)
+
+    def visitNullaryPrimitiveInstruction(self, instruction: MIRNullaryPrimitiveInstruction) -> SDVMOperand:
+        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef))
+
+    def visitUnaryPrimitiveInstruction(self, instruction: MIRUnaryPrimitiveInstruction) -> SDVMOperand:
+        operand = self.translateValue(instruction.operand)
+        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, operand))
+
+    def visitBinaryPrimitiveInstruction(self, instruction: MIRBinaryPrimitiveInstruction) -> SDVMOperand:
+        left = self.translateValue(instruction.left)
+        right = self.translateValue(instruction.right)
+        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, left, right))
 
     def visitReturnInstruction(self, instruction: MIRReturnInstruction) -> SDVMOperand:
         result = self.translateValue(instruction.result)

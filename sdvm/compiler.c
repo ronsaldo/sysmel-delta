@@ -603,6 +603,13 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         return;
     }
 
+    if(instruction->decoding.opcode == SdvmOpBeginArguments)
+    {
+        state->argumentCount = instruction->decoding.instruction.arg0;
+        state->usedArgumentIntegerRegisterCount = 0;
+        state->usedArgumentVectorRegisterCount = 0;
+    }
+
     if(instruction->decoding.arg0IsInstruction)
         instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg0Type);
 

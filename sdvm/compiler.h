@@ -216,6 +216,10 @@ typedef struct sdvm_functionCompilationState_s
     sdvm_module_t *module;
     sdvm_moduleCompilationState_t *moduleState;
 
+    uint32_t argumentCount;
+    uint32_t usedArgumentIntegerRegisterCount;
+    uint32_t usedArgumentVectorRegisterCount;
+
     sdvm_constOrInstruction_t *sourceInstructions;
     uint32_t instructionCount;
     sdvm_compilerInstruction_t *instructions;

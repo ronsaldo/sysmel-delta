@@ -204,12 +204,12 @@ class SDVMFunction:
     def beginArguments(self, argumentCount: int) -> SDVMInstruction | None:
         if argumentCount == 0:
             return
-        return self.addArgumentInstruction(SDVMInstruction(SdvmInstBeginArguments, argumentCount))
+        return self.addArgumentInstruction(SDVMInstruction(SdvmInstBeginArguments, argumentCount, 0))
 
     def beginCaptures(self, captureCount: int) -> SDVMInstruction | None:
         if captureCount == 0:
             return
-        ##return self.addArgumentInstruction(SDVMInstruction(SdvmInstBeginCaptures, argumentCount))
+        return self.addCaptureInstruction(SDVMInstruction(SdvmInstBeginCaptures, captureCount))
 
     def const(self, definition: SdvmConstantDef, value: int = 0, payload: int = 0) -> SDVMInlineConstant:
         return self.addInlineConstant(SDVMInlineConstant(definition, value, payload))
