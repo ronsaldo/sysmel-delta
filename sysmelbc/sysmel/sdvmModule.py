@@ -30,8 +30,8 @@ class SDVMModule:
         self.entryPoint = 0
         self.entryPointClosure = 0
 
-    def newFunction(self):
-        function = SDVMFunction(self)
+    def newFunction(self, name: str = None):
+        function = SDVMFunction(self, name)
         self.functionTable.addFunction(function)
         return function
 
@@ -165,15 +165,20 @@ class SDVMInstruction(SDVMOperand):
     def encodeArgument(self, arg) -> int:
         if arg is None:
             return 0
+        if isinstance(arg, int):
+            return arg & ((1<<20) - 1)
         return arg.index & ((1<<20) - 1)
 
     def encode(self) -> int:
         return struct.pack('<Q', self.definition.opcode | (self.encodeArgument(self.arg0) << 24) | (self.encodeArgument(self.arg1) << 44))
 
 class SDVMFunction:
-    def __init__(self, module: SDVMModule) -> None:
+    def __init__(self, module: SDVMModule, name: str = None) -> None:
         self.module = module
+        self.name = name
         self.constants = []
+        self.argumentInstructions = []
+        self.captureInstructions = []
         self.instructions = []
         self.textSectionOffset = 0
         self.textSectionSize = 0
@@ -184,15 +189,39 @@ class SDVMFunction:
         self.constants.append(constant)
         return constant
 
+    def addArgumentInstruction(self, instruction: SDVMInstruction) -> SDVMInlineConstant:
+        self.argumentInstructions.append(instruction)
+        return instruction
+
+    def addCaptureInstruction(self, instruction: SDVMInstruction) -> SDVMInlineConstant:
+        self.captureInstructions.append(instruction)
+        return instruction
+
     def addInstruction(self, instruction: SDVMInstruction) -> SDVMInlineConstant:
         self.instructions.append(instruction)
         return instruction
+    
+    def beginArguments(self, argumentCount: int) -> SDVMInstruction | None:
+        if argumentCount == 0:
+            return
+        return self.addArgumentInstruction(SDVMInstruction(SdvmInstBeginArguments, argumentCount))
+
+    def beginCaptures(self, captureCount: int) -> SDVMInstruction | None:
+        if captureCount == 0:
+            return
+        ##return self.addArgumentInstruction(SDVMInstruction(SdvmInstBeginCaptures, argumentCount))
 
     def const(self, definition: SdvmConstantDef, value: int = 0, payload: int = 0) -> SDVMInlineConstant:
         return self.addInlineConstant(SDVMInlineConstant(definition, value, payload))
 
     def inst(self, definition: SdvmInstructionDef, arg0: SDVMOperand | None = None, arg1: SDVMOperand | None = None) -> SDVMInlineConstant:
         return self.addInstruction(SDVMInstruction(definition, arg0, arg1))
+
+    def constBoolean(self, value: bool) -> SDVMInlineConstant:
+        if value:
+            return self.const(SdvmConstBoolean, 1, value)
+        else:
+            return self.const(SdvmConstBoolean, 0, value)
 
     def constInt8(self, value: int) -> SDVMInlineConstant:
         return self.const(SdvmConstInt8, value, value)
@@ -203,6 +232,29 @@ class SDVMFunction:
     def constInt32(self, value: int) -> SDVMInlineConstant:
         return self.const(SdvmConstInt32, value, value)
 
+    def constInt64(self, value: int) -> SDVMInlineConstant:
+        ## FIXME: Check the payload range
+        return self.const(SdvmConstInt64SExt, value, value)
+
+    def constUInt8(self, value: int) -> SDVMInlineConstant:
+        return self.const(SdvmConstUInt8, value, value)
+
+    def constUInt16(self, value: int) -> SDVMInlineConstant:
+        return self.const(SdvmConstUInt16, value, value)
+
+    def constUInt32(self, value: int) -> SDVMInlineConstant:
+        return self.const(SdvmConstUInt32, value, value)
+
+    def constUInt64(self, value: int) -> SDVMInlineConstant:
+        ## FIXME: Check the payload range
+        return self.const(SdvmConstUInt64ZExt, value, value)
+
+    def constFloat32(self, value: float) -> SDVMInlineConstant:
+        assert False
+
+    def constFloat64(self, value: float) -> SDVMInlineConstant:
+        assert False
+
     def finishBuilding(self):
         if self.isFinished:
             return
@@ -210,30 +262,38 @@ class SDVMFunction:
         self.textSectionOffset, self.textSectionSize = self.module.textSection.appendData(self.encodeInstructions())
         self.isFinished = True
 
+    def __str__(self) -> str:
+        if self.name is not None:
+            return '@%s|%d' % (self.name, self.index)
+        return '@%d' % self.index
+
     def prettyPrint(self):
         self.enumerateInstructions()
-        result = '%d:\n' % self.index
-        for constant in self.constants:
-            result += '    %s\n' % constant.prettyPrint()
-        for instruction in self.instructions:
+        result = '%s:\n' % str(self)
+        for instruction in self.allInstructions():
             result += '    %s\n' % instruction.prettyPrint()
         return result
     
+    def allInstructions(self):
+        for instruction in self.constants:
+            yield instruction
+        for instruction in self.argumentInstructions:
+            yield instruction
+        for instruction in self.captureInstructions:
+            yield instruction
+        for instruction in self.instructions:
+            yield instruction
+    
     def enumerateInstructions(self):
-        constantCount = len(self.constants)
-        for i in range(constantCount):
-            self.constants[i].index = i
-
-        instructionCount = len(self.instructions)
-        for i in range(instructionCount):
-            self.instructions[i].index = constantCount + i
+        index = 0
+        for instruction in self.allInstructions():
+            instruction.index = index
+            index += 1
 
     def encodeInstructions(self):
         self.enumerateInstructions()
         encodedInstructions = bytearray()
-        for constant in self.constants:
-            encodedInstructions += constant.encode()
-        for instruction in self.instructions:
+        for instruction in self.allInstructions():
             encodedInstructions += instruction.encode()
         return encodedInstructions
 

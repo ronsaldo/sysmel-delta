@@ -113,6 +113,12 @@ typedef struct sdvm_compilerObjectSection_s
     sdvm_dynarray_t relocations;
 } sdvm_compilerObjectSection_t;
 
+typedef struct sdvm_label_s
+{
+    sdvm_compilerObjectSection_t *section;
+    int64_t value;
+} sdvm_compilerLabel_t;
+
 typedef struct sdvm_compilerSymbolTable_s
 {
     sdvm_dynarray_t strings;
@@ -123,6 +129,7 @@ typedef struct sdvm_compiler_s
 {
     uint32_t pointerSize;
     sdvm_compilerSymbolTable_t symbolTable;
+    sdvm_dynarray_t labels;
 
     union {
         struct {
@@ -173,6 +180,7 @@ typedef struct sdvm_compilerLocation_s
         int64_t immediateS64;
         uint32_t immediateU32;
         uint64_t immediateU64;
+        uint32_t immediateLabel;
         float immediateF32;
         double immediateF64;
         int64_t constantSectionOffset;
@@ -240,6 +248,7 @@ SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *in
 SDVM_API void sdvm_compilerLocation_print(sdvm_compilerLocation_t *location);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_null(void);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateLabel(uint32_t value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateS32(int32_t value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateU32(uint32_t value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int32_t value);
@@ -263,6 +272,10 @@ SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCo
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction);
+
+SDVM_API uint32_t sdvm_compiler_makeLabel(sdvm_compiler_t *compiler);
+SDVM_API void sdvm_compiler_setLabelValue(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section, int64_t value);
+SDVM_API void sdvm_compiler_setLabelAtSectionEnd(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section);
 
 SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
 SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);

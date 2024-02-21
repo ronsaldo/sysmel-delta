@@ -454,7 +454,12 @@ void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *
 {
     if(instruction->decoding.isConstant)
     {
-        // TODO: emit the label, if this is a label.
+        // Emit the label, if this is a label.
+        if(instruction->decoding.opcode == SdvmConstLabel)
+        {
+            sdvm_compiler_setLabelAtSectionEnd(state->compiler, instruction->location.immediateLabel, &state->compiler->textSection);
+        }
+
         return;
     }
 

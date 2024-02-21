@@ -277,10 +277,40 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
     }
 }
 
+uint32_t sdvm_compiler_makeLabel(sdvm_compiler_t *compiler)
+{
+    sdvm_compilerLabel_t label = {0};
+    uint32_t labelIndex = 0;
+    sdvm_dynarray_add(&compiler->labels, &label);
+    return labelIndex;
+}
+
+void sdvm_compiler_setLabelValue(sdvm_compiler_t *compiler, uint32_t labelIndex, sdvm_compilerObjectSection_t *section, int64_t value)
+{
+    SDVM_ASSERT(labelIndex < compiler->labels.size);
+    sdvm_compilerLabel_t *label = (sdvm_compilerLabel_t *)compiler->labels.data + labelIndex;
+    label->section = section;
+    label->value = value;
+}
+
+void sdvm_compiler_setLabelAtSectionEnd(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section)
+{
+    sdvm_compiler_setLabelValue(compiler, label, section, section->contents.size);
+}
+
 sdvm_compilerLocation_t sdvm_compilerLocation_null(void)
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationNull,
+    };
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerLocation_immediateLabel(uint32_t label)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationImmediateLabel,
+        .immediateLabel = label
     };
     return location;
 }
@@ -564,7 +594,8 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstLabel:
-            abort();
+            instruction->location = sdvm_compilerLocation_immediateLabel(sdvm_compiler_makeLabel(compiler));
+            break;
         default:
             abort();
         }

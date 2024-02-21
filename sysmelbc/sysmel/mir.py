@@ -9,7 +9,8 @@ class MIRContext:
         self.basicBlockType = MIRBasicBlockType(self, 'BasicBlock', pointerSize, pointerSize)
         self.gcPointerType = MIRGCPointerType(self, 'GCPointer', pointerSize, pointerSize)
         self.pointerType = MIRPointerType(self, 'Pointer', pointerSize, pointerSize)
-        self.voidType = MIRVoidType(self, 'Boolean', 0, 1)
+        self.voidType = MIRVoidType(self, 'Void', 0, 1)
+        self.void = MIRConstantVoid(self, self.voidType)
         self.booleanType = MIRBooleanType(self, 'Boolean', 1, 1)
         self.int8Type   = MIRSignedIntegerType(self, 'Int8', 1, 1)
         self.int16Type  = MIRSignedIntegerType(self, 'Int16', 2, 2)
@@ -29,11 +30,15 @@ class MIRType(ABC):
         self.size = size
         self.alignment = alignment
 
+    def isVoidType(self) -> bool:
+        return False
+
     def __str__(self) -> str:
         return self.name
 
 class MIRVoidType(MIRType):
-    pass
+    def isVoidType(self) -> bool:
+        return True
 
 class MIRBooleanType(MIRType):
     pass
@@ -61,6 +66,22 @@ class MIRPointerType(MIRType):
 
 class MIRValueVisitor(ABC):
     @abstractmethod
+    def visitConstantInteger(self, value):
+        pass
+
+    @abstractmethod
+    def visitConstantFloat(self, value):
+        pass
+
+    @abstractmethod
+    def visitGlobalVariable(self, value):
+        pass
+
+    @abstractmethod
+    def visitFunction(self, value):
+        pass
+
+    @abstractmethod
     def visitCallInstruction(self, value):
         pass
 
@@ -76,10 +97,26 @@ class MIRValue(ABC):
     def getType(self) -> MIRType:
         pass
 
-class MIRConstant(MIRValue):
-    pass
+    def isConstant(self) -> bool:
+        return False
 
-class MIRConstantValue(MIRValue):
+    def isFunctionLocalValue(self) -> bool:
+        return False
+
+    def isInstruction(self) -> bool:
+        return False
+
+    def hasVoidType(self) -> bool:
+        return self.getType().isVoidType()
+
+    def hasNotVoidType(self) -> bool:
+        return not self.getType().isVoidType()
+
+class MIRConstant(MIRValue):
+    def isConstant(self) -> bool:
+        return True
+
+class MIRConstantValue(MIRConstant):
     def __init__(self, context: MIRContext, type: MIRType) -> None:
         super().__init__(context)
         self.type = type
@@ -87,10 +124,16 @@ class MIRConstantValue(MIRValue):
     def getType(self):
         return self.type
 
+class MIRConstantVoid(MIRConstantValue):
+    pass
+
 class MIRConstantInteger(MIRConstantValue):
     def __init__(self, type: MIRType, value: int) -> None:
         super().__init__(type.context, type)
         self.value = value
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitConstantInteger(self)
 
     def __str__(self) -> str:
         return '%s(%d)' % (str(self.type), self.value)
@@ -99,6 +142,9 @@ class MIRConstantFloat(MIRConstantValue):
     def __init__(self, type: MIRType, value: float) -> None:
         super().__init__(type.context, type)
         self.value = value
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitConstantFloat(self)
 
     def __str__(self) -> str:
         return '%s(%f)' % (str(self.type), self.value)
@@ -127,6 +173,9 @@ class MIRGlobalVariable(MIRGlobalValue):
         self.size = 0
         self.blob = bytearray()
         self.blobRelocations = []
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitGlobalVariable(self)
 
     def getType(self) -> MIRType:
         return self.context.pointerType
@@ -163,6 +212,9 @@ class MIRFunction(MIRGlobalValue):
         self.firstBasicBlock: MIRBasicBlock = None
         self.lastBasicBlock: MIRBasicBlock = None
 
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitFunction(self)
+
     def getType(self) -> MIRType:
         return self.context.functionType
 
@@ -180,6 +232,24 @@ class MIRFunction(MIRGlobalValue):
             yield position
             position = position.nextBasicBlock
 
+    def basicBlocksInReversePostOrder(self):
+        visitedSet = set()
+        visitedList = []
+
+        def visit(basicBlock: HIRBasicBlock):
+            if basicBlock in visitedSet:
+                return
+            
+            visitedSet.add(basicBlock)
+            for successor in basicBlock.successorBlocks():
+                visit(successor)
+            visitedList.append(basicBlock)
+
+        for basicBlock in self.basicBlocks():
+            visit(basicBlock)
+
+        return list(reversed(visitedList))
+    
     def allLocalValues(self):
         for argument in self.arguments:
             yield argument
@@ -231,6 +301,9 @@ class MIRFunctionLocalValue(MIRValue):
         self.type = type
         self.localValueIndex = 0
 
+    def isFunctionLocalValue(self) -> bool:
+        return True
+
     def getType(self) -> MIRType:
         return self.type
     
@@ -255,7 +328,6 @@ class MIRBasicBlock(MIRFunctionLocalValue):
         self.firstInstruction: MIRInstruction = None
         self.lastInstruction: MIRInstruction = None
 
-
     def addInstruction(self, instruction):
         if self.lastInstruction is None:
             self.firstInstruction = self.lastInstruction = instruction
@@ -270,6 +342,11 @@ class MIRBasicBlock(MIRFunctionLocalValue):
             yield position
             position = position.nextInstruction
 
+    def successorBlocks(self):
+        if self.lastInstruction is None:
+            return []
+        return self.lastInstruction.successorBlocks()
+    
     def fullPrintString(self) -> str:
         result = str(self)
         result += ':\n'
@@ -284,6 +361,12 @@ class MIRInstruction(MIRFunctionLocalValue):
         super().__init__(context, type, name)
         self.previousInstruction: MIRInstruction = None
         self.nextInstruction: MIRInstruction = None
+
+    def isInstruction(self) -> bool:
+        return True
+    
+    def successorBlocks(self) -> list[MIRBasicBlock]:
+        return []
 
 class MIRCallInstruction(MIRInstruction):
     def __init__(self, context: MIRContext, type: MIRValue, functional: MIRValue, arguments: list[MIRValue], name: str = None) -> None:
@@ -391,10 +474,11 @@ class MIRBuilder:
         return self.addInstruction(MIRReturnInstruction(self.context, value))
 
 class MIRModule:
-    def __init__(self) -> None:
+    def __init__(self, context: MIRContext) -> None:
+        self.context = context
         self.globalValues: list[MIRGlobalValue] = []
-        self.entryPoint: MIRValue = None
-        self.entryPointClosure: MIRValue = None
+        self.entryPoint: MIRFunction = None
+        self.entryPointClosure: MIRGlobalVariable = None
 
     def addGlobalValue(self, globalValue) -> None:
         self.globalValues.append(globalValue)
@@ -424,7 +508,7 @@ class MIRModule:
 class MIRModuleFrontend:
     def __init__(self) -> None:
         self.context = MIRContext()
-        self.module = MIRModule()
+        self.module = MIRModule(self.context)
         self.translatedValueDictionary = dict()
         self.translatedTypeDictionary = dict()
 
@@ -548,11 +632,19 @@ class MIRFunctionFrontend:
 
     def translateArgument(self, hirArgument: HIRFunctionalArgumentValue):
         mirArgument = MIRArgument(self.context, self.translateType(hirArgument.getType()), hirArgument.name)
+        if mirArgument.hasVoidType():
+            self.translatedValueDictionary[mirArgument] = self.context.void
+            return
+
         self.translatedValueDictionary[hirArgument] = mirArgument
         self.function.arguments.append(mirArgument)
 
     def translateCapture(self, hirCapture: HIRFunctionalCaptureValue):
         mirCapture = MIRCapture(self.context, self.translateType(hirCapture.getType()), hirCapture.name)
+        if mirCapture.hasVoidType():
+            self.translatedValueDictionary[hirCapture] = self.context.void
+            return
+
         self.translatedValueDictionary[hirCapture] = mirCapture
         self.function.captures.append(mirCapture)
 
@@ -594,7 +686,7 @@ class MIRFunctionFrontend:
 
         resultType = self.translateType(hirInstruction.type)
         functional = self.translateValue(hirInstruction.functional)
-        arguments = list(map(self.translateValue, hirInstruction.arguments))
+        arguments = list(filter(lambda x: x.isNotVoid(), map(self.translateValue, hirInstruction.arguments)))
         return self.builder.call(resultType, functional, arguments)
     
     def visitReturnInstruction(self, hirInstruction: HIRReturnInstruction):
