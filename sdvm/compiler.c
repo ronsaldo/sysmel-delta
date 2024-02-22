@@ -628,26 +628,26 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.destType);
 }
 
-void sdvm_linearScanRegisterSet_clear(sdvm_linearScanRegisterSet_t *set)
+void sdvm_registerSet_clear(sdvm_registerSet_t *set)
 {
     memset(set->masks, 0, sizeof(set->masks));
 }
 
-bool sdvm_linearScanRegisterSet_includes(sdvm_linearScanRegisterSet_t *set, uint8_t value)
+bool sdvm_registerSet_includes(sdvm_registerSet_t *set, uint8_t value)
 {
     uint8_t wordIndex = value / 32;
     uint8_t bitIndex = value % 32;
     return set->masks[wordIndex] & (1<<bitIndex);
 }
 
-void sdvm_linearScanRegisterSet_set(sdvm_linearScanRegisterSet_t *set, uint8_t value)
+void sdvm_registerSet_set(sdvm_registerSet_t *set, uint8_t value)
 {
     uint8_t wordIndex = value / 32;
     uint8_t bitIndex = value % 32;
     set->masks[wordIndex] |= (1<<bitIndex);
 }
 
-void sdvm_linearScanRegisterSet_unset(sdvm_linearScanRegisterSet_t *set, uint8_t value)
+void sdvm_registerSet_unset(sdvm_registerSet_t *set, uint8_t value)
 {
     uint8_t wordIndex = value / 32;
     uint8_t bitIndex = value % 32;
@@ -681,7 +681,7 @@ void sdvm_linearScanRegisterAllocatorFile_addAllocatedInterval(sdvm_linearScanRe
     registerFile->activeIntervals[destIndex] = interval;
 
     // Mark the register as allocated.
-    sdvm_linearScanRegisterSet_set(&registerFile->allocatedRegisterSet, registerValue);
+    sdvm_registerSet_set(&registerFile->allocatedRegisterSet, registerValue);
 }
 
 void sdvm_linearScanRegisterAllocatorFile_expireIntervalsUntil(sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint32_t index)
@@ -691,7 +691,7 @@ void sdvm_linearScanRegisterAllocatorFile_expireIntervalsUntil(sdvm_linearScanRe
     {
         sdvm_linearScanActiveInterval_t *interval = registerFile->activeIntervals + i;
         if(interval->end < index || (interval->instruction && !sdvm_compilerLocationKind_isRegister(interval->instruction->location.kind)))
-            sdvm_linearScanRegisterSet_unset(&registerFile->allocatedRegisterSet, interval->registerValue);
+            sdvm_registerSet_unset(&registerFile->allocatedRegisterSet, interval->registerValue);
         else
             registerFile->activeIntervals[destIndex++] = *interval;
     }
@@ -705,7 +705,7 @@ void sdvm_linearScanRegisterAllocatorFile_beginInstruction(sdvm_linearScanRegist
         return;
 
     sdvm_linearScanRegisterAllocatorFile_expireIntervalsUntil(registerFile, instruction->index);
-    sdvm_linearScanRegisterSet_clear(&registerFile->activeRegisterSet);
+    sdvm_registerSet_clear(&registerFile->activeRegisterSet);
 }
 
 void sdvm_linearScanRegisterAllocator_beginInstruction(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction)
@@ -716,20 +716,20 @@ void sdvm_linearScanRegisterAllocator_beginInstruction(sdvm_linearScanRegisterAl
 
 void sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint8_t registerValue)
 {
-    sdvm_linearScanRegisterSet_set(&registerFile->activeRegisterSet, registerValue);
-    sdvm_linearScanRegisterSet_set(&registerFile->usedRegisterSet, registerValue);
+    sdvm_registerSet_set(&registerFile->activeRegisterSet, registerValue);
+    sdvm_registerSet_set(&registerFile->usedRegisterSet, registerValue);
 }
 
 void sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint8_t registerValue)
 {
-    if(sdvm_linearScanRegisterSet_includes(&registerFile->allocatedRegisterSet, registerValue))
+    if(sdvm_registerSet_includes(&registerFile->allocatedRegisterSet, registerValue))
     {
         // TODO: spill the register
         abort();
     }
 
-    sdvm_linearScanRegisterSet_set(&registerFile->activeRegisterSet, registerValue);
-    sdvm_linearScanRegisterSet_set(&registerFile->usedRegisterSet, registerValue);
+    sdvm_registerSet_set(&registerFile->activeRegisterSet, registerValue);
+    sdvm_registerSet_set(&registerFile->usedRegisterSet, registerValue);
 }
 
 uint8_t sdvm_linearScanRegisterAllocatorFile_allocate(sdvm_linearScanRegisterAllocatorFile_t *registerFile)
@@ -738,12 +738,12 @@ uint8_t sdvm_linearScanRegisterAllocatorFile_allocate(sdvm_linearScanRegisterAll
     for(uint32_t i = 0; i < registerFile->allocatableRegisterCount; ++i)
     {
         uint8_t registerValue = registerFile->allocatableRegisters[i];
-        if(!sdvm_linearScanRegisterSet_includes(&registerFile->allocatedRegisterSet, registerValue) &&
-           !sdvm_linearScanRegisterSet_includes(&registerFile->activeRegisterSet, registerValue))
+        if(!sdvm_registerSet_includes(&registerFile->allocatedRegisterSet, registerValue) &&
+           !sdvm_registerSet_includes(&registerFile->activeRegisterSet, registerValue))
         
         {
-            sdvm_linearScanRegisterSet_set(&registerFile->activeRegisterSet, registerValue);
-            sdvm_linearScanRegisterSet_set(&registerFile->usedRegisterSet, registerValue);
+            sdvm_registerSet_set(&registerFile->activeRegisterSet, registerValue);
+            sdvm_registerSet_set(&registerFile->usedRegisterSet, registerValue);
             return registerValue;
         }
     }
@@ -758,7 +758,7 @@ void sdvm_linearScanRegisterAllocatorFile_endInstruction(sdvm_linearScanRegister
     if(!registerFile)
         return;
 
-    sdvm_linearScanRegisterSet_clear(&registerFile->activeRegisterSet);
+    sdvm_registerSet_clear(&registerFile->activeRegisterSet);
 }
 
 void sdvm_linearScanRegisterAllocator_endInstruction(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction)

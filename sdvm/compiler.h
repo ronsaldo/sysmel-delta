@@ -219,6 +219,11 @@ typedef struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t scratchLocation1;
 } sdvm_compilerInstruction_t;
 
+typedef struct sdvm_registerSet_s
+{
+    uint32_t masks[(SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32];
+} sdvm_registerSet_t;
+
 typedef struct sdvm_functionCompilationState_s
 {
     sdvm_compiler_t *compiler;
@@ -232,12 +237,12 @@ typedef struct sdvm_functionCompilationState_s
     sdvm_constOrInstruction_t *sourceInstructions;
     uint32_t instructionCount;
     sdvm_compilerInstruction_t *instructions;
-} sdvm_functionCompilationState_t;
 
-typedef struct sdvm_linearScanRegisterSet_s
-{
-    uint32_t masks[(SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32];
-} sdvm_linearScanRegisterSet_t;
+    sdvm_registerSet_t usedIntegerRegisterSet;
+    sdvm_registerSet_t usedFloatRegisterSet;
+    sdvm_registerSet_t usedVectorFloatRegisterSet;
+    sdvm_registerSet_t usedVectorIntegerRegisterSet;
+} sdvm_functionCompilationState_t;
 
 typedef struct sdvm_linearScanActiveInterval_s
 {
@@ -255,9 +260,9 @@ typedef struct sdvm_linearScanRegisterAllocatorFile_s
     uint32_t activeIntervalCount;
     sdvm_linearScanActiveInterval_t activeIntervals[SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS];
 
-    sdvm_linearScanRegisterSet_t allocatedRegisterSet;
-    sdvm_linearScanRegisterSet_t activeRegisterSet;
-    sdvm_linearScanRegisterSet_t usedRegisterSet;
+    sdvm_registerSet_t allocatedRegisterSet;
+    sdvm_registerSet_t activeRegisterSet;
+    sdvm_registerSet_t usedRegisterSet;
 } sdvm_linearScanRegisterAllocatorFile_t;
 
 typedef struct sdvm_linearScanRegisterAllocator_s

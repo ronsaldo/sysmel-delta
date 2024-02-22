@@ -683,6 +683,12 @@ void sdvm_compiler_x64_allocateFunctionRegisters(sdvm_functionCompilationState_t
     };
 
     sdvm_compiler_allocateFunctionRegisters(state, &registerAllocator);
+
+    // Store a copy of the used register sets. We need it for preserving called saved registers.
+    state->usedIntegerRegisterSet = registerAllocator.integerRegisterFile->usedRegisterSet;
+    state->usedFloatRegisterSet = registerAllocator.floatRegisterFile->usedRegisterSet;
+    state->usedVectorFloatRegisterSet = registerAllocator.vectorFloatRegisterFile->usedRegisterSet;
+    state->usedVectorIntegerRegisterSet = registerAllocator.vectorIntegerRegisterFile->usedRegisterSet;
 }
 
 bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *state)
@@ -693,7 +699,5 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
     sdvm_functionCompilationState_dump(state);
     sdvm_compiler_x64_emitFunctionPrologue(state);
     sdvm_compiler_x64_emitFunctionInstructions(state);
-
-    //sdvm_compiler_x86_ret(compiler);
     return true;
 }
