@@ -70,8 +70,10 @@ typedef enum sdvm_compilerLocationKind_e
 typedef enum sdvm_compilerRegisterKind_e
 {
     SdvmCompRegisterKindInteger = 0,
+    SdvmCompRegisterKindFloat,
     SdvmCompRegisterKindVectorFloat,
     SdvmCompRegisterKindVectorInteger,
+    SdvmCompRegisterKindCount
 } sdvm_compilerRegisterKind_t;
 
 typedef struct sdvm_compilerSymbol_s
@@ -88,6 +90,8 @@ typedef struct sdvm_compilerSymbol_s
     int64_t value;
     uint64_t size;
 } sdvm_compilerSymbol_t;
+
+#define SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS 32
 
 typedef uint32_t sdvm_compilerSymbolHandle_t;
 
@@ -159,17 +163,21 @@ typedef struct sdvm_moduleCompilationState_s
 
 typedef struct sdvm_compilerLiveInterval_s
 {
-    uint32_t index;
     uint32_t firstUsage;
     uint32_t lastUsage;
+    uint32_t start;
+    uint32_t end;
 } sdvm_compilerLiveInterval_t;
+
+typedef uint8_t sdvm_compilerRegisterValue_t;
 
 typedef struct sdvm_compilerRegister_s
 {
     sdvm_compilerRegisterKind_t kind;
     uint8_t isPending : 1;
+    uint8_t isDestroyed : 1;
     uint8_t size;
-    uint8_t value;
+    sdvm_compilerRegisterValue_t value;
 } sdvm_compilerRegister_t;
 
 typedef struct sdvm_compilerLocation_s
@@ -207,7 +215,8 @@ typedef struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t destinationLocation;
     sdvm_compilerLocation_t arg0Location;
     sdvm_compilerLocation_t arg1Location;
-    sdvm_compilerLocation_t scratchLocations;
+    sdvm_compilerLocation_t scratchLocation0;
+    sdvm_compilerLocation_t scratchLocation1;
 } sdvm_compilerInstruction_t;
 
 typedef struct sdvm_functionCompilationState_s
@@ -224,6 +233,49 @@ typedef struct sdvm_functionCompilationState_s
     uint32_t instructionCount;
     sdvm_compilerInstruction_t *instructions;
 } sdvm_functionCompilationState_t;
+
+typedef struct sdvm_linearScanRegisterSet_s
+{
+    uint32_t masks[(SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32];
+} sdvm_linearScanRegisterSet_t;
+
+typedef struct sdvm_linearScanActiveInterval_s
+{
+    sdvm_compilerInstruction_t *instruction;
+    sdvm_compilerRegisterValue_t registerValue;
+    uint32_t start;
+    uint32_t end;
+} sdvm_linearScanActiveInterval_t;
+
+typedef struct sdvm_linearScanRegisterAllocatorFile_s
+{
+    uint32_t allocatableRegisterCount;
+    const sdvm_compilerRegisterValue_t *allocatableRegisters;
+
+    uint32_t activeIntervalCount;
+    sdvm_linearScanActiveInterval_t activeIntervals[SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS];
+
+    sdvm_linearScanRegisterSet_t allocatedRegisterSet;
+    sdvm_linearScanRegisterSet_t activeRegisterSet;
+    sdvm_linearScanRegisterSet_t usedRegisterSet;
+} sdvm_linearScanRegisterAllocatorFile_t;
+
+typedef struct sdvm_linearScanRegisterAllocator_s
+{
+    union
+    {
+        struct
+        {
+            sdvm_linearScanRegisterAllocatorFile_t *integerRegisterFile;
+            sdvm_linearScanRegisterAllocatorFile_t *floatRegisterFile;
+            sdvm_linearScanRegisterAllocatorFile_t *vectorFloatRegisterFile;
+            sdvm_linearScanRegisterAllocatorFile_t *vectorIntegerRegisterFile;
+        };
+
+        sdvm_linearScanRegisterAllocatorFile_t *registerFiles[SdvmCompRegisterKindCount];
+    };
+
+} sdvm_linearScanRegisterAllocator_t;
 
 static inline size_t sdvm_compiler_alignSizeTo(size_t size, size_t alignment)
 {
@@ -276,6 +328,7 @@ SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCo
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction);
+SDVM_API void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *state, sdvm_linearScanRegisterAllocator_t *registerAllocator);
 
 SDVM_API uint32_t sdvm_compiler_makeLabel(sdvm_compiler_t *compiler);
 SDVM_API void sdvm_compiler_setLabelValue(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section, int64_t value);

@@ -20,6 +20,46 @@ static const sdvm_compilerRegister_t *sdvm_x64_sysv_integerPassingRegisters[] = 
 };
 static const uint32_t sdvm_x64_sysv_integerPassingRegisterCount = sizeof(sdvm_x64_sysv_integerPassingRegisters) / sizeof(sdvm_x64_sysv_integerPassingRegisters[0]);
 
+static const sdvm_compilerRegister_t *sdvm_x64_sysv_integerPassingDwordRegisters[] = {
+    &sdvm_x86_EDI,
+    &sdvm_x86_ESI,
+    &sdvm_x86_EDX,
+    &sdvm_x86_ECX,
+    &sdvm_x86_R8D,
+    &sdvm_x86_R9D,
+};
+static const uint32_t sdvm_x64_sysv_integerPassingDwordRegisterCount = sizeof(sdvm_x64_sysv_integerPassingDwordRegisters) / sizeof(sdvm_x64_sysv_integerPassingDwordRegisters[0]);
+
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_allocatableIntegerRegisters[] = {
+    SDVM_X86_RAX,
+
+    SDVM_X86_RDI, // Arg 1
+    SDVM_X86_RSI, // Arg 2
+    SDVM_X86_RDX, // Arg 3
+    SDVM_X86_RCX, // Arg 4
+    SDVM_X86_R8,  // Arg 5
+    SDVM_X86_R9,  // Arg 6
+    SDVM_X86_R10, // Static function chain/Closure pointer
+    SDVM_X86_R11, // Closure GC pointer
+
+    SDVM_X86_RBX,
+
+    SDVM_X86_R12,
+    SDVM_X86_R13,
+    SDVM_X86_R14,
+    SDVM_X86_R15, // Optional GOT pointer
+};
+static const uint32_t sdvm_x64_sysv_allocatableIntegerRegisterCount = sizeof(sdvm_x64_sysv_allocatableIntegerRegisters) / sizeof(sdvm_x64_sysv_allocatableIntegerRegisters[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_allocatableVectorRegisters[] = {
+    SDVM_X86_XMM0,  SDVM_X86_XMM1,  SDVM_X86_XMM2,  SDVM_X86_XMM3,
+    SDVM_X86_XMM4,  SDVM_X86_XMM5,  SDVM_X86_XMM6,  SDVM_X86_XMM7,
+    SDVM_X86_XMM8,  SDVM_X86_XMM9,  SDVM_X86_XMM10, SDVM_X86_XMM11,
+    SDVM_X86_XMM12, SDVM_X86_XMM13, SDVM_X86_XMM14, SDVM_X86_XMM15,
+};
+static const uint32_t sdvm_x64_allocatableVectorRegisterCount = sizeof(sdvm_x64_allocatableVectorRegisters) / sizeof(sdvm_x64_allocatableVectorRegisters[0]);
+
 uint8_t sdvm_compiler_x86_modRM(int8_t rm, uint8_t regOpcode, uint8_t mod)
 {
     return (rm & SDVM_X86_REG_HALF_MASK) | ((regOpcode & SDVM_X86_REG_HALF_MASK) << 3) | (mod << 6);
@@ -102,6 +142,9 @@ void sdvm_compiler_x86_endbr64(sdvm_compiler_t *compiler)
 
 void sdvm_compiler_x86_mov64RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
 {
+    if(destination == source)
+        return;
+
     sdvm_compiler_x86_rex(compiler, true, destination > SDVM_X86_REG_HALF_MASK, false, source > SDVM_X86_REG_HALF_MASK);
 
     uint8_t instruction[] = {
@@ -325,7 +368,21 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstArgInt8:
     case SdvmInstArgInt16:
     case SdvmInstArgInt32:
+    case SdvmInstArgUInt8:
+    case SdvmInstArgUInt16:
+    case SdvmInstArgUInt32:
+        if(state->usedArgumentIntegerRegisterCount < sdvm_x64_sysv_integerPassingDwordRegisterCount)
+        {
+            instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*sdvm_x64_sysv_integerPassingDwordRegisters[state->usedArgumentIntegerRegisterCount++]);
+        }
+        else
+        {
+            // TODO: Support passing parameters through the stack
+            abort();
+        }
+        return;
     case SdvmInstArgInt64:
+    case SdvmInstArgUInt64:
     case SdvmInstArgPointer:
     case SdvmInstArgProcedureHandle:
         if(state->usedArgumentIntegerRegisterCount < sdvm_x64_sysv_integerPassingRegisterCount)
@@ -355,7 +412,13 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstReturnInt8:
     case SdvmInstReturnInt16:
     case SdvmInstReturnInt32:
+    case SdvmInstReturnUInt8:
+    case SdvmInstReturnUInt16:
+    case SdvmInstReturnUInt32:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_EAX);
+        return;
     case SdvmInstReturnInt64:
+    case SdvmInstReturnUInt64:
     case SdvmInstReturnPointer:
     case SdvmInstReturnProcedureHandle:
         instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_RAX);
@@ -474,6 +537,8 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
     case SdvmCompLocationImmediateU64:
         return sdvm_compiler_x86_mov64RegImmU64(compiler, reg->value, sourceLocation->immediateU64);
     case SdvmCompLocationRegister:
+        if(sourceLocation->firstRegister.size <= 4)
+            return sdvm_compiler_x86_mov32RegReg(compiler, reg->value, sourceLocation->firstRegister.value);
         return sdvm_compiler_x86_mov64RegReg(compiler, reg->value, sourceLocation->firstRegister.value);
     default: abort();
     }
@@ -598,9 +663,32 @@ void sdvm_compiler_x64_emitFunctionInstructions(sdvm_functionCompilationState_t 
         sdvm_compiler_x64_emitFunctionInstruction(state, state->instructions + i);
 }
 
+void sdvm_compiler_x64_allocateFunctionRegisters(sdvm_functionCompilationState_t *state)
+{
+    sdvm_linearScanRegisterAllocatorFile_t integerRegisterFile = {
+        .allocatableRegisterCount = sdvm_x64_sysv_allocatableIntegerRegisterCount,
+        .allocatableRegisters = sdvm_x64_sysv_allocatableIntegerRegisters
+    };
+
+    sdvm_linearScanRegisterAllocatorFile_t vectorRegisterFile = {
+        .allocatableRegisterCount = sdvm_x64_allocatableVectorRegisterCount,
+        .allocatableRegisters = sdvm_x64_allocatableVectorRegisters
+    };
+
+    sdvm_linearScanRegisterAllocator_t registerAllocator = {
+        .integerRegisterFile = &integerRegisterFile,
+        .floatRegisterFile = &vectorRegisterFile,
+        .vectorFloatRegisterFile = &vectorRegisterFile,
+        .vectorIntegerRegisterFile = &vectorRegisterFile,
+    };
+
+    sdvm_compiler_allocateFunctionRegisters(state, &registerAllocator);
+}
+
 bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *state)
 {
     sdvm_compiler_x64_computeFunctionLocationConstraints(state);
+    sdvm_compiler_x64_allocateFunctionRegisters(state);
 
     sdvm_functionCompilationState_dump(state);
     sdvm_compiler_x64_emitFunctionPrologue(state);

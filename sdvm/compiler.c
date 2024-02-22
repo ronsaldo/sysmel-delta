@@ -146,17 +146,22 @@ void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *stat
 
 static void sdvm_compilerLiveInterval_initialize(sdvm_compilerLiveInterval_t *interval, uint32_t index)
 {
-    interval->index = index;
     interval->firstUsage = UINT32_MAX;
     interval->lastUsage = 0;
+    interval->start = index;
+    interval->end = index;
 }
 
 static void sdvm_compilerLiveInterval_insertUsage(sdvm_compilerLiveInterval_t *interval, uint32_t usage)
 {
     if(usage < interval->firstUsage)
         interval->firstUsage = usage;
+    if(usage < interval->start)
+        interval->start = usage;
     if(usage > interval->lastUsage)
         interval->lastUsage = usage;
+    if(usage > interval->end)
+        interval->end = usage;
 }
 
 bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval)
@@ -269,6 +274,8 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
             printf(") @ ");
             sdvm_compilerLocation_print(&instruction->destinationLocation);
         }
+
+        printf(" live [%u, %u]", instruction->liveInterval.start, instruction->liveInterval.end);
 
         if(sdvm_compilerLiveInterval_hasUsage(&instruction->liveInterval))
             printf(" usage [%u, %u]", instruction->liveInterval.firstUsage, instruction->liveInterval.lastUsage);
@@ -605,7 +612,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         return;
     }
 
-    if(instruction->decoding.opcode == SdvmOpBeginArguments)
+    if(instruction->decoding.opcode == SdvmInstBeginArguments)
     {
         state->argumentCount = instruction->decoding.instruction.arg0;
         state->usedArgumentIntegerRegisterCount = 0;
@@ -619,6 +626,279 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg1Type);
 
     instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.destType);
+}
+
+void sdvm_linearScanRegisterSet_clear(sdvm_linearScanRegisterSet_t *set)
+{
+    memset(set->masks, 0, sizeof(set->masks));
+}
+
+bool sdvm_linearScanRegisterSet_includes(sdvm_linearScanRegisterSet_t *set, uint8_t value)
+{
+    uint8_t wordIndex = value / 32;
+    uint8_t bitIndex = value % 32;
+    return set->masks[wordIndex] & (1<<bitIndex);
+}
+
+void sdvm_linearScanRegisterSet_set(sdvm_linearScanRegisterSet_t *set, uint8_t value)
+{
+    uint8_t wordIndex = value / 32;
+    uint8_t bitIndex = value % 32;
+    set->masks[wordIndex] |= (1<<bitIndex);
+}
+
+void sdvm_linearScanRegisterSet_unset(sdvm_linearScanRegisterSet_t *set, uint8_t value)
+{
+    uint8_t wordIndex = value / 32;
+    uint8_t bitIndex = value % 32;
+    set->masks[wordIndex] &= ~(1<<bitIndex);
+}
+
+bool sdvm_compilerLocationKind_isRegister(sdvm_compilerLocationKind_t kind)
+{
+    return kind == SdvmCompLocationRegister || kind == SdvmCompLocationRegisterPair;
+}
+
+void sdvm_linearScanRegisterAllocatorFile_addAllocatedInterval(sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_compilerInstruction_t *instruction, uint8_t registerValue)
+{
+    sdvm_linearScanActiveInterval_t interval = {
+        .instruction = instruction,
+        .registerValue = registerValue,
+        .start = instruction->liveInterval.start,
+        .end = instruction->liveInterval.end,
+    };
+
+    SDVM_ASSERT(registerFile->activeIntervalCount < SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS);
+    SDVM_ASSERT(registerFile->activeIntervalCount < registerFile->allocatableRegisterCount);
+    uint32_t destIndex = registerFile->activeIntervalCount++;
+
+    // Sort the intervals by increasing end point.
+    while(destIndex > 0 && registerFile->activeIntervals[destIndex].end > interval.end)
+    {
+        registerFile->activeIntervals[destIndex] = registerFile->activeIntervals[destIndex - 1];
+        --destIndex;
+    }
+    registerFile->activeIntervals[destIndex] = interval;
+
+    // Mark the register as allocated.
+    sdvm_linearScanRegisterSet_set(&registerFile->allocatedRegisterSet, registerValue);
+}
+
+void sdvm_linearScanRegisterAllocatorFile_expireIntervalsUntil(sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint32_t index)
+{
+    uint32_t destIndex = 0;
+    for(uint32_t i = 0; i < registerFile->activeIntervalCount; ++i)
+    {
+        sdvm_linearScanActiveInterval_t *interval = registerFile->activeIntervals + i;
+        if(interval->end < index || (interval->instruction && !sdvm_compilerLocationKind_isRegister(interval->instruction->location.kind)))
+            sdvm_linearScanRegisterSet_unset(&registerFile->allocatedRegisterSet, interval->registerValue);
+        else
+            registerFile->activeIntervals[destIndex++] = *interval;
+    }
+
+    registerFile->activeIntervalCount = destIndex;
+}
+
+void sdvm_linearScanRegisterAllocatorFile_beginInstruction(sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_compilerInstruction_t *instruction)
+{
+    if(!registerFile)
+        return;
+
+    sdvm_linearScanRegisterAllocatorFile_expireIntervalsUntil(registerFile, instruction->index);
+    sdvm_linearScanRegisterSet_clear(&registerFile->activeRegisterSet);
+}
+
+void sdvm_linearScanRegisterAllocator_beginInstruction(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction)
+{
+    for(int i = 0; i < SdvmCompRegisterKindCount; ++i)
+        sdvm_linearScanRegisterAllocatorFile_beginInstruction(registerAllocator->registerFiles[i], instruction);
+}
+
+void sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint8_t registerValue)
+{
+    sdvm_linearScanRegisterSet_set(&registerFile->activeRegisterSet, registerValue);
+    sdvm_linearScanRegisterSet_set(&registerFile->usedRegisterSet, registerValue);
+}
+
+void sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint8_t registerValue)
+{
+    if(sdvm_linearScanRegisterSet_includes(&registerFile->allocatedRegisterSet, registerValue))
+    {
+        // TODO: spill the register
+        abort();
+    }
+
+    sdvm_linearScanRegisterSet_set(&registerFile->activeRegisterSet, registerValue);
+    sdvm_linearScanRegisterSet_set(&registerFile->usedRegisterSet, registerValue);
+}
+
+uint8_t sdvm_linearScanRegisterAllocatorFile_allocate(sdvm_linearScanRegisterAllocatorFile_t *registerFile)
+{
+    // Find an available allocatable register.
+    for(uint32_t i = 0; i < registerFile->allocatableRegisterCount; ++i)
+    {
+        uint8_t registerValue = registerFile->allocatableRegisters[i];
+        if(!sdvm_linearScanRegisterSet_includes(&registerFile->allocatedRegisterSet, registerValue) &&
+           !sdvm_linearScanRegisterSet_includes(&registerFile->activeRegisterSet, registerValue))
+        
+        {
+            sdvm_linearScanRegisterSet_set(&registerFile->activeRegisterSet, registerValue);
+            sdvm_linearScanRegisterSet_set(&registerFile->usedRegisterSet, registerValue);
+            return registerValue;
+        }
+    }
+
+    SDVM_ASSERT(registerFile->activeIntervalCount > 0);
+    // TODO: Expire an available register.
+    abort();
+}
+
+void sdvm_linearScanRegisterAllocatorFile_endInstruction(sdvm_linearScanRegisterAllocatorFile_t *registerFile)
+{
+    if(!registerFile)
+        return;
+
+    sdvm_linearScanRegisterSet_clear(&registerFile->activeRegisterSet);
+}
+
+void sdvm_linearScanRegisterAllocator_endInstruction(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction)
+{
+    for(int i = 0; i < SdvmCompRegisterKindCount; ++i)
+        sdvm_linearScanRegisterAllocatorFile_endInstruction(registerAllocator->registerFiles[i]);
+
+    instruction->location = instruction->destinationLocation;
+    if(!sdvm_compilerLocationKind_isRegister(instruction->location.kind))
+        return;
+
+    sdvm_linearScanRegisterAllocatorFile_addAllocatedInterval(registerAllocator->registerFiles[instruction->location.firstRegister.kind], instruction, instruction->location.firstRegister.value);
+    if(instruction->location.kind == SdvmCompLocationRegisterPair)
+        sdvm_linearScanRegisterAllocatorFile_addAllocatedInterval(registerAllocator->registerFiles[instruction->location.secondRegister.kind], instruction, instruction->location.secondRegister.value);
+}
+
+void sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction, sdvm_compilerLocation_t *location, sdvm_compilerInstruction_t *sourceInstruction)
+{
+    if(!sdvm_compilerLocationKind_isRegister(location->kind))
+        return;
+    
+    if(!location->firstRegister.isPending)
+    {
+        if(sourceInstruction
+            && sdvm_compilerLocationKind_isRegister(sourceInstruction->location.kind)
+            && !sourceInstruction->location.firstRegister.isPending
+            && (!location->firstRegister.isDestroyed || sourceInstruction->liveInterval.lastUsage <= (uint32_t)instruction->index)
+            && location->firstRegister.kind == sourceInstruction->location.firstRegister.kind
+            && location->firstRegister.value == sourceInstruction->location.firstRegister.value)
+            sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->firstRegister.kind], sourceInstruction->location.firstRegister.value);
+        else
+            sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(registerAllocator->registerFiles[location->firstRegister.kind], location->firstRegister.value);
+    }
+
+    if(location->kind == SdvmCompLocationRegisterPair && !location->secondRegister.isPending)
+    {
+        if(sourceInstruction && sourceInstruction->location.kind == SdvmCompLocationRegisterPair
+            && !sourceInstruction->location.secondRegister.isPending
+            && (!location->secondRegister.isDestroyed || sourceInstruction->liveInterval.lastUsage <= (uint32_t)instruction->index)
+            && location->secondRegister.kind == sourceInstruction->location.secondRegister.kind
+            && location->secondRegister.value == sourceInstruction->location.secondRegister.value)
+            sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->secondRegister.kind], sourceInstruction->location.secondRegister.value);
+        else
+            sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(registerAllocator->registerFiles[location->secondRegister.kind], location->secondRegister.value);
+    }
+}
+
+void sdvm_linearScanRegisterAllocator_allocateRegisterLocation(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction, sdvm_compilerLocation_t *location, sdvm_compilerInstruction_t *sourceInstruction)
+{
+    if(!sdvm_compilerLocationKind_isRegister(location->kind))
+        return;
+
+    if(location->firstRegister.isPending)
+    {
+        if(sourceInstruction
+            && sdvm_compilerLocationKind_isRegister(sourceInstruction->location.kind)
+            && !sourceInstruction->location.firstRegister.isPending
+            && (!location->firstRegister.isDestroyed || sourceInstruction->liveInterval.lastUsage <= (uint32_t)instruction->index)
+            && location->firstRegister.kind == sourceInstruction->location.firstRegister.kind)
+        {
+            sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->firstRegister.kind], sourceInstruction->location.firstRegister.value);
+            location->firstRegister.value = sourceInstruction->location.firstRegister.value;
+        }
+        else
+        {
+            location->firstRegister.value = sdvm_linearScanRegisterAllocatorFile_allocate(registerAllocator->registerFiles[location->firstRegister.kind]);
+        }
+        
+        location->firstRegister.isPending = false;
+    }
+
+    if(location->kind == SdvmCompLocationRegisterPair && location->secondRegister.isPending)
+    {
+        if(sourceInstruction
+            && sourceInstruction->location.kind == SdvmCompLocationRegisterPair
+            && !location->secondRegister.isPending
+            && (!location->secondRegister.isDestroyed || sourceInstruction->liveInterval.lastUsage <= (uint32_t)instruction->index)
+            && location->secondRegister.kind == sourceInstruction->location.secondRegister.kind)
+        {
+            sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->secondRegister.kind], sourceInstruction->location.secondRegister.value);
+            location->secondRegister.value = sourceInstruction->location.secondRegister.value;
+        }
+        else
+        {
+            location->secondRegister.value = sdvm_linearScanRegisterAllocatorFile_allocate(registerAllocator->registerFiles[location->secondRegister.kind]);
+        }
+        
+        location->secondRegister.isPending = false;
+    }
+}
+
+void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t *state, sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction)
+{
+    if(instruction->decoding.isConstant)
+        return;
+
+    sdvm_linearScanRegisterAllocator_beginInstruction(registerAllocator, instruction);
+
+    // Allocate the specific registers.
+    if(instruction->decoding.arg0IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg0 = state->instructions + instruction->decoding.instruction.arg0;
+        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->arg0Location, arg0);
+    }
+
+    if(instruction->decoding.arg1IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
+        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->arg1Location, arg1);
+    }
+    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->destinationLocation, instruction);
+    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation0, NULL);
+    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation1, NULL);
+
+    // Allocate the non-specific registers.
+    if(instruction->decoding.arg0IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg0 = state->instructions + instruction->decoding.instruction.arg0;
+        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->arg0Location, arg0);
+    }
+
+    if(instruction->decoding.arg1IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
+        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->arg1Location, arg1);
+    }
+    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->destinationLocation, instruction);
+    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation0, NULL);
+    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation1, NULL);
+
+    sdvm_linearScanRegisterAllocator_endInstruction(registerAllocator, instruction);
+}
+
+void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *state, sdvm_linearScanRegisterAllocator_t *registerAllocator)
+{
+    for(uint32_t i = 0; i <state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        sdvm_compiler_allocateInstructionRegisters(state, registerAllocator, instruction);
+    }
 }
 
 static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_functionTableEntry_t *functionTableEntry)
@@ -636,6 +916,7 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
     for(uint32_t i = 0; i < functionState.instructionCount; ++i)
     {
         sdvm_compilerInstruction_t *instruction = functionState.instructions + i;
+        instruction->index = i;
         instruction->decoding = sdvm_instruction_decode(functionState.sourceInstructions[i]);
     }
 
