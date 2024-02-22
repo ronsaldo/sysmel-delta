@@ -654,6 +654,23 @@ void sdvm_registerSet_unset(sdvm_registerSet_t *set, uint8_t value)
     set->masks[wordIndex] &= ~(1<<bitIndex);
 }
 
+bool sdvm_compilerLocationKind_isImmediate(sdvm_compilerLocationKind_t kind)
+{
+    switch(kind)
+    {
+    case SdvmCompLocationImmediateS32:
+    case SdvmCompLocationImmediateU32:
+    case SdvmCompLocationImmediateS64:
+    case SdvmCompLocationImmediateU64:
+    case SdvmCompLocationImmediateF32:
+    case SdvmCompLocationImmediateF64:
+    case SdvmCompLocationImmediateLabel:
+        return true;
+    default:
+        return false;
+    }
+}
+
 bool sdvm_compilerLocationKind_isRegister(sdvm_compilerLocationKind_t kind)
 {
     return kind == SdvmCompLocationRegister || kind == SdvmCompLocationRegisterPair;

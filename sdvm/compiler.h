@@ -306,6 +306,9 @@ SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t 
 
 SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval);
 
+SDVM_API bool sdvm_compilerLocationKind_isRegister(sdvm_compilerLocationKind_t kind);
+SDVM_API bool sdvm_compilerLocationKind_isImmediate(sdvm_compilerLocationKind_t kind);
+
 SDVM_API void sdvm_compilerLocation_print(sdvm_compilerLocation_t *location);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_null(void);
