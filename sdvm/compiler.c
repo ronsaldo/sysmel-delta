@@ -924,7 +924,7 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         .compiler = moduleState->compiler,
         .module = moduleState->module,
         .moduleState = moduleState,
-        .sourceInstructions = (sdvm_constOrInstruction_t*)moduleState->module->textSectionData + functionTableEntry->textSectionOffset,
+        .sourceInstructions = (sdvm_constOrInstruction_t*)(moduleState->module->textSectionData + functionTableEntry->textSectionOffset),
         .instructionCount = functionTableEntry->textSectionSize / sizeof(sdvm_constOrInstruction_t)
     };
 

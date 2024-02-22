@@ -222,6 +222,20 @@ class Typechecker(ASTVisitor):
 
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, functional, typedArgument, implicitValueSubstitutions))
     
+    def visitImportModuleNode(self, node: ASTImportModuleNode):
+        assert False
+    
+    def visitFromModuleImportWithTypeNode(self, node: ASTFromModuleImportWithTypeNode):
+        assert False
+
+    def visitModuleExportValueNode(self, node: ASTModuleExportValueNode):
+        value = self.visitNode(node.value)
+        name, errorNode = self.evaluateSymbol(node.name)
+        if errorNode is not None:
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, [value, errorNode]))
+        
+        return ASTTypedModuleExportValueNode(node.sourcePosition, value.type, name, value, self.lexicalEnvironment.lookModule())
+
     def visitModuleEntryPointNode(self, node: ASTModuleEntryPointNode):
         entryPoint = self.visitNode(node.entryPoint)
         entryPointType = getTypeOfAnalyzedNode(entryPoint, node.sourcePosition)
@@ -255,14 +269,14 @@ class Typechecker(ASTVisitor):
 
     def visitFunctionalTypeNode(self, node: ASTFunctionalTypeNode):
         if len(node.arguments) == 0:
-            return self.visitNode(ASTPiNode(node.sourcePosition, None, None, node.resultTypeExpression))
+            return self.visitNode(ASTPiNode(node.sourcePosition, False, None, None, node.resultTypeExpression))
 
         resultType = node.resultType
         for argument in reversed(node.arguments):
             if argument.isExistential:
                 resultType = ASTSigmaNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
             else:
-                resultType = ASTPiNode(argument.sourcePosition, argument.typeExpression, argument.nameExpression, resultType)
+                resultType = ASTPiNode(argument.sourcePosition, argument.isImplicit, argument.typeExpression, argument.nameExpression, resultType)
         return self.visitNode(resultType)
     
     def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTTypedNode | ASTTypeNode:
@@ -481,6 +495,15 @@ class Typechecker(ASTVisitor):
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         return node
     
+    def visitTypedImportModuleNode(self, node: ASTTypedImportModuleNode):
+        return node
+    
+    def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
+        return node
+
+    def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
+        return node
+
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
         return node
     
@@ -716,6 +739,15 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedElements.append(self.visitNode(element))
         return ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements)
     
+    def visitTypedImportModuleNode(self, node: ASTTypedImportModuleNode):
+        return node
+    
+    def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
+        return ASTTypedFromModuleImportNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.module), node.name)
+
+    def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
+        return ASTTypedModuleExportValueNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.value))
+
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
         return ASTTypedModuleEntryPointNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.entryPoint))
     

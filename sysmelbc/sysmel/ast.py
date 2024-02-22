@@ -71,6 +71,18 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitImportModuleNode(self, node):
+        pass
+    
+    @abstractmethod
+    def visitFromModuleImportWithTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitModuleExportValueNode(self, node):
+        pass
+
+    @abstractmethod
     def visitModuleEntryPointNode(self, node):
         pass
 
@@ -140,6 +152,18 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedTupleNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedImportModuleNode(self, node):
+        pass
+    
+    @abstractmethod
+    def visitTypedFromModuleImportNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedModuleExportValueNode(self, node):
         pass
 
     @abstractmethod
@@ -236,8 +260,9 @@ class ASTIdentifierReferenceNode(ASTNode):
         return {'kind': 'Identifier', 'value': repr(self.value)}
 
 class ASTPiNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, argumentType: ASTNode, argumentName: ASTNode, body: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, hasImplicitArgument: bool, argumentType: ASTNode, argumentName: ASTNode, body: ASTNode) -> None:
         super().__init__(sourcePosition)
+        self.hasImplicitArgument = hasImplicitArgument
         self.argumentType = argumentType
         self.argumentName = argumentName
         self.body = body
@@ -445,7 +470,43 @@ class ASTSumTypeNode(ASTTypeNode):
 
     def toJson(self) -> dict:
         return {'kind': 'SumType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
+
+class ASTImportModuleNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, name: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.name = name
     
+    def accept(self, visitor):
+        return visitor.visitImportModuleNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'ImportModule', 'name': self.name.toJson()}
+
+class ASTFromModuleImportWithTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, module: ASTNode, name: ASTNode, type: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.module = module
+        self.name = name
+        self.type = type
+    
+    def accept(self, visitor):
+        return visitor.visitFromModuleImportWithTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'FromModuleImportWithType', 'module': self.module.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
+
+class ASTModuleExportValueNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, name: ASTNode, value: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.name = name
+        self.value = value
+    
+    def accept(self, visitor):
+        return visitor.visitModuleExportValueNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'ModuleExport', 'name': self.name.toJson(), 'value:' : self.value}
+
 class ASTModuleEntryPointNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, entryPoint: ASTTypeNode) -> None:
         super().__init__(sourcePosition)
@@ -591,8 +652,44 @@ class ASTTypedTupleNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedTuple', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
     
+class ASTTypedImportModuleNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, name: Symbol) -> None:
+        super().__init__(sourcePosition)
+        self.name = name
+    
+    def accept(self, visitor):
+        return visitor.visitTypedImportModuleNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedImportModule', 'type': self.type.toJson(), 'name': self.name.toJson()}
+
+class ASTTypedFromModuleImportNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, module: ASTTypedNode, name: Symbol) -> None:
+        super().__init__(sourcePosition, type)
+        self.module = module
+        self.name = name
+    
+    def accept(self, visitor):
+        return visitor.visitTypedFromModuleImportNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedFromModuleImport', 'type': self.type.toJson(), 'module': self.module.toJson(), 'name': self.name.toJson()}
+
+class ASTTypedModuleExportValueNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, name: Symbol, value: ASTTypeNode | ASTTypedNode, module: Module) -> None:
+        super().__init__(sourcePosition, type)
+        self.name = name
+        self.value = value
+        self.module = module
+    
+    def accept(self, visitor):
+        return visitor.visitTypedModuleExportValueNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedModuleExport', 'type': self.type.toJson(), 'name': self.name.toJson(), 'value:' : self.value.toJson()}
+
 class ASTTypedModuleEntryPointNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, entryPoint: ASTTypeNode, module: Module) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, entryPoint: ASTTypedNode, module: Module) -> None:
         super().__init__(sourcePosition, type)
         self.entryPoint = entryPoint
         self.module = module
@@ -708,6 +805,18 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.alternativeTypes:
             self.visitNode(expression)
 
+    def visitImportModuleNode(self, node: ASTImportModuleNode):
+        self.visitNode(node.name)
+    
+    def visitFromModuleImportWithTypeNode(self, node: ASTFromModuleImportWithTypeNode):
+        self.visitNode(node.module)
+        self.visitNode(node.name)
+        self.visitNode(node.type)
+
+    def visitModuleExportValueNode(self, node: ASTModuleExportValueNode):
+        self.visitNode(node.name)
+        self.visitNode(node.value)
+
     def visitModuleEntryPointNode(self, node: ASTModuleEntryPointNode):
         self.visitNode(node.entryPoint)
 
@@ -768,6 +877,16 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.type)
         for expression in node.elements:
             self.visitNode(expression)
+
+    def visitTypedImportModuleNode(self, node: ASTTypedImportModuleNode):
+        self.visitNode(node.type)
+    
+    def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
+        self.visitNode(node.type)
+        self.visitNode(node.module)
+
+    def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
+        self.visitNode(node.value)
 
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
         self.visitNode(node.entryPoint)
@@ -833,6 +952,15 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitMessageSendNode(self, node):
+        assert False
+
+    def visitImportModuleNode(self, node: ASTImportModuleNode):
+        assert False
+    
+    def visitFromModuleImportWithTypeNode(self, node: ASTFromModuleImportWithTypeNode):
+        assert False
+
+    def visitModuleExportValueNode(self, node: ASTModuleExportValueNode):
         assert False
 
     def visitModuleEntryPointNode(self, node):

@@ -1,0 +1,6 @@
+##let: #sys with: (importModule: #sys).
+##let: #printString with: (fromModule: #sys import: #printString withType: (:(String) :: Void)).
+
+moduleExport: #main with: (:(Int32)argc :: Int32) :=> argc + 1i32.
+
+moduleEntryPoint: (:: Int32) :=> 0i32.

@@ -86,7 +86,7 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         value = self.visitNode(node.valueExpression)
         self.activationEnvironment.setBindingValue(node.binding, value)
         if node.isPublic:
-            node.module.setExportedBindingValue(node.binding, value)
+            node.module.exportValue(node.binding.name, value)
         return value
 
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode) -> TypedValue:
@@ -110,6 +110,17 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
         productType = self.visitNode(node.type)
         return productType.makeWithElements(tuple(elements))
+
+    def visitTypedImportModuleNode(self, node):
+        assert False
+    
+    def visitTypedFromModuleImportNode(self, node):
+        assert False
+
+    def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
+        value = self.visitNode(node.value)
+        node.module.exportValue(node.name, value)
+        return value
 
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode) -> TypedValue:
         entryPoint = self.visitNode(node.entryPoint)

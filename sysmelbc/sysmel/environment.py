@@ -450,6 +450,15 @@ def publicTypeMutableWithMacro(macroContext: MacroContext, localName: ASTNode, e
 def publicMutableWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
     return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, None, localValue, isMutable = True, isPublic = True)
 
+def importModuleMacro(macroContext: MacroContext, name: ASTNode) -> ASTNode:
+    return ASTImportModuleNode(macroContext.sourcePosition, name)
+
+def fromModuleImportWithType(macroContext: MacroContext, module: ASTNode, name: ASTNode, type: ASTNode) -> ASTNode:
+    return ASTImportModuleNode(macroContext.sourcePosition, module, name, type)
+
+def moduleExportWithMacro(macroContext: MacroContext, name: ASTNode, value: ASTNode) -> ASTNode:
+    return ASTModuleExportValueNode(macroContext.sourcePosition, name, value)
+
 def moduleEntryPointMacro(macroContext: MacroContext, entryPointValue: ASTNode) -> ASTNode:
     return ASTModuleEntryPointNode(macroContext.sourcePosition, entryPointValue)
 
@@ -501,6 +510,10 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['public:mutableWith:', 'Macro::public:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicMutableWithMacro, ['macro']],
 
     ['loadSourceNamed:', 'Macro::loadSourceNamed:', [MacroContextType, ASTNodeType, ASTNodeType], loadSourceNamedMacro, ['macro']],
+
+    ['importModule:', 'Macro::importModule:', [MacroContextType, ASTNodeType, ASTNodeType], importModuleMacro, ['macro']],
+    ['fromModule:import:withType:', 'Macro::fromModule:import:withType:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], fromModuleImportWithType, ['macro']],
+    ['moduleExport:with:', 'Macro::moduleExport:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportWithMacro, ['macro']],
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['const', 'Type::const', [TypeType, TypeType], DecoratedType.makeConst, []],

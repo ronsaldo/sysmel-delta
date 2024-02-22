@@ -753,6 +753,7 @@ class GHIRApplicationValue(GHIRValue):
 class GHIRModule(GHIRValue):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
+        self.exportedValues: list[tuple[str, GHIRValue]] = []
         self.entryPoint: GHIRValue = None
 
     def accept(self, visitor: GHIRVisitor):
@@ -760,8 +761,13 @@ class GHIRModule(GHIRValue):
 
     def getType(self) -> GHIRValue:
         return None
+    
+    def exportValue(self, name: str, value: GHIRValue):
+        self.exportedValues.append((name, value))
 
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        for name, value in self.exportedValues:
+            graphPrinter.printLine('export "%s" value: %s' % (name, graphPrinter.printValue(value)))
         if self.entryPoint is not None:
             graphPrinter.printLine('module entryPoint: %s' % graphPrinter.printValue(self.entryPoint))
   
@@ -777,14 +783,16 @@ class GHIRModule(GHIRValue):
 class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def __init__(self, context = GHIRContext()) -> None:
         self.context = context
-        self.hirModule = GHIRModule(context)
+        self.ghirModule = GHIRModule(context)
         self.translatedValueDictionary = dict()
         self.translatedBindingValueDictionary = dict()
 
     def compileModule(self, module: Module):
+        for name, value in module.exportedValues:
+            self.ghirModule.exportValue(name.value, self.translateValue(value))
         if module.entryPoint is not None:
-            self.hirModule.entryPoint = self.translateValue(module.entryPoint)
-        return self.hirModule
+            self.ghirModule.entryPoint = self.translateValue(module.entryPoint)
+        return self.ghirModule
 
     def translateValue(self, value: TypedValue) -> GHIRValue:
         if value in self.translatedValueDictionary:
@@ -993,6 +1001,15 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateExpression(node.type)
         elements = list(map(self.translateExpression), node.elements)
         return GHIRMakeTupleExpression(self.context, type, elements).simplify()
+
+    def visitTypedImportModuleNode(self, node):
+        assert False
+    
+    def visitTypedFromModuleImportNode(self, node):
+        assert False
+
+    def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
+        assert False
 
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode) -> TypedValue:
         assert False

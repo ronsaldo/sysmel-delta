@@ -17,7 +17,7 @@ void printVersion(void)
 int main(int argc, const char *argv[])
 {
     const char *moduleFileName = NULL;
-    const char *outputFileName = "a.out";
+    const char *outputFileName = NULL;
 
     for(int i = 1; i < argc; ++i)
     {
@@ -71,15 +71,22 @@ int main(int argc, const char *argv[])
     }
 
     // Save the object file
-    if(!sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(compiler, outputFileName))
+    if(outputFileName)
     {
+        if(!sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(compiler, outputFileName))
+        {
+            sdvm_compiler_destroy(compiler);
+            fprintf(stderr, "Failed to encode the object file %s\n", outputFileName);
+            return 1;
+
+        }
+
         sdvm_compiler_destroy(compiler);
-        fprintf(stderr, "Failed to encode the object file %s\n", outputFileName);
-        return 1;
-
     }
-
-    sdvm_compiler_destroy(compiler);
+    else
+    {
+        printf("TODO: encode and write the object memory, and run it\n");
+    }
 
     return 0;
 } 

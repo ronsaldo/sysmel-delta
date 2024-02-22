@@ -30,6 +30,9 @@ class SDVMModule:
         self.entryPoint = 0
         self.entryPointClosure = 0
 
+    def exportValue(self, name: str, value):
+        pass
+
     def newFunction(self, name: str = None):
         function = SDVMFunction(self, name)
         self.functionTable.addFunction(function)

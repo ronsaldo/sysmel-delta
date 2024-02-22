@@ -477,8 +477,12 @@ class MIRModule:
     def __init__(self, context: MIRContext) -> None:
         self.context = context
         self.globalValues: list[MIRGlobalValue] = []
+        self.exportedValues: list[tuple[str, MIRConstant]] = []
         self.entryPoint: MIRFunction = None
         self.entryPointClosure: MIRGlobalVariable = None
+
+    def exportValue(self, name: str, value: MIRConstant) -> None:
+        self.exportedValues.append((name, value))
 
     def addGlobalValue(self, globalValue) -> None:
         self.globalValues.append(globalValue)
@@ -492,6 +496,8 @@ class MIRModule:
     def prettyPrint(self) -> str:
         self.enumerateGlobalValues()
         result = ''
+        for name, value in self.exportedValues:
+            result += 'export "%s" := %s' % (name, value)
         if self.entryPoint is not None:
             result += 'entryPoint: %s\n' % (self.entryPoint)
         if self.entryPointClosure is not None:
@@ -536,6 +542,9 @@ class MIRModuleFrontend:
 
         for globalValue in hirModule.globalValues:
             self.translateValue(globalValue)
+
+        for name, value in hirModule.exportedValues:
+            self.module.exportValue(name, self.translateValue(value))
 
         if hirModule.entryPoint is not None:
             assert hirModule.entryPoint.isConstantLambda()

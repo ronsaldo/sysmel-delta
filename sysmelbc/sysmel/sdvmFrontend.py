@@ -6,6 +6,7 @@ class SDVMModuleFrontEnd:
     def __init__(self) -> None:
         self.module = SDVMModule()
         self.translatedFunctionDictionary = dict()
+        self.translatedValueDictionary = dict()
         self.constantTranslationFunctions = dict()
         self.argumentInstructionDictionary = dict()
         self.callArgumentInstructionDictionary = dict()
@@ -35,6 +36,12 @@ class SDVMModuleFrontEnd:
             self.callArgumentInstructionDictionary[type] = callArgumentInst
             self.callInstructionDictionary[type] = callInst
             self.returnInstructionDictionary[type] = returnInst
+
+        for globalValue in mirModule.globalValues:
+            self.translateValue(globalValue)
+
+        for name, value in mirModule.exportedValues:
+            self.module.exportValue(name, self.translateValue(value))
         if mirModule.entryPoint is not None:
             self.module.entryPoint = self.translateFunction(mirModule.entryPoint).index
 
@@ -47,6 +54,20 @@ class SDVMModuleFrontEnd:
         self.module.finishBuilding()
         return self.module
     
+    def translateValue(self, mirValue: MIRValue):
+        if mirValue in self.translatedValueDictionary:
+            return self.translatedValueDictionary[mirValue]
+        translatedValue = mirValue.accept(self)
+        self.translatedValueDictionary[mirValue] = translatedValue
+        return translatedValue
+    
+    def visitGlobalVariable(self, mirGlobalVariable: MIRGlobalVariable):
+        ## TODO: Implement this part.
+        return None
+    
+    def visitFunction(self, mirFunction: MIRFunction) -> SDVMFunction:
+        return self.translateFunction(mirFunction)
+
     def translateFunction(self, mirFunction: MIRFunction) -> SDVMFunction:
         if mirFunction in self.translatedFunctionDictionary:
             return self.translatedFunctionDictionary[mirFunction]
@@ -55,7 +76,6 @@ class SDVMModuleFrontEnd:
         self.translatedFunctionDictionary[mirFunction] = function
         SDVMFunctionFrontEnd(self).translateMirFunctionInto(mirFunction, function)
         return function
-
 
 class SDVMFunctionFrontEnd:
     def __init__(self, moduleFrontend: SDVMModuleFrontEnd) -> None:

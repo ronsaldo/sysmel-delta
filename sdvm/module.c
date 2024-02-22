@@ -139,7 +139,7 @@ void sdvm_module_dumpFunction(sdvm_module_t *module, size_t index)
     if(index > module->functionTableSize) return;
 
     sdvm_functionTableEntry_t *function = module->functionTable + index - 1;
-    sdvm_constOrInstruction_t *instructions = (sdvm_constOrInstruction_t *)module->textSectionData + function->textSectionOffset;
+    sdvm_constOrInstruction_t *instructions = (sdvm_constOrInstruction_t *)(module->textSectionData + function->textSectionOffset);
     uint32_t instructionCount = function->textSectionSize / sizeof(sdvm_constOrInstruction_t);
 
     printf("%d:\n", (int)index);

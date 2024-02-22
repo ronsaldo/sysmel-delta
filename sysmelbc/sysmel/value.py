@@ -1299,7 +1299,7 @@ class Module(TypedValue):
         super().__init__()
         self.name = name
         self.exportedBindings = []
-        self.exportedBindingValues = {}
+        self.exportedValues = []
         self.entryPoint = None
 
     def exportBinding(self, binding: SymbolBinding):
@@ -1307,9 +1307,8 @@ class Module(TypedValue):
             return
         self.exportedBindings.append(binding)
 
-    def setExportedBindingValue(self, binding: SymbolBinding, value: TypedValue):
-        assert binding in self.exportedBindingValues
-        self.exportedBindingValues[binding] = value
+    def exportValue(self, name: Symbol, value: TypedValue):
+        self.exportedValues.append((name, value))
 
     def getType(self):
         return ModuleType
