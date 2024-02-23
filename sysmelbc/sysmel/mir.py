@@ -165,7 +165,19 @@ class MIRGlobalValue(MIRConstant):
     
     def fullPrintString(self) -> str:
         return str(self)
-    
+
+class MIRImportedModule(MIRGlobalValue):
+    def __init__(self, context: MIRContext, moduleName: str = None) -> None:
+        super().__init__(context, moduleName)
+        self.moduleName = moduleName
+
+class MIRImportedModuleValue(MIRGlobalValue):
+    def __init__(self, context: MIRContext, importedModule: MIRImportedModule, valueType: MIRType, valueName: str = None) -> None:
+        super().__init__(context, valueName)
+        self.importedModule = importedModule
+        self.moduleName = valueName
+        self.valueType = valueType
+
 class MIRGlobalVariable(MIRGlobalValue):
     def __init__(self, context: MIRContext, name: str = None) -> None:
         super().__init__(context, name)

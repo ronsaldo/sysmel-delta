@@ -110,12 +110,11 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
         productType = self.visitNode(node.type)
         return productType.makeWithElements(tuple(elements))
-
-    def visitTypedImportModuleNode(self, node):
-        assert False
     
-    def visitTypedFromModuleImportNode(self, node):
-        assert False
+    def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
+        module = self.visitNode(node.module)
+        type = self.visitNode(node.type)
+        return module.importValueWithType(node.name, type)
 
     def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
         value = self.visitNode(node.value)

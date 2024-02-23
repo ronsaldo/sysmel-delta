@@ -454,7 +454,7 @@ def importModuleMacro(macroContext: MacroContext, name: ASTNode) -> ASTNode:
     return ASTImportModuleNode(macroContext.sourcePosition, name)
 
 def fromModuleImportWithType(macroContext: MacroContext, module: ASTNode, name: ASTNode, type: ASTNode) -> ASTNode:
-    return ASTImportModuleNode(macroContext.sourcePosition, module, name, type)
+    return ASTFromModuleImportWithTypeNode(macroContext.sourcePosition, module, name, type)
 
 def moduleExportWithMacro(macroContext: MacroContext, name: ASTNode, value: ASTNode) -> ASTNode:
     return ASTModuleExportValueNode(macroContext.sourcePosition, name, value)

@@ -155,10 +155,6 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitTypedImportModuleNode(self, node):
-        pass
-    
-    @abstractmethod
     def visitTypedFromModuleImportNode(self, node):
         pass
 
@@ -651,17 +647,6 @@ class ASTTypedTupleNode(ASTTypedNode):
 
     def toJson(self) -> dict:
         return {'kind': 'TypedTuple', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
-    
-class ASTTypedImportModuleNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, name: Symbol) -> None:
-        super().__init__(sourcePosition)
-        self.name = name
-    
-    def accept(self, visitor):
-        return visitor.visitTypedImportModuleNode(self)
-
-    def toJson(self) -> dict:
-        return {'kind': 'TypedImportModule', 'type': self.type.toJson(), 'name': self.name.toJson()}
 
 class ASTTypedFromModuleImportNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, module: ASTTypedNode, name: Symbol) -> None:
@@ -877,9 +862,6 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.type)
         for expression in node.elements:
             self.visitNode(expression)
-
-    def visitTypedImportModuleNode(self, node: ASTTypedImportModuleNode):
-        self.visitNode(node.type)
     
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
         self.visitNode(node.type)

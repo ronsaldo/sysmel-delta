@@ -26,8 +26,10 @@ class HIRContext:
         self.uint64Type = HIRPrimitiveIntegerType(self, 'UInt64', False, 8, 8)
         self.float32Type = HIRPrimitiveFloatType(self, 'Float32', 4, 4)
         self.float64Type = HIRPrimitiveFloatType(self, 'Float64', 8, 8)
-        self.basicBlockType = HIRBasicBlockType(self, 'BasicBlock', pointerSize, pointerSize)
+        self.basicBlockType = HIRBasicBlockType(self, 'BasicBlock', self.pointerSize, self.pointerAlignment)
         self.functionalDefinitionType = HIRFunctionalDefinitionType(self, 'FunctionalDefinition', pointerSize, pointerSize)
+        self.moduleType = HIRModuleType(self, 'Module', self.gcPointerSize, self.gcPointerAlignment)
+        self.importedModuleType = HIRImportedModuleType(self, 'ImportedModule', self.gcPointerSize, self.gcPointerAlignment)
 
     def getTypeUniverse(self, index):
         if index not in self.typeUniverses:
@@ -208,6 +210,12 @@ class HIRBasicBlockType(HIRPrimitiveType):
 class HIRFunctionalDefinitionType(HIRPrimitiveType):
     pass
 
+class HIRModuleType(HIRPrimitiveType):
+    pass
+
+class HIRImportedModuleType(HIRPrimitiveType):
+    pass
+
 class HIRPrimitiveBooleanType(HIRPrimitiveType):
     pass
 
@@ -276,6 +284,13 @@ class HIRConstantPrimitiveFunction(HIRConstant):
 class HIRConstantPrimitive(HIRConstant):
     pass
 
+class HIRConstantUnit(HIRConstantPrimitive):
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitConstantUnit(self)
+
+    def __str__(self) -> str:
+        return '%s()' % str(self.type)
+
 class HIRConstantPrimitiveInteger(HIRConstantPrimitive):
     def __init__(self, context: HIRContext, type: HIRValue, value: int) -> None:
         super().__init__(context, type)
@@ -311,6 +326,42 @@ class HIRGlobalValue(HIRConstant):
     
     def fullPrintString(self) -> str:
         return str(self)
+
+class HIRImportedModule(HIRGlobalValue):
+    def __init__(self, context: HIRContext, parentModule, moduleName: str) -> None:
+        super().__init__(context, context.importedModuleType)
+        self.parentModule: HIRModule = parentModule
+        self.moduleName = moduleName
+        self.name = moduleName
+        self.importedValues: list[HIRImportedModuleValue] = []
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitImportedModule(self)
+    
+    def importValueWithType(self, name: str, type: HIRValue):
+        for importedValue in self.importedValues:
+            if importedValue.name == name and importedValue.getType() == type:
+                return importedValue
+        
+        importedValue = HIRImportedModuleValue(self.context, type, self, name);
+        self.parentModule.addGlobalValue(importedValue)
+        return importedValue
+
+    def fullPrintString(self) -> str:
+        return '%s := import "%s"' % (str(self), self.moduleName)
+
+class HIRImportedModuleValue(HIRGlobalValue):
+    def __init__(self, context: HIRContext, type: HIRValue, module: HIRImportedModule, valueName: str) -> None:
+        super().__init__(context, type)
+        self.module = module
+        self.valueName = valueName
+        self.name = valueName
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitImportedModuleValue(self)
+
+    def fullPrintString(self) -> str:
+        return '%s := from %s import "%s" : %s' % (str(self), str(self.module), self.valueName, str(self.type))
 
 class HIRFunctionalDefinition(HIRGlobalValue):
     def __init__(self, context: HIRContext) -> None:
@@ -579,6 +630,8 @@ class HIRBuilder:
 class HIRModule(HIRValue):
     def __init__(self, context: HIRContext) -> None:
         super().__init__(context)
+        self.importedModules = []
+        self.importedModuleDictionary = dict()
         self.exportedValues: list[tuple[str, HIRValue]] = []
         self.entryPoint: HIRValue = None
         self.globalValues: list[HIRGlobalValue] = []
@@ -591,7 +644,22 @@ class HIRModule(HIRValue):
     
     def exportValue(self, name: str, value: HIRValue):
         self.exportedValues.append((name, value))
+
+    def importModuleWithName(self, name: str):
+        if name in self.importedModuleDictionary:
+            return name
+        
+        importedModule = HIRImportedModule(self.context, self, name)
+        self.importedModuleDictionary[name] = importedModule
+        self.importedModules.append(importedModule)
+        return importedModule
     
+    def allGlobalValues(self):
+        for importedModule in self.importedModules:
+            yield importedModule
+        for value in self.globalValues:
+            yield value
+
     def addGlobalValue(self, globalValue: HIRGlobalValue):
         self.globalValues.append(globalValue)
 
@@ -613,7 +681,7 @@ class HIRModule(HIRValue):
         if len(result) != 0:
             result += '\n'
 
-        for globalValue in self.globalValues:
+        for globalValue in self.allGlobalValues():
             result += globalValue.fullPrintString()
         return result
 
@@ -664,7 +732,10 @@ class HIRModuleFrontend:
     
     def visitConstantValue(self, graphValue: GHIRConstantValue) -> HIRValue:
         return self.translateConstantTypedValue(graphValue.value)
-    
+
+    def visitUnitTypeValue(self, value: UnitTypeValue) -> HIRValue:
+        return HIRConstantUnit(self.context, self.translateConstantTypedValue(value.type))
+
     def visitPrimitiveFunction(self, value: GHIRPrimitiveFunction) -> HIRValue:
         return HIRConstantPrimitiveFunction(self.context, self.translateGraphValue(value.type), value.name, value.compileTimeImplementation)
     
@@ -694,7 +765,15 @@ class HIRModuleFrontend:
         hirFunctionType.argumentTypes = list(map(self.translateGraphValue, graphValue.arguments))
         hirFunctionType.resultType = self.translateGraphValue(graphValue.resultType)
         return hirFunctionType
-    
+
+    def visitImportedModule(self, graphValue: GHIRImportedModule) -> HIRValue:
+        return self.module.importModuleWithName(graphValue.name)
+
+    def visitImportedModuleValue(self, graphValue: GHIRImportedModuleValue) -> HIRValue:
+        module: HIRImportedModule = self.translateGraphValue(graphValue.module)
+        type: HIRValue = self.translateGraphValue(graphValue.type)
+        return module.importValueWithType(graphValue.name, type)
+
 class HIRFunctionalDefinitionFrontend:
     def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:
         self.context = moduleFrontend.context
@@ -736,3 +815,9 @@ class HIRFunctionalDefinitionFrontend:
         arguments = list(map(self.translateGraphValue, application.arguments))
         resultType = self.translateGraphValue(application.type)
         return self.builder.call(resultType, functional, arguments)
+    
+    def visitSequence(self, sequence: GHIRSequence) -> HIRValue:
+        result = self.moduleFrontend.translateConstantTypedValue(UnitType.getSingleton())
+        for element in sequence.expressions:
+            result = self.translateGraphValue(element)
+        return result

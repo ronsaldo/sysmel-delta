@@ -750,6 +750,55 @@ class GHIRApplicationValue(GHIRValue):
             replacement.registerUserValue(self)
         self.arguments = self.replacedUsedValueInListWith(self.arguments, usedValue, replacement)
 
+class GHIRImportedModule(GHIRValue):
+    def __init__(self, context: GHIRContext, name: str) -> None:
+        super().__init__(context)
+        self.name = name
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitImportedModule(self)
+
+    def getType(self) -> GHIRValue:
+        return None
+
+    def importValueWithType(self, name: str, type: GHIRValue):
+        return GHIRImportedModuleValue(self.context, self, type, name)
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        pass
+            
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        graphPrinter.printLine('%s := importedModule "%s"' % (valueName, self.name))
+
+class GHIRImportedModuleValue(GHIRValue):
+    def __init__(self, context: GHIRContext, module: GHIRImportedModule, type: GHIRValue, name: str) -> None:
+        super().__init__(context)
+        self.module = module
+        self.type = type
+        self.name = name
+    
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitImportedModuleValue(self)
+
+    def getType(self) -> GHIRValue:
+        return None
+
+    def usedValues(self):
+        yield self.type
+        yield self.module
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.module is usedValue:
+            self.module = replacement
+        if self.type is usedValue:
+            self.type = replacement
+            
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        graphPrinter.printLine('%s := from %s import %s : %s' % (valueName, graphPrinter.printValue(self.module), self.name, graphPrinter.printValue(self.type)))
+
 class GHIRModule(GHIRValue):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
@@ -806,6 +855,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         return expression.accept(self)
     
     def visitGenericTypedValue(self, value: TypedValue):
+        return self.context.getConstantValue(value)
+
+    def visitUnitTypeValue(self, value):
         return self.context.getConstantValue(value)
 
     def visitIntegerValue(self, value):
@@ -911,6 +963,15 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         body = self.translateExpression(functionalValue.body)
         return GHIRFunctionalDefinitionValue(self.context, captures, [argument], body).simplify()
     
+    def visitImportedModuleValue(self, value: ImportedModuleValue):
+        type: GHIRImportedModule = self.translateValue(value.type)
+        module: GHIRImportedModule = self.translateValue(value.module)
+        name: str = value.name.value
+        return module.importValueWithType(name, type)
+
+    def visitImportedModule(self, value: ImportedModule):
+        return GHIRImportedModule(self.context, value.name.value)
+
     def translateCaptureBinding(self, binding: SymbolCaptureBinding) -> GHIRCaptureBindingValue:
         type = self.translateExpression(binding.getTypeExpression())
         bindingValue = GHIRCaptureBindingValue(self.context, type, self.optionalSymbolToString(binding.name))
@@ -994,16 +1055,13 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
         type = self.translateExpression(node.type)
-        expressions = list(map(self.translateExpression), node.elements)
+        expressions = list(map(self.translateExpression, node.elements))
         return GHIRSequence(self.context, type, expressions).simplify()
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
         type = self.translateExpression(node.type)
         elements = list(map(self.translateExpression), node.elements)
         return GHIRMakeTupleExpression(self.context, type, elements).simplify()
-
-    def visitTypedImportModuleNode(self, node):
-        assert False
     
     def visitTypedFromModuleImportNode(self, node):
         assert False
@@ -1109,4 +1167,10 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
         return True
 
     def visitModule(self, value: GHIRModule):
-        assert False
+        return False
+
+    def visitImportedModule(self, value: GHIRImportedModule):
+        return False
+
+    def visitImportedModuleValue(self, value: GHIRImportedModuleValue):
+        return self.checkValue(value.module) or self.checkValue(value.type)

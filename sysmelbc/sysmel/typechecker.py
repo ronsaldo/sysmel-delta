@@ -223,10 +223,21 @@ class Typechecker(ASTVisitor):
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, functional, typedArgument, implicitValueSubstitutions))
     
     def visitImportModuleNode(self, node: ASTImportModuleNode):
-        assert False
+        name, errorNode = self.evaluateSymbol(node.name)
+        if errorNode is not None:
+            return errorNode
+
+        importedModule = self.lexicalEnvironment.lookModule().importModuleNamed(name)
+        return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, importedModule.getType()), importedModule)
     
     def visitFromModuleImportWithTypeNode(self, node: ASTFromModuleImportWithTypeNode):
-        assert False
+        module = self.visitNodeWithExpectedType(node.module, ModuleType)
+        name, errorNode = self.evaluateSymbol(node.name)
+        valueType = self.visitTypeExpression(node.type)
+        if errorNode is not None:
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, [module, valueType, errorNode]))
+        
+        return reduceFromModuleImportNode(ASTTypedFromModuleImportNode(node.sourcePosition, valueType, module, name))
 
     def visitModuleExportValueNode(self, node: ASTModuleExportValueNode):
         value = self.visitNode(node.value)
@@ -342,7 +353,7 @@ class Typechecker(ASTVisitor):
 
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
         innerEnvironment = LexicalEnvironment(self.lexicalEnvironment)
-        return Typechecker(innerEnvironment, self.errorAccumulator).visitNode(node)
+        return Typechecker(innerEnvironment, self.errorAccumulator).visitNode(node.expression)
 
     def visitLiteralNode(self, node: ASTLiteralNode):
         return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, node.value.getType()), node.value)
@@ -366,6 +377,7 @@ class Typechecker(ASTVisitor):
             module = self.lexicalEnvironment.lookModule()
 
         ## Use a symbol value binding if possible.
+        module = None
         if typecheckedValue.isTypedLiteralNode() or typecheckedValue.isLiteralTypeNode():
             valueBinding = SymbolValueBinding(node.sourcePosition, localName, typecheckedValue.value)
             if node.isPublic:
@@ -493,9 +505,6 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
-        return node
-    
-    def visitTypedImportModuleNode(self, node: ASTTypedImportModuleNode):
         return node
     
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
@@ -739,11 +748,8 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedElements.append(self.visitNode(element))
         return ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements)
     
-    def visitTypedImportModuleNode(self, node: ASTTypedImportModuleNode):
-        return node
-    
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
-        return ASTTypedFromModuleImportNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.module), node.name)
+        return reduceFromModuleImportNode(ASTTypedFromModuleImportNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.module), node.name))
 
     def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
         return ASTTypedModuleExportValueNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.value))
@@ -861,6 +867,14 @@ def reduceProductTypeNode(node: ASTProductTypeNode):
         return ASTLiteralTypeNode(node.sourcePosition, UnitType)
     elif len(node.elementTypes) == 1:
         return node.elementTypes[0]
+    return node
+
+def reduceFromModuleImportNode(node: ASTTypedFromModuleImportNode):
+    if node.module.isTypedLiteralNode() and node.type.isLiteralTypeNode():
+        module: ImportedModule = node.module.value
+        type: TypedValue = node.type.value
+        importedValue = module.importValueWithType(node.name, type)
+        return ASTTypedLiteralNode(node.sourcePosition, type, importedValue)
     return node
 
 def reduceSumTypeNode(node: ASTSumTypeNode):

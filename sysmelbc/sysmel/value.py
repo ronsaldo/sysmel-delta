@@ -10,6 +10,10 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitUnitTypeValue(self, value):
+        pass
+
+    @abstractmethod
     def visitIntegerValue(self, value):
         pass
 
@@ -239,6 +243,9 @@ class UnitTypeValue(TypedValue):
         super().__init__()
         self.type = type
         self.name = name
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitUnitTypeValue(self)
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         return self.type.isEquivalentTo(other.getType())
@@ -1298,9 +1305,20 @@ class Module(TypedValue):
     def __init__(self, name: TypedValue) -> None:
         super().__init__()
         self.name = name
+        self.importedModuleDictionary = dict()
+        self.importedModules = []
         self.exportedBindings = []
         self.exportedValues = []
         self.entryPoint = None
+
+    def importModuleNamed(self, name):
+        if name in self.importedModuleDictionary:
+            return self.importedModuleDictionary[name]
+        
+        importedModule = ImportedModule(name)
+        self.importedModuleDictionary[name] = importedModule
+        return importedModule
+
 
     def exportBinding(self, binding: SymbolBinding):
         if binding in self.exportedBindings:
@@ -1315,6 +1333,46 @@ class Module(TypedValue):
     
     def toJson(self):
         return {'module': str(self.name), 'entryPointBinding': optionalToJson(self.entryPoint)}
+
+class ImportedModuleValue(TypedValue):
+    def __init__(self, module, name: TypedValue, type: TypedValue) -> None:
+        super().__init__()
+        self.module = module
+        self.name = name
+        self.type = type
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitImportedModuleValue(self)
+
+    def getType(self):
+        return self.type
+    
+    def toJson(self):
+        return {'importedModuleValue': self.module.name.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
+
+class ImportedModule(TypedValue):
+    def __init__(self, name: TypedValue) -> None:
+        super().__init__()
+        self.name = name
+        self.importedValues: list[ImportedModuleValue] = []
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitImportedModule(self)
+    
+    def getType(self):
+        return ModuleType
+    
+    def importValueWithType(self, name: TypedValue, type: TypedValue) -> ImportedModuleValue:
+        for importedValue in self.importedValues:
+            if name.isEquivalentTo(importedValue.name) and type.isEquivalentTo(importedValue.type):
+                return importedValue
+            
+        importedValue = ImportedModuleValue(self, name, type)
+        self.importedValues.append(importedValue)
+        return importedValue
+    
+    def toJson(self):
+        return {'importedModule': str(self.name)}
 
 def optionalToJson(value: TypedValue | None):
     if value is None:
