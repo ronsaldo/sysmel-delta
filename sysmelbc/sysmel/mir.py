@@ -167,15 +167,25 @@ class MIRGlobalValue(MIRConstant):
         return str(self)
 
 class MIRImportedModule(MIRGlobalValue):
-    def __init__(self, context: MIRContext, moduleName: str = None) -> None:
+    def __init__(self, context: MIRContext, parentModule, moduleName: str = None) -> None:
         super().__init__(context, moduleName)
+        self.parentModule = parentModule
         self.moduleName = moduleName
+        self.importedValues: list[MIRImportedModuleValue] = []
+    
+    def importValueWithType(self, name: str, type: MIRType):
+        for importedValue in self.importedValues:
+            if importedValue.valueName == name and importedValue.type == type:
+                return importedValue
+
+        importedValue = MIRImportedModuleValue(self.context, self, type, name)
+        return importedValue
 
 class MIRImportedModuleValue(MIRGlobalValue):
     def __init__(self, context: MIRContext, importedModule: MIRImportedModule, valueType: MIRType, valueName: str = None) -> None:
         super().__init__(context, valueName)
         self.importedModule = importedModule
-        self.moduleName = valueName
+        self.valueName = valueName
         self.valueType = valueType
 
 class MIRGlobalVariable(MIRGlobalValue):
@@ -488,6 +498,8 @@ class MIRBuilder:
 class MIRModule:
     def __init__(self, context: MIRContext) -> None:
         self.context = context
+        self.importedModules: list[MIRImportedModule] = []
+        self.importedModuleDictionary: dict[str, MIRImportedModule] = dict()
         self.globalValues: list[MIRGlobalValue] = []
         self.exportedValues: list[tuple[str, MIRConstant]] = []
         self.entryPoint: MIRFunction = None
@@ -496,12 +508,27 @@ class MIRModule:
     def exportValue(self, name: str, value: MIRConstant) -> None:
         self.exportedValues.append((name, value))
 
+    def importModule(self, name: str) -> MIRImportedModule:
+        if name in self.importedModuleDictionary:
+            return self.importedModuleDictionary[name]
+
+        importedModule = MIRImportedModule(self.context, self, name)
+        self.importedModules.append(importedModule)
+        self.importedModuleDictionary[name] = importedModule
+        return importedModule
+
     def addGlobalValue(self, globalValue) -> None:
         self.globalValues.append(globalValue)
 
+    def allGlobalValues(self):
+        for value in self.importedModules:
+            yield value
+        for value in self.globalValues:
+            yield value
+
     def enumerateGlobalValues(self):
         index = 0
-        for globalValue in self.globalValues:
+        for globalValue in self.allGlobalValues():
             globalValue.globalValueIndex = index
             index += 1
 
@@ -518,7 +545,7 @@ class MIRModule:
         if len(result) != 0:
             result += '\n'
 
-        for function in self.globalValues:
+        for function in self.allGlobalValues():
             result += function.fullPrintString()
             result += '\n'
         return result
@@ -600,6 +627,13 @@ class MIRModuleFrontend:
         ## FIXME: Write the capture values.
         assert len(value.captures) == 0
         return writer.finish()
+
+    def visitImportedModule(self, value: HIRImportedModule) -> MIRValue:
+        return self.module.importModule(value.name)
+
+    def visitImportedModuleValue(self, value: HIRImportedModuleValue) -> MIRValue:
+        module = self.translateValue(value.module)
+        return module.importValueWithType(value.name, self.translateType(value.type))
 
     def beginWritingGlobalVariableFor(self, targetValue: HIRValue) -> MIRValue:
         mirGlobal = MIRGlobalVariable(self.context)

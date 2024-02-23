@@ -665,7 +665,7 @@ class HIRModule(HIRValue):
 
     def enumerateGlobalValues(self):
         index = 0
-        for globalValue in self.globalValues:
+        for globalValue in self.allGlobalValues():
             globalValue.globalValueIndex = index
             index += 1
 
@@ -683,6 +683,7 @@ class HIRModule(HIRValue):
 
         for globalValue in self.allGlobalValues():
             result += globalValue.fullPrintString()
+            result += '\n'
         return result
 
 class HIRModuleFrontend:

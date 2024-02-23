@@ -6,6 +6,7 @@ let: #printString with: (fromModule: stdio import: #printString withType: (:(Str
 
 moduleExport: #main with: (:(Int32)argc :: Int32) :=> {
     ##abort().
+    ##printString("Hello World\n").
     argc + 1i32
 }.
 
