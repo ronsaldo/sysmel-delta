@@ -13,6 +13,12 @@ class SdvmConstantDef:
         self.type = type
         self.description = description
 
+class SdvmConstantOpcodeDef:
+    def __init__(self, name: str, opcode: int, description: str) -> None:
+        self.name = name
+        self.opcode = opcode
+        self.description = description
+
 class SdvmOpcodeDef:
     def __init__(self, name: str, opcode: int, description: str) -> None:
         self.name = name
@@ -32,6 +38,9 @@ SdvmInstructionDictionary = {}
 
 def sdvmTypeDef(name: str, code: int):
     return SdvmTypeDef(name, code)
+
+def sdvmConstantOpcodeDef(name: str, opcode: int, description: str):
+    return SdvmConstantOpcodeDef(name, opcode, description)
 
 def sdvmConstantDef(name: str, opcode: int, type: SdvmTypeDef, description: str):
     return SdvmConstantDef(name, opcode, type, description)

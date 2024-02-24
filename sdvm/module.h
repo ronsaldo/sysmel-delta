@@ -10,12 +10,27 @@ typedef enum sdvm_moduleSectionType_e
 {
     SdvmModuleSectionTypeNull = 0,
     SdvmModuleSectionTypeConstant = SDVM_IM_FOUR_CC('c', 'o', 'n', 't'),
+    SdvmModuleSectionTypeData = SDVM_IM_FOUR_CC('d', 'a', 't', 'a'),
     SdvmModuleSectionTypeText = SDVM_IM_FOUR_CC('t', 'e', 'x', 't'),
+    SdvmModuleSectionTypeString = SDVM_IM_FOUR_CC('s', 't', 'r', 'n'),
     SdvmModuleSectionTypeFunctionTable = SDVM_IM_FOUR_CC('f', 'u', 'n', 't'),
+    SdvmModuleSectionTypeObjectTable = SDVM_IM_FOUR_CC('o', 'b', 'j', 't'),
+    SdvmModuleSectionTypeImportModuleTable = SDVM_IM_FOUR_CC('i', 'm', 'p', 'm'),
+    SdvmModuleSectionTypeImportModuleValueTable = SDVM_IM_FOUR_CC('i', 'm', 'p', 'v'),
+    SdvmModuleSectionTypeExportValueTable = SDVM_IM_FOUR_CC('e', 'x', 'p', 'v'),
 
     SdvmModuleSectionTypeDebugLineStart = SDVM_IM_FOUR_CC('d', 'l', 'n', 's'),
     SdvmModuleSectionTypeDebugLineEnd = SDVM_IM_FOUR_CC('d', 'l', 'n', 'e'),
 } sdvm_moduleSectionType_t;
+
+typedef enum sdvm_t_moduleValueKind_e
+{
+    SdvmModuleValueKindNull = 0,
+    SdvmModuleValueKindFunctionHandle = SDVM_IM_FOUR_CC('f', 'u', 'n', 'h'),
+    SdvmModuleValueKindDataSectionValue = SDVM_IM_FOUR_CC('d', 'a', 't', 'a'),
+    SdvmModuleValueKindConstantSectionValue = SDVM_IM_FOUR_CC('c', 'o', 'n', 't'),
+    SdvmModuleValueKindObjectHandle = SDVM_IM_FOUR_CC('o', 'b', 'j', 'h'),
+} sdvm_t_moduleValueKind_t;
 
 typedef struct sdvm_moduleHeader_s
 {
@@ -27,6 +42,12 @@ typedef struct sdvm_moduleHeader_s
     uint32_t entryPointClosure;
 } sdvm_moduleHeader_t;
 
+typedef struct sdvm_moduleString_s
+{
+    uint32_t stringSectionOffset;
+    uint32_t stringSectionSize;
+} sdvm_moduleString_t;
+
 typedef struct sdvm_moduleSectionHeader_s
 {
     uint32_t type;
@@ -34,11 +55,39 @@ typedef struct sdvm_moduleSectionHeader_s
     uint32_t size;
 } sdvm_moduleSectionHeader_t;
 
-typedef struct sdvm_functionTableEntry_s
+typedef struct sdvm_moduleFunctionTableEntry_s
 {
     uint32_t textSectionOffset;
     uint32_t textSectionSize;
-} sdvm_functionTableEntry_t;
+    sdvm_moduleString_t name; // Optional
+    sdvm_moduleString_t typeDescriptor; // Optional
+} sdvm_moduleFunctionTableEntry_t;
+
+typedef struct sdvm_moduleObjectTableEntry_s
+{
+    uint32_t dataSectionOffset;
+    uint32_t dataSectionSize;
+} sdvm_moduleObjectTableEntry_t;
+
+typedef struct sdvm_moduleImportTableEntry_s
+{
+    sdvm_moduleString_t name;
+} sdvm_moduleImportTableEntry_t;
+
+typedef struct sdvm_moduleImportValueTableEntry_s
+{
+    uint32_t module; // One based.
+    sdvm_moduleString_t name;
+    sdvm_moduleString_t typeDescriptor;
+} sdvm_moduleImportValueTableEntry_t;
+
+typedef struct sdvm_moduleExportValueTableEntry_s
+{
+    sdvm_t_moduleValueKind_t kind;
+    uint32_t value;
+    sdvm_moduleString_t name;
+    sdvm_moduleString_t typeDescriptor;
+} sdvm_moduleExportValueTableEntry_t;
 
 typedef struct sdvm_module_s
 {
@@ -50,11 +99,14 @@ typedef struct sdvm_module_s
     size_t constSectionSize;
     uint8_t *constSectionData;
 
+    size_t stringSectionSize;
+    uint8_t *stringSectionData;
+
     size_t textSectionSize;
     uint8_t *textSectionData;
 
     size_t functionTableSize;
-    sdvm_functionTableEntry_t *functionTable;
+    sdvm_moduleFunctionTableEntry_t *functionTable;
 
     size_t moduleDataSize;
     uint8_t *moduleData;

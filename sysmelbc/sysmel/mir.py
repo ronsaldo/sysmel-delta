@@ -5,10 +5,14 @@ from abc import ABC, abstractmethod
 class MIRContext:
     def __init__(self, pointerSize: int = 8) -> None:
         self.pointerSize = pointerSize
-        self.functionType = MIRFunctionType(self, 'Function', pointerSize, pointerSize)
-        self.basicBlockType = MIRBasicBlockType(self, 'BasicBlock', pointerSize, pointerSize)
-        self.gcPointerType = MIRGCPointerType(self, 'GCPointer', pointerSize, pointerSize)
-        self.pointerType = MIRPointerType(self, 'Pointer', pointerSize, pointerSize)
+        self.pointerAlignment = pointerSize
+        self.gcPointerSize = pointerSize*2
+        self.gcPointerAlignment = pointerSize
+        self.closureType = MIRClosureType(self, 'Function', self.gcPointerSize, self.gcPointerAlignment)
+        self.functionType = MIRFunctionType(self, 'Function', self.pointerSize, self.pointerAlignment)
+        self.basicBlockType = MIRBasicBlockType(self, 'BasicBlock', self.pointerSize, self.pointerAlignment)
+        self.gcPointerType = MIRGCPointerType(self, 'GCPointer', self.gcPointerSize, self.gcPointerAlignment)
+        self.pointerType = MIRPointerType(self, 'Pointer', self.pointerSize, self.pointerAlignment)
         self.voidType = MIRVoidType(self, 'Void', 0, 1)
         self.void = MIRConstantVoid(self, self.voidType)
         self.booleanType = MIRBooleanType(self, 'Boolean', 1, 1)
@@ -31,6 +35,9 @@ class MIRType(ABC):
         self.alignment = alignment
 
     def isVoidType(self) -> bool:
+        return False
+    
+    def isClosureType(self) -> bool:
         return False
 
     def __str__(self) -> str:
@@ -55,6 +62,10 @@ class MIRFloatingPointType(MIRType):
 class MIRGCPointerType(MIRType):
     pass
 
+class MIRClosureType(MIRType):
+    def isClosureType(self) -> bool:
+        return True
+
 class MIRFunctionType(MIRType):
     pass
 
@@ -65,6 +76,14 @@ class MIRPointerType(MIRType):
     pass
 
 class MIRValueVisitor(ABC):
+    @abstractmethod
+    def visitImportedModule(self, value):
+        pass
+
+    @abstractmethod
+    def visitImportedModuleValue(self, value):
+        pass
+
     @abstractmethod
     def visitConstantInteger(self, value):
         pass
@@ -172,6 +191,9 @@ class MIRImportedModule(MIRGlobalValue):
         self.parentModule = parentModule
         self.moduleName = moduleName
         self.importedValues: list[MIRImportedModuleValue] = []
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitImportedModule(self)
     
     def importValueWithType(self, name: str, type: MIRType):
         for importedValue in self.importedValues:
@@ -187,6 +209,9 @@ class MIRImportedModuleValue(MIRGlobalValue):
         self.importedModule = importedModule
         self.valueName = valueName
         self.valueType = valueType
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitImportedModuleValue(self)
 
 class MIRGlobalVariable(MIRGlobalValue):
     def __init__(self, context: MIRContext, name: str = None) -> None:
@@ -604,7 +629,15 @@ class MIRModuleFrontend:
     def translateType(self, type: HIRValue):
         if type in self.translatedTypeDictionary:
             return self.translatedTypeDictionary[type]
-        assert False
+        translatedType = type.accept(self)
+        self.translatedTypeDictionary[type] = translatedType
+        return translatedType
+    
+    def visitFunctionType(self, type: HIRFunctionType):
+        return self.context.closureType
+    
+    def visitConstantUnit(self, constant: HIRConstantUnit) -> MIRValue:
+        return self.context.void
 
     def visitConstantPrimitiveInteger(self, constant: HIRConstantPrimitiveInteger) -> MIRValue:
         return MIRConstantInteger(self.translateType(constant.getType()), constant.value)
@@ -741,7 +774,7 @@ class MIRFunctionFrontend:
 
         resultType = self.translateType(hirInstruction.type)
         functional = self.translateValue(hirInstruction.functional)
-        arguments = list(filter(lambda x: x.isNotVoid(), map(self.translateValue, hirInstruction.arguments)))
+        arguments = list(filter(lambda x: x.hasNotVoidType(), map(self.translateValue, hirInstruction.arguments)))
         return self.builder.call(resultType, functional, arguments)
     
     def visitReturnInstruction(self, hirInstruction: HIRReturnInstruction):

@@ -14,12 +14,14 @@ const char *sdvm_instruction_fullOpcodeToString(sdvm_opcode_t opcode)
 {
     switch(opcode)
     {
+#define SDVM_CONSTANT_OPCODE_DEF(...)
 #define SDVM_CONSTANT_DEF(name, opcode, type, description) \
     case SdvmConst ## name: return "SdvmConst" #name;
-#define SDVM_OPCODE_DEF(name, opcode, description)
+#define SDVM_OPCODE_DEF(...)
 #define SDVM_INSTRUCTION_DEF(name, opcode, type, arg0Type, arg1Type, description) \
     case SdvmInst ## name: return "SdvmInst" #name;
 #include "opcode.inc"
+#undef SDVM_CONSTANT_OPCODE_DEF
 #undef SDVM_CONSTANT_DEF
 #undef SDVM_OPCODE_DEF
 #undef SDVM_INSTRUCTION_DEF

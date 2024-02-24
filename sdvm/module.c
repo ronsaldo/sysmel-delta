@@ -53,8 +53,8 @@ static bool sdvm_module_fetchAndValidateDataStructures(sdvm_module_t *module)
             module->textSectionData = module->moduleData + header->offset;
             break;
         case SdvmModuleSectionTypeFunctionTable:
-            module->functionTableSize = header->size / sizeof(sdvm_functionTableEntry_t*);
-            module->functionTable = (sdvm_functionTableEntry_t*)(module->moduleData + header->offset);
+            module->functionTableSize = header->size / sizeof(sdvm_moduleFunctionTableEntry_t*);
+            module->functionTable = (sdvm_moduleFunctionTableEntry_t*)(module->moduleData + header->offset);
             break;
         default:
             // Ignored by default
@@ -64,7 +64,7 @@ static bool sdvm_module_fetchAndValidateDataStructures(sdvm_module_t *module)
     // Validate the function table.
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
-        sdvm_functionTableEntry_t *function = module->functionTable + i;
+        sdvm_moduleFunctionTableEntry_t *function = module->functionTable + i;
         if(function->textSectionSize != 0 && function->textSectionOffset + function->textSectionSize > module->textSectionSize)
             return false;
 
@@ -138,7 +138,7 @@ void sdvm_module_dumpFunction(sdvm_module_t *module, size_t index)
     if(index == 0) return;
     if(index > module->functionTableSize) return;
 
-    sdvm_functionTableEntry_t *function = module->functionTable + index - 1;
+    sdvm_moduleFunctionTableEntry_t *function = module->functionTable + index - 1;
     sdvm_constOrInstruction_t *instructions = (sdvm_constOrInstruction_t *)(module->textSectionData + function->textSectionOffset);
     uint32_t instructionCount = function->textSectionSize / sizeof(sdvm_constOrInstruction_t);
 

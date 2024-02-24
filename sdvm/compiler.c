@@ -587,9 +587,6 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         case SdvmConstPointerConstSection:
             instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, compiler->pointerSize, instruction->decoding.constant.unsignedPayload);
             break;
-        case SdvmConstGCPointerNull:
-            instruction->location = sdvm_compilerLocation_null();
-            break;
         case SdvmConstFloat32:
             {
                 float value = 0;
@@ -597,7 +594,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
                 instruction->location = sdvm_compilerLocation_constSectionF32(compiler, value);
             }
             break;
-        case SdvmConstFloat64Small32:
+        case SdvmConstFloat64Small:
             abort();
         case SdvmConstFloat64ConstSection:
             instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
@@ -918,7 +915,7 @@ void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *st
     }
 }
 
-static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_functionTableEntry_t *functionTableEntry)
+static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry)
 {
     sdvm_functionCompilationState_t functionState = {
         .compiler = moduleState->compiler,
@@ -978,7 +975,7 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     bool hasSucceeded = true;
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
-        sdvm_functionTableEntry_t *functionTableEntry = module->functionTable + i;
+        sdvm_moduleFunctionTableEntry_t *functionTableEntry = module->functionTable + i;
         size_t startOffset = compiler->textSection.contents.size;
         sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&compiler->symbolTable, state.functionTableSymbols[i], compiler->textSection.symbolIndex, startOffset);
         if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry))
