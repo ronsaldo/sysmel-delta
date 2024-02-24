@@ -94,6 +94,20 @@ enum {
     SDVM_STT_FILE = 4,
 };
 
+enum {
+    SDVM_R_X86_64_64 = 1,
+    SDVM_R_X86_64_PC32 = 2,
+    SDVM_R_X86_64_GOT32 = 3,
+    SDVM_R_X86_64_PLT32 = 4,
+    SDVM_R_X86_64_GOTPCREL = 9,
+    SDVM_R_X86_64_32 = 10,
+    SDVM_R_X86_64_16 = 12,
+    SDVM_R_X86_64_PC16 = 13,
+    SDVM_R_X86_64_8 = 14,
+    SDVM_R_X86_64_PC8 = 15,
+    SDVM_R_X86_64_PC64 = 24,
+};
+
 #define SDVM_ELF64_SYM_INFO(type, binding) (((binding) << 4) | (type))
 
 typedef struct sdvm_elf64_header_s
@@ -150,5 +164,7 @@ typedef struct sdvm_elf64_rela_s
     sdvm_elf64_xword_t info;
     sdvm_elf64_sxword_t addend;
 } sdvm_elf64_rela_t;
+
+#define SDVM_ELF64_R_INFO(symbol, type) (( (sdvm_elf64_xword_t)(symbol) << 32) | ((sdvm_elf64_xword_t)(type) & 0xFFFFFFFF))
 
 #endif //SDVM_ELF_H

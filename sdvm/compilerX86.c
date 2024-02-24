@@ -143,21 +143,20 @@ void sdvm_compiler_x86_imm64(sdvm_compiler_t *compiler, uint64_t value)
     sdvm_compiler_addInstructionBytes(compiler, 8, &value);
 }
 
-void sdvm_compiler_x86_modGsvReg(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, sdvm_x86_registerIndex_t reg, int32_t offset, int32_t relativeOffset)
+void sdvm_compiler_x86_modGsvReg(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, sdvm_x86_registerIndex_t reg, int32_t addend, int32_t relativeOffset)
 {
     uint32_t addressPlaceHolder = 0;
     sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_modRmByte(5, reg, 0));
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRelative32AtGot, symbolHandle, addend + relativeOffset - 4);
     sdvm_compiler_addInstructionBytes(compiler, 4, &addressPlaceHolder);
-    // TODO: Add the relocation annotation
 }
-
 
 void sdvm_compiler_x86_modRmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t reg)
 {
     base &= SDVM_X86_REG_HALF_MASK;
     reg &= SDVM_X86_REG_HALF_MASK;
 
-    if(offset == 0 && reg != SDVM_X86_RSP && reg != reg != SDVM_X86_RBP)
+    if(offset == 0 && reg != SDVM_X86_RSP && reg != SDVM_X86_RBP)
     {
         sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_modRmByte(base, reg, 0));
         return;

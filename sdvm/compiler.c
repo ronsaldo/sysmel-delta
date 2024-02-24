@@ -1001,6 +1001,18 @@ SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint
     return sdvm_dynarray_add(&compiler->textSection.contents, &byte);
 }
 
+SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend)
+{
+    sdvm_compilerRelocation_t relocation = {
+        .kind = kind,
+        .symbol = symbol,
+        .addend = addend,
+        .offset = compiler->textSection.contents.size
+    };
+
+    sdvm_dynarray_add(&compiler->textSection.relocations, &relocation);
+}
+
 char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
 {
     size_t symbolSize = 0;

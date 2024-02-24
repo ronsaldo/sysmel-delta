@@ -169,6 +169,22 @@ static uint32_t sdvm_compilerElf64_mapSymbolKind(sdvm_compilerSymbolKind_t kind)
     }
 }
 
+uint32_t sdvm_compilerElf_mapX64RelocationType(sdvm_compilerRelocationKind_t kind)
+{
+    switch(kind)
+    {
+    case SdvmCompRelocationAbsolute8: return SDVM_R_X86_64_8;
+    case SdvmCompRelocationAbsolute16: return SDVM_R_X86_64_16;
+    case SdvmCompRelocationAbsolute32: return SDVM_R_X86_64_32;
+    case SdvmCompRelocationAbsolute64: return SDVM_R_X86_64_64;
+    case SdvmCompRelocationRelative32: return SDVM_R_X86_64_PC32;
+    case SdvmCompRelocationRelative32AtGot: return SDVM_R_X86_64_GOTPCREL;
+    case SdvmCompRelocationRelative32AtPlt: return SDVM_R_X86_64_PLT32;
+    case SdvmCompRelocationRelative64: return SDVM_R_X86_64_PC64;
+    default: abort();
+    }
+}
+
 sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
 {
     bool useRela = true;
@@ -229,10 +245,16 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
     }
 
     // Section relocations.
+    size_t relocatedSectionHeaderIndex = 1;
+    sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
     for(size_t i = 1; i < SDVM_COMPILER_SECTION_COUNT; ++i)
     {
         sdvm_compilerObjectSection_t *section = compiler->sections + i;
-        if(section->contents.size == 0 || section->relocations.size == 0)
+        if(section->contents.size == 0)
+            continue;
+
+        ++relocatedSectionHeaderIndex;
+        if (section->relocations.size == 0)
             continue;
 
         sdvm_elf64_sectionHeader_t *elfSection = sectionHeaders + writtenSectionHeaderCount++;
@@ -240,13 +262,25 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         elfSection->type = useRela ? SDVM_SHT_RELA : SDVM_SHT_REL;
         elfSection->addressAlignment = section->alignment;
         elfSection->offset = layout.relocationSectionContents[i];
-        elfSection->size = section->relocations.size;
+        elfSection->info = relocatedSectionHeaderIndex - 1;
+        elfSection->link = layout.symbolTableSectionIndex;
         elfSection->entrySize = useRela ? sizeof(sdvm_elf64_rela_t) : sizeof(sdvm_elf64_rel_t);
+        elfSection->size = section->relocations.size * elfSection->entrySize;
+
+        sdvm_compilerRelocation_t *relocationTable = (sdvm_compilerRelocation_t *)section->relocations.data;
 
         if(useRela)
         {
             sdvm_elf64_rela_t *relaTable = (sdvm_elf64_rela_t*) (objectFile->data + layout.relocationSectionContents[i]);
-            (void)relaTable;
+            for(size_t i = 0; i < section->relocations.size; ++i)
+            {
+                sdvm_compilerRelocation_t *relocationEntry = relocationTable + i;
+                sdvm_elf64_rela_t *relaEntry = relaTable + i;
+                uint32_t mappedRelocationType = sdvm_compilerElf_mapX64RelocationType(relocationEntry->kind);
+                relaEntry->info = SDVM_ELF64_R_INFO(relocationEntry->symbol ? symbols[relocationEntry->symbol - 1].objectSymbolIndex : 0, mappedRelocationType);
+                relaEntry->offset = relocationEntry->offset;
+                relaEntry->addend = relocationEntry->addend;
+            }
         }
         else
         {
@@ -277,7 +311,6 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         sdvm_elf64_symbol_t *elfSymbols = (sdvm_elf64_symbol_t*)(objectFile->data + layout.symbolTable);
         
         size_t compilerSymbolCount = compiler->symbolTable.symbols.size;
-        sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
         for(size_t i = 0; i < compilerSymbolCount; ++i)
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;

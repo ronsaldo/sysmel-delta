@@ -47,6 +47,8 @@ typedef enum sdvm_compilerRelocationKind_e
     SdvmCompRelocationRelative8,
     SdvmCompRelocationRelative16,
     SdvmCompRelocationRelative32,
+    SdvmCompRelocationRelative32AtGot,
+    SdvmCompRelocationRelative32AtPlt,
     SdvmCompRelocationRelative64,
 } sdvm_compilerRelocationKind_t;
 
@@ -99,8 +101,7 @@ typedef uint32_t sdvm_compilerSymbolHandle_t;
 typedef struct sdvm_compilerRelocation_s
 {
     sdvm_compilerRelocationKind_t kind;
-
-    uint32_t symbol;
+    sdvm_compilerSymbolHandle_t symbol;
     uint32_t offset;
     int64_t addend;
 } sdvm_compilerRelocation_t;
@@ -354,6 +355,7 @@ SDVM_API void sdvm_compiler_setLabelAtSectionEnd(sdvm_compiler_t *compiler, uint
 
 SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
 SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);
+SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);
 
