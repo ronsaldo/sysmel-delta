@@ -643,7 +643,9 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
                     instruction->location = sdvm_compilerLocation_globalSymbolValue(symbolHandle);
                 }
                 else
+                {
                     instruction->location = sdvm_compilerLocation_null();
+                }
             }
             break;
         default:

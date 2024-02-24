@@ -167,7 +167,7 @@ class SDVMFunctionFrontEnd:
 
     def visitImportedModuleValue(self, value: MIRImportedModuleValue):
         moduleImportedValue = self.moduleFrontend.translateValue(value)
-        return self.function.addConstant(SDVMConstant(SdvmConstImportPointer, moduleImportedValue))
+        return self.function.addConstant(SDVMConstant(SdvmConstImportPointer, moduleImportedValue, moduleImportedValue.index))
     
     def visitConstantInteger(self, instruction: MIRConstantInteger) -> SDVMOperand:
         return self.moduleFrontend.constantTranslationFunctions[instruction.getType()](self.function, instruction.value)

@@ -151,6 +151,30 @@ void sdvm_compiler_x86_modGsvReg(sdvm_compiler_t *compiler, sdvm_compilerSymbolH
     // TODO: Add the relocation annotation
 }
 
+
+void sdvm_compiler_x86_modRmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t reg)
+{
+    base &= SDVM_X86_REG_HALF_MASK;
+    reg &= SDVM_X86_REG_HALF_MASK;
+
+    if(offset == 0 && reg != SDVM_X86_RSP && reg != reg != SDVM_X86_RBP)
+    {
+        sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_modRmByte(base, reg, 0));
+        return;
+    }
+
+    bool hasByteOffset = (int8_t)offset == offset;
+    sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_modRmByte(base, reg, hasByteOffset ? 1 : 2));
+
+    if(base == SDVM_X86_RSP)
+        sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_sibOnlyBase(base));
+    
+    if(hasByteOffset)
+        sdvm_compiler_x86_imm8(compiler, offset);
+    else
+        sdvm_compiler_x86_imm32(compiler, offset);
+}
+
 void sdvm_compiler_x86_int3(sdvm_compiler_t *compiler)
 {
     sdvm_compiler_x86_opcode(compiler, 0xCC);
@@ -368,9 +392,23 @@ void sdvm_compiler_x86_mov32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerI
         sdvm_compiler_x86_mov32RegReg_noOpt(compiler, destination, source);
 }
 
+void sdvm_compiler_x86_mov32RegRmo(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_opcode(compiler, 0x8B);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+}
+
+void sdvm_compiler_x86_mov32RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t destination)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_opcode(compiler, 0x89);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+}
+
 void sdvm_compiler_x86_mov32RegGsv(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_compilerSymbolHandle_t sourceSymbol)
 {
-    sdvm_compiler_x86_rex(compiler, false, destination > SDVM_X86_REG_HALF_MASK, false, false);
+    sdvm_compiler_x86_rexReg(compiler, false, destination);
     sdvm_compiler_x86_opcode(compiler, 0x8B);
     sdvm_compiler_x86_modGsvReg(compiler, sourceSymbol, destination, 0, 0);
 }
@@ -890,6 +928,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
 
     switch(instruction->decoding.opcode)
     {
+    // Argument instructions are handled by the register allocator.
     case SdvmInstBeginArguments:
     case SdvmInstArgInt8:
     case SdvmInstArgInt16:
@@ -899,8 +938,31 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
     case SdvmInstArgUInt16:
     case SdvmInstArgUInt32:
     case SdvmInstArgUInt64:
+    case SdvmInstArgPointer:
+    case SdvmInstArgProcedureHandle:
+    case SdvmInstArgGCPointer:
+    case SdvmInstArgFloat32:
+    case SdvmInstArgFloat64:
         return true;
 
+    // Call argument instructions are handled by the register allocator.
+    case SdvmInstBeginCall:
+    case SdvmInstCallArgInt8:
+    case SdvmInstCallArgInt16:
+    case SdvmInstCallArgInt32:
+    case SdvmInstCallArgInt64:
+    case SdvmInstCallArgUInt8:
+    case SdvmInstCallArgUInt16:
+    case SdvmInstCallArgUInt32:
+    case SdvmInstCallArgUInt64:
+    case SdvmInstCallArgPointer:
+    case SdvmInstCallArgProcedureHandle:
+    case SdvmInstCallArgGCPointer:
+    case SdvmInstCallArgFloat32:
+    case SdvmInstCallArgFloat64:
+        return true;
+
+    // Return instruction differences are handled by the register allocator.
     case SdvmInstReturnInt8:
     case SdvmInstReturnInt16:
     case SdvmInstReturnInt32:
@@ -917,6 +979,16 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         sdvm_compiler_x64_emitFunctionEpilogue(state);
         sdvm_compiler_x86_ret(compiler);
         return false;
+
+    case SdvmInstLoadInt32:
+    case SdvmInstLoadUInt32:
+        sdvm_compiler_x86_mov32RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+
+    case SdvmInstStoreInt32:
+    case SdvmInstStoreUInt32:
+        sdvm_compiler_x86_mov32RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        return true;
 
     case SdvmInstInt32Add:
     case SdvmInstUInt32Add:
