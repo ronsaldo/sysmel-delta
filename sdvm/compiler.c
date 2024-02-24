@@ -519,10 +519,25 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegister(uint8_t s
     return location;
 }
 
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegisterPair(uint8_t firstSize, uint8_t secondSize)
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedIntegerRegister(uint8_t size)
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationRegister,
+        .isSigned = true,
+        .firstRegister = {
+            .kind = SdvmCompRegisterKindInteger,
+            .isPending = true,
+            .size = size
+        }
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegisterPair(uint8_t firstSize, uint8_t secondSize)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegisterPair,
         .firstRegister = {
             .kind = SdvmCompRegisterKindInteger,
             .isPending = true,
@@ -548,10 +563,21 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegister(sdvm_com
     return location;
 }
 
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister)
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificSignedRegister(sdvm_compilerRegister_t reg)
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationRegister,
+        .isSigned = true,
+        .firstRegister = reg
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegisterPair,
         .firstRegister = firstRegister,
         .secondRegister = secondRegister,
     };
@@ -568,12 +594,21 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
         return sdvm_compilerLocation_null();
 
     case SdvmTypeInt8:
-        return sdvm_compilerLocation_integerRegister(1);
+        return sdvm_compilerLocation_signedIntegerRegister(1);
     case SdvmTypeInt16:
-        return sdvm_compilerLocation_integerRegister(2);
+        return sdvm_compilerLocation_signedIntegerRegister(2);
     case SdvmTypeInt32:
-        return sdvm_compilerLocation_integerRegister(4);
+        return sdvm_compilerLocation_signedIntegerRegister(4);
     case SdvmTypeInt64:
+        return sdvm_compilerLocation_signedIntegerRegister(8);
+
+    case SdvmTypeUInt8:
+        return sdvm_compilerLocation_integerRegister(1);
+    case SdvmTypeUInt16:
+        return sdvm_compilerLocation_integerRegister(2);
+    case SdvmTypeUInt32:
+        return sdvm_compilerLocation_integerRegister(4);
+    case SdvmTypeUInt64:
         return sdvm_compilerLocation_integerRegister(8);
 
     case SdvmTypePointer:
@@ -587,6 +622,83 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
     default:
         abort();
     }
+}
+
+void sdvm_compilerCallingConventionState_reset(sdvm_compilerCallingConventionState_t *state, const sdvm_compilerCallingConvention_t *convention, uint32_t argumentCount, bool isCallout)
+{
+    state->convention = convention;
+
+    state->isCallout = isCallout;
+
+    state->argumentCount = argumentCount;
+    state->usedArgumentIntegerRegisterCount = 0;
+    state->usedArgumentVectorRegisterCount = 0;
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_memory(sdvm_compilerCallingConventionState_t *state, size_t valueSize, size_t valueAlignment)
+{
+    abort();
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_integer32(sdvm_compilerCallingConventionState_t *state)
+{
+    if(state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+        return sdvm_compilerLocation_specificRegister(*state->convention->integer32Registers[state->usedArgumentIntegerRegisterCount++]);
+    return sdvm_compilerCallingConventionState_memory(state, 4, 4);
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_signedInteger32(sdvm_compilerCallingConventionState_t *state)
+{
+    sdvm_compilerLocation_t location = sdvm_compilerCallingConventionState_integer32(state);
+    location.isSigned = true;
+    return location;
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_integer64(sdvm_compilerCallingConventionState_t *state)
+{
+    if(state->convention->integerRegisterSize >= 8 && state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+    {
+        return sdvm_compilerLocation_specificRegister(*state->convention->integer64Registers[state->usedArgumentIntegerRegisterCount++]);
+    }
+    else if(state->convention->integerRegisterSize == 4 && state->usedArgumentIntegerRegisterCount + 1 < state->convention->integerRegisterCount)
+    {
+        sdvm_compilerLocation_t pairLocation = sdvm_compilerLocation_specificRegisterPair(*state->convention->integer32Registers[state->usedArgumentIntegerRegisterCount], *state->convention->integer32Registers[state->usedArgumentIntegerRegisterCount + 1]);
+        state->usedArgumentIntegerRegisterCount += 2;
+        return pairLocation;
+    }
+
+    return sdvm_compilerCallingConventionState_memory(state, 8, 8);
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_pointer(sdvm_compilerCallingConventionState_t *state)
+{
+    if(state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+        return sdvm_compilerLocation_specificRegister(*state->convention->integerRegisters[state->usedArgumentIntegerRegisterCount++]);
+    return sdvm_compilerCallingConventionState_memory(state, state->convention->integerRegisterSize, state->convention->integerRegisterSize);
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_pointerPair(sdvm_compilerCallingConventionState_t *state)
+{
+    if(state->usedArgumentIntegerRegisterCount + 1 < state->convention->integerRegisterCount)
+    {
+        sdvm_compilerLocation_t pairLocation = sdvm_compilerLocation_specificRegisterPair(*state->convention->integerRegisters[state->usedArgumentIntegerRegisterCount], *state->convention->integerRegisters[state->usedArgumentIntegerRegisterCount + 1]);
+        state->usedArgumentIntegerRegisterCount += 2;
+        return pairLocation;
+    }
+
+    return sdvm_compilerCallingConventionState_memory(state, state->convention->integerRegisterSize, state->convention->integerRegisterSize);
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledFunction(sdvm_functionCompilationState_t *functionState, sdvm_compilerCallingConventionState_t *state)
+{
+    (void)functionState;
+    return sdvm_compilerLocation_integerRegister(state->convention->integerRegisterSize);
+}
+
+sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledClosure(sdvm_functionCompilationState_t *functionState, sdvm_compilerCallingConventionState_t *state)
+{
+    (void)functionState;
+    return sdvm_compilerLocation_specificRegisterPair(*state->convention->closureRegister, *state->convention->closureGCRegister);
 }
 
 void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
@@ -655,20 +767,186 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         return;
     }
 
-    if(instruction->decoding.opcode == SdvmInstBeginArguments)
+    switch(instruction->decoding.opcode)
     {
-        state->argumentCount = instruction->decoding.instruction.arg0;
-        state->usedArgumentIntegerRegisterCount = 0;
-        state->usedArgumentVectorRegisterCount = 0;
+    case SdvmInstBeginArguments:
+        sdvm_compilerCallingConventionState_reset(&state->callingConventionState, state->callingConvention, instruction->decoding.instruction.arg0, false);
+        return;
+    case SdvmInstBeginCall:
+        sdvm_compilerCallingConventionState_reset(&state->currentCallCallingConventionState, state->currentCallCallingConvention, instruction->decoding.instruction.arg0, true);
+        return;
+
+#pragma region ArgumentConstraints
+    case SdvmInstArgInt8:
+    case SdvmInstArgInt16:
+    case SdvmInstArgInt32:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_signedInteger32(&state->callingConventionState);
+        return;
+    case SdvmInstArgUInt8:
+    case SdvmInstArgUInt16:
+    case SdvmInstArgUInt32:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_integer32(&state->callingConventionState);
+        return;
+    case SdvmInstArgInt64:
+    case SdvmInstArgUInt64:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_integer64(&state->callingConventionState);
+        return;
+    case SdvmInstArgPointer:
+    case SdvmInstArgProcedureHandle:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_pointer(&state->callingConventionState);
+        return;
+    case SdvmInstArgGCPointer:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_pointerPair(&state->callingConventionState);
+        return;
+#pragma endregion ArgumentConstraints
+
+#pragma region CallArgumentConstraints
+    case SdvmInstCallArgInt8:
+    case SdvmInstCallArgInt16:
+    case SdvmInstCallArgInt32:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_signedInteger32(&state->currentCallCallingConventionState);
+        return;
+    case SdvmInstCallArgUInt8:
+    case SdvmInstCallArgUInt16:
+    case SdvmInstCallArgUInt32:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_integer32(&state->currentCallCallingConventionState);
+        return;
+    case SdvmInstCallArgInt64:
+    case SdvmInstCallArgUInt64:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_integer64(&state->currentCallCallingConventionState);
+        return;
+    case SdvmInstCallArgPointer:
+    case SdvmInstCallArgProcedureHandle:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_pointer(&state->currentCallCallingConventionState);
+        return;
+    case SdvmInstCallArgGCPointer:
+        instruction->destinationLocation = sdvm_compilerCallingConventionState_pointerPair(&state->currentCallCallingConventionState);
+        return;
+#pragma endregion CallArgumentConstraints
+
+#pragma region ReturnConstraints
+    case SdvmInstReturnInt8:
+    case SdvmInstReturnInt16:
+    case SdvmInstReturnInt32:
+        instruction->arg0Location = sdvm_compilerLocation_specificSignedRegister(*state->callingConvention->firstInteger32ResultRegister);
+        return;
+
+    case SdvmInstReturnInt64:
+    case SdvmInstReturnUInt64:
+        if(state->callingConvention->integerRegisterSize >= 8)
+            instruction->arg0Location = sdvm_compilerLocation_specificRegister(*state->callingConvention->firstInteger64ResultRegister);
+        else
+            instruction->arg0Location = sdvm_compilerLocation_specificRegisterPair(*state->callingConvention->firstInteger32ResultRegister, *state->callingConvention->secondInteger32ResultRegister);
+        return;
+
+    case SdvmInstReturnUInt8:
+    case SdvmInstReturnUInt16:
+    case SdvmInstReturnUInt32:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegister(*state->callingConvention->firstInteger32ResultRegister);
+        return;
+
+    case SdvmInstReturnPointer:
+    case SdvmInstReturnProcedureHandle:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegister(*state->callingConvention->firstIntegerResultRegister);
+        return;
+
+    case SdvmInstReturnGCPointer:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegisterPair(*state->callingConvention->firstIntegerResultRegister, *state->callingConvention->secondIntegerResultRegister);
+        return;
+
+#pragma endregion ReturnConstraints
+
+#pragma region CallConstraints
+    case SdvmInstCallVoid:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState);
+        return;
+
+    case SdvmInstCallInt8:
+    case SdvmInstCallInt16:
+    case SdvmInstCallInt32:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificSignedRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        return;
+
+    case SdvmInstCallInt64:
+    case SdvmInstCallUInt64:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState);
+        if(state->callingConvention->integerRegisterSize >= 8)
+            instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger64ResultRegister);
+        else
+            instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstInteger32ResultRegister, *state->currentCallCallingConvention->secondInteger32ResultRegister);
+        return;
+
+    case SdvmInstCallUInt8:
+    case SdvmInstCallUInt16:
+    case SdvmInstCallUInt32:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        return;
+
+    case SdvmInstCallPointer:
+    case SdvmInstCallProcedureHandle:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstIntegerResultRegister);
+        return;
+
+    case SdvmInstCallGCPointer:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstIntegerResultRegister, *state->currentCallCallingConvention->secondIntegerResultRegister);
+        return;
+#pragma endregion CallConstraints
+
+#pragma region CallClosureConstraints
+    case SdvmInstCallClosureVoid:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
+        return;
+
+    case SdvmInstCallClosureInt8:
+    case SdvmInstCallClosureInt16:
+    case SdvmInstCallClosureInt32:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificSignedRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        return;
+
+    case SdvmInstCallClosureInt64:
+    case SdvmInstCallClosureUInt64:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->closureRegister, *state->currentCallCallingConvention->closureGCRegister);
+        if(state->callingConvention->integerRegisterSize >= 8)
+            instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger64ResultRegister);
+        else
+            instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstInteger32ResultRegister, *state->currentCallCallingConvention->secondInteger32ResultRegister);
+        return;
+
+    case SdvmInstCallClosureUInt8:
+    case SdvmInstCallClosureUInt16:
+    case SdvmInstCallClosureUInt32:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        return;
+
+    case SdvmInstCallClosurePointer:
+    case SdvmInstCallClosureProcedureHandle:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstIntegerResultRegister);
+        return;
+
+    case SdvmInstCallClosureGCPointer:
+        instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstIntegerResultRegister, *state->currentCallCallingConvention->secondIntegerResultRegister);
+        return;
+#pragma endregion CallClosureConstraints
+
+    default:
+        if(instruction->decoding.arg0IsInstruction)
+            instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg0Type);
+
+        if(instruction->decoding.arg1IsInstruction)
+            instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg1Type);
+
+        instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.destType);
+        return;
     }
-
-    if(instruction->decoding.arg0IsInstruction)
-        instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg0Type);
-
-    if(instruction->decoding.arg1IsInstruction)
-        instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg1Type);
-
-    instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.destType);
 }
 
 void sdvm_registerSet_clear(sdvm_registerSet_t *set)
@@ -1018,7 +1296,7 @@ char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleS
     size_t symbolSize = 0;
     if(moduleName)
     {
-        symbolSize += 4; //"'sdm_'"
+        symbolSize += 5; //"'_Sdm_'"
         symbolSize += moduleName->stringSectionSize;
         symbolSize += 2; //"__"
     }
@@ -1034,7 +1312,7 @@ char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleS
     size_t destIndex = 0;
     if(moduleName)
     {
-        memcpy(symbol + destIndex, "sdm_", 4); destIndex += 4;
+        memcpy(symbol + destIndex, "_Sdm_", 5); destIndex += 5;
         memcpy(symbol + destIndex, module->stringSectionData + moduleName->stringSectionOffset, moduleName->stringSectionSize); destIndex += moduleName->stringSectionSize;
         memcpy(symbol + destIndex, "__", 2); destIndex += 2;
     }

@@ -232,15 +232,57 @@ typedef struct sdvm_registerSet_s
     uint32_t masks[(SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32];
 } sdvm_registerSet_t;
 
+typedef struct sdvm_compilerCallingConvention_s
+{
+    uint32_t integerRegisterSize;
+    uint32_t integerRegisterCount;
+    const sdvm_compilerRegister_t **integer32Registers;
+    const sdvm_compilerRegister_t **integer64Registers;
+    const sdvm_compilerRegister_t **integerRegisters;
+
+    const sdvm_compilerRegister_t *closureRegister;
+    const sdvm_compilerRegister_t *closureGCRegister;
+
+    const sdvm_compilerRegister_t *firstInteger32ResultRegister;
+    const sdvm_compilerRegister_t *firstInteger64ResultRegister;
+    const sdvm_compilerRegister_t *firstIntegerResultRegister;
+    const sdvm_compilerRegister_t *secondInteger32ResultRegister;
+    const sdvm_compilerRegister_t *secondInteger64ResultRegister;
+    const sdvm_compilerRegister_t *secondIntegerResultRegister;
+
+    uint32_t vectorRegisterSize;
+    uint32_t vectorRegisterCount;
+    const sdvm_compilerRegister_t **vectorFloatRegisters;
+    const sdvm_compilerRegister_t **vectorIntegerRegisters;
+ 
+    const sdvm_compilerRegister_t *firstVectorFloatResultRegister;
+    const sdvm_compilerRegister_t *firstVectorIntegerResultRegister;
+    const sdvm_compilerRegister_t *secondVectorFloatResultRegister;
+    const sdvm_compilerRegister_t *secondVectorIntegerResultRegister;
+} sdvm_compilerCallingConvention_t;
+
+typedef struct sdvm_compilerCallingConventionState_s
+{
+    const sdvm_compilerCallingConvention_t *convention;
+
+    bool isCallout;
+
+    uint32_t argumentCount;
+    uint32_t usedArgumentIntegerRegisterCount;
+    uint32_t usedArgumentVectorRegisterCount;
+} sdvm_compilerCallingConventionState_t;
+
 typedef struct sdvm_functionCompilationState_s
 {
     sdvm_compiler_t *compiler;
     sdvm_module_t *module;
     sdvm_moduleCompilationState_t *moduleState;
 
-    uint32_t argumentCount;
-    uint32_t usedArgumentIntegerRegisterCount;
-    uint32_t usedArgumentVectorRegisterCount;
+    const sdvm_compilerCallingConvention_t *callingConvention;
+    sdvm_compilerCallingConventionState_t callingConventionState;
+
+    const sdvm_compilerCallingConvention_t *currentCallCallingConvention;
+    sdvm_compilerCallingConventionState_t currentCallCallingConventionState;
 
     sdvm_constOrInstruction_t *sourceInstructions;
     uint32_t instructionCount;
@@ -337,8 +379,10 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedGlobalSymbolValue(s
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegister(uint8_t size);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedIntegerRegister(uint8_t size);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegisterPair(uint8_t firstSize, uint8_t secondSize);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegister(sdvm_compilerRegister_t reg);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificSignedRegister(sdvm_compilerRegister_t reg);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_type_t type);
