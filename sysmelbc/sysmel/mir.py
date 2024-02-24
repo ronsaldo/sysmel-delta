@@ -34,6 +34,9 @@ class MIRType(ABC):
         self.size = size
         self.alignment = alignment
 
+    def isGCPointerType(self) -> bool:
+        return False
+
     def isVoidType(self) -> bool:
         return False
     
@@ -60,7 +63,8 @@ class MIRFloatingPointType(MIRType):
     pass
 
 class MIRGCPointerType(MIRType):
-    pass
+    def isGCPointerType(self) -> bool:
+        return True
 
 class MIRClosureType(MIRType):
     def isClosureType(self) -> bool:
@@ -124,6 +128,9 @@ class MIRValue(ABC):
 
     def isInstruction(self) -> bool:
         return False
+    
+    def isGCPointer(self) -> bool:
+        return self.getType().isGCPointerType()
 
     def hasVoidType(self) -> bool:
         return self.getType().isVoidType()
@@ -209,9 +216,6 @@ class MIRImportedModuleValue(MIRGlobalValue):
         self.importedModule = importedModule
         self.valueName = valueName
         self.valueType = valueType
-
-    def getType(self) -> MIRType:
-        return self.valueType
 
     def accept(self, visitor: MIRValueVisitor):
         return visitor.visitImportedModuleValue(self)
@@ -418,6 +422,29 @@ class MIRInstruction(MIRFunctionLocalValue):
     def successorBlocks(self) -> list[MIRBasicBlock]:
         return []
 
+class MIRLoadInstruction(MIRInstruction):
+    def __init__(self, context: MIRContext, type: MIRValue, pointer: MIRValue, name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.pointer = pointer
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitLoadInstruction(self)
+
+    def fullPrintString(self) -> str:
+        return '%s := load %s' % (str(self), str(self.pointer))
+
+class MIRStoreInstruction(MIRInstruction):
+    def __init__(self, context: MIRContext, pointer: MIRValue, value: MIRValue, name: str = None) -> None:
+        super().__init__(context, context.voidType, name)
+        self.pointer = pointer
+        self.value = value
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitStoreInstruction(self)
+
+    def fullPrintString(self) -> str:
+        return 'store %s value %s(' % (str(self.pointer), str(self.value))
+
 class MIRCallInstruction(MIRInstruction):
     def __init__(self, context: MIRContext, type: MIRValue, functional: MIRValue, arguments: list[MIRValue], name: str = None) -> None:
         super().__init__(context, type, name)
@@ -520,8 +547,14 @@ class MIRBuilder:
     def call(self, resultType: MIRType, function: MIRValue, arguments: list[HIRValue]) -> MIRInstruction:
         return self.addInstruction(MIRCallInstruction(self.context, resultType, function, arguments))
     
-    def returnValue(self, value) -> MIRInstruction:
+    def returnValue(self, value: MIRValue) -> MIRInstruction:
         return self.addInstruction(MIRReturnInstruction(self.context, value))
+
+    def load(self, type: MIRType, pointer: MIRValue) -> MIRLoadInstruction:
+        return self.addInstruction(MIRLoadInstruction(self.context, type, pointer))
+
+    def store(self, pointer: MIRValue, value: MIRValue) -> MIRLoadInstruction:
+        return self.addInstruction(MIRStoreInstruction(self.context, pointer, value))
 
 class MIRModule:
     def __init__(self, context: MIRContext) -> None:
@@ -761,6 +794,12 @@ class MIRFunctionFrontend:
     def translateValue(self, value: HIRValue):
         if value.isFunctionalLocalValue():
             return self.translatedValueDictionary[value]
+        
+        if value.isImportedModuleValue():
+            importedValue = self.moduleFrontend.translateValue(value)
+            valueType = self.translateType(value.getType())
+            return self.builder.load(valueType, importedValue)
+
         return self.moduleFrontend.translateValue(value)
 
     def visitCallInstruction(self, hirInstruction: HIRCallInstruction):

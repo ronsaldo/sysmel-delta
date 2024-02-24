@@ -463,17 +463,6 @@ sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF64(sdvm_compiler_t *c
     return location;
 }
 
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedGlobalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle)
-{
-    sdvm_compilerLocation_t location = {
-        .kind = SdvmCompLocationGlobalSymbolValue,
-        .isSigned = true,
-        .symbolHandle = symbolHandle
-    };
-
-    return location;
-}
-
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle)
 {
     sdvm_compilerLocation_t location = {
@@ -644,29 +633,14 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         case SdvmConstLabel:
             instruction->location = sdvm_compilerLocation_immediateLabel(sdvm_compiler_makeLabel(compiler));
             break;
-        case SdvmConstImportBoolean:
-        case SdvmConstImportInt8:
-        case SdvmConstImportInt16:
-        case SdvmConstImportInt32:
-        case SdvmConstImportInt64:
-        case SdvmConstImportUInt8:
-        case SdvmConstImportUInt16:
-        case SdvmConstImportUInt32:
-        case SdvmConstImportUInt64:
         case SdvmConstImportPointer:
-        case SdvmConstImportGCPointer:
-        case SdvmConstImportFloat32:
-        case SdvmConstImportFloat64:
             {
                 uint32_t importValueIndex = instruction->decoding.constant.unsignedPayload;
                 SDVM_ASSERT(importValueIndex <= state->module->importTableSize);
                 if(importValueIndex > 0)
                 {
                     sdvm_compilerSymbolHandle_t symbolHandle = state->moduleState->importedValueTableSymbols[importValueIndex - 1];
-                    if(sdvm_instruction_typeIsSigned(instruction->decoding.destType))
-                        instruction->location = sdvm_compilerLocation_signedGlobalSymbolValue(symbolHandle);
-                    else
-                        instruction->location = sdvm_compilerLocation_globalSymbolValue(symbolHandle);
+                    instruction->location = sdvm_compilerLocation_globalSymbolValue(symbolHandle);
                 }
                 else
                     instruction->location = sdvm_compilerLocation_null();

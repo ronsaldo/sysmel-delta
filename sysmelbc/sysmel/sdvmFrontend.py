@@ -8,7 +8,10 @@ class SDVMModuleFrontEnd:
         self.translatedFunctionDictionary = dict()
         self.translatedValueDictionary = dict()
         self.constantTranslationFunctions = dict()
-        self.constantImportInstructionDictionary = dict()
+        self.loadInstructionDictionary = dict()
+        self.loadGCInstructionDictionary = dict()
+        self.storeInstructionDictionary = dict()
+        self.storeGCInstructionDictionary = dict()
         self.argumentInstructionDictionary = dict()
         self.callArgumentInstructionDictionary = dict()
         self.callInstructionDictionary = dict()
@@ -17,25 +20,28 @@ class SDVMModuleFrontEnd:
 
     def compileMIRModule(self, mirModule: MIRModule) -> SDVMModule:
         mirContext = mirModule.context
-        for type, constantTranslationFunction, constImportInstruction, argumentInst, callArgumentInst, callInst, callClosureInst, returnInst in [
-            (mirContext.voidType,      None,                       None,                     None,                 None,                     SdvmInstCallVoid,      SdvmInstCallClosureVoid,      SdvmInstReturnVoid),
-            (mirContext.booleanType,   SDVMFunction.constBoolean,  SdvmConstImportBoolean,   SdvmInstArgBoolean,   SdvmInstCallArgBoolean,   SdvmInstCallBoolean,   SdvmInstCallClosureBoolean,   SdvmInstReturnBoolean),
-            (mirContext.int8Type,      SDVMFunction.constInt8,     SdvmConstImportInt8,      SdvmInstArgInt8,      SdvmInstCallArgInt8,      SdvmInstCallInt8,      SdvmInstCallClosureInt8,      SdvmInstReturnInt8),
-            (mirContext.int16Type,     SDVMFunction.constInt16,    SdvmConstImportInt16,     SdvmInstArgInt16,     SdvmInstCallArgInt16,     SdvmInstCallInt16,     SdvmInstCallClosureInt16,     SdvmInstReturnInt16),
-            (mirContext.int32Type,     SDVMFunction.constInt32,    SdvmConstImportInt32,     SdvmInstArgInt32,     SdvmInstCallArgInt32,     SdvmInstCallInt32,     SdvmInstCallClosureInt32,     SdvmInstReturnInt32),
-            (mirContext.int64Type,     SDVMFunction.constInt64,    SdvmConstImportInt64,     SdvmInstArgInt64,     SdvmInstCallArgInt64,     SdvmInstCallInt64,     SdvmInstCallClosureInt64,     SdvmInstReturnInt64),
-            (mirContext.uint8Type,     SDVMFunction.constUInt8,    SdvmConstImportUInt8,     SdvmInstArgUInt8,     SdvmInstCallArgUInt8,     SdvmInstCallUInt8,     SdvmInstCallClosureUInt8,     SdvmInstReturnUInt8),
-            (mirContext.uint16Type,    SDVMFunction.constUInt16,   SdvmConstImportUInt16,    SdvmInstArgUInt16,    SdvmInstCallArgUInt16,    SdvmInstCallUInt16,    SdvmInstCallClosureUInt16,    SdvmInstReturnUInt16),
-            (mirContext.uint32Type,    SDVMFunction.constUInt32,   SdvmConstImportUInt32,    SdvmInstArgUInt32,    SdvmInstCallArgUInt32,    SdvmInstCallUInt32,    SdvmInstCallClosureUInt32,    SdvmInstReturnUInt32),
-            (mirContext.uint64Type,    SDVMFunction.constUInt64,   SdvmConstImportUInt64,    SdvmInstArgUInt64,    SdvmInstCallArgUInt64,    SdvmInstCallUInt64,    SdvmInstCallClosureUInt64,    SdvmInstReturnUInt64),
-            (mirContext.float32Type,   SDVMFunction.constFloat32,  SdvmConstImportFloat32,   SdvmInstArgFloat32,   SdvmInstCallArgFloat32,   SdvmInstCallFloat32,   SdvmInstCallClosureFloat32,   SdvmInstReturnFloat32),
-            (mirContext.float64Type,   SDVMFunction.constFloat64,  SdvmConstImportFloat64,   SdvmInstArgFloat64,   SdvmInstCallArgFloat64,   SdvmInstCallFloat64,   SdvmInstCallClosureFloat64,   SdvmInstReturnFloat64),
-            (mirContext.pointerType,   None,                       SdvmConstImportPointer,   SdvmInstArgPointer,   SdvmInstCallArgPointer,   SdvmInstCallPointer,   SdvmInstCallClosurePointer,   SdvmInstReturnPointer),
-            (mirContext.gcPointerType, None,                       SdvmConstImportGCPointer, SdvmInstArgGCPointer, SdvmInstCallArgGCPointer, SdvmInstCallGCPointer, SdvmInstCallClosureGCPointer, SdvmInstReturnGCPointer),
-            (mirContext.closureType,   None,                       SdvmConstImportGCPointer, SdvmInstArgGCPointer, SdvmInstCallArgGCPointer, SdvmInstCallGCPointer, SdvmInstCallClosureGCPointer, SdvmInstReturnGCPointer),
+        for type, constantTranslationFunction, loadInstruction, storeInstruction, loadGCInstruction, storeGCInstruction, argumentInst, callArgumentInst, callInst, callClosureInst, returnInst in [
+            (mirContext.voidType,      None,                       None,                  None,                   None,                     None,                      None,                 None,                     SdvmInstCallVoid,      SdvmInstCallClosureVoid,      SdvmInstReturnVoid),
+            (mirContext.booleanType,   SDVMFunction.constBoolean,  SdvmInstLoadBoolean,   SdvmInstStoreBoolean,   SdvmInstLoadGC_Boolean,   SdvmInstStoreGC_Boolean,   SdvmInstArgBoolean,   SdvmInstCallArgBoolean,   SdvmInstCallBoolean,   SdvmInstCallClosureBoolean,   SdvmInstReturnBoolean),
+            (mirContext.int8Type,      SDVMFunction.constInt8,     SdvmInstLoadInt8,      SdvmInstStoreInt8,      SdvmInstLoadGC_Int8,      SdvmInstStoreGC_Int8,      SdvmInstArgInt8,      SdvmInstCallArgInt8,      SdvmInstCallInt8,      SdvmInstCallClosureInt8,      SdvmInstReturnInt8),
+            (mirContext.int16Type,     SDVMFunction.constInt16,    SdvmInstLoadInt16,     SdvmInstStoreInt16,     SdvmInstLoadGC_Int16,     SdvmInstStoreGC_Int16,     SdvmInstArgInt16,     SdvmInstCallArgInt16,     SdvmInstCallInt16,     SdvmInstCallClosureInt16,     SdvmInstReturnInt16),
+            (mirContext.int32Type,     SDVMFunction.constInt32,    SdvmInstLoadInt32,     SdvmInstStoreInt32,     SdvmInstLoadGC_Int32,     SdvmInstStoreGC_Int32,     SdvmInstArgInt32,     SdvmInstCallArgInt32,     SdvmInstCallInt32,     SdvmInstCallClosureInt32,     SdvmInstReturnInt32),
+            (mirContext.int64Type,     SDVMFunction.constInt64,    SdvmInstLoadInt64,     SdvmInstStoreInt64,     SdvmInstLoadGC_Int64,     SdvmInstStoreGC_Int64,     SdvmInstArgInt64,     SdvmInstCallArgInt64,     SdvmInstCallInt64,     SdvmInstCallClosureInt64,     SdvmInstReturnInt64),
+            (mirContext.uint8Type,     SDVMFunction.constUInt8,    SdvmInstLoadUInt8,     SdvmInstStoreUInt8,     SdvmInstLoadGC_UInt8,     SdvmInstStoreGC_UInt8,     SdvmInstArgUInt8,     SdvmInstCallArgUInt8,     SdvmInstCallUInt8,     SdvmInstCallClosureUInt8,     SdvmInstReturnUInt8),
+            (mirContext.uint16Type,    SDVMFunction.constUInt16,   SdvmInstLoadUInt16,    SdvmInstStoreUInt16,    SdvmInstLoadGC_UInt16,    SdvmInstStoreGC_UInt16,    SdvmInstArgUInt16,    SdvmInstCallArgUInt16,    SdvmInstCallUInt16,    SdvmInstCallClosureUInt16,    SdvmInstReturnUInt16),
+            (mirContext.uint32Type,    SDVMFunction.constUInt32,   SdvmInstLoadUInt32,    SdvmInstStoreUInt32,    SdvmInstLoadGC_UInt32,    SdvmInstStoreGC_UInt32,    SdvmInstArgUInt32,    SdvmInstCallArgUInt32,    SdvmInstCallUInt32,    SdvmInstCallClosureUInt32,    SdvmInstReturnUInt32),
+            (mirContext.uint64Type,    SDVMFunction.constUInt64,   SdvmInstLoadUInt64,    SdvmInstStoreUInt64,    SdvmInstLoadGC_UInt64,    SdvmInstStoreGC_UInt64,    SdvmInstArgUInt64,    SdvmInstCallArgUInt64,    SdvmInstCallUInt64,    SdvmInstCallClosureUInt64,    SdvmInstReturnUInt64),
+            (mirContext.float32Type,   SDVMFunction.constFloat32,  SdvmInstLoadFloat32,   SdvmInstStoreFloat32,   SdvmInstLoadGC_Float32,   SdvmInstStoreGC_Float32,   SdvmInstArgFloat32,   SdvmInstCallArgFloat32,   SdvmInstCallFloat32,   SdvmInstCallClosureFloat32,   SdvmInstReturnFloat32),
+            (mirContext.float64Type,   SDVMFunction.constFloat64,  SdvmInstLoadFloat64,   SdvmInstStoreFloat64,   SdvmInstLoadGC_Float64,   SdvmInstStoreGC_Float64,   SdvmInstArgFloat64,   SdvmInstCallArgFloat64,   SdvmInstCallFloat64,   SdvmInstCallClosureFloat64,   SdvmInstReturnFloat64),
+            (mirContext.pointerType,   None,                       SdvmInstLoadPointer,   SdvmInstStorePointer,   SdvmInstLoadGC_Pointer,   SdvmInstStoreGC_Pointer,   SdvmInstArgPointer,   SdvmInstCallArgPointer,   SdvmInstCallPointer,   SdvmInstCallClosurePointer,   SdvmInstReturnPointer),
+            (mirContext.gcPointerType, None,                       SdvmInstLoadGCPointer, SdvmInstStoreGCPointer, SdvmInstLoadGC_GCPointer, SdvmInstStoreGC_GCPointer, SdvmInstArgGCPointer, SdvmInstCallArgGCPointer, SdvmInstCallGCPointer, SdvmInstCallClosureGCPointer, SdvmInstReturnGCPointer),
+            (mirContext.closureType,   None,                       SdvmInstLoadGCPointer, SdvmInstStoreGCPointer, SdvmInstLoadGC_GCPointer, SdvmInstStoreGC_GCPointer, SdvmInstArgGCPointer, SdvmInstCallArgGCPointer, SdvmInstCallGCPointer, SdvmInstCallClosureGCPointer, SdvmInstReturnGCPointer),
         ]:
             self.constantTranslationFunctions[type] = constantTranslationFunction
-            self.constantImportInstructionDictionary[type] = constImportInstruction
+            self.loadInstructionDictionary[type] = loadInstruction
+            self.loadGCInstructionDictionary[type] = loadGCInstruction
+            self.storeInstructionDictionary[type] = storeInstruction
+            self.storeGCInstructionDictionary[type] = storeGCInstruction
             self.argumentInstructionDictionary[type] = argumentInst
             self.callArgumentInstructionDictionary[type] = callArgumentInst
             self.callInstructionDictionary[type] = callInst
@@ -155,14 +161,13 @@ class SDVMFunctionFrontEnd:
         translatedValue = value.accept(self)
         self.translatedValueDictionary[value] = translatedValue
         return translatedValue
-
+    
     def visitImportedModule(self, value: MIRImportedModule):
         assert False
 
     def visitImportedModuleValue(self, value: MIRImportedModuleValue):
         moduleImportedValue = self.moduleFrontend.translateValue(value)
-        importInstruction = self.moduleFrontend.constantImportInstructionDictionary[value.getType()]
-        return self.function.addConstant(SDVMConstant(importInstruction, moduleImportedValue, moduleImportedValue.index))
+        return self.function.addConstant(SDVMConstant(SdvmConstImportPointer, moduleImportedValue))
     
     def visitConstantInteger(self, instruction: MIRConstantInteger) -> SDVMOperand:
         return self.moduleFrontend.constantTranslationFunctions[instruction.getType()](self.function, instruction.value)
@@ -178,6 +183,23 @@ class SDVMFunctionFrontEnd:
         left = self.translateValue(instruction.left)
         right = self.translateValue(instruction.right)
         return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, left, right))
+
+    def visitLoadInstruction(self, instruction: MIRLoadInstruction) -> SDVMOperand:
+        pointer = self.translateValue(instruction.pointer)
+        if instruction.pointer.isGCPointer():
+            loadInstruction = self.moduleFrontend.loadGCInstructionDictionary[instruction.getType()]
+        else:
+            loadInstruction = self.moduleFrontend.loadInstructionDictionary[instruction.getType()]
+        return self.function.addInstruction(SDVMInstruction(loadInstruction, pointer))
+
+    def visiStoreInstruction(self, instruction: MIRStoreInstruction) -> SDVMOperand:
+        pointer = self.translateValue(instruction.pointer)
+        value = self.translateValue(instruction.value)
+        if instruction.pointer.isGCPointer():
+            storeInstruction = self.moduleFrontend.storeInstructionDictionary[instruction.value.getType()]
+        else:
+            storeInstruction = self.moduleFrontend.storeGCInstructionDictionary[instruction.value.getType()]
+        return self.function.addInstruction(SDVMInstruction(storeInstruction, pointer, value))
 
     def visitCallInstruction(self, instruction: MIRCallInstruction) -> SDVMOperand:
         calledFunctional = self.translateValue(instruction.functional)

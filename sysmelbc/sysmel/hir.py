@@ -112,6 +112,9 @@ class HIRValue(ABC):
 
     def isTerminatorInstruction(self) -> bool:
         return False
+    
+    def isImportedModuleValue(self) -> bool:
+        return False
 
 class HIRTypeValue(HIRValue):
     def  __init__(self, context: HIRContext) -> None:
@@ -359,6 +362,9 @@ class HIRImportedModuleValue(HIRGlobalValue):
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitImportedModuleValue(self)
+    
+    def isImportedModuleValue(self) -> bool:
+        return True
 
     def fullPrintString(self) -> str:
         return '%s := from %s import "%s" : %s' % (str(self), str(self.module), self.valueName, str(self.type))
