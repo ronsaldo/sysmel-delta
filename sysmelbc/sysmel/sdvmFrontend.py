@@ -32,6 +32,7 @@ class SDVMModuleFrontEnd:
             (mirContext.float64Type,   SDVMFunction.constFloat64,  SdvmConstImportFloat64,   SdvmInstArgFloat64,   SdvmInstCallArgFloat64,   SdvmInstCallFloat64,   SdvmInstCallClosureFloat64,   SdvmInstReturnFloat64),
             (mirContext.pointerType,   None,                       SdvmConstImportPointer,   SdvmInstArgPointer,   SdvmInstCallArgPointer,   SdvmInstCallPointer,   SdvmInstCallClosurePointer,   SdvmInstReturnPointer),
             (mirContext.gcPointerType, None,                       SdvmConstImportGCPointer, SdvmInstArgGCPointer, SdvmInstCallArgGCPointer, SdvmInstCallGCPointer, SdvmInstCallClosureGCPointer, SdvmInstReturnGCPointer),
+            (mirContext.closureType,   None,                       SdvmConstImportGCPointer, SdvmInstArgGCPointer, SdvmInstCallArgGCPointer, SdvmInstCallGCPointer, SdvmInstCallClosureGCPointer, SdvmInstReturnGCPointer),
         ]:
             self.constantTranslationFunctions[type] = constantTranslationFunction
             self.constantImportInstructionDictionary[type] = constImportInstruction

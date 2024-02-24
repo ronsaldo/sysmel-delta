@@ -210,6 +210,9 @@ class MIRImportedModuleValue(MIRGlobalValue):
         self.valueName = valueName
         self.valueType = valueType
 
+    def getType(self) -> MIRType:
+        return self.valueType
+
     def accept(self, visitor: MIRValueVisitor):
         return visitor.visitImportedModuleValue(self)
 
