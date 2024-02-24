@@ -65,6 +65,7 @@ typedef enum sdvm_compilerLocationKind_e
     SdvmCompLocationRegisterPair,
     SdvmCompLocationStack,
     SdvmCompLocationStackPair,
+    SdvmCompLocationGlobalSymbolValue,
 } sdvm_compilerLocationKind_t;
 
 typedef enum sdvm_compilerRegisterKind_e
@@ -157,7 +158,9 @@ typedef struct sdvm_moduleCompilationState_s
 {
     sdvm_compiler_t *compiler;
     sdvm_module_t *module;
+    sdvm_compilerSymbolHandle_t *importedValueTableSymbols;
     sdvm_compilerSymbolHandle_t *functionTableSymbols;
+    sdvm_compilerSymbolHandle_t *exportedValueTableSymbols;
 } sdvm_moduleCompilationState_t;
 
 
@@ -183,6 +186,8 @@ typedef struct sdvm_compilerRegister_s
 typedef struct sdvm_compilerLocation_s
 {
     sdvm_compilerLocationKind_t kind;
+    uint8_t isSigned : 1;
+
     union {
         int32_t immediateS32;
         int64_t immediateS64;
@@ -202,6 +207,8 @@ typedef struct sdvm_compilerLocation_s
             int32_t firstStackOffset;
             int32_t secondStackOffset;
         };
+
+        sdvm_compilerSymbolHandle_t symbolHandle;
     };
 } sdvm_compilerLocation_t;
 
@@ -309,7 +316,7 @@ SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *in
 SDVM_API bool sdvm_compilerLocationKind_isRegister(sdvm_compilerLocationKind_t kind);
 SDVM_API bool sdvm_compilerLocationKind_isImmediate(sdvm_compilerLocationKind_t kind);
 
-SDVM_API void sdvm_compilerLocation_print(sdvm_compilerLocation_t *location);
+SDVM_API void sdvm_compilerLocation_print(sdvm_compiler_t *compiler, sdvm_compilerLocation_t *location);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_null(void);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateLabel(uint32_t value);
@@ -324,6 +331,9 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS64(sdvm_comp
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionU64(sdvm_compiler_t *compiler, uint64_t value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF32(sdvm_compiler_t *compiler, float value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF64(sdvm_compiler_t *compiler, double value);
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedGlobalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegister(uint8_t size);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegisterPair(uint8_t firstSize, uint8_t secondSize);

@@ -167,8 +167,8 @@ class SDVMImportModuleTableSection(SDVMModuleSection):
 
     def importModule(self, name: str):
         importedModule = SDVMImportedModule(self.module, name)
-        importedModule.index = len(self.importedModules)
         self.importedModules.append(importedModule)
+        importedModule.index = len(self.importedModules)
         self.contents += importedModule.encode()
         return importedModule
 

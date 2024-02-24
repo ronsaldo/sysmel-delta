@@ -131,12 +131,16 @@ void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state
 {
     state->compiler = compiler;
     state->module = module;
+    state->importedValueTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
     state->functionTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
+    state->exportedValueTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
 }
 
 void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
 {
+    free(state->importedValueTableSymbols);
     free(state->functionTableSymbols);
+    free(state->exportedValueTableSymbols);
 }
 
 void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state)
@@ -199,7 +203,17 @@ void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilation
     }
 }
 
-void sdvm_compilerLocation_print(sdvm_compilerLocation_t *location)
+const char *sdvm_compiler_symbolHandleNameCString(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t handle)
+{
+    if(handle > 0 && handle <= compiler->symbolTable.symbols.size)
+    {
+        sdvm_compilerSymbol_t *symbol = (sdvm_compilerSymbol_t *)compiler->symbolTable.symbols.data + handle - 1;
+        return (const char*)compiler->symbolTable.strings.data + symbol->name;
+    }
+    return "";
+}
+
+void sdvm_compilerLocation_print(sdvm_compiler_t *compiler, sdvm_compilerLocation_t *location)
 {
     switch(location->kind)
     {
@@ -242,6 +256,9 @@ void sdvm_compilerLocation_print(sdvm_compilerLocation_t *location)
     case SdvmCompLocationStackPair:
         printf("stack %d:%d", location->firstStackOffset, location->secondStackOffset);
         return;
+    case SdvmCompLocationGlobalSymbolValue:
+        printf("valueOf[%s]", sdvm_compiler_symbolHandleNameCString(compiler, location->symbolHandle));
+        return;
     }
 }
 void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
@@ -254,25 +271,25 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
         if(instruction->decoding.isConstant)
         {
             printf("    $%d : %s @ ", i, sdvm_instruction_typeToString(instruction->decoding.destType));
-            sdvm_compilerLocation_print(&instruction->location);
+            sdvm_compilerLocation_print(state->compiler, &instruction->location);
             printf(" := %s(%lld)", sdvm_instruction_fullOpcodeToString(instruction->decoding.opcode), (long long)instruction->decoding.constant.signedPayload);
         }
         else
         {
             printf("    $%d : %s @ ", i, sdvm_instruction_typeToString(instruction->decoding.destType));
-            sdvm_compilerLocation_print(&instruction->location);
+            sdvm_compilerLocation_print(state->compiler, &instruction->location);
 
             printf(" := %s(%d : %s @ ",
                 sdvm_instruction_fullOpcodeToString(instruction->decoding.opcode),
                 instruction->decoding.instruction.arg0, sdvm_instruction_typeToString(instruction->decoding.instruction.arg0Type));
-            sdvm_compilerLocation_print(&instruction->arg0Location);
+            sdvm_compilerLocation_print(state->compiler, &instruction->arg0Location);
 
             printf(", %d : %s @ ",
                 instruction->decoding.instruction.arg1, sdvm_instruction_typeToString(instruction->decoding.instruction.arg1Type));
-            sdvm_compilerLocation_print(&instruction->arg1Location);
+            sdvm_compilerLocation_print(state->compiler, &instruction->arg1Location);
 
             printf(") @ ");
-            sdvm_compilerLocation_print(&instruction->destinationLocation);
+            sdvm_compilerLocation_print(state->compiler, &instruction->destinationLocation);
         }
 
         printf(" live [%u, %u]", instruction->liveInterval.start, instruction->liveInterval.end);
@@ -328,6 +345,7 @@ sdvm_compilerLocation_t sdvm_compilerLocation_immediateS32(int32_t value)
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationImmediateS32,
+        .isSigned = true,
         .immediateS32 = value
     };
     return location;
@@ -346,6 +364,7 @@ sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int32_t value)
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationImmediateS32,
+        .isSigned = true,
         .immediateS32 = value
     };
     return location;
@@ -364,6 +383,7 @@ sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS32(sdvm_compiler_t *c
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationConstantSection,
+        .isSigned = true,
         .constantSectionOffset = compiler->rodataSection.contents.size
     };
 
@@ -386,6 +406,7 @@ sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS64(sdvm_compiler_t *c
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationConstantSection,
+        .isSigned = true,
         .constantSectionOffset = compiler->rodataSection.contents.size
     };
 
@@ -439,6 +460,27 @@ sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF64(sdvm_compiler_t *c
     };
 
     sdvm_dynarray_addAll(&compiler->rodataSection.contents, 8, &value);
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedGlobalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationGlobalSymbolValue,
+        .isSigned = true,
+        .symbolHandle = symbolHandle
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationGlobalSymbolValue,
+        .symbolHandle = symbolHandle
+    };
+
     return location;
 }
 
@@ -615,7 +657,20 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         case SdvmConstImportGCPointer:
         case SdvmConstImportFloat32:
         case SdvmConstImportFloat64:
-            abort();
+            {
+                uint32_t importValueIndex = instruction->decoding.constant.unsignedPayload;
+                SDVM_ASSERT(importValueIndex <= state->module->importTableSize);
+                if(importValueIndex > 0)
+                {
+                    sdvm_compilerSymbolHandle_t symbolHandle = state->moduleState->importedValueTableSymbols[importValueIndex - 1];
+                    if(sdvm_instruction_typeIsSigned(instruction->decoding.destType))
+                        instruction->location = sdvm_compilerLocation_signedGlobalSymbolValue(symbolHandle);
+                    else
+                        instruction->location = sdvm_compilerLocation_globalSymbolValue(symbolHandle);
+                }
+                else
+                    instruction->location = sdvm_compilerLocation_null();
+            }
             break;
         default:
             abort();
@@ -970,10 +1025,62 @@ SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint
     return sdvm_dynarray_add(&compiler->textSection.contents, &byte);
 }
 
+char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
+{
+    size_t symbolSize = 0;
+    if(moduleName)
+    {
+        symbolSize += 4; //"'sdm_'"
+        symbolSize += moduleName->stringSectionSize;
+        symbolSize += 2; //"__"
+    }
+
+    symbolSize += valueName->stringSectionSize;
+    if(valueTypeDescriptor->stringSectionSize)
+    {
+        symbolSize += 3; //"___";
+        symbolSize += valueTypeDescriptor->stringSectionSize;
+    }
+
+    char *symbol = malloc(symbolSize);
+    size_t destIndex = 0;
+    if(moduleName)
+    {
+        memcpy(symbol + destIndex, "sdm_", 4); destIndex += 4;
+        memcpy(symbol + destIndex, module->stringSectionData + moduleName->stringSectionOffset, moduleName->stringSectionSize); destIndex += moduleName->stringSectionSize;
+        memcpy(symbol + destIndex, "__", 2); destIndex += 2;
+    }
+    memcpy(symbol + destIndex, module->stringSectionData + valueName->stringSectionOffset, valueName->stringSectionSize); destIndex += valueName->stringSectionSize;
+    if(valueTypeDescriptor->stringSectionSize)
+    {
+        memcpy(symbol + destIndex, "___", 3); destIndex += 3;
+        memcpy(symbol + destIndex, module->stringSectionData + valueTypeDescriptor->stringSectionOffset, valueTypeDescriptor->stringSectionSize); destIndex += valueTypeDescriptor->stringSectionSize;
+    }
+    symbol[destIndex] = 0;
+    SDVM_ASSERT(symbolSize == destIndex);
+
+    return symbol;
+}
+
 bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module)
 {
     sdvm_moduleCompilationState_t state = {0};
     sdvm_moduleCompilationState_initialize(&state, compiler, module);
+
+    // Declare the imported value symbols.
+    for(size_t i = 0; i < module->importValueTableSize; ++i)
+    {
+        sdvm_moduleImportValueTableEntry_t *importValueTableEntry = module->importValueTable + i;
+
+        sdvm_moduleString_t *moduleName = NULL;
+        if(importValueTableEntry->module != 0)
+            moduleName = &module->importTable[importValueTableEntry->module - 1].name;
+
+        char *importedSymbolName = sdvm_compile_makeModuleSymbolInterface(module, moduleName, &importValueTableEntry->name, &importValueTableEntry->typeDescriptor);
+        state.importedValueTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, importedSymbolName, SdvmCompSymbolKindNull, SdvmCompSymbolBindingGlobal);
+        free(importedSymbolName);
+    }
+
 
     // Declare the function symbols.
     for(size_t i = 0; i < module->functionTableSize; ++i)

@@ -30,9 +30,23 @@ const char *sdvm_instruction_fullOpcodeToString(sdvm_opcode_t opcode)
 }
 
 
-SDVM_API bool sdvm_instruction_typeExpectsInstruction(sdvm_type_t type)
+bool sdvm_instruction_typeExpectsInstruction(sdvm_type_t type)
 {
     return type != SdvmTypeVoid && type != SdvmTypeInfo;
+}
+
+bool sdvm_instruction_typeIsSigned(sdvm_type_t type)
+{
+    switch(type)
+    {
+    case SdvmTypeInt8:
+    case SdvmTypeInt16:
+    case SdvmTypeInt32:
+    case SdvmTypeInt64:
+        return true;
+    default:
+        return false;
+    }
 }
 
 static int sdvm_intruction_decodeArg(uint32_t argValue)

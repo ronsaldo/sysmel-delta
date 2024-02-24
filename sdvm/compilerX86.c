@@ -663,6 +663,9 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
         if(sourceLocation->firstRegister.size <= 4)
             return sdvm_compiler_x86_mov32RegReg(compiler, reg->value, sourceLocation->firstRegister.value);
         return sdvm_compiler_x86_mov64RegReg(compiler, reg->value, sourceLocation->firstRegister.value);
+    case SdvmCompLocationGlobalSymbolValue:
+        // TODO: Implement this move.
+        return;
     default: abort();
     }
 }
