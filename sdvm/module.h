@@ -99,14 +99,29 @@ typedef struct sdvm_module_s
     size_t constSectionSize;
     uint8_t *constSectionData;
 
+    size_t dataSectionSize;
+    uint8_t *dataSectionData;
+
     size_t stringSectionSize;
     uint8_t *stringSectionData;
 
     size_t textSectionSize;
     uint8_t *textSectionData;
 
+    size_t importTableSize;
+    sdvm_moduleImportTableEntry_t *importTable;
+
+    size_t importValueTableSize;
+    sdvm_moduleImportValueTableEntry_t *importValueTable;
+
     size_t functionTableSize;
     sdvm_moduleFunctionTableEntry_t *functionTable;
+
+    size_t objectTableSize;
+    sdvm_moduleObjectTableEntry_t *objectTable;
+
+    size_t exportValueTableSize;
+    sdvm_moduleExportValueTableEntry_t *exportValueTable;
 
     size_t moduleDataSize;
     uint8_t *moduleData;

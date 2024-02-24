@@ -602,6 +602,21 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         case SdvmConstLabel:
             instruction->location = sdvm_compilerLocation_immediateLabel(sdvm_compiler_makeLabel(compiler));
             break;
+        case SdvmConstImportBoolean:
+        case SdvmConstImportInt8:
+        case SdvmConstImportInt16:
+        case SdvmConstImportInt32:
+        case SdvmConstImportInt64:
+        case SdvmConstImportUInt8:
+        case SdvmConstImportUInt16:
+        case SdvmConstImportUInt32:
+        case SdvmConstImportUInt64:
+        case SdvmConstImportPointer:
+        case SdvmConstImportGCPointer:
+        case SdvmConstImportFloat32:
+        case SdvmConstImportFloat64:
+            abort();
+            break;
         default:
             abort();
         }

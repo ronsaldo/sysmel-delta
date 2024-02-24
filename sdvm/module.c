@@ -48,13 +48,33 @@ static bool sdvm_module_fetchAndValidateDataStructures(sdvm_module_t *module)
             module->constSectionSize = header->size;
             module->constSectionData = module->moduleData + header->offset;
             break;
+        case SdvmModuleSectionTypeData:
+            module->dataSectionSize = header->size;
+            module->dataSectionData = module->moduleData + header->offset;
+            break;
         case SdvmModuleSectionTypeText:
             module->textSectionSize = header->size;
             module->textSectionData = module->moduleData + header->offset;
             break;
+        case SdvmModuleSectionTypeString:
+            module->stringSectionSize = header->size;
+            module->stringSectionData = module->moduleData + header->offset;
+            break;
+        case SdvmModuleSectionTypeImportModuleTable:
+            module->importTableSize = header->size / sizeof(sdvm_moduleImportTableEntry_t);
+            module->importTable = (sdvm_moduleImportTableEntry_t*)(module->moduleData + header->offset);
+            break;
+        case SdvmModuleSectionTypeImportModuleValueTable:
+            module->importValueTableSize = header->size / sizeof(sdvm_moduleImportValueTableEntry_t);
+            module->importValueTable = (sdvm_moduleImportValueTableEntry_t*)(module->moduleData + header->offset);
+            break;
         case SdvmModuleSectionTypeFunctionTable:
-            module->functionTableSize = header->size / sizeof(sdvm_moduleFunctionTableEntry_t*);
+            module->functionTableSize = header->size / sizeof(sdvm_moduleFunctionTableEntry_t);
             module->functionTable = (sdvm_moduleFunctionTableEntry_t*)(module->moduleData + header->offset);
+            break;
+        case SdvmModuleSectionTypeExportValueTable:
+            module->exportValueTableSize = header->size / sizeof(sdvm_moduleExportValueTableEntry_t);
+            module->exportValueTable = (sdvm_moduleExportValueTableEntry_t*)(module->moduleData + header->offset);
             break;
         default:
             // Ignored by default

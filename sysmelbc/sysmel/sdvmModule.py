@@ -68,8 +68,8 @@ class SDVMModule:
     def addString(self, value: str) -> SDVMString:
         return self.stringSection.add(value)
 
-    def newFunction(self, name: str = None):
-        function = SDVMFunction(self, name)
+    def newFunction(self, name: str = None, typeDescriptor: str = None):
+        function = SDVMFunction(self, name, typeDescriptor)
         self.functionTable.addFunction(function)
         return function
 
@@ -206,7 +206,7 @@ class SDVMFunctionTableSection(SDVMModuleSection):
 
         self.contents = bytearray()
         for function in self.functions:
-            self.contents += struct.pack('<IIII', function.textSectionOffset, function.textSectionSize, function.name.offset, function.name.size)
+            self.contents += function.encode()
 
     def prettyPrint(self) -> str:
         result = super().prettyPrint()
@@ -266,9 +266,10 @@ class SDVMInstruction(SDVMOperand):
         return struct.pack('<Q', self.definition.opcode | (self.encodeArgument(self.arg0) << 24) | (self.encodeArgument(self.arg1) << 44))
 
 class SDVMFunction:
-    def __init__(self, module: SDVMModule, name: str = None) -> None:
+    def __init__(self, module: SDVMModule, name: str = None, typeDescriptor: str = None) -> None:
         self.module = module
         self.name = module.addString(name)
+        self.typeDescriptor = module.addString(typeDescriptor)
         self.constants = []
         self.argumentInstructions = []
         self.captureInstructions = []
@@ -389,6 +390,12 @@ class SDVMFunction:
         for instruction in self.allInstructions():
             encodedInstructions += instruction.encode()
         return encodedInstructions
+    
+    def encode(self):
+        return struct.pack('<IIIIII',
+            self.textSectionOffset, self.textSectionSize,
+            self.name.offset, self.name.size,
+            self.typeDescriptor.offset, self.typeDescriptor.size)
 
 class SDVMImportedModule:
     def __init__(self, module: SDVMModule, name: str) -> None:

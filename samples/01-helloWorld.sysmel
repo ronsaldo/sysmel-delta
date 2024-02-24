@@ -4,10 +4,13 @@ let: #abort with: (fromModule: stdlib import: #abort withType: (:(Unit) :: Unit)
 let: #stdio with: (importModule: #stdio).
 let: #printString with: (fromModule: stdio import: #printString withType: (:(String) :: Unit)).
 
+let: #myModule with: (importModule: #myModule).
+let: #myModuleInt32 with: (fromModule: myModule import: #int32 withType: Int32).
+
 moduleExport: #main with: (:(Int32)argc :: Int32) :=> {
-    abort().
+    ##abort().
     ##printString("Hello World\n").
-    argc + 1i32
+    (myModuleInt32 + argc) + 1i32
 }.
 
 moduleEntryPoint: (:: Int32) :=> 0i32.
