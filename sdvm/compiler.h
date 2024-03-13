@@ -234,6 +234,7 @@ typedef struct sdvm_registerSet_s
 
 typedef struct sdvm_compilerCallingConvention_s
 {
+    bool supportsGlobalSymbolValueCall;
     uint32_t integerRegisterSize;
     uint32_t integerRegisterCount;
     const sdvm_compilerRegister_t **integer32Registers;

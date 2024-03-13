@@ -48,6 +48,7 @@ SdvmConstGCPointerSExt = sdvmConstantDef('SdvmConstGCPointerSExt', opcode = 0x06
 SdvmConstGCPointerZExt = sdvmConstantDef('SdvmConstGCPointerZExt', opcode = 0x0603, type = SdvmTypeGCPointer, description = '"Zero extended small gc pointer constant."')
 SdvmConstGCPointerConstSection = sdvmConstantDef('SdvmConstGCPointerConstSection', opcode = 0x0607, type = SdvmTypeGCPointer, description = '"GC Pointer literal encoded in const section at zero extended offset."')
 SdvmConstImportPointer = sdvmConstantDef('SdvmConstImportPointer', opcode = 0x0509, type = SdvmTypePointer, description = '"Pointer imported constant."')
+SdvmConstImportProcedureHandle = sdvmConstantDef('SdvmConstImportProcedureHandle', opcode = 0x0589, type = SdvmTypeProcedureHandle, description = '"Procedure handle imported constant."')
 SdvmConstFloat32 = sdvmConstantDef('SdvmConstFloat32', opcode = 0x0683, type = SdvmTypeFloat32, description = '"Float32 constant."')
 SdvmConstFloat64Small = sdvmConstantDef('SdvmConstFloat64Small', opcode = 0x0705, type = SdvmTypeFloat64, description = '"Small float."')
 SdvmConstFloat64ConstSection = sdvmConstantDef('SdvmConstFloat64ConstSection', opcode = 0x0707, type = SdvmTypeFloat64, description = '"Float64 in constant section."')

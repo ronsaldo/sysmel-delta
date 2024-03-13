@@ -644,11 +644,15 @@ class ProductType(BaseType):
 class FunctionType(BaseType):
     FunctionTypeCache = dict()
 
-    def __init__(self, argumentType: TypedValue, resultType: TypedValue) -> None:
+    def __init__(self, argumentType: TypedValue, resultType: TypedValue, callingConventionName: TypedValue | None = None) -> None:
         super().__init__(None)
         self.type = None
         self.argumentType = argumentType
         self.resultType = resultType
+        self.callingConventionName = callingConventionName
+
+    def withCallingConventionNamed(self, conventionName: TypedValue):
+        return self.__class__.makeFromTo(self.argumentType, self.resultType, conventionName)
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitFunctionType(self)
@@ -667,15 +671,15 @@ class FunctionType(BaseType):
         return self.argumentType.isEquivalentTo(other.argumentType) and self.resultType.isEquivalentTo(other.resultType)
 
     def toJson(self):
-        return {'Function': self.argumentType.toJson(), 'resultType': self.resultType}
+        return {'Function': self.argumentType.toJson(), 'resultType': self.resultType, 'callingConvention': optionalToJson(self.callingConventionName)}
 
     @classmethod
-    def makeFromTo(cls, argumentType: TypedValue, resultType: TypedValue):
-        functionKey = (argumentType, resultType)
+    def makeFromTo(cls, argumentType: TypedValue, resultType: TypedValue, callingConventionName: TypedValue = None):
+        functionKey = (argumentType, resultType, callingConventionName)
         if functionKey in cls.FunctionTypeCache:
             return cls.FunctionTypeCache[functionKey]
 
-        functionType = cls(argumentType, resultType)
+        functionType = cls(argumentType, resultType, callingConventionName)
         cls.FunctionTypeCache[functionKey] = functionType
         return functionType
 
@@ -1110,6 +1114,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, value: TypedValue) -> None:
         super().__init__(sourcePosition)
         self.value = value
+
+    def withCallingConventionNamed(self, callingConventionName: TypedValue):
+        return ASTLiteralTypeNode(SourceCode, self.value.withCallingConventionNamed(callingConventionName))
 
     def prettyPrint(self) -> str:
         return self.value.prettyPrint()

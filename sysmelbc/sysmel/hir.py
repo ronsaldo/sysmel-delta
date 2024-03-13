@@ -235,6 +235,7 @@ class HIRFunctionType(HIRTypeValue):
         super().__init__(context)
         self.argumentTypes = []
         self.resultType: HIRValue = None
+        self.callingConvention: str | None = None
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitFunctionType(self)
@@ -250,6 +251,8 @@ class HIRFunctionType(HIRTypeValue):
             result += str(arg)
         result += ') -> '
         result += str(self.resultType)
+        if self.callingConvention is not None:
+            return '(%s) %s' % (result, self.callingConvention)
         return result
     
     def getAlignment(self) -> int:
@@ -768,9 +771,11 @@ class HIRModuleFrontend:
     
     def visitSimpleFunctionType(self, graphValue: GHIRSimpleFunctionType) -> HIRValue:
         hirFunctionType = HIRFunctionType(self.context)
+
         self.translatedValueDictionary[graphValue] = hirFunctionType
         hirFunctionType.argumentTypes = list(map(self.translateGraphValue, graphValue.arguments))
         hirFunctionType.resultType = self.translateGraphValue(graphValue.resultType)
+        hirFunctionType.callingConvention = graphValue.callingConvention
         return hirFunctionType
 
     def visitImportedModule(self, graphValue: GHIRImportedModule) -> HIRValue:

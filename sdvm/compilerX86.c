@@ -72,6 +72,8 @@ static const sdvm_compilerRegisterValue_t sdvm_x64_allocatableVectorRegisters[] 
 static const uint32_t sdvm_x64_allocatableVectorRegisterCount = sizeof(sdvm_x64_allocatableVectorRegisters) / sizeof(sdvm_x64_allocatableVectorRegisters[0]);
 
 const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
+    .supportsGlobalSymbolValueCall = true,
+
     .integerRegisterSize = 8,
     .integerRegisterCount = sdvm_x64_sysv_integerPassingRegisterCount,
 
@@ -235,6 +237,14 @@ void sdvm_compiler_x86_int3(sdvm_compiler_t *compiler)
 void sdvm_compiler_x86_ud2(sdvm_compiler_t *compiler)
 {
     sdvm_compiler_x86_opcode2(compiler, 0x0F0B);
+}
+
+void sdvm_compiler_x86_callGsv(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
+{
+    uint32_t addressPlaceHolder = 0;
+    sdvm_compiler_addInstructionByte(compiler, 0xE8);
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRelative32AtPlt, symbolHandle, addend - 4);
+    sdvm_compiler_addInstructionBytes(compiler, 4, &addressPlaceHolder);
 }
 
 void sdvm_compiler_x86_callReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg)
@@ -991,6 +1001,7 @@ void sdvm_compiler_x64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, const
     case SdvmCompLocationImmediateF32:
     case SdvmCompLocationImmediateF64:
     case SdvmCompLocationImmediateLabel:
+    case SdvmCompLocationGlobalSymbolValue:
         return;
     default:
         return abort();
@@ -1057,6 +1068,27 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         sdvm_compiler_x64_emitFunctionEpilogue(state);
         sdvm_compiler_x86_ret(compiler);
         return false;
+
+    // Call instruction differences are handled by the register allocator.
+    case SdvmInstCallVoid:
+    case SdvmInstCallInt8:
+    case SdvmInstCallInt16:
+    case SdvmInstCallInt32:
+    case SdvmInstCallInt64:
+    case SdvmInstCallPointer:
+    case SdvmInstCallProcedureHandle:
+    case SdvmInstCallGCPointer:
+    case SdvmInstCallFloat32:
+    case SdvmInstCallFloat64:
+    case SdvmInstCallFloatVector128:
+    case SdvmInstCallIntegerVector128:
+    case SdvmInstCallFloatVector256:
+    case SdvmInstCallIntegerVector256:
+        if(arg0->kind == SdvmCompLocationGlobalSymbolValue)
+            sdvm_compiler_x86_callGsv(compiler, arg0->symbolHandle, 0);
+        else
+            sdvm_compiler_x86_callReg(compiler, arg0->firstRegister.value);
+        return true;
 
     // Call instruction differences are handled by the register allocator.
     case SdvmInstCallClosureVoid:

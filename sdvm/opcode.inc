@@ -27,6 +27,7 @@ SDVM_CONSTANT_DEF(GCPointerSExt,         ConstSExt,     GCPointer, "Signed exten
 SDVM_CONSTANT_DEF(GCPointerZExt,         ConstZExt,     GCPointer, "Zero extended small gc pointer constant.")
 SDVM_CONSTANT_DEF(GCPointerConstSection, ConstSection,  GCPointer, "GC Pointer literal encoded in const section at zero extended offset.")
 SDVM_CONSTANT_DEF(ImportPointer,         ConstImport,   Pointer,   "Pointer imported constant.")
+SDVM_CONSTANT_DEF(ImportProcedureHandle, ConstImport,   ProcedureHandle, "Procedure handle imported constant.")
 
 SDVM_CONSTANT_DEF(Float32,             ConstZExt,       Float32, "Float32 constant.")
 SDVM_CONSTANT_DEF(Float64Small,        ConstSmallFloat, Float64, "Small float.")

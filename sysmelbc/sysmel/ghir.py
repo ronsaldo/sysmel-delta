@@ -18,12 +18,12 @@ class GHIRContext:
         self.constantValues[value] = constantValue
         return constantValue
     
-    def getFunctionType(self, type, argumentTypes, resultType):
-        hashKey = (type, tuple(argumentTypes), resultType)
+    def getFunctionType(self, type, argumentTypes, resultType, callingConventionName: str = None):
+        hashKey = (type, tuple(argumentTypes), resultType, callingConventionName)
         if hashKey in self.simpleFunctionTypes:
             return self.simpleFunctionTypes[hashKey]
         
-        simpleFunctionType = GHIRSimpleFunctionType(self, type, argumentTypes, resultType)
+        simpleFunctionType = GHIRSimpleFunctionType(self, type, argumentTypes, resultType, callingConventionName)
         self.simpleFunctionTypes[hashKey] = simpleFunctionType
         return simpleFunctionType
 
@@ -392,11 +392,12 @@ class GHIRArgumentBindingValue(GHIRLocalBindingValue):
         graphPrinter.printLine('%s := argument %s' % (valueName, graphPrinter.printValue(self.type)))
 
 class GHIRSimpleFunctionType(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, arguments: list[GHIRValue], resultType: GHIRValue) -> None:    
+    def __init__(self, context: GHIRContext, type: GHIRValue, arguments: list[GHIRValue], resultType: GHIRValue, callingConvention: str | None = None) -> None:    
         super().__init__(context)
         self.type = type
         self.arguments = arguments
         self.resultType = resultType
+        self.callingConvention = callingConvention
 
     def accept(self, visitor: GHIRVisitor):
         return visitor.visitSimpleFunctionType(self)
@@ -413,7 +414,10 @@ class GHIRSimpleFunctionType(GHIRValue):
             argumentList += graphPrinter.printValue(argument)
 
         resultType = graphPrinter.printValue(self.resultType)
-        graphPrinter.printLine('%s := functionType [%s] -> %s : %s' % (valueName, argumentList, resultType, type))
+        conventionName = ''
+        if self.callingConvention is not None:
+            conventionName = self.callingConvention + ' '
+        graphPrinter.printLine('%s := functionType %s[%s] -> %s : %s' % (valueName, conventionName, argumentList, resultType, type))
 
     def usedValues(self):
         yield self.type
@@ -896,7 +900,11 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateValue(value.getType())
         argumentType = self.translateValue(value.argumentType)
         resultType = self.translateValue(value.resultType)
-        return self.context.getFunctionType(type, [argumentType], resultType)
+        conventionName = None
+        if value.callingConventionName is not None:
+            conventionName = value.callingConventionName.value
+
+        return self.context.getFunctionType(type, [argumentType], resultType, conventionName)
 
     def visitSigmaValue(self, value: SigmaValue):
         type = self.translateValue(value.getType())

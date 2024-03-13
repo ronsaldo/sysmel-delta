@@ -8,8 +8,13 @@ class MIRContext:
         self.pointerAlignment = pointerSize
         self.gcPointerSize = pointerSize*2
         self.gcPointerAlignment = pointerSize
-        self.closureType = MIRClosureType(self, 'Function', self.gcPointerSize, self.gcPointerAlignment)
+        self.closureType = MIRClosureType(self, 'Closure', self.gcPointerSize, self.gcPointerAlignment)
         self.functionType = MIRFunctionType(self, 'Function', self.pointerSize, self.pointerAlignment)
+        self.cdeclFunctionType = MIRFunctionType(self, 'CdeclFunction', self.pointerSize, self.pointerAlignment, 'cdecl')
+        self.stdcallFunctionType = MIRFunctionType(self, 'StdcallFunction', self.pointerSize, self.pointerAlignment, 'stdcall')
+        self.apicallFunctionType = MIRFunctionType(self, 'ApicallFunction', self.pointerSize, self.pointerAlignment, 'apicall')
+        self.thiscallFunctionType = MIRFunctionType(self, 'ThiscallFunction', self.pointerSize, self.pointerAlignment, 'thiscall')
+        self.vectorcallFunctionType = MIRFunctionType(self, 'VectorcallFunction', self.pointerSize, self.pointerAlignment, 'vectorcall')
         self.basicBlockType = MIRBasicBlockType(self, 'BasicBlock', self.pointerSize, self.pointerAlignment)
         self.gcPointerType = MIRGCPointerType(self, 'GCPointer', self.gcPointerSize, self.gcPointerAlignment)
         self.pointerType = MIRPointerType(self, 'Pointer', self.pointerSize, self.pointerAlignment)
@@ -27,6 +32,14 @@ class MIRContext:
         self.float32Type = MIRFloatingPointType(self, 'Float32', 4, 4)
         self.float64Type = MIRFloatingPointType(self, 'Float64', 8, 8)
 
+        self.callingConventionFunctionTypeMap = {
+            'cdecl': self.cdeclFunctionType,
+            'stdcall': self.stdcallFunctionType,
+            'apicall': self.apicallFunctionType,
+            'thiscall': self.thiscallFunctionType,
+            'vectorcall': self.vectorcallFunctionType,
+        }
+
 class MIRType(ABC):
     def __init__(self, context: MIRContext, name: str, size: int, alignment: int) -> None:
         self.context = context
@@ -41,6 +54,9 @@ class MIRType(ABC):
         return False
     
     def isClosureType(self) -> bool:
+        return False
+    
+    def isFunctionType(self) -> bool:
         return False
 
     def __str__(self) -> str:
@@ -71,7 +87,12 @@ class MIRClosureType(MIRType):
         return True
 
 class MIRFunctionType(MIRType):
-    pass
+    def __init__(self, context: MIRContext, name: str, size: int, alignment: int, callingConvention: str | None = None) -> None:
+        super().__init__(context, name, size, alignment)
+        self.callingConvention = callingConvention
+
+    def isFunctionType(self) -> bool:
+        return True
 
 class MIRBasicBlockType(MIRType):
     pass
@@ -208,6 +229,7 @@ class MIRImportedModule(MIRGlobalValue):
                 return importedValue
 
         importedValue = MIRImportedModuleValue(self.context, self, type, name)
+        self.parentModule.addGlobalValue(importedValue)
         return importedValue
 
 class MIRImportedModuleValue(MIRGlobalValue):
@@ -216,9 +238,15 @@ class MIRImportedModuleValue(MIRGlobalValue):
         self.importedModule = importedModule
         self.valueName = valueName
         self.valueType = valueType
+        self.type = self.context.pointerType
+        if self.valueType.isFunctionType():
+            self.type = self.valueType
 
     def accept(self, visitor: MIRValueVisitor):
         return visitor.visitImportedModuleValue(self)
+    
+    def getType(self) -> MIRType:
+        return self.type
 
 class MIRGlobalVariable(MIRGlobalValue):
     def __init__(self, context: MIRContext, name: str = None) -> None:
@@ -670,6 +698,8 @@ class MIRModuleFrontend:
         return translatedType
     
     def visitFunctionType(self, type: HIRFunctionType):
+        if type.callingConvention is not None:
+            return self.context.callingConventionFunctionTypeMap[type.callingConvention]
         return self.context.closureType
     
     def visitConstantUnit(self, constant: HIRConstantUnit) -> MIRValue:
@@ -798,6 +828,8 @@ class MIRFunctionFrontend:
         if value.isImportedModuleValue():
             importedValue = self.moduleFrontend.translateValue(value)
             valueType = self.translateType(value.getType())
+            if valueType.isFunctionType():
+                return importedValue
             return self.builder.load(valueType, importedValue)
 
         return self.moduleFrontend.translateValue(value)

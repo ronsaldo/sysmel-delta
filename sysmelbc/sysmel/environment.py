@@ -453,6 +453,24 @@ def publicMutableWithMacro(macroContext: MacroContext, localName: ASTNode, local
 def arrowMacro(macroContext: MacroContext, argumentType: ASTNode, resultType: ASTNode) -> ASTNode:
     return ASTFunctionTypeNode(macroContext.sourcePosition, argumentType, resultType)
 
+def callingConventionMacro(macroContext: MacroContext, functionNode: ASTNode, conventionName: TypedValue) -> ASTNode:
+    return macroContext.typechecker.visitNode(functionNode).withCallingConventionNamed(conventionName)
+
+def cdeclMacro(macroContext: MacroContext, functionNode: ASTNode) -> ASTNode:
+    return callingConventionMacro(macroContext, functionNode, Symbol.intern('cdecl'))
+
+def stdcallMacro(macroContext: MacroContext, functionNode: ASTNode) -> ASTNode:
+    return callingConventionMacro(macroContext, functionNode, Symbol.intern('stdcall'))
+
+def apicallMacro(macroContext: MacroContext, functionNode: ASTNode) -> ASTNode:
+    return callingConventionMacro(macroContext, functionNode, Symbol.intern('apicall'))
+
+def thiscallMacro(macroContext: MacroContext, functionNode: ASTNode) -> ASTNode:
+    return callingConventionMacro(macroContext, functionNode, Symbol.intern('thiscall'))
+
+def vectorcallMacro(macroContext: MacroContext, functionNode: ASTNode) -> ASTNode:
+    return callingConventionMacro(macroContext, functionNode, Symbol.intern('vectorcall'))
+
 def importModuleMacro(macroContext: MacroContext, name: ASTNode) -> ASTNode:
     return ASTImportModuleNode(macroContext.sourcePosition, name)
 
@@ -520,6 +538,11 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['=>', 'Type::=>', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], arrowMacro, ['macro']],
+    ['__cdecl', 'Type::__cdecl', [MacroContextType, ASTNodeType, ASTNodeType], cdeclMacro, ['macro']],
+    ['__stdcall', 'Type::__stdcall', [MacroContextType, ASTNodeType, ASTNodeType], stdcallMacro, ['macro']],
+    ['__apicall', 'Type::__apicall', [MacroContextType, ASTNodeType, ASTNodeType], apicallMacro, ['macro']],
+    ['__thiscall', 'Type::__thiscall', [MacroContextType, ASTNodeType, ASTNodeType], thiscallMacro, ['macro']],
+    ['__vectorcall', 'Type::__vectorcall', [MacroContextType, ASTNodeType, ASTNodeType], vectorcallMacro, ['macro']],
 
     ['const', 'Type::const', [TypeType, TypeType], DecoratedType.makeConst, []],
     ['volatile', 'Type::volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],

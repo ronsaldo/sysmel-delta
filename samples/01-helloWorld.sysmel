@@ -1,5 +1,5 @@
 let: #stdlib with: (importModule: #stdlib).
-let: #abort with: (fromModule: stdlib import: #abort withType: Unit => Unit).
+let: #abort with: (fromModule: stdlib import: #abort withType: (Unit => Unit) __cdecl).
 
 let: #stdio with: (importModule: #stdio).
 let: #printString with: (fromModule: stdio import: #printString withType: String => Unit).
