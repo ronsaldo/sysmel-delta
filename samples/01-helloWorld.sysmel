@@ -7,12 +7,12 @@ let: #printString with: (fromModule: stdio import: #printString withType: String
 let: #myModule with: (importModule: #myModule).
 let: #myModuleInt32 with: (fromModule: myModule import: #int32 withType: Int32).
 
-moduleExport: #main with: (:(Int32)argc :: Int32) :=> {
+export: #main with: (:(Int32)argc :: Int32) :=> {
     abort().
     ##printString("Hello World\n").
     ##(myModuleInt32 + argc) + 1i32
     argc + 1i32
 }.
 
-moduleEntryPoint: (:: Int32) :=> 0i32.
+##moduleEntryPoint: (:: Int32) :=> 0i32.
 

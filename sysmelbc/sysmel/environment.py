@@ -516,7 +516,7 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
 
     ['importModule:', 'Macro::importModule:', [MacroContextType, ASTNodeType, ASTNodeType], importModuleMacro, ['macro']],
     ['fromModule:import:withType:', 'Macro::fromModule:import:withType:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], fromModuleImportWithType, ['macro']],
-    ['moduleExport:with:', 'Macro::moduleExport:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportWithMacro, ['macro']],
+    ['export:with:', 'Macro::export:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportWithMacro, ['macro']],
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['=>', 'Type::=>', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], arrowMacro, ['macro']],
