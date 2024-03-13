@@ -1414,6 +1414,22 @@ class ImportedModuleValue(TypedValue):
     def toJson(self):
         return {'importedModuleValue': self.module.name.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
 
+class ImportedExternalValue(TypedValue):
+    def __init__(self, externalName: TypedValue, name: TypedValue, type: TypedValue) -> None:
+        super().__init__()
+        self.externalName = externalName
+        self.name = name
+        self.type = type
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitImportedExternalValue(self)
+
+    def getType(self):
+        return self.type
+    
+    def toJson(self):
+        return {'importedExternalValue': self.externalName.name.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
+
 class ImportedModule(TypedValue):
     def __init__(self, name: TypedValue) -> None:
         super().__init__()

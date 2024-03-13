@@ -246,7 +246,7 @@ class Typechecker(ASTVisitor):
 
         importedModule = self.lexicalEnvironment.lookModule().importModuleNamed(name)
         return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, importedModule.getType()), importedModule)
-    
+
     def visitFromModuleImportWithTypeNode(self, node: ASTFromModuleImportWithTypeNode):
         module = self.visitNodeWithExpectedType(node.module, ModuleType)
         name, errorNode = self.evaluateSymbol(node.name)
@@ -255,6 +255,20 @@ class Typechecker(ASTVisitor):
             return self.visitNode(ASTSequenceNode(node.sourcePosition, [module, valueType, errorNode]))
         
         return reduceFromModuleImportNode(ASTTypedFromModuleImportNode(node.sourcePosition, valueType, module, name))
+
+    def visitFromExternalImportWithTypeNode(self, node: ASTFromExternalImportWithTypeNode):
+        externalName, externalErrorNode = self.evaluateSymbol(node.externalName)
+        name, errorNode = self.evaluateSymbol(node.name)
+        valueType = self.visitTypeExpression(node.type)
+        errorList = []
+        if externalErrorNode is not None:
+            errorList.append(externalErrorNode)
+        if errorNode is not None:
+            errorList.append(errorNode)
+        if len(errorList) != 0:
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, [valueType] + errorList))
+        
+        return reduceFromExternalImportNode(ASTTypedFromExternalImportWithTypeNode(node.sourcePosition, valueType, externalName, name))
 
     def visitModuleExportValueNode(self, node: ASTModuleExportValueNode):
         value = self.visitNode(node.value)
@@ -534,6 +548,9 @@ class Typechecker(ASTVisitor):
         return node
     
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
+        return node
+    
+    def visitTypedFromExternalImportWithTypeNode(self, node: ASTTypedFromExternalImportWithTypeNode):
         return node
 
     def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
@@ -912,6 +929,13 @@ def reduceFromModuleImportNode(node: ASTTypedFromModuleImportNode):
         module: ImportedModule = node.module.value
         type: TypedValue = node.type.value
         importedValue = module.importValueWithType(node.name, type)
+        return ASTTypedLiteralNode(node.sourcePosition, type, importedValue)
+    return node
+
+def reduceFromExternalImportNode(node: ASTTypedFromExternalImportWithTypeNode):
+    if node.type.isLiteralTypeNode():
+        type: TypedValue = node.type.value
+        importedValue = ImportedExternalValue(node.externalName, node.name, type)
         return ASTTypedLiteralNode(node.sourcePosition, type, importedValue)
     return node
 

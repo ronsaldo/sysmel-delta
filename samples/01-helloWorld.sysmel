@@ -1,8 +1,7 @@
-let: #stdlib with: (importModule: #stdlib).
-let: #abort with: (fromModule: stdlib import: #abort withType: (Unit => Unit) __cdecl).
+let: #abort with: (fromExternal: #C import: #abort withType: (Unit => Unit) __cdecl).
 
-let: #stdio with: (importModule: #stdio).
-let: #printString with: (fromModule: stdio import: #printString withType: String => Unit).
+##let: #stdio with: (importModule: #stdio).
+##let: #printString with: (fromModule: stdio import: #printString withType: String => Unit).
 
 let: #myModule with: (importModule: #myModule).
 let: #myModuleInt32 with: (fromModule: myModule import: #int32 withType: Int32).

@@ -112,8 +112,14 @@ class HIRValue(ABC):
 
     def isTerminatorInstruction(self) -> bool:
         return False
-    
+
+    def isImportedValue(self) -> bool:
+        return False
+
     def isImportedModuleValue(self) -> bool:
+        return False
+
+    def isImportedExternalValue(self) -> bool:
         return False
 
 class HIRTypeValue(HIRValue):
@@ -356,7 +362,11 @@ class HIRImportedModule(HIRGlobalValue):
     def fullPrintString(self) -> str:
         return '%s := import "%s"' % (str(self), self.moduleName)
 
-class HIRImportedModuleValue(HIRGlobalValue):
+class HIRImportedValue(HIRGlobalValue):
+    def isImportedValue(self) -> bool:
+        return True
+
+class HIRImportedModuleValue(HIRImportedValue):
     def __init__(self, context: HIRContext, type: HIRValue, module: HIRImportedModule, valueName: str) -> None:
         super().__init__(context, type)
         self.module = module
@@ -371,6 +381,22 @@ class HIRImportedModuleValue(HIRGlobalValue):
 
     def fullPrintString(self) -> str:
         return '%s := from %s import "%s" : %s' % (str(self), str(self.module), self.valueName, str(self.type))
+
+class HIRImportedExternalValue(HIRImportedValue):
+    def __init__(self, context: HIRContext, type: HIRValue, externalName: str, valueName: str) -> None:
+        super().__init__(context, type)
+        self.externalName = externalName
+        self.valueName = valueName
+        self.name = valueName
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitImportedExternalValue(self)
+    
+    def isImportedExternalValue(self) -> bool:
+        return True
+
+    def fullPrintString(self) -> str:
+        return '%s := from external %s import "%s" : %s' % (str(self), str(self.externalName), self.valueName, str(self.type))
 
 class HIRFunctionalDefinition(HIRGlobalValue):
     def __init__(self, context: HIRContext) -> None:
@@ -785,6 +811,12 @@ class HIRModuleFrontend:
         module: HIRImportedModule = self.translateGraphValue(graphValue.module)
         type: HIRValue = self.translateGraphValue(graphValue.type)
         return module.importValueWithType(graphValue.name, type)
+    
+    def visitImportedExternalValue(self, graphValue: GHIRImportedExternalValue) -> HIRValue:
+        type: HIRValue = self.translateGraphValue(graphValue.type)
+        importedExternal = HIRImportedExternalValue(self.context, type, graphValue.externalName, graphValue.name);
+        self.module.addGlobalValue(importedExternal)
+        return importedExternal
 
 class HIRFunctionalDefinitionFrontend:
     def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:

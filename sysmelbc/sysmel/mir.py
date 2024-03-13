@@ -232,21 +232,32 @@ class MIRImportedModule(MIRGlobalValue):
         self.parentModule.addGlobalValue(importedValue)
         return importedValue
 
-class MIRImportedModuleValue(MIRGlobalValue):
-    def __init__(self, context: MIRContext, importedModule: MIRImportedModule, valueType: MIRType, valueName: str = None) -> None:
+class MIRImportedValue(MIRGlobalValue):
+    def __init__(self, context: MIRContext, valueType: MIRType, valueName: str = None) -> None:
         super().__init__(context, valueName)
-        self.importedModule = importedModule
         self.valueName = valueName
         self.valueType = valueType
         self.type = self.context.pointerType
         if self.valueType.isFunctionType():
             self.type = self.valueType
+    def getType(self) -> MIRType:
+        return self.type
+
+class MIRImportedModuleValue(MIRImportedValue):
+    def __init__(self, context: MIRContext, importedModule: MIRImportedModule, valueType: MIRType, valueName: str = None) -> None:
+        super().__init__(context, valueType, valueName)
+        self.importedModule = importedModule
 
     def accept(self, visitor: MIRValueVisitor):
         return visitor.visitImportedModuleValue(self)
-    
-    def getType(self) -> MIRType:
-        return self.type
+
+class MIRImportedExternalValue(MIRImportedValue):
+    def __init__(self, context: MIRContext, externalName: str, valueType: MIRType, valueName: str = None) -> None:
+        super().__init__(context, valueType, valueName)
+        self.externalName = externalName
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitImportedExternalValue(self)
 
 class MIRGlobalVariable(MIRGlobalValue):
     def __init__(self, context: MIRContext, name: str = None) -> None:
@@ -734,6 +745,11 @@ class MIRModuleFrontend:
         module = self.translateValue(value.module)
         return module.importValueWithType(value.name, self.translateType(value.type))
 
+    def visitImportedExternalValue(self, value: HIRImportedExternalValue) -> MIRValue:
+        importedValue = MIRImportedExternalValue(self.context, value.externalName, self.translateType(value.type), value.valueName)
+        self.module.addGlobalValue(importedValue)
+        return importedValue
+
     def beginWritingGlobalVariableFor(self, targetValue: HIRValue) -> MIRValue:
         mirGlobal = MIRGlobalVariable(self.context)
         self.module.addGlobalValue(mirGlobal)
@@ -825,7 +841,7 @@ class MIRFunctionFrontend:
         if value.isFunctionalLocalValue():
             return self.translatedValueDictionary[value]
         
-        if value.isImportedModuleValue():
+        if value.isImportedValue():
             importedValue = self.moduleFrontend.translateValue(value)
             valueType = self.translateType(value.getType())
             if valueType.isFunctionType():

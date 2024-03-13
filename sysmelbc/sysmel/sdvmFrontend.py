@@ -83,9 +83,13 @@ class SDVMModuleFrontEnd:
         return self.module.importModule(value.name)
 
     def visitImportedModuleValue(self, value: MIRImportedModuleValue):
-        importdModule = self.translateValue(value.importedModule)
+        importedModule = self.translateValue(value.importedModule)
         ## TODO: Pass the string encoded type descriptor.
-        return importdModule.importValue(value.valueName, '')
+        return importedModule.importValue(value.valueName, '')
+
+    def visitImportedExternalValue(self, value: MIRImportedExternalValue):
+        ## TODO: Pass the string encoded type descriptor.
+        return self.module.importExternalValue(value.externalName, value.valueName, '')
 
     def translateFunction(self, mirFunction: MIRFunction) -> SDVMFunction:
         if mirFunction in self.translatedFunctionDictionary:
@@ -165,11 +169,17 @@ class SDVMFunctionFrontEnd:
     def visitImportedModule(self, value: MIRImportedModule):
         assert False
 
-    def visitImportedModuleValue(self, value: MIRImportedModuleValue):
+    def visitImportedValue(self, value: MIRImportedValue):
         moduleImportedValue = self.moduleFrontend.translateValue(value)
         if value.getType().isFunctionType():
             return self.function.addConstant(SDVMConstant(SdvmConstImportProcedureHandle, moduleImportedValue, moduleImportedValue.index))
         return self.function.addConstant(SDVMConstant(SdvmConstImportPointer, moduleImportedValue, moduleImportedValue.index))
+
+    def visitImportedModuleValue(self, value: MIRImportedModuleValue):
+        return self.visitImportedValue(value)
+    
+    def visitImportedExternalValue(self, value: MIRImportedExternalValue):
+        return self.visitImportedValue(value)
     
     def visitConstantInteger(self, instruction: MIRConstantInteger) -> SDVMOperand:
         return self.moduleFrontend.constantTranslationFunctions[instruction.getType()](self.function, instruction.value)

@@ -803,6 +803,29 @@ class GHIRImportedModuleValue(GHIRValue):
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := from %s import %s : %s' % (valueName, graphPrinter.printValue(self.module), self.name, graphPrinter.printValue(self.type)))
 
+class GHIRImportedExternalValue(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, externalName: str, name: str) -> None:
+        super().__init__(context)
+        self.type = type
+        self.externalName = externalName
+        self.name = name
+    
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitImportedExternalValue(self)
+
+    def getType(self) -> GHIRValue:
+        return None
+
+    def usedValues(self):
+        yield self.type
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        graphPrinter.printLine('%s := from external %s import %s : %s' % (valueName, self.externalName, self.name, graphPrinter.printValue(self.type)))
+
 class GHIRModule(GHIRValue):
     def __init__(self, context: GHIRContext) -> None:
         self.context = context
@@ -978,10 +1001,16 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         return GHIRFunctionalDefinitionValue(self.context, captures, [argument], body).simplify()
     
     def visitImportedModuleValue(self, value: ImportedModuleValue):
-        type: GHIRImportedModule = self.translateValue(value.type)
+        type: GHIRValue = self.translateValue(value.type)
         module: GHIRImportedModule = self.translateValue(value.module)
         name: str = value.name.value
         return module.importValueWithType(name, type)
+    
+    def visitImportedExternalValue(self, value: ImportedExternalValue):
+        type: GHIRValue = self.translateValue(value.type)
+        externalName: str = value.externalName.value
+        name: str = value.name.value
+        return GHIRImportedExternalValue(self.context, type, externalName, name)
 
     def visitImportedModule(self, value: ImportedModule):
         return GHIRImportedModule(self.context, value.name.value)
@@ -1085,6 +1114,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         return GHIRMakeTupleExpression(self.context, type, elements).simplify()
     
     def visitTypedFromModuleImportNode(self, node):
+        assert False
+
+    def visitTypedFromExternalImportWithTypeNode(self, node):
         assert False
 
     def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
@@ -1195,3 +1227,6 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
 
     def visitImportedModuleValue(self, value: GHIRImportedModuleValue):
         return self.checkValue(value.module) or self.checkValue(value.type)
+    
+    def visitImportedExternalValue(self, value: GHIRImportedExternalValue):
+        return self.checkValue(value.type)

@@ -752,7 +752,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         case SdvmConstImportProcedureHandle:
             {
                 uint32_t importValueIndex = instruction->decoding.constant.unsignedPayload;
-                SDVM_ASSERT(importValueIndex <= state->module->importTableSize);
+                SDVM_ASSERT(importValueIndex <= state->module->importValueTableSize);
                 if(importValueIndex > 0)
                 {
                     sdvm_compilerSymbolHandle_t symbolHandle = state->moduleState->importedValueTableSymbols[importValueIndex - 1];

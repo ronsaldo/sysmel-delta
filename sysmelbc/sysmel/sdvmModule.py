@@ -61,6 +61,9 @@ class SDVMModule:
 
     def importModule(self, name: str):
         return self.importModuleTable.importModule(name)
+    
+    def importExternalValue(self, externalName: str, valueName: str, typeDescriptor: str):
+        return self.importModuleValueTable.importExternalValue(externalName, valueName, typeDescriptor)
 
     def exportValue(self, name: str, value):
         pass
@@ -184,6 +187,13 @@ class SDVMImportModuleValueTableSection(SDVMModuleSection):
         importedModuleValue.index = len(self.importedModuleValues)
         self.contents += importedModuleValue.encode()
         return importedModuleValue
+    
+    def importExternalValue(self, externalName: str, valueName: str, typeDescriptor: str):
+        importedExternalValue = SDVMImportedExternalValue(self.module, externalName, valueName, typeDescriptor)
+        self.importedModuleValues.append(importedExternalValue)
+        importedExternalValue.index = len(self.importedModuleValues)
+        self.contents += importedExternalValue.encode()
+        return importedExternalValue
 
 class SDVMObjectTableSection(SDVMModuleSection):
     def __init__(self,) -> None:
@@ -435,6 +445,23 @@ class SDVMImportedModuleValue:
         if len(typeDesc) == 0:
             return '[%s]"%s"' % (str(self.importedModule), str(self.name))
         return '[%s : %s]"%s"' % (str(self.importedModule), typeDesc, str(self.name))
+
+class SDVMImportedExternalValue:
+    def __init__(self, module: SDVMModule, externalName: str, name: str, typeDescriptor: str) -> None:
+        self.index = 0
+        self.externalIndex = 0
+        self.externalName = externalName
+        self.name = module.addString(name)
+        self.typeDescriptor = module.addString(typeDescriptor)
+
+    def encode(self) -> bytes:
+        return struct.pack('<IIIII', self.externalIndex, self.name.offset, self.name.size, self.typeDescriptor.offset, self.typeDescriptor.size)
+
+    def __str__(self) -> str:
+        typeDesc = str(self.typeDescriptor)
+        if len(typeDesc) == 0:
+            return '[external %s]"%s"' % (self.externalName, str(self.name))
+        return '[external %s : %s]"%s"' % (self.externalName, typeDesc, str(self.name))
 
 class SDVMExportedModuleValue:
     def __init__(self, module: SDVMModule, kind: int, name: str, typeDescriptor: str) -> None:

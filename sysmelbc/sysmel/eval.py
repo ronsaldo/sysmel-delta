@@ -121,6 +121,10 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         type = self.visitNode(node.type)
         return module.importValueWithType(node.name, type)
 
+    def visitTypedFromExternalImportWithTypeNode(self, node: ASTTypedFromExternalImportWithTypeNode):
+        type = self.visitNode(node.type)
+        return ImportedExternalValue(node.externalName, node.name, type)
+
     def visitTypedModuleExportValueNode(self, node: ASTTypedModuleExportValueNode):
         value = self.visitNode(node.value)
         node.module.exportValue(node.name, value)
