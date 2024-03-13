@@ -374,7 +374,7 @@ class CurryingFunctionalValue(TypedValue):
         return self.innerFunction.isMacroValue()
     
     def expectsMacroEvaluationContext(self) -> bool:
-        return self.type.argumentBinding.hasTypeOf(MacroContextType)
+        return self.type.argumentType.isEquivalentTo(MacroContextType)
 
     def getType(self):
         return self.type
@@ -392,7 +392,7 @@ def optionalIdentifierToString(symbol: TypedValue) -> str:
         return str(symbol)
 
 def makeFunctionTypeFromTo(first: TypedValue, second: TypedValue, sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
-    return PiValue(first.getType(), SymbolArgumentBinding(None, None, ASTLiteralTypeNode(sourcePosition, first)), [], [], ASTLiteralTypeNode(sourcePosition, second))
+    return FunctionType.makeFromTo(first, second)
 
 def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     assert len(signature) >= 2
@@ -403,7 +403,7 @@ def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePo
 
 def makeUncurriedFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     assert len(signature) >= 1
-    return UncurriedSimpleFunctionType(signature[:-1], signature[-1])
+    return UncurriedFunctionType(signature[:-1], signature[-1])
 
 def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False, previousArgumentTypes: list[TypedValue] = []):
     assert len(signature) >= 2
@@ -449,6 +449,9 @@ def publicTypeMutableWithMacro(macroContext: MacroContext, localName: ASTNode, e
 
 def publicMutableWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
     return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, None, localValue, isMutable = True, isPublic = True)
+
+def arrowMacro(macroContext: MacroContext, argumentType: ASTNode, resultType: ASTNode) -> ASTNode:
+    return ASTFunctionTypeNode(macroContext.sourcePosition, argumentType, resultType)
 
 def importModuleMacro(macroContext: MacroContext, name: ASTNode) -> ASTNode:
     return ASTImportModuleNode(macroContext.sourcePosition, name)
@@ -515,6 +518,8 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['fromModule:import:withType:', 'Macro::fromModule:import:withType:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], fromModuleImportWithType, ['macro']],
     ['moduleExport:with:', 'Macro::moduleExport:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportWithMacro, ['macro']],
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
+
+    ['=>', 'Type::=>', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], arrowMacro, ['macro']],
 
     ['const', 'Type::const', [TypeType, TypeType], DecoratedType.makeConst, []],
     ['volatile', 'Type::volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],

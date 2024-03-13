@@ -66,7 +66,11 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitUncurriedSimpleFunctionType(self, value):
+    def visitFunctionType(self, value):
+        pass
+
+    @abstractmethod
+    def visitUncurriedFunctionType(self, value):
         pass
 
     @abstractmethod
@@ -137,6 +141,9 @@ class TypedValue(ABC):
         return 0
     
     def isPi(self) -> bool:
+        return False
+    
+    def isFunctionType(self) -> bool:
         return False
 
     def isLambda(self) -> bool:
@@ -634,16 +641,54 @@ class ProductType(BaseType):
         cls.ProductTypeCache[productKey] = productType
         return productType
 
-class UncurriedSimpleFunctionType(BaseType):
+class FunctionType(BaseType):
+    FunctionTypeCache = dict()
+
+    def __init__(self, argumentType: TypedValue, resultType: TypedValue) -> None:
+        super().__init__(None)
+        self.type = None
+        self.argumentType = argumentType
+        self.resultType = resultType
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitFunctionType(self)
+    
+    def getType(self) -> TypedValue:
+        if self.type is None:
+            self.type = TypeType.getWithIndex(max(self.argumentType.getType().getTypeUniverseIndex(), self.resultType.getType().getTypeUniverseIndex()))
+        return self.type
+    
+    def isFunctionType(self) -> bool:
+        return True
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not isinstance(other, FunctionType): return False
+
+        return self.argumentType.isEquivalentTo(other.argumentType) and self.resultType.isEquivalentTo(other.resultType)
+
+    def toJson(self):
+        return {'Function': self.argumentType.toJson(), 'resultType': self.resultType}
+
+    @classmethod
+    def makeFromTo(cls, argumentType: TypedValue, resultType: TypedValue):
+        functionKey = (argumentType, resultType)
+        if functionKey in cls.FunctionTypeCache:
+            return cls.FunctionTypeCache[functionKey]
+
+        functionType = cls(argumentType, resultType)
+        cls.FunctionTypeCache[functionKey] = functionType
+        return functionType
+
+class UncurriedFunctionType(BaseType):
     def __init__(self, argumentTypes: list[TypedValue], resultType: TypedValue) -> None:
         self.argumentTypes = argumentTypes
         self.resultType = resultType
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
-        return visitor.visitUncurriedSimpleFunctionType(self)
+        return visitor.visitUncurriedFunctionType(self)
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
-        if not isinstance(other, ProductType): return False
+        if not isinstance(other, UncurriedFunctionType): return False
 
         if len(self.argumentTypes) != len(other.argumentTypes): return False
         for i in range(len(self.elementTypes)):
@@ -653,7 +698,7 @@ class UncurriedSimpleFunctionType(BaseType):
         return self.resultType.isEquivalentTo(other.resultType)
 
     def toJson(self):
-        return {'UncurriedSimpleFunction': list(map(lambda v: v.toJson(), self.argumentTypes)), 'resultType': self.resultType}
+        return {'UncurriedFunction': list(map(lambda v: v.toJson(), self.argumentTypes)), 'resultType': self.resultType}
 
 class OverloadsTypeValue(TypedValue):
     def __init__(self, type: TypedValue, alternatives: tuple) -> None:
@@ -1017,14 +1062,23 @@ class ASTNode(TypedValue):
     def isPiLiteralValue(self) -> bool:
         return False
 
+    def isFunctionTypeLiteralValue(self) -> bool:
+        return False
+
     def isTypedFunctionalNode(self) -> bool:
         return False
 
     def isTypedPiNode(self) -> bool:
         return False
+    
+    def isFunctionTypeNode(self) -> bool:
+        return False
+    
+    def isTypedFunctionTypeNode(self) -> bool:
+        return False
 
-    def isTypedPiNodeOrLiteralValue(self) -> bool:
-        return self.isPiLiteralValue() or self.isTypedPiNode()
+    def isAnyFunctionTypeNode(self) -> bool:
+        return self.isPiLiteralValue() or self.isFunctionTypeLiteralValue() or self.isTypedPiNode() or self.isTypedFunctionTypeNode()
 
     def isTypedLambdaNode(self) -> bool:
         return False
@@ -1081,6 +1135,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
 
     def isPiLiteralValue(self) -> bool:
         return self.value.isPi()
+    
+    def isFunctionTypeLiteralValue(self) -> bool:
+        return self.value.isFunctionType()
 
     def isTypedLiteralFunctionalValue(self) -> bool:
         return self.value.isFunctionalValue()

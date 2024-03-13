@@ -18,7 +18,7 @@ class GHIRContext:
         self.constantValues[value] = constantValue
         return constantValue
     
-    def getSimpleFunctionType(self, type, argumentTypes, resultType):
+    def getFunctionType(self, type, argumentTypes, resultType):
         hashKey = (type, tuple(argumentTypes), resultType)
         if hashKey in self.simpleFunctionTypes:
             return self.simpleFunctionTypes[hashKey]
@@ -544,7 +544,7 @@ class GHIRPiValue(GHIRFunctionalValue):
         if self.definition.isFunctionalDefinition() and self.definition.isCaptureless() and not self.definition.hasArgumentDependency():
             argumentTypes = list(map(lambda arg: arg.getType(), self.definition.arguments))
             resultType = self.definition.body
-            simpleFunctionType = self.context.getSimpleFunctionType(self.getType(), argumentTypes, resultType)
+            simpleFunctionType = self.context.getFunctionType(self.getType(), argumentTypes, resultType)
             return self.replaceWith(simpleFunctionType)
         return super().simplify()
 
@@ -891,6 +891,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
         return translatedValue.simplify()
+    
+    def visitFunctionType(self, value: FunctionType):
+        type = self.translateValue(value.getType())
+        argumentType = self.translateValue(value.argumentType)
+        resultType = self.translateValue(value.resultType)
+        return self.context.getFunctionType(type, [argumentType], resultType)
 
     def visitSigmaValue(self, value: SigmaValue):
         type = self.translateValue(value.getType())
@@ -919,11 +925,11 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         elementTypes = list(map(self.translateValue, value.elementTypes))
         return self.context.getProductType(type, elementTypes)
     
-    def visitUncurriedSimpleFunctionType(self, value: UncurriedSimpleFunctionType):
+    def visitUncurriedFunctionType(self, value: UncurriedFunctionType):
         type = self.translateValue(value.getType())
         argumentTypes = list(map(self.translateValue, value.argumentTypes))
         resultType = self.translateValue(value.resultType)
-        return self.context.getSimpleFunctionType(type, argumentTypes, resultType)
+        return self.context.getFunctionType(type, argumentTypes, resultType)
 
     def visitRecordType(self, value):
         assert False
@@ -1011,6 +1017,13 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitTypedErrorNode(self, node: ASTTypedErrorNode) -> TypedValue:
         assert False
+
+    def visitTypedFunctionTypeNode(self, node: ASTTypedFunctionTypeNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        argumentType = self.translateExpression(node.argumentType)
+        resultType = self.translateExpression(node.resultType)
+        return self.context.getFunctionType(type, [argumentType], resultType)
+
 
     def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
         type = self.translateExpression(node.type)

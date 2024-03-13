@@ -194,7 +194,7 @@ def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
     
     if len(arguments) == 0 and not hasResultTypeExpression:
         return state, None
-    return state, ASTFunctionalTypeNode(state.sourcePositionFrom(startPosition), arguments, resultTypeExpression)
+    return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), arguments, resultTypeExpression)
 
 def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     # (
@@ -228,7 +228,7 @@ def parseParenthesisOrLambda(state: ParserState) -> tuple[ParserState, ASTNode]:
         state.peekKind(2) == TokenKind.ASSIGNMENT_ARROW:
         state.advance()
         state.advance()
-        expression = ASTFunctionalTypeNode(state.sourcePositionFrom(startPosition), [], None)
+        expression = ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), [], None)
     else:
         state, expression = parseParenthesis(state)
 
@@ -251,7 +251,7 @@ def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
         state, functionalType = parseFunctionalType(state)
         functionalType = state.expectAddingErrorToNode(TokenKind.BAR, functionalType)
     elif state.peekKind() == TokenKind.BAR:
-        functionalType = ASTFunctionalTypeNode(state.currentSourcePosition(), [], None)
+        functionalType = ASTFunctionalDependentTypeNode(state.currentSourcePosition(), [], None)
 
     state, body = parseSequenceUntilEndOrDelimiter(state, TokenKind.RIGHT_CURLY_BRACKET)
 

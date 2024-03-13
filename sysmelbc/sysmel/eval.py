@@ -60,6 +60,11 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
     def visitTypedErrorNode(self, node: ASTTypedErrorNode) -> TypedValue:
         raise Exception('%s: %s' % (str(node.sourcePosition), node.message))
+    
+    def visitTypedFunctionTypeNode(self, node: ASTTypedFunctionTypeNode) -> TypedValue:
+        argumentType = self.visitNode(node.argumentType)
+        resultType = self.visitNode(node.resultType)
+        return FunctionType.makeFromTo(argumentType, resultType)
 
     def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
         type = self.visitNode(node.type)
