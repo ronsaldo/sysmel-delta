@@ -609,6 +609,9 @@ class ASTTypedFunctionTypeNode(ASTTypedNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedFunctionTypeNode(self)
+    
+    def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
+        return self
 
     def toJson(self) -> dict:
         return {'kind': 'TypedFunctionTypeNode', 'type': self.type.toJson(), 'argumentType': self.argumentType.toJson(), 'resultType': self.resultType.toJson()}

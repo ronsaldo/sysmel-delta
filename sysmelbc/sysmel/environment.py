@@ -266,6 +266,10 @@ class LambdaValue(FunctionalValue):
         return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class PiValue(FunctionalValue):
+    def __init__(self, type: TypedValue, argumentBinding: SymbolArgumentBinding, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
+        super().__init__(type, argumentBinding, captureBindings, captureBindingValues, body, sourcePosition)
+        self.callingConvention = callingConvention
+
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitPiValue(self)
 
@@ -275,11 +279,17 @@ class PiValue(FunctionalValue):
     def getType(self):
         return self.type
 
+    def withCallingConventionNamed(self, conventionName: Symbol):
+        if self.callingConvention == conventionName:
+            return self
+
+        return PiValue(self.type, self.argumentBinding, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, self.callingConvention)
+
     def toJson(self):
-        return {'pi': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
+        return {'pi': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}
 
     def prettyPrint(self) -> str:
-        return '(:(%s)%s :: %s)' % (self.type.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.type.argumentBinding.name), self.type.body.prettyPrint())
+        return '(:(%s)%s :: %s)' % (self.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.argumentBinding.name), self.body.prettyPrint())
 
     def isPi(self) -> bool:
         return True

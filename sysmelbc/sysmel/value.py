@@ -184,6 +184,9 @@ class TypedValue(ABC):
 
     def isTemporaryReferenceType(self) -> bool:
         return False
+    
+    def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
+        return typechecker.makeSemanticError(sourcePosition, "Failed to convert value into function type node %s." % self.prettyPrint())
 
 class TypeUniverse(TypedValue):
     InstancedUniverses = dict()
@@ -1151,9 +1154,12 @@ class ASTLiteralTypeNode(ASTTypeNode):
     
     def isTypedLiteralReducibleFunctionalValue(self) -> bool:
         return self.value.isReducibleFunctionalValue()
-
+    
     def accept(self, visitor):
         return visitor.visitLiteralTypeNode(self)
+    
+    def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
+        return self.value.asTypedFunctionTypeNodeAtFor(sourcePosition, typechecker)
 
     def toJson(self) -> dict:
         return {'kind': 'LiteralType', 'value': self.value.toJson()}

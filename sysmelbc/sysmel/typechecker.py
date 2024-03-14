@@ -310,10 +310,16 @@ class Typechecker(ASTVisitor):
         return errorNode
 
     def visitFunctionNode(self, node: ASTFunctionNode):
-        if len(node.functionalType.arguments) == 0:
+        #functionalTypeNode = self.visitTypeExpression(node.functionalType)
+        #if functionalTypeNode.isTypedErrorNode():
+        #    return self.visitNode(ASTSequenceNode(node.sourcePosition, [functionalTypeNode, node.body]))
+        
+        #newLambdaNode = functionalTypeNode.constructMatchingLambdaWithBody
+        functionalTypeNode = node.functionalType
+        if len(functionalTypeNode.arguments) == 0:
             return self.visitNode(ASTLambdaNode(node.sourcePosition, False, None, None, node.functionalType.resultType, node.body))
 
-        resultType = node.functionalType.resultType
+        resultType = functionalTypeNode.resultType
         body = node.body
         for argument in reversed(node.functionalType.arguments):
             body = ASTLambdaNode(argument.sourcePosition, argument.isImplicit, argument.typeExpression, argument.nameExpression, resultType, body)

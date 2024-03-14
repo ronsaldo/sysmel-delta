@@ -15,3 +15,6 @@ export: #main external: #C with: (:(Int32)argc :: Int32) :=> {
 
 ##moduleEntryPoint: (:: Int32) :=> 0i32.
 
+##(:(Int32)argc :: Int32) __cdecl.
+##(:(Int32)argc :: Int32) :=> 0i32.
+##(:(Int32)argc :: Int32) __cdecl :=> 0i32
