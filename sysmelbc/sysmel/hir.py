@@ -667,7 +667,7 @@ class HIRModule(HIRValue):
         super().__init__(context)
         self.importedModules = []
         self.importedModuleDictionary = dict()
-        self.exportedValues: list[tuple[str, HIRValue]] = []
+        self.exportedValues: list[tuple[str, HIRValue, str]] = []
         self.entryPoint: HIRValue = None
         self.globalValues: list[HIRGlobalValue] = []
 
@@ -677,8 +677,8 @@ class HIRModule(HIRValue):
     def getType(self):
         return None
     
-    def exportValue(self, name: str, value: HIRValue):
-        self.exportedValues.append((name, value))
+    def exportValue(self, name: str, value: HIRValue, externalName: str | None = None):
+        self.exportedValues.append((name, value, externalName))
 
     def importModuleWithName(self, name: str):
         if name in self.importedModuleDictionary:
@@ -708,8 +708,11 @@ class HIRModule(HIRValue):
         self.enumerateGlobalValues()
 
         result = ''
-        for name, value in self.exportedValues:
-            result += 'export "%s" := %s\n' % (name, str(value))
+        for name, value, externalName in self.exportedValues:
+            if externalName is not None:
+                result += 'export "%s" external %s := %s\n' % (name, externalName, str(value))
+            else:
+                result += 'export "%s" := %s\n' % (name, str(value))
         if self.entryPoint is not None:
             result += 'entryPoint: %s\n' % str(self.entryPoint)
 
@@ -744,8 +747,8 @@ class HIRModuleFrontend:
             self.translatedConstantValueDictionary[baseType] = targetType
 
     def compileGraphModule(self, graphModule: GHIRModule) -> HIRModule:
-        for name, value in graphModule.exportedValues:
-            self.module.exportValue(name, self.translateGraphValue(value))
+        for name, value, externalName in graphModule.exportedValues:
+            self.module.exportValue(name, self.translateGraphValue(value), externalName)
         if graphModule.entryPoint is not None:
             self.module.entryPoint = self.translateGraphValue(graphModule.entryPoint)
         return self.module

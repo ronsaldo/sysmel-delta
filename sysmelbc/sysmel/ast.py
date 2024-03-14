@@ -533,8 +533,9 @@ class ASTFromModuleImportWithTypeNode(ASTNode):
         return {'kind': 'FromModuleImportWithType', 'module': self.module.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
 
 class ASTModuleExportValueNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, name: ASTNode, value: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, externalName: ASTNode | None, name: ASTNode, value: ASTNode) -> None:
         super().__init__(sourcePosition)
+        self.externalName = externalName
         self.name = name
         self.value = value
     
@@ -542,7 +543,7 @@ class ASTModuleExportValueNode(ASTNode):
         return visitor.visitModuleExportValueNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'ModuleExport', 'name': self.name.toJson(), 'value:' : self.value}
+        return {'kind': 'ModuleExport', 'externalName': optionalASTNodeToJson(self.externalName), 'name': self.name.toJson(), 'value:' : self.value}
 
 class ASTModuleEntryPointNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, entryPoint: ASTTypeNode) -> None:
@@ -730,8 +731,9 @@ class ASTTypedFromExternalImportWithTypeNode(ASTTypedNode):
 
 
 class ASTTypedModuleExportValueNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, name: Symbol, value: ASTTypeNode | ASTTypedNode, module: Module) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, externalName: Symbol | None, name: Symbol, value: ASTTypeNode | ASTTypedNode, module: Module) -> None:
         super().__init__(sourcePosition, type)
+        self.externalName = externalName
         self.name = name
         self.value = value
         self.module = module
@@ -740,7 +742,7 @@ class ASTTypedModuleExportValueNode(ASTTypedNode):
         return visitor.visitTypedModuleExportValueNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedModuleExport', 'type': self.type.toJson(), 'name': self.name.toJson(), 'value:' : self.value.toJson()}
+        return {'kind': 'TypedModuleExport', 'type': self.type.toJson(), 'externalName': optionalToJson(self.externalName), 'name': self.name.toJson(), 'value:' : self.value.toJson()}
 
 class ASTTypedModuleEntryPointNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, entryPoint: ASTTypedNode, module: Module) -> None:

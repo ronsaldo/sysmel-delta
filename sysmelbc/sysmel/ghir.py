@@ -838,12 +838,15 @@ class GHIRModule(GHIRValue):
     def getType(self) -> GHIRValue:
         return None
     
-    def exportValue(self, name: str, value: GHIRValue):
-        self.exportedValues.append((name, value))
+    def exportValue(self, name: str, value: GHIRValue, externalName: str | None = None):
+        self.exportedValues.append((name, value, externalName))
 
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
-        for name, value in self.exportedValues:
-            graphPrinter.printLine('export "%s" value: %s' % (name, graphPrinter.printValue(value)))
+        for name, value, externalName in self.exportedValues:
+            if externalName is not None:
+                graphPrinter.printLine('export "%s" external %s value: %s' % (name, externalName, graphPrinter.printValue(value)))
+            else:
+                graphPrinter.printLine('export "%s" value: %s' % (name, graphPrinter.printValue(value)))
         if self.entryPoint is not None:
             graphPrinter.printLine('module entryPoint: %s' % graphPrinter.printValue(self.entryPoint))
   
@@ -864,8 +867,11 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         self.translatedBindingValueDictionary = dict()
 
     def compileModule(self, module: Module):
-        for name, value in module.exportedValues:
-            self.ghirModule.exportValue(name.value, self.translateValue(value))
+        for name, value, externalName in module.exportedValues:
+            externalNameString = None
+            if externalName is not None:
+                externalNameString = externalName.value
+            self.ghirModule.exportValue(name.value, self.translateValue(value), externalNameString)
         if module.entryPoint is not None:
             self.ghirModule.entryPoint = self.translateValue(module.entryPoint)
         return self.ghirModule

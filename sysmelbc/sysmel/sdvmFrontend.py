@@ -51,8 +51,8 @@ class SDVMModuleFrontEnd:
         for globalValue in mirModule.globalValues:
             self.translateValue(globalValue)
 
-        for name, value in mirModule.exportedValues:
-            self.module.exportValue(name, self.translateValue(value))
+        for name, value, externalName in mirModule.exportedValues:
+            self.module.exportValue(name, self.translateValue(value), externalName)
         if mirModule.entryPoint is not None:
             self.module.entryPoint = self.translateFunction(mirModule.entryPoint).index
 

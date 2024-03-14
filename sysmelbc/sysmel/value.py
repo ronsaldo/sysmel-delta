@@ -1389,8 +1389,8 @@ class Module(TypedValue):
             return
         self.exportedBindings.append(binding)
 
-    def exportValue(self, name: Symbol, value: TypedValue):
-        self.exportedValues.append((name, value))
+    def exportValue(self, name: Symbol, value: TypedValue, externalName: Symbol | None = None):
+        self.exportedValues.append((name, value, externalName))
 
     def getType(self):
         return ModuleType

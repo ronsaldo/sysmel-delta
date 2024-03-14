@@ -272,11 +272,22 @@ class Typechecker(ASTVisitor):
 
     def visitModuleExportValueNode(self, node: ASTModuleExportValueNode):
         value = self.visitNode(node.value)
+
+        externalName = None
+        errorNodes = []
+        if node.externalName is not None:
+            externalName, errorNode = self.evaluateSymbol(node.externalName)
+            if errorNode is not None:
+                errorNodes.append(errorNode)
+
         name, errorNode = self.evaluateSymbol(node.name)
         if errorNode is not None:
-            return self.visitNode(ASTSequenceNode(node.sourcePosition, [value, errorNode]))
+            errorNodes.append(errorNode)
+
+        if len(errorNodes) != 0:
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, [value] + errorNodes))
         
-        return ASTTypedModuleExportValueNode(node.sourcePosition, value.type, name, value, self.lexicalEnvironment.lookModule())
+        return ASTTypedModuleExportValueNode(node.sourcePosition, value.type, externalName, name, value, self.lexicalEnvironment.lookModule())
 
     def visitModuleEntryPointNode(self, node: ASTModuleEntryPointNode):
         entryPoint = self.visitNode(node.entryPoint)

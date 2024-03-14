@@ -481,7 +481,10 @@ def fromExternalImportWithType(macroContext: MacroContext, externalName: ASTNode
     return ASTFromExternalImportWithTypeNode(macroContext.sourcePosition, externalName, name, type)
 
 def moduleExportWithMacro(macroContext: MacroContext, name: ASTNode, value: ASTNode) -> ASTNode:
-    return ASTModuleExportValueNode(macroContext.sourcePosition, name, value)
+    return ASTModuleExportValueNode(macroContext.sourcePosition, None, name, value)
+
+def moduleExportExternalWithMacro(macroContext: MacroContext, name: ASTNode, externalName: ASTNode, value: ASTNode) -> ASTNode:
+    return ASTModuleExportValueNode(macroContext.sourcePosition, externalName, name, value)
 
 def moduleEntryPointMacro(macroContext: MacroContext, entryPointValue: ASTNode) -> ASTNode:
     return ASTModuleEntryPointNode(macroContext.sourcePosition, entryPointValue)
@@ -539,6 +542,7 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['fromModule:import:withType:', 'Macro::fromModule:import:withType:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], fromModuleImportWithType, ['macro']],
     ['fromExternal:import:withType:', 'Macro::fromModule:import:withType:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], fromExternalImportWithType, ['macro']],
     ['export:with:', 'Macro::export:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportWithMacro, ['macro']],
+    ['export:external:with:', 'Macro::export:external:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportExternalWithMacro, ['macro']],
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['=>', 'Type::=>', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], arrowMacro, ['macro']],

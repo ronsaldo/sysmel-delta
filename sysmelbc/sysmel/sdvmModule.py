@@ -65,7 +65,7 @@ class SDVMModule:
     def importExternalValue(self, externalName: str, valueName: str, typeDescriptor: str):
         return self.importModuleValueTable.importExternalValue(externalName, valueName, typeDescriptor)
 
-    def exportValue(self, name: str, value):
+    def exportValue(self, name: str, value, externalName: str):
         pass
 
     def addString(self, value: str) -> SDVMString:
