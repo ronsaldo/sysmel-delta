@@ -735,6 +735,12 @@ class MIRModuleFrontend:
         return mirFunction
 
     def visitConstantLambda(self, value: HIRConstantLambda) -> MIRValue:
+        ## If the calling convention is not None, translate the as the function itself.
+        ## This is used for exporting functions into the C world.
+        if value.type.callingConvention is not None:
+            assert len(value.captures) == 0
+            return self.translateValue(value.definition)
+
         writer = self.beginWritingGlobalVariableFor(value)
         writer.writeFunctionHandle(self.translateValue(value.definition))
         ## FIXME: Write the capture values.

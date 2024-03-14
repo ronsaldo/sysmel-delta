@@ -1047,6 +1047,9 @@ class ASTNode(TypedValue):
             assert False
 
         return self.isEquivalentTo(other), environment
+    
+    def isMessageSendNode(self) -> bool:
+        return False
 
     def isTypeNode(self) -> bool:
         return False
@@ -1079,6 +1082,9 @@ class ASTNode(TypedValue):
         return False
     
     def isFunctionTypeNode(self) -> bool:
+        return False
+    
+    def isFunctionalDependentTypeNode(self) -> bool:
         return False
     
     def isTypedFunctionTypeNode(self) -> bool:

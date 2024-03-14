@@ -6,7 +6,7 @@ let: #abort with: (fromExternal: #C import: #abort withType: (Unit => Unit) __cd
 let: #myModule with: (importModule: #myModule).
 let: #myModuleInt32 with: (fromModule: myModule import: #int32 withType: Int32).
 
-export: #main external: #C with: (:(Int32)argc :: Int32) :=> {
+export: #main external: #C with: (:(Int32)argc :: Int32) __cdecl :=> {
     abort().
     ##printString("Hello World\n").
     ##(myModuleInt32 + argc) + 1i32
@@ -14,7 +14,3 @@ export: #main external: #C with: (:(Int32)argc :: Int32) :=> {
 }.
 
 ##moduleEntryPoint: (:: Int32) :=> 0i32.
-
-##(:(Int32)argc :: Int32) __cdecl.
-##(:(Int32)argc :: Int32) :=> 0i32.
-##(:(Int32)argc :: Int32) __cdecl :=> 0i32

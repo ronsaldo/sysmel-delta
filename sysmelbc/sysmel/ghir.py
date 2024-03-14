@@ -491,11 +491,12 @@ class GHIRFunctionalDefinitionValue(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRFunctionalValue(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, definition: GHIRFunctionalDefinitionValue = None, captures: list[GHIRValue] = []) -> None:
+    def __init__(self, context: GHIRContext, type: GHIRValue, definition: GHIRFunctionalDefinitionValue = None, captures: list[GHIRValue] = [], callingConvention: str = None) -> None:
         super().__init__(context)
         self.type = type
         self.definition = definition
         self.captures = captures
+        self.callingConvention = callingConvention
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -548,7 +549,7 @@ class GHIRPiValue(GHIRFunctionalValue):
         if self.definition.isFunctionalDefinition() and self.definition.isCaptureless() and not self.definition.hasArgumentDependency():
             argumentTypes = list(map(lambda arg: arg.getType(), self.definition.arguments))
             resultType = self.definition.body
-            simpleFunctionType = self.context.getFunctionType(self.getType(), argumentTypes, resultType)
+            simpleFunctionType = self.context.getFunctionType(self.getType(), argumentTypes, resultType, self.callingConvention)
             return self.replaceWith(simpleFunctionType)
         return super().simplify()
 
@@ -914,6 +915,8 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitLambdaValue(self, value: LambdaValue):
         type = self.translateValue(value.getType())
         translatedValue = GHIRLambdaValue(self.context, type)
+        if value.type.callingConvention is not None:
+            translatedValue.callingConvention = value.type.callingConvention.value
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
         return translatedValue.simplify()
@@ -921,6 +924,8 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitPiValue(self, value: PiValue):
         type = self.translateValue(value.getType())
         translatedValue = GHIRPiValue(self.context, type)
+        if value.callingConvention is not None:
+            translatedValue.callingConvention = value.callingConvention.value
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
         return translatedValue.simplify()
