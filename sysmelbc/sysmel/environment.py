@@ -158,8 +158,8 @@ class ScriptEnvironment(LexicalEnvironment):
         super().__init__(parent, sourcePosition)
         self.scriptDirectory = scriptDirectory
         self.scriptName = scriptName
-        self.scriptDirectoryBinding = SymbolValueBinding(sourcePosition, Symbol.intern('__SourceDirectory__'), StringValue(self.scriptDirectory))
-        self.scriptNameBinding = SymbolValueBinding(sourcePosition, Symbol.intern('__SourceName__'), StringValue(self.scriptName))
+        self.scriptDirectoryBinding = SymbolValueBinding(sourcePosition, Symbol.intern('__SourceDirectory__'), makeStringValue(self.scriptDirectory))
+        self.scriptNameBinding = SymbolValueBinding(sourcePosition, Symbol.intern('__SourceName__'), makeStringValue(self.scriptName))
 
     def lookScriptDirectory(self) -> str:
         return self.scriptDirectory
@@ -531,6 +531,7 @@ for baseType in [
         IntegerType, StringType, FalseType, TrueType, BooleanType,
         Int8Type, Int16Type, Int32Type, Int64Type,
         UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+        SizeType, SignedSizeType, UIntPointerType, IntPointerType,
         Char8Type, Char16Type, Char32Type,
         Float32Type, Float64Type,
         ASTNodeType, 
@@ -592,6 +593,11 @@ for primitiveNumberType in NumberTypes:
         ['asUInt32', prefix + 'asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
         ['asUInt64', prefix + 'asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
 
+        ['asSize',        prefix + 'asSize',        [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), []],
+        ['asSignedSize',  prefix + 'asSignedSize',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), []],
+        ['asUIntPointer', prefix + 'asUIntPointer', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), []],
+        ['asIntPointer',  prefix + 'asIntPointer',  [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), []],
+
         ['asChar8',  prefix + 'asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
         ['asChar16', prefix + 'asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
         ['asChar32', prefix + 'asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
@@ -628,6 +634,11 @@ for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
         ['u16', prefix + 'u16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
         ['u32', prefix + 'u32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
         ['u64', prefix + 'u64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+
+        ['sz',   prefix +  'sz',  [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), []],
+        ['ssz',  prefix + 'ssz',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), []],
+        ['uptr', prefix + 'uptr', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), []],
+        ['iptr', prefix + 'iptr', [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), []],
 
         ['c8',  prefix + 'c8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
         ['c16', prefix + 'c16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],

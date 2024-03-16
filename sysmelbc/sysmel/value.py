@@ -185,6 +185,9 @@ class TypedValue(ABC):
     def isTemporaryReferenceType(self) -> bool:
         return False
     
+    def findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition) -> int | None:
+        return None, None
+    
     def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
         return typechecker.makeSemanticError(sourcePosition, "Failed to convert value into function type node %s." % self.prettyPrint())
 
@@ -290,6 +293,14 @@ class PrimitiveIntegerTypeClass(PrimitiveTypeClass):
     def normalizeIntegerValue(self, value: int) -> int:
         pass
 
+class PrimitiveSizeIntegerTypeClass(PrimitiveIntegerTypeClass):
+    def __init__(self, name: str, isSigned, literalSuffix) -> None:
+        super().__init__(name, 0, literalSuffix)
+        self.isSigned = isSigned
+
+    def normalizeIntegerValue(self, value: int) -> int:
+        return value
+    
 class PrimitiveUnsignedIntegerTypeClass(PrimitiveIntegerTypeClass):
     def __init__(self, name: str, valueSize: int, literalSuffix) -> None:
         super().__init__(name, valueSize, literalSuffix)
@@ -349,7 +360,6 @@ Char8Type  = PrimitiveCharacterTypeClass("Char8", 1, 'c8')
 Char16Type = PrimitiveCharacterTypeClass("Char16", 2, 'c16')
 Char32Type = PrimitiveCharacterTypeClass("Char32", 4, 'c32')
 
-StringType = StringTypeClass("String")
 ASTNodeType = ASTNodeTypeClass("ASTNode")
 MacroContextType = MacroContextTypeClass("MacroContext")
 ModuleType = ModuleTypeClass("Module")
@@ -364,7 +374,17 @@ UInt16Type = PrimitiveUnsignedIntegerTypeClass("UInt16", 2, 'u16')
 UInt32Type = PrimitiveUnsignedIntegerTypeClass("UInt32", 4, 'u32')
 UInt64Type = PrimitiveUnsignedIntegerTypeClass("UInt64", 8, 'u64')
 
-PrimitiveIntegerTypes = [Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type, Char8Type, Char16Type, Char32Type]
+SizeType = PrimitiveSizeIntegerTypeClass("Size", False, 'sz')
+SignedSizeType = PrimitiveSizeIntegerTypeClass("SignedSize", True, 'ssz')
+UIntPointerType = PrimitiveSizeIntegerTypeClass("UIntPointer", False, 'uptr')
+IntPointerType = PrimitiveSizeIntegerTypeClass("IntPointer", True, 'iptr')
+
+PrimitiveIntegerTypes = [
+    Int8Type, Int16Type, Int32Type, Int64Type,
+    UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+    SizeType, SignedSizeType, UIntPointerType, IntPointerType,
+    Char8Type, Char16Type, Char32Type
+]
 PrimitiveFloatTypes = [Float32Type, Float64Type]
 NumberTypes = [IntegerType] + PrimitiveIntegerTypes + PrimitiveFloatTypes
 
@@ -391,7 +411,7 @@ class IntegerValue(TypedValue):
     def __neg__(self, other):
         return self.__class__(-self.value)
 
-    def __invert__(self, other):
+    def __invert__(self):
         return self.__class__(-1 - self.value)
 
     def __add__(self, other):
@@ -564,7 +584,7 @@ class PrimitiveFloatValue(TypedValue):
     def castToPrimitiveFloatType(self, targetType):
         return PrimitiveFloatValue(targetType, self.value)
 
-class StringValue(TypedValue):
+class StringDataValue(TypedValue):
     def __init__(self, value: str) -> None:
         super().__init__()
         self.value = value
@@ -573,76 +593,13 @@ class StringValue(TypedValue):
         return visitor.visitStringValue(self)
 
     def getType(self):
-        return StringType
+        return Char8ConstPointerType
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         return isinstance(other, self.__class__) and self.value == other.value
 
     def toJson(self):
         return self.value
-
-class ProductTypeValue(TypedValue):
-    def __init__(self, type: TypedValue, elements: tuple) -> None:
-        super().__init__()
-        self.elements = elements
-        self.type = type
-
-    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
-        return visitor.visitProductTypeValue(self)
-
-    def getType(self):
-        return self.type
-
-    def isEquivalentTo(self, other: TypedValue) -> bool:
-        if not self.type.isEquivalentTo(other.getType()): return False
-        if len(self.elements) != len(other.elements): return False
-        for i in range(len(self.elements)):
-            if not self.elements[i].isEquivalentTo(other.elements[i]):
-                return False
-
-        return True
-
-    def toJson(self):
-        return {'product': list(map(lambda v: v.toJson(), self.elements))}
-
-class ProductType(BaseType):
-    ProductTypeCache = dict()
-
-    def __init__(self, elementTypes: list[TypedValue], name = None) -> None:
-        self.elementTypes = elementTypes
-        self.name = name
-
-    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
-        return visitor.visitProductType(self)
-
-    def makeWithElements(self, elements) -> ProductTypeValue:
-        return ProductTypeValue(self, elements)
-
-    def getType(self):
-        return TypeType
-
-    def isEquivalentTo(self, other: TypedValue) -> bool:
-        if not isinstance(other, ProductType): return False
-
-        if len(self.elementTypes) != len(other.elementTypes): return False
-        for i in range(len(self.elementTypes)):
-            if not self.elementTypes[i].isEquivalentTo(other.elementTypes[i]):
-                return False
-
-        return True
-
-    def toJson(self):
-        return {'productType': list(map(lambda v: v.toJson(), self.elementTypes))}
-    
-    @classmethod
-    def makeWithElementTypes(cls, elementTypes: list[TypedValue]):
-        productKey = tuple(elementTypes)
-        if productKey in cls.ProductTypeCache:
-            return cls.ProductTypeCache[productKey]
-
-        productType = cls(productKey)
-        cls.ProductTypeCache[productKey] = productType
-        return productType
 
 class FunctionType(BaseType):
     FunctionTypeCache = dict()
@@ -742,7 +699,7 @@ class OverloadsType(BaseType):
         return True
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
-        if not isinstance(other, ProductType): return False
+        if not isinstance(other, OverloadsType): return False
 
         if len(self.elementTypes) != len(other.elementTypes): return False
         for i in range(len(self.elementTypes)):
@@ -758,6 +715,72 @@ class OverloadsType(BaseType):
     def makeWithAlternativeTypes(cls, elementTypes: list[TypedValue]):
         return cls(tuple(elementTypes))
 
+class ProductTypeValue(TypedValue):
+    def __init__(self, type: TypedValue, elements: tuple) -> None:
+        super().__init__()
+        self.elements = elements
+        self.type = type
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitProductTypeValue(self)
+
+    def getType(self):
+        return self.type
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not self.type.isEquivalentTo(other.getType()): return False
+        if len(self.elements) != len(other.elements): return False
+        for i in range(len(self.elements)):
+            if not self.elements[i].isEquivalentTo(other.elements[i]):
+                return False
+
+        return True
+    
+    def __getitem__(self, index):
+        return self.elements[index]
+
+    def toJson(self):
+        return {'product': list(map(lambda v: v.toJson(), self.elements))}
+
+class ProductType(BaseType):
+    ProductTypeCache = dict()
+
+    def __init__(self, elementTypes: list[TypedValue], name = None) -> None:
+        self.elementTypes = elementTypes
+        self.name = name
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitProductType(self)
+
+    def makeWithElements(self, elements) -> ProductTypeValue:
+        return ProductTypeValue(self, elements)
+
+    def getType(self):
+        return TypeType
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not isinstance(other, ProductType): return False
+
+        if len(self.elementTypes) != len(other.elementTypes): return False
+        for i in range(len(self.elementTypes)):
+            if not self.elementTypes[i].isEquivalentTo(other.elementTypes[i]):
+                return False
+
+        return True
+
+    def toJson(self):
+        return {'productType': list(map(lambda v: v.toJson(), self.elementTypes))}
+    
+    @classmethod
+    def makeWithElementTypes(cls, elementTypes: list[TypedValue]):
+        productKey = tuple(elementTypes)
+        if productKey in cls.ProductTypeCache:
+            return cls.ProductTypeCache[productKey]
+
+        productType = cls(productKey)
+        cls.ProductTypeCache[productKey] = productType
+        return productType
+    
 class RecordTypeValue(ProductTypeValue):
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitRecordTypeValue(self)
@@ -771,9 +794,13 @@ class RecordTypeValue(ProductTypeValue):
     
 class RecordType(ProductType):
     def __init__(self, elementTypes: list[TypedValue], fields: list[TypedValue], name = None) -> None:
+        assert len(elementTypes) == len(fields)
         self.elementTypes = elementTypes
         self.fields = fields
         self.name = name
+        self.fieldNameDictionary = {}
+        for i in range(len(fields)):
+            self.fieldNameDictionary[fields[i]] = i
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitRecordType(self)
@@ -781,6 +808,17 @@ class RecordType(ProductType):
     def makeWithElements(self, elements) -> RecordTypeValue:
         return RecordTypeValue(self, elements)
     
+    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition) -> int | None:
+        found = self.fieldNameDictionary.get(fieldName, None)
+        if found is None:
+            return None, None
+
+        return found, ASTLiteralTypeNode(sourcePosition, self.elementTypes[found])
+
+    @classmethod
+    def makeWithElementTypes(cls, elementTypes: list[TypedValue]):
+        assert False
+
     def toJson(self):
         return {'recordType': list(map(lambda v: v.toJson(), self.elementTypes)), 'fields' : list(map(lambda v: v.toJson(), self.fields))}
 
@@ -807,6 +845,16 @@ class SumType(BaseType):
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitSumType(self)
 
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not isinstance(other, SumType): return False
+
+        if len(self.variantTypes) != len(other.variantTypes): return False
+        for i in range(len(self.elementTypes)):
+            if not self.variantTypes[i].isEquivalentTo(other.variantTypes[i]):
+                return False
+
+        return True
+    
     def makeWithTypeIndexAndValue(self, variantIndex: int, value: TypedValue) -> SumTypeValue:
         return SumTypeValue(self, variantIndex, value)
 
@@ -832,12 +880,20 @@ class SumType(BaseType):
 
 class DerivedType(BaseType):
     def __init__(self, baseType) -> None:
+        super().__init__(None)
         self.baseType = baseType
 
+    def isEquivalentTo(self, other) -> bool:
+        if self == other: return True
+        if not isinstance(other, self.__class__): return False
+        return self.baseType.isEquivalentTo(other.baseType)
+    
     def getType(self):
         return self.baseType.getType()
 
 class DecoratedType(DerivedType):
+    DecoratedTypeCache = dict()
+
     Const = 1<<0
     Volatile = 1<<1
     
@@ -847,12 +903,43 @@ class DecoratedType(DerivedType):
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitDecoratedType(self)
+    
+    def prettyPrint(self) -> str:
+        result = self.baseType.prettyPrint()
+        if self.isConst():
+            result += ' const'
+
+        if self.isVolatile():
+            result += ' volatile'
+
+        return result
+    
+    def isConst(self) -> bool:
+        return (self.decorations & DecoratedType.Const) != 0
+
+    def isVolatile(self) -> bool:
+        return (self.decorations & DecoratedType.Volatile) != 0
+
+    def isEquivalentTo(self, other) -> bool:
+        if self == other: return True
+        if not isinstance(other, DecoratedType): return False
+        return self.decorations == other.decorations and self.baseType.isEquivalentTo(other.baseType)
+    
+    @classmethod
+    def privateMakeWithDecorations(cls, baseType: TypedValue, decorations: int):
+        decoratedTypeKey = (baseType, decorations)
+        if decoratedTypeKey in cls.DecoratedTypeCache:
+            return cls.DecoratedTypeCache[decoratedTypeKey]
+        
+        decoratedType = cls(baseType, decorations)
+        cls.DecoratedTypeCache[decoratedTypeKey] = decoratedType
+        return decoratedType
 
     @classmethod
     def makeWithDecorations(cls, baseType: TypedValue, decorations: int):
         if baseType.isDecoratedType():
-            return cls(baseType.baseType, baseType.decorations | decorations)
-        return cls(baseType, decorations)
+            return cls.privateMakeWithDecorations(baseType.baseType, baseType.decorations | decorations)
+        return cls.privateMakeWithDecorations(baseType, decorations)
 
     @classmethod
     def makeConst(cls, baseType: TypedValue):
@@ -876,6 +963,9 @@ class ArrayType(DerivedType):
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitArrayType(self)
 
+    def prettyPrint(self) -> str:
+        return self.baseType.prettyPrint() + ' array: ' + str(self.size)
+
     @classmethod
     def makeWithElementTypeAndSize(cls, elementType: TypedValue, size: IntegerValue):
         return cls(elementType, size.value)
@@ -889,6 +979,9 @@ class ArrayType(DerivedType):
 class PointerType(DerivedType):
     def __init__(self, baseType) -> None:
         super().__init__(baseType)
+
+    def prettyPrint(self) -> str:
+        return self.baseType.prettyPrint() + ' pointer'
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitPointerType(self)
@@ -910,6 +1003,9 @@ class ReferenceType(DerivedType):
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitReferenceType(self)
 
+    def prettyPrint(self) -> str:
+        return self.baseType.prettyPrint() + ' ref'
+
     @classmethod
     def makeWithBaseType(cls, baseType):
         return cls(baseType)
@@ -926,6 +1022,9 @@ class TemporaryReferenceType(DerivedType):
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitTemporaryReferenceType(self)
+
+    def prettyPrint(self) -> str:
+        return self.baseType.prettyPrint() + ' tempRef'
 
     @classmethod
     def makeWithBaseType(cls, baseType):
@@ -971,6 +1070,14 @@ class Symbol(TypedValue):
 
     def toJson(self):
         return repr(self)
+
+Char8ConstPointerType = PointerType.makeWithBaseType(DecoratedType.makeConst(Char8Type))
+StringType = RecordType([Char8ConstPointerType, SizeType], [Symbol.intern('elements'), Symbol.intern('size')], 'String')
+
+def makeStringValue(value: str):
+    data = StringDataValue(value)
+    size = PrimitiveIntegerValue(SizeType, len(value))
+    return StringType.makeWithElements((data, size))
 
 class SourceCode:
     def __init__(self, name: str, text: bytes) -> None:
@@ -1039,7 +1146,7 @@ class ASTNode(TypedValue):
 
     def isEquivalentTo(self, other) -> bool:
         return self == other
-
+    
     def performEquivalenceCheckInEnvironment(self, other, environment) -> bool:
         if self == other: return True
         if other.isTypedIdentifierReferenceNode() and other.binding.isImplicitValueBinding():
@@ -1069,6 +1176,12 @@ class ASTNode(TypedValue):
     def isTypedErrorNode(self) -> bool:
         return False
     
+    def isTypedTupleNode(self) -> bool:
+        return False
+
+    def isTypedTupleAtNode(self) -> bool:
+        return False
+
     def isPiLiteralValue(self) -> bool:
         return False
 
@@ -1124,6 +1237,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
         super().__init__(sourcePosition)
         self.value = value
 
+    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition: SourcePosition) -> int | None:
+        return self.value.findIndexOfFieldOrNoneAt(fieldName, sourcePosition)
+    
     def withCallingConventionNamed(self, callingConventionName: TypedValue):
         return ASTLiteralTypeNode(SourceCode, self.value.withCallingConventionNamed(callingConventionName))
 

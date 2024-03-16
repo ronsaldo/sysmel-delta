@@ -108,7 +108,7 @@ def parseLiteralFloat(state: ParserState) -> tuple[ParserState, ASTNode]:
 def parseLiteralString(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
     assert token.kind == TokenKind.STRING
-    return state, ASTLiteralNode(token.sourcePosition, StringValue(parseCEscapedString(token.getStringValue()[1:-1])))
+    return state, ASTLiteralNode(token.sourcePosition, makeStringValue(parseCEscapedString(token.getStringValue()[1:-1])))
 
 def parseLiteralCharacter(state: ParserState) -> tuple[ParserState, ASTNode]:
     token = state.next()
@@ -369,7 +369,7 @@ def parseCommaExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     elements = [element]
     while state.peekKind() == TokenKind.COMMA:
         state.advance()
-        state, element = parseCommaExpressionElement(state)
+        state, element = parseAssignmentExpression(state)
         elements.append(element)
     
     return state, ASTTupleNode(state.sourcePositionFrom(startPosition), elements)

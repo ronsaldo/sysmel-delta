@@ -9,6 +9,10 @@ class GHIRContext:
         self.simpleFunctionTypes = dict()
         self.productTypes = dict()
         self.sumTypes = dict()
+        self.decoratedTypes = dict()
+        self.pointerTypes = dict()
+        self.refTypes = dict()
+        self.tempRefTypes = dict()
 
     def getConstantValue(self, value: TypedValue):
         if value in self.constantValues:
@@ -45,6 +49,42 @@ class GHIRContext:
         self.sumTypes[hashKey] = sumType
         return sumType
 
+    def getDecoratedType(self, type, baseType, decorations):
+        hashKey = (type, baseType, decorations)
+        if hashKey in self.decoratedTypes:
+            return self.decoratedTypes[hashKey]
+        
+        decoratedType = GHIRDecoratedType(self, type, baseType, decorations)
+        self.decoratedTypes[hashKey] = decoratedType
+        return decoratedType
+
+    def getPointerType(self, type, baseType):
+        hashKey = (type, baseType)
+        if hashKey in self.pointerTypes:
+            return self.pointerTypes[hashKey]
+        
+        pointerType = GHIRPointerType(self, type, baseType)
+        self.pointerTypes[hashKey] = pointerType
+        return pointerType
+    
+    def getReferenceType(self, type, baseType):
+        hashKey = (type, baseType)
+        if hashKey in self.refTypes:
+            return self.refTypes[hashKey]
+        
+        refType = GHIRReferenceType(self, type, baseType)
+        self.refTypes[hashKey] = refType
+        return refType
+    
+    def getTemporaryReferenceType(self, type, baseType):
+        hashKey = (type, baseType)
+        if hashKey in self.tempRefTypes:
+            return self.tempRefTypes[hashKey]
+        
+        tempRefType = GHIRTemporaryReferenceType(self, type, baseType)
+        self.tempRefTypes[hashKey] = tempRefType
+        return tempRefType
+    
 class GHIRVisitor(ABC):
     @abstractmethod
     def visitConstantValue(self, value):
@@ -637,6 +677,67 @@ class GHIRSumType(GHIRValue):
             replacement.registerUserValue(self)
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
+class GHIRDerivedType(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, baseType: GHIRValue) -> None:
+        super().__init__(context)
+        self.type = type
+        self.baseType = baseType
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def usedValues(self):
+        yield self.type
+        yield self.baseType
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.baseType is usedValue:
+            self.baseType = replacement
+            replacement.registerUserValue(self)
+
+class GHIRDecoratedType(GHIRDerivedType):
+    def __init__(self, context: GHIRContext, type: GHIRValue, baseType: GHIRValue, decorations: int) -> None:
+        super().__init__(context, type, baseType)
+        self.decorations = decorations
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitDecoratedType(self)
+    
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        baseType = graphPrinter.printValue(self.baseType)
+        graphPrinter.printLine('%s := decorated %s with %d : %s' % (valueName, baseType, self.decorations, type))
+
+class GHIRPointerType(GHIRDerivedType):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitPointerType(self)
+    
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        baseType = graphPrinter.printValue(self.baseType)
+        graphPrinter.printLine('%s := pointer %s : %s' % (valueName, baseType, type))
+
+class GHIRReferenceType(GHIRDerivedType):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitReferenceType(self)
+    
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        baseType = graphPrinter.printValue(self.baseType)
+        graphPrinter.printLine('%s := ref %s : %s' % (valueName, baseType, type))
+
+class GHIRTemporaryReferenceType(GHIRDerivedType):
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitTemporaryReferenceType(self)
+    
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        baseType = graphPrinter.printValue(self.baseType)
+        graphPrinter.printLine('%s := tempRef %s : %s' % (valueName, baseType, type))
+
 class GHIRSequence(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, expressions: list[GHIRValue]) -> None:
         super().__init__(context)
@@ -702,6 +803,36 @@ class GHIRMakeTupleExpression(GHIRValue):
             self.type = replacement
             replacement.registerUserValue(self)
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
+
+class GHIRTupleAtExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, tuple: GHIRValue, index: int) -> None:
+        super().__init__(context)
+        self.type = type
+        self.tuple = tuple
+        self.index = index
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitTupleAtExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        tuple = graphPrinter.printValue(self.tuple)
+        graphPrinter.printLine('%s := tuple %s at %d : %s' % (valueName, tuple, self.index, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.tuple
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.tuple is usedValue:
+            self.tuple = replacement
+            replacement.registerUserValue(self)
 
 class GHIRApplicationValue(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
@@ -985,8 +1116,10 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         elementTypes = list(map(self.translateValue, value.elementTypes))
         return self.context.getSumType(type, elementTypes)
 
-    def visitDecoratedType(self, value):
-        assert False
+    def visitDecoratedType(self, value: DecoratedType):
+        type = self.translateValue(value.getType())
+        baseType = self.translateValue(value.baseType)
+        return self.context.getDecoratedType(type, baseType, value.decorations)
 
     def visitArrayType(self, value: ArrayType):
         type = self.translateValue(value.getType())
@@ -1127,7 +1260,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateExpression(node.type)
         elements = list(map(self.translateExpression), node.elements)
         return GHIRMakeTupleExpression(self.context, type, elements).simplify()
-    
+
+    def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        tuple = self.translateExpression(node.tuple)
+        return GHIRTupleAtExpression(self.context, type, tuple, node.index).simplify()
+
     def visitTypedFromModuleImportNode(self, node):
         assert False
 
@@ -1218,6 +1356,21 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
             if self.checkValue(element):
                 return True
         return False
+
+    def visitDerivedType(self, value: GHIRDerivedType):
+        return self.checkValue(value.baseType)
+
+    def visitDecoratedType(self, value: GHIRDecoratedType):
+        return self.visitDerivedType(value)
+
+    def visitPointerType(self, value: GHIRPointerType):
+        return self.visitDerivedType(value)
+
+    def visitReferenceType(self, value: GHIRReferenceType):
+        return self.visitDerivedType(value)
+
+    def visitTemporaryReferenceType(self, value: GHIRTemporaryReferenceType):
+        return self.visitDerivedType(value)
 
     def visitSequence(self, value: GHIRSequence):
         for expression in value.expressions:

@@ -479,16 +479,27 @@ class Typechecker(ASTVisitor):
         return ASTTypedBindingDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue, isMutable = node.isMutable, isPublic = node.isPublic, module = module)
 
     def visitMessageSendNode(self, node: ASTMessageSendNode):
+        analyzedReceiver = None
+        if node.receiver is not None:
+            analyzedReceiver = self.visitNode(node.receiver)
+
         selector, errorNode = self.evaluateSymbol(node.selector)
         if selector is not None:
+            if analyzedReceiver is not None and not analyzedReceiver.isLiteralTypeNode():
+                ## Getter.
+                if len(node.arguments) == 0:
+                    fieldIndex, fieldType = analyzedReceiver.type.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
+                    if fieldIndex is not None:
+                        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldType, analyzedReceiver, fieldIndex))
+
             selectorNode = ASTIdentifierReferenceNode(node.selector.sourcePosition, selector)
         else:
             selectorNode = errorNode
         
-        if node.receiver is None:
+        if analyzedReceiver is None:
             return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, node.arguments))
         else:
-            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, [node.receiver] + node.arguments))
+            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, [analyzedReceiver] + node.arguments))
 
     def visitSequenceNode(self, node: ASTSequenceNode):
         if len(node.elements) == 0:
@@ -542,7 +553,7 @@ class Typechecker(ASTVisitor):
             typedElements.append(typedExpression)
         
         tupleType = reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
-        return ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements)
+        return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements))
 
     def visitOverloadsTypeNode(self, node: ASTProductTypeNode):
         return node
@@ -595,6 +606,9 @@ class Typechecker(ASTVisitor):
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         return node
     
+    def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
+        return node
+
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
         return node
     
@@ -843,7 +857,12 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         reducedElements = []
         for element in node.elements:
             reducedElements.append(self.visitNode(element))
-        return ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements)
+        return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements))
+    
+    def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
+        reducedType = self.visitNode(node.type)
+        reducedTuple = self.visitNode(node.tuple)
+        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, reducedType, reducedTuple))
     
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
         return reduceFromModuleImportNode(ASTTypedFromModuleImportNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.module), node.name))
@@ -970,6 +989,20 @@ def reduceProductTypeNode(node: ASTProductTypeNode):
         return ASTLiteralTypeNode(node.sourcePosition, UnitType)
     elif len(node.elementTypes) == 1:
         return node.elementTypes[0]
+    return node
+
+def reduceTupleNode(node: ASTTypedTupleNode):
+    if len(node.elementTypes) == 0:
+        return ASTTypedLiteralNode(node.sourcePosition, node.type, UnitType.getSingleton())
+    elif len(node.elementTypes) == 1:
+        return node.elements[0]
+    return node
+
+def reduceTupleAtNode(node: ASTTypedTupleAtNode):
+    if node.tuple.isTypedTupleNode():
+        return node.tuple.elements[node.index]
+    elif node.tuple.isTypedLiteralNode():
+        return ASTTypedLiteralNode(node.sourcePosition, node.type, node.tuple.value[node.index])
     return node
 
 def reduceFromModuleImportNode(node: ASTTypedFromModuleImportNode):

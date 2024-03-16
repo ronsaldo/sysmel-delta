@@ -1,4 +1,5 @@
 let: #abort with: (fromExternal: #C import: #abort withType: (Unit => Unit) __cdecl).
+let: #puts with: (fromExternal: #C import: #puts withType: (Char8 const pointer => Unit) __cdecl).
 
 ##let: #stdio with: (importModule: #stdio).
 ##let: #printString with: (fromModule: stdio import: #printString withType: String => Unit).
@@ -7,9 +8,9 @@ let: #abort with: (fromExternal: #C import: #abort withType: (Unit => Unit) __cd
 ##let: #myModuleInt32 with: (fromModule: myModule import: #int32 withType: Int32).
 
 export: #main external: #C with: (:(Int32)argc :: Int32) __cdecl :=> {
-    abort().
-    ##printString("Hello World\n").
+    ##abort().
     ##(myModuleInt32 + argc) + 1i32
+    puts("Hello World" elements).
     argc + 1i32
 }.
 
