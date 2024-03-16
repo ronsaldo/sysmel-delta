@@ -9,7 +9,7 @@ def sdvmModuleFourCC(cc):
 SdvmModuleMagic = sdvmModuleFourCC('SDVM')
 SdvmModuleVersion = 1
 
-SdvmModuleHeaderSize = 24
+SdvmModuleHeaderSize = 36
 SdvmModuleSectionHeaderSize = 12
 
 SdvmModuleSectionTypeNull = 0
@@ -25,6 +25,18 @@ SdvmModuleSectionTypeExportModuleValueTable = sdvmModuleFourCC('expv')
 
 SdvmModuleSectionTypeDebugLineStart = sdvmModuleFourCC('dlns')
 SdvmModuleSectionTypeDebugLineEnd = sdvmModuleFourCC('dlne')
+
+SdvmModuleValueKindNull = 0
+SdvmModuleValueKindFunctionHandle = sdvmModuleFourCC('funh')
+SdvmModuleValueKindDataSectionValue = sdvmModuleFourCC('data')
+SdvmModuleValueKindConstantSectionValue = sdvmModuleFourCC('cont')
+SdvmModuleValueKindObjectHandle = sdvmModuleFourCC('objh')
+
+SdvmModuleExternalTypeNone = 0
+SdvmModuleExternalTypeC = sdvmModuleFourCC('C   ')
+SdvmModuleExternalTypeCpp = sdvmModuleFourCC('C++ ')
+
+SdvmModuleExternalTypeMap = {None: SdvmModuleExternalTypeNone, '': SdvmModuleExternalTypeNone, 'C': SdvmModuleExternalTypeC}
 
 class SDVMString:
     def __init__(self, offset: int = 0, size: int = 0, value: str = None) -> None:
@@ -48,7 +60,7 @@ class SDVMModule:
         self.importModuleValueTable = SDVMImportModuleValueTableSection(self)
         self.objectTable = SDVMObjectTableSection()
         self.functionTable = SDVMFunctionTableSection()
-        self.exportModuleValueTable = SDVMExportModuleValueTableSection()
+        self.exportModuleValueTable = SDVMExportModuleValueTableSection(self)
         self.sections: list[SDVMModuleSection] = [
             SDVMNullSection(),
             self.constantSection, self.dataSection, self.textSection,
@@ -58,6 +70,7 @@ class SDVMModule:
         ]
         self.entryPoint = 0
         self.entryPointClosure = 0
+        self.name = self.addString('')
 
     def importModule(self, name: str):
         return self.importModuleTable.importModule(name)
@@ -65,11 +78,18 @@ class SDVMModule:
     def importExternalValue(self, externalName: str, valueName: str, typeDescriptor: str):
         return self.importModuleValueTable.importExternalValue(externalName, valueName, typeDescriptor)
 
-    def exportValue(self, name: str, value, externalName: str):
-        pass
+    def exportValue(self, name: str, value, externalName: str, typeDescriptor: str):
+        return value.addExportEntryIntoModule(self, name, externalName, typeDescriptor)
+    
+    def exportFunctionHandle(self, function, name: str, externalName: str, typeDescriptor: str):
+        return self.exportModuleValueTable.exportValue(SdvmModuleValueKindFunctionHandle, SdvmModuleExternalTypeMap[externalName], function.index, name, typeDescriptor)
 
     def addString(self, value: str) -> SDVMString:
         return self.stringSection.add(value)
+    
+    def setName(self, name: str) -> SDVMString:
+        self.name = self.addString(name)
+        return self.name
 
     def newFunction(self, name: str = None, typeDescriptor: str = None):
         function = SDVMFunction(self, name, typeDescriptor)
@@ -96,7 +116,7 @@ class SDVMModule:
             startOffset += section.finish(startOffset)
 
         result = bytearray()
-        result += struct.pack('<IIIIII', SdvmModuleMagic, SdvmModuleVersion, self.pointerSize, len(self.sections), self.entryPoint, self.entryPointClosure)
+        result += struct.pack('<IIIIIIIII', SdvmModuleMagic, SdvmModuleHeaderSize, SdvmModuleVersion, self.pointerSize, len(self.sections), self.entryPoint, self.entryPointClosure, self.name.offset, self.name.size)
         for section in self.sections:
             result += struct.pack('<III', section.sectionType, section.fileOffset, len(section.contents))
         for section in self.sections:
@@ -225,9 +245,28 @@ class SDVMFunctionTableSection(SDVMModuleSection):
         result += '\n'
         return result
 
+class SDVMExportModuleValueTableEntry:
+    def __init__(self, module: SDVMModule, kind: int, externalType: int, firstValue: int, secondValue: int, name: str, typeDescriptor: str) -> None:
+        self.kind = kind
+        self.externalType = externalType
+        self.firstValue = firstValue
+        self.secondValue = secondValue
+        self.name = module.addString(name)
+        self.typeDescriptor = module.addString(typeDescriptor)
+
+    def encode(self) -> bytes:
+        return struct.pack('<IIQQIIII', self.kind, self.externalType, self.firstValue, self.secondValue, self.name.offset, self.name.size, self.typeDescriptor.offset, self.typeDescriptor.size)
+
 class SDVMExportModuleValueTableSection(SDVMModuleSection):
-    def __init__(self) -> None:
+    def __init__(self, module: SDVMModule) -> None:
         super().__init__(SdvmModuleSectionTypeExportModuleValueTable)
+        self.module = module
+        self.entries = []
+
+    def exportValue(self, kind: int, externalType: int, value: int, name: str, typeDescriptor: str):
+        exportedEntry = SDVMExportModuleValueTableEntry(self.module, kind, externalType, value, 0, name, typeDescriptor)
+        self.contents += exportedEntry.encode()
+        self.entries.append(exportedEntry)
 
 class SDVMOperand:
     def __init__(self) -> None:
@@ -288,6 +327,9 @@ class SDVMFunction:
         self.textSectionSize = 0
         self.isFinished = False
         self.index = None
+
+    def addExportEntryIntoModule(self, module, name: str, externalName: str, typeDescriptor: str):
+        return module.exportFunctionHandle(self, name, externalName, typeDescriptor)
 
     def addConstant(self, constant: SDVMConstant) -> SDVMConstant:
         self.constants.append(constant)
@@ -438,7 +480,7 @@ class SDVMImportedModuleValue:
         self.typeDescriptor = module.addString(typeDescriptor)
 
     def encode(self) -> bytes:
-        return struct.pack('<IIIII', self.importedModule.index, self.name.offset, self.name.size, self.typeDescriptor.offset, self.typeDescriptor.size)
+        return struct.pack('<IIIIII', self.importedModule.index, 0, self.name.offset, self.name.size, self.typeDescriptor.offset, self.typeDescriptor.size)
 
     def __str__(self) -> str:
         typeDesc = str(self.typeDescriptor)
@@ -449,26 +491,16 @@ class SDVMImportedModuleValue:
 class SDVMImportedExternalValue:
     def __init__(self, module: SDVMModule, externalName: str, name: str, typeDescriptor: str) -> None:
         self.index = 0
-        self.externalIndex = 0
+        self.externalIndex = SdvmModuleExternalTypeMap[externalName]
         self.externalName = externalName
         self.name = module.addString(name)
         self.typeDescriptor = module.addString(typeDescriptor)
 
     def encode(self) -> bytes:
-        return struct.pack('<IIIII', self.externalIndex, self.name.offset, self.name.size, self.typeDescriptor.offset, self.typeDescriptor.size)
+        return struct.pack('<IIIIII', 0, self.externalIndex, self.name.offset, self.name.size, self.typeDescriptor.offset, self.typeDescriptor.size)
 
     def __str__(self) -> str:
         typeDesc = str(self.typeDescriptor)
         if len(typeDesc) == 0:
             return '[external %s]"%s"' % (self.externalName, str(self.name))
         return '[external %s : %s]"%s"' % (self.externalName, typeDesc, str(self.name))
-
-class SDVMExportedModuleValue:
-    def __init__(self, module: SDVMModule, kind: int, name: str, typeDescriptor: str) -> None:
-        self.index = 0
-        self.kind = kind
-        self.name = module.addString(name)
-        self.typeDescriptor = module.addString(typeDescriptor)
-
-    def encode(self) -> bytes:
-        return struct.pack('<IIIII', self.kind, self.name.offset, self.name.size, self.typeDescriptor.offset, self.typeDescriptor.size)

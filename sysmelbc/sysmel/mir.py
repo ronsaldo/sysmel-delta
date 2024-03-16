@@ -604,6 +604,7 @@ class MIRModule:
         self.exportedValues: list[tuple[str, MIRConstant]] = []
         self.entryPoint: MIRFunction = None
         self.entryPointClosure: MIRGlobalVariable = None
+        self.name = ''
 
     def exportValue(self, name: str, value: MIRConstant, externalName: str | None = None) -> None:
         self.exportedValues.append((name, value, externalName))
@@ -663,6 +664,7 @@ class MIRModuleFrontend:
     def compileHIRModule(self, hirModule: HIRModule):
         mirContext = self.context
         hirContext = hirModule.context
+        self.module.name = hirModule.name
 
         for hirType, mirType in [
             (hirContext.unitType,  mirContext.voidType),

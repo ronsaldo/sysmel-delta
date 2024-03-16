@@ -13,7 +13,9 @@ static bool sdvm_module_validateModuleHeaderData(size_t dataSize, uint8_t *data)
     sdvm_moduleHeader_t *header = (sdvm_moduleHeader_t*)data;
     if (memcmp(header->magic, "SDVM", 4))
         return false;
-    if (header->pointerSize != 4 && header->pointerSize != 8)
+
+    
+    if (header->headerSize < sizeof(sdvm_moduleHeader_t) || (header->pointerSize != 4 && header->pointerSize != 8))
         return false;
 
     return true;

@@ -32,21 +32,29 @@ typedef enum sdvm_t_moduleValueKind_e
     SdvmModuleValueKindObjectHandle = SDVM_IM_FOUR_CC('o', 'b', 'j', 'h'),
 } sdvm_t_moduleValueKind_t;
 
-typedef struct sdvm_moduleHeader_s
+typedef enum sdvm_t_moduleExternalType_e
 {
-    char magic[4]; // SDVM
-    uint32_t version;
-    uint32_t pointerSize;
-    uint32_t sectionHeaderCount;
-    uint32_t entryPoint;
-    uint32_t entryPointClosure;
-} sdvm_moduleHeader_t;
+    SdvmModuleExternalTypeNone = 0,
+    SdvmModuleExternalTypeC = SDVM_IM_FOUR_CC('C', ' ', ' ', ' '),
+} sdvm_t_moduleExternalType_t;
 
 typedef struct sdvm_moduleString_s
 {
     uint32_t stringSectionOffset;
     uint32_t stringSectionSize;
 } sdvm_moduleString_t;
+
+typedef struct sdvm_moduleHeader_s
+{
+    char magic[4]; // SDVM
+    uint32_t headerSize;
+    uint32_t version;
+    uint32_t pointerSize;
+    uint32_t sectionHeaderCount;
+    uint32_t entryPoint;
+    uint32_t entryPointClosure;
+    sdvm_moduleString_t name;
+} sdvm_moduleHeader_t;
 
 typedef struct sdvm_moduleSectionHeader_s
 {
@@ -77,14 +85,17 @@ typedef struct sdvm_moduleImportTableEntry_s
 typedef struct sdvm_moduleImportValueTableEntry_s
 {
     uint32_t module; // One based.
+    uint32_t externalType;
     sdvm_moduleString_t name;
     sdvm_moduleString_t typeDescriptor;
 } sdvm_moduleImportValueTableEntry_t;
 
 typedef struct sdvm_moduleExportValueTableEntry_s
 {
-    sdvm_t_moduleValueKind_t kind;
-    uint32_t value;
+    uint32_t kind;
+    uint32_t externalType;
+    uint64_t firstValue;
+    uint64_t secondValue;
     sdvm_moduleString_t name;
     sdvm_moduleString_t typeDescriptor;
 } sdvm_moduleExportValueTableEntry_t;

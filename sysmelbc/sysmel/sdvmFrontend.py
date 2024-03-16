@@ -20,6 +20,8 @@ class SDVMModuleFrontEnd:
 
     def compileMIRModule(self, mirModule: MIRModule) -> SDVMModule:
         mirContext = mirModule.context
+        self.module.setName(mirModule.name)
+
         for type, constantTranslationFunction, loadInstruction, storeInstruction, loadGCInstruction, storeGCInstruction, argumentInst, callArgumentInst, callInst, callClosureInst, returnInst in [
             (mirContext.voidType,      None,                       None,                  None,                   None,                     None,                      None,                 None,                     SdvmInstCallVoid,      SdvmInstCallClosureVoid,      SdvmInstReturnVoid),
             (mirContext.booleanType,   SDVMFunction.constBoolean,  SdvmInstLoadBoolean,   SdvmInstStoreBoolean,   SdvmInstLoadGC_Boolean,   SdvmInstStoreGC_Boolean,   SdvmInstArgBoolean,   SdvmInstCallArgBoolean,   SdvmInstCallBoolean,   SdvmInstCallClosureBoolean,   SdvmInstReturnBoolean),
@@ -52,7 +54,7 @@ class SDVMModuleFrontEnd:
             self.translateValue(globalValue)
 
         for name, value, externalName in mirModule.exportedValues:
-            self.module.exportValue(name, self.translateValue(value), externalName)
+            self.module.exportValue(name, self.translateValue(value), externalName, '')
         if mirModule.entryPoint is not None:
             self.module.entryPoint = self.translateFunction(mirModule.entryPoint).index
 

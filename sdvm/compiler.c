@@ -1296,36 +1296,52 @@ SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, 
     sdvm_dynarray_add(&compiler->textSection.relocations, &relocation);
 }
 
-char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
+char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_t_moduleExternalType_t externalType, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
 {
     size_t symbolSize = 0;
-    if(moduleName)
+    if(externalType == SdvmModuleExternalTypeC)
     {
-        symbolSize += 5; //"'_Sdm_'"
-        symbolSize += moduleName->stringSectionSize;
-        symbolSize += 2; //"__"
+        // TODO: Add the underscore prefix when required.
+        symbolSize += valueName->stringSectionSize;
+    }
+    else
+    {
+        if(moduleName)
+        {
+            symbolSize += 5; //"'_Sdm_'"
+            symbolSize += moduleName->stringSectionSize;
+            symbolSize += 2; //"__"
+        }
+
+        symbolSize += valueName->stringSectionSize;
+        if(valueTypeDescriptor->stringSectionSize)
+        {
+            symbolSize += 3; //"___";
+            symbolSize += valueTypeDescriptor->stringSectionSize;
+        }
     }
 
-    symbolSize += valueName->stringSectionSize;
-    if(valueTypeDescriptor->stringSectionSize)
-    {
-        symbolSize += 3; //"___";
-        symbolSize += valueTypeDescriptor->stringSectionSize;
-    }
-
-    char *symbol = malloc(symbolSize);
+    char *symbol = malloc(symbolSize + 1);
     size_t destIndex = 0;
-    if(moduleName)
+    if(externalType == SdvmModuleExternalTypeC)
     {
-        memcpy(symbol + destIndex, "_Sdm_", 5); destIndex += 5;
-        memcpy(symbol + destIndex, module->stringSectionData + moduleName->stringSectionOffset, moduleName->stringSectionSize); destIndex += moduleName->stringSectionSize;
-        memcpy(symbol + destIndex, "__", 2); destIndex += 2;
+        // TODO: Add the underscore prefix when required.
+        memcpy(symbol + destIndex, module->stringSectionData + valueName->stringSectionOffset, valueName->stringSectionSize); destIndex += valueName->stringSectionSize;
     }
-    memcpy(symbol + destIndex, module->stringSectionData + valueName->stringSectionOffset, valueName->stringSectionSize); destIndex += valueName->stringSectionSize;
-    if(valueTypeDescriptor->stringSectionSize)
+    else
     {
-        memcpy(symbol + destIndex, "___", 3); destIndex += 3;
-        memcpy(symbol + destIndex, module->stringSectionData + valueTypeDescriptor->stringSectionOffset, valueTypeDescriptor->stringSectionSize); destIndex += valueTypeDescriptor->stringSectionSize;
+        if(moduleName)
+        {
+            memcpy(symbol + destIndex, "_Sdm_", 5); destIndex += 5;
+            memcpy(symbol + destIndex, module->stringSectionData + moduleName->stringSectionOffset, moduleName->stringSectionSize); destIndex += moduleName->stringSectionSize;
+            memcpy(symbol + destIndex, "__", 2); destIndex += 2;
+        }
+        memcpy(symbol + destIndex, module->stringSectionData + valueName->stringSectionOffset, valueName->stringSectionSize); destIndex += valueName->stringSectionSize;
+        if(valueTypeDescriptor->stringSectionSize)
+        {
+            memcpy(symbol + destIndex, "___", 3); destIndex += 3;
+            memcpy(symbol + destIndex, module->stringSectionData + valueTypeDescriptor->stringSectionOffset, valueTypeDescriptor->stringSectionSize); destIndex += valueTypeDescriptor->stringSectionSize;
+        }
     }
     symbol[destIndex] = 0;
     SDVM_ASSERT(symbolSize == destIndex);
@@ -1338,6 +1354,41 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     sdvm_moduleCompilationState_t state = {0};
     sdvm_moduleCompilationState_initialize(&state, compiler, module);
 
+    // Declare the exported value symbols.
+    for(size_t i = 0; i < module->exportValueTableSize; ++i)
+    {
+        sdvm_moduleExportValueTableEntry_t *exportValueTableEntry = module->exportValueTable + i;
+
+        char *exportedSymbolName = sdvm_compile_makeModuleSymbolInterface(module, &module->header->name, exportValueTableEntry->externalType, &exportValueTableEntry->name, &exportValueTableEntry->typeDescriptor);
+        sdvm_compilerSymbolKind_t symbolKind = SdvmCompSymbolKindNull;
+
+        switch(exportValueTableEntry->kind)
+        {
+        case SdvmModuleValueKindFunctionHandle:
+            symbolKind = SdvmCompSymbolKindFunction;
+            break;
+
+        case SdvmModuleValueKindDataSectionValue:
+        case SdvmModuleValueKindConstantSectionValue:
+        case SdvmModuleValueKindObjectHandle:
+            symbolKind = SdvmCompSymbolKindVariable;
+            break;
+        default:
+            break;
+        }
+
+        state.exportedValueTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, exportedSymbolName, symbolKind, SdvmCompSymbolBindingGlobal);
+
+        // If this is a function handle, reuse the symbol for the function table symbols.
+        if(exportValueTableEntry->kind == SdvmModuleValueKindFunctionHandle)
+        {
+            SDVM_ASSERT(1 <= exportValueTableEntry->firstValue && exportValueTableEntry->firstValue <= module->functionTableSize);
+            state.functionTableSymbols[exportValueTableEntry->firstValue - 1] = state.exportedValueTableSymbols[i];
+        }
+
+        free(exportedSymbolName);
+    }
+
     // Declare the imported value symbols.
     for(size_t i = 0; i < module->importValueTableSize; ++i)
     {
@@ -1347,15 +1398,17 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
         if(importValueTableEntry->module != 0)
             moduleName = &module->importTable[importValueTableEntry->module - 1].name;
 
-        char *importedSymbolName = sdvm_compile_makeModuleSymbolInterface(module, moduleName, &importValueTableEntry->name, &importValueTableEntry->typeDescriptor);
+        char *importedSymbolName = sdvm_compile_makeModuleSymbolInterface(module, moduleName, importValueTableEntry->externalType, &importValueTableEntry->name, &importValueTableEntry->typeDescriptor);
         state.importedValueTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, importedSymbolName, SdvmCompSymbolKindNull, SdvmCompSymbolBindingGlobal);
         free(importedSymbolName);
     }
 
-
     // Declare the function symbols.
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
+        if(state.functionTableSymbols)
+            continue;
+
         char functionName[32];
         sprintf(functionName, "module.fun%04d", (int)i);
         if(module->header->entryPoint && !module->header->entryPointClosure && module->header->entryPoint == i + 1)

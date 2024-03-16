@@ -670,6 +670,7 @@ class HIRModule(HIRValue):
         self.exportedValues: list[tuple[str, HIRValue, str]] = []
         self.entryPoint: HIRValue = None
         self.globalValues: list[HIRGlobalValue] = []
+        self.name = ''
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitModule(self)
@@ -747,6 +748,7 @@ class HIRModuleFrontend:
             self.translatedConstantValueDictionary[baseType] = targetType
 
     def compileGraphModule(self, graphModule: GHIRModule) -> HIRModule:
+        self.module.name = graphModule.name
         for name, value, externalName in graphModule.exportedValues:
             self.module.exportValue(name, self.translateGraphValue(value), externalName)
         if graphModule.entryPoint is not None:

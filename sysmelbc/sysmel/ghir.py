@@ -832,6 +832,7 @@ class GHIRModule(GHIRValue):
         self.context = context
         self.exportedValues: list[tuple[str, GHIRValue]] = []
         self.entryPoint: GHIRValue = None
+        self.name = ''
 
     def accept(self, visitor: GHIRVisitor):
         return visitor.visitModule(self)
@@ -868,6 +869,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         self.translatedBindingValueDictionary = dict()
 
     def compileModule(self, module: Module):
+        if module.name is not None:
+            self.ghirModule.name = module.name.value
+
         for name, value, externalName in module.exportedValues:
             externalNameString = None
             if externalName is not None:
