@@ -30,7 +30,7 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitStringValue(self, value):
+    def visitStringDataValue(self, value):
         pass
 
     @abstractmethod
@@ -590,7 +590,7 @@ class StringDataValue(TypedValue):
         self.value = value
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
-        return visitor.visitStringValue(self)
+        return visitor.visitStringDataValue(self)
 
     def getType(self):
         return Char8ConstPointerType

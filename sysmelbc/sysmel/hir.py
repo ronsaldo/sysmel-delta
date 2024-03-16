@@ -16,16 +16,35 @@ class HIRContext:
         self.anyType = HIRAnyType(self, 'Any', self.anySize, self.anyAlignment)
         self.booleanType = HIRPrimitiveBooleanType(self, 'Boolean', 1, 1)
         self.unitType = HIRUnitType(self, 'Unit', 0, 1)
+
         self.int8Type   = HIRPrimitiveIntegerType(self, 'Int8',   True, 1, 1)
         self.int16Type  = HIRPrimitiveIntegerType(self, 'Int16',  True, 2, 2)
         self.int32Type  = HIRPrimitiveIntegerType(self, 'Int32',  True, 4, 4)
         self.int64Type  = HIRPrimitiveIntegerType(self, 'Int64',  True, 8, 8)
+
         self.uint8Type  = HIRPrimitiveIntegerType(self, 'UInt8',  False, 1, 1)
         self.uint16Type = HIRPrimitiveIntegerType(self, 'UInt16', False, 2, 2)
         self.uint32Type = HIRPrimitiveIntegerType(self, 'UInt32', False, 4, 4)
         self.uint64Type = HIRPrimitiveIntegerType(self, 'UInt64', False, 8, 8)
+
+        self.char8Type  = self.uint8Type
+        self.char16Type = self.uint16Type
+        self.char32Type = self.uint32Type
+
+        if pointerSize == 4:
+            self.sizeType        = self.uint32Type
+            self.signedSizeType  =  self.int32Type
+            self.uintPointerType = self.uint32Type
+            self.intPointerType  =  self.int32Type
+        else:
+            self.sizeType        = self.uint64Type
+            self.signedSizeType  =  self.int64Type
+            self.uintPointerType = self.uint64Type
+            self.intPointerType  =  self.int64Type
+
         self.float32Type = HIRPrimitiveFloatType(self, 'Float32', 4, 4)
         self.float64Type = HIRPrimitiveFloatType(self, 'Float64', 8, 8)
+
         self.basicBlockType = HIRBasicBlockType(self, 'BasicBlock', self.pointerSize, self.pointerAlignment)
         self.functionalDefinitionType = HIRFunctionalDefinitionType(self, 'FunctionalDefinition', pointerSize, pointerSize)
         self.moduleType = HIRModuleType(self, 'Module', self.gcPointerSize, self.gcPointerAlignment)
@@ -163,10 +182,18 @@ class HIRCompositeType(HIRTypeValue):
         self.size = None
         self.elements = elements
 
+    @abstractmethod
+    def computeLayout(self):
+        pass
+
     def getAlignment(self) -> int:
+        if self.alignment is None:
+            self.computeLayout()
         return self.alignment
     
     def getSize(self) -> int:
+        if self.size is None:
+            self.computeLayout()
         return self.size
 
     def getType(self):
@@ -185,6 +212,73 @@ class HIRProductType(HIRCompositeType):
         result += ')'
         return result
 
+class HIRDerivedType(HIRTypeValue):
+    def  __init__(self, context: HIRContext, baseType: HIRTypeValue) -> None:
+        super().__init__(context)
+        self.baseType = baseType
+
+    def getType(self):
+        return self.baseType.getType()
+
+class HIRDecoratedType(HIRDerivedType):
+    def  __init__(self, context: HIRContext, baseType: HIRTypeValue, decorations: int) -> None:
+        super().__init__(context, baseType)
+        self.decorations = decorations
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitDecoratedType(self)
+
+    def getAlignment(self) -> int:
+        return self.baseType.getAlignment()
+    
+    def getSize(self) -> int:
+        return self.baseType.getSize()
+
+    def isConst(self) -> bool:
+        return (self.decorations & DecoratedType.Const) != 0
+
+    def isVolatile(self) -> bool:
+        return (self.decorations & DecoratedType.Volatile) != 0
+    
+    def __str__(self) -> str:
+        result = str(self.baseType)
+        if self.isConst():
+            result += ' const'
+        if self.isVolatile():
+            result += ' volatile'
+        return result
+    
+class HIRPointerLikeType(HIRDerivedType):
+    def  __init__(self, context: HIRContext, baseType: HIRTypeValue) -> None:
+        super().__init__(context, baseType)
+
+    def getAlignment(self) -> int:
+        return self.context.pointerAlignment
+    
+    def getSize(self) -> int:
+        return self.context.pointerSize
+
+class HIRPointerType(HIRPointerLikeType):
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitPointerType(self)
+
+    def __str__(self) -> str:
+        return str(self.baseType) + ' pointer'
+
+class HIRReferenceType(HIRPointerLikeType):
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitReferenceType(self)
+
+    def __str__(self) -> str:
+        return str(self.baseType) + ' ref'
+
+class HIRTemporaryReferenceType(HIRPointerLikeType):
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitTemporaryReferenceType(self)
+
+    def __str__(self) -> str:
+        return str(self.baseType) + ' tempRef'
+    
 class HIRPrimitiveType(HIRTypeValue):
     def  __init__(self, context: HIRContext, name: str, size: int, alignment: int) -> None:
         super().__init__(context)
@@ -302,6 +396,21 @@ class HIRConstantUnit(HIRConstantPrimitive):
 
     def __str__(self) -> str:
         return '%s()' % str(self.type)
+
+class HIRConstantStringData(HIRConstantPrimitive):
+    def __init__(self, context: HIRContext, type: HIRValue, value: str, nullTerminated: bool = True) -> None:
+        super().__init__(context, type)
+        self.value = value
+        self.nullTerminated = nullTerminated
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitConstantStringData(self)
+
+    def __str__(self) -> str:
+        if self.nullTerminated:
+            return '%s cstring(%s)' % (str(self.type), repr(self.value))
+        else:
+            return '%s string(%s)' % (str(self.type), repr(self.value))
 
 class HIRConstantPrimitiveInteger(HIRConstantPrimitive):
     def __init__(self, context: HIRContext, type: HIRValue, value: int) -> None:
@@ -735,12 +844,29 @@ class HIRModuleFrontend:
 
         for baseType, targetType in [
             (UnitType, self.context.unitType),
-            (Int8Type, self.context.int8Type),
+
+            (Int8Type,  self.context.int8Type),
             (Int16Type, self.context.int16Type),
             (Int32Type, self.context.int32Type),
             (Int64Type, self.context.int64Type),
+
+            (UInt8Type,  self.context.uint8Type),
+            (UInt16Type, self.context.uint16Type),
+            (UInt32Type, self.context.uint32Type),
+            (UInt64Type, self.context.uint64Type),
+
+            (Char8Type,  self.context.char8Type),
+            (Char16Type, self.context.char16Type),
+            (Char32Type, self.context.char32Type),
+
+            (SizeType, self.context.sizeType),
+            (SignedSizeType, self.context.signedSizeType),
+            (UIntPointerType, self.context.uintPointerType),
+            (IntPointerType, self.context.intPointerType),
+
             (Float32Type, self.context.float32Type),
             (Float64Type, self.context.float64Type),
+
             (FalseType, self.context.booleanType),
             (TrueType, self.context.booleanType),
             (BooleanType, self.context.booleanType),
@@ -776,6 +902,9 @@ class HIRModuleFrontend:
 
     def visitUnitTypeValue(self, value: UnitTypeValue) -> HIRValue:
         return HIRConstantUnit(self.context, self.translateConstantTypedValue(value.type))
+    
+    def visitStringDataValue(self, value: StringDataValue):
+        return HIRConstantStringData(self.context, self.translateConstantTypedValue(value.getType()), value.value, True)
 
     def visitPrimitiveFunction(self, value: GHIRPrimitiveFunction) -> HIRValue:
         return HIRConstantPrimitiveFunction(self.context, self.translateGraphValue(value.type), value.name, value.compileTimeImplementation)
@@ -786,6 +915,14 @@ class HIRModuleFrontend:
     def visitProductType(self, value: GHIRProductType) -> HIRValue:
         elements = list(map(self.translateGraphValue, value.elements))
         return HIRProductType(self.context, elements)
+
+    def visitDecoratedType(self, value: GHIRDecoratedType) -> HIRValue:
+        baseType = self.translateGraphValue(value.baseType)
+        return HIRDecoratedType(self.context, baseType, value.decorations)
+
+    def visitPointerType(self, value: GHIRPointerType) -> HIRValue:
+        baseType = self.translateGraphValue(value.baseType)
+        return HIRPointerType(self.context, baseType)
 
     def visitLambdaValue(self, graphValue: GHIRLambdaValue) -> HIRValue:
         lambdaType = self.translateGraphValue(graphValue.type)

@@ -1041,7 +1041,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitPrimitiveFloatValue(self, value):
         return self.context.getConstantValue(value)
 
-    def visitStringValue(self, value):
+    def visitStringDataValue(self, value):
         return self.context.getConstantValue(value)
 
     def visitSymbol(self, value):
