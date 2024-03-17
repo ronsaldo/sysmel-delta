@@ -183,8 +183,14 @@ class SDVMFunctionFrontEnd:
     def visitImportedExternalValue(self, value: MIRImportedExternalValue):
         return self.visitImportedValue(value)
     
-    def visitConstantInteger(self, instruction: MIRConstantInteger) -> SDVMOperand:
-        return self.moduleFrontend.constantTranslationFunctions[instruction.getType()](self.function, instruction.value)
+    def visitConstantInteger(self, constant: MIRConstantInteger) -> SDVMOperand:
+        return self.moduleFrontend.constantTranslationFunctions[constant.getType()](self.function, constant.value)
+    
+    def visitConstantStringData(self, constant: MIRConstantStringData) -> SDVMOperand:
+        if constant.nullTerminated:
+            return self.function.constCString(constant.value)
+        else:
+            return self.function.constString(constant.value)
 
     def visitNullaryPrimitiveInstruction(self, instruction: MIRNullaryPrimitiveInstruction) -> SDVMOperand:
         return self.function.addInstruction(SDVMInstruction(instruction.instructionDef))

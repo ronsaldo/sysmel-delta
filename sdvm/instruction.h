@@ -8,6 +8,10 @@
 #define SDVM_TYPE_BITS 5
 #define SDVM_TYPE_MASK ((1<<SDVM_TYPE_BITS) - 1)
 
+#define SDVM_CONSTANT_PAYLOAD_BITS 52
+#define SDVM_CONSTANT_PAYLOAD_HALF_BITS (SDVM_CONSTANT_PAYLOAD_BITS/2)
+#define SDVM_CONSTANT_PAYLOAD_HALF_BITS_MASK ((1<<(SDVM_CONSTANT_PAYLOAD_BITS/2)) - 1)
+
 typedef enum sdvm_type_e
 {
 #define SDVM_TYPE_DEF(name, code) SdvmType ## name = code,
@@ -106,6 +110,10 @@ typedef struct sdvm_decodedConstOrInstruction_s
         {
             int64_t signedPayload;
             int64_t unsignedPayload;
+            struct {
+                uint64_t sectionOffsetPayload : 26;
+                uint64_t sectionSizePayload : 26;
+            };
         } constant;
     };
 } sdvm_decodedConstOrInstruction_t;

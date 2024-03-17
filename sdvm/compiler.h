@@ -67,6 +67,7 @@ typedef enum sdvm_compilerLocationKind_e
     SdvmCompLocationRegisterPair,
     SdvmCompLocationStack,
     SdvmCompLocationStackPair,
+    SdvmCompLocationLocalSymbolValue,
     SdvmCompLocationGlobalSymbolValue,
 } sdvm_compilerLocationKind_t;
 
@@ -209,7 +210,10 @@ typedef struct sdvm_compilerLocation_s
             int32_t secondStackOffset;
         };
 
-        sdvm_compilerSymbolHandle_t symbolHandle;
+        struct {
+            sdvm_compilerSymbolHandle_t symbolHandle;
+            int64_t symbolOffset;
+        };
     };
 } sdvm_compilerLocation_t;
 
@@ -234,9 +238,15 @@ typedef struct sdvm_registerSet_s
 
 typedef struct sdvm_compilerCallingConvention_s
 {
+    bool supportsLocalSymbolValueCall;
     bool supportsGlobalSymbolValueCall;
     uint32_t integerRegisterSize;
     uint32_t integerRegisterCount;
+
+    uint32_t stackAlignment;
+    uint32_t stackParameterAlignment;
+    uint32_t calloutShadowSpace;
+
     const sdvm_compilerRegister_t **integer32Registers;
     const sdvm_compilerRegister_t **integer64Registers;
     const sdvm_compilerRegister_t **integerRegisters;
@@ -271,7 +281,17 @@ typedef struct sdvm_compilerCallingConventionState_s
     uint32_t argumentCount;
     uint32_t usedArgumentIntegerRegisterCount;
     uint32_t usedArgumentVectorRegisterCount;
+
+    uint32_t usedCalloutSpace;
 } sdvm_compilerCallingConventionState_t;
+
+typedef struct sdvm_functionCompilationStackSegment_s
+{
+    uint32_t alignment;
+    uint32_t size;
+} sdvm_functionCompilationStackSegment_t;
+
+#define SDVM_FUNCTION_COMPILATION_MAX_STACK_SEGMENT_COUNT 7
 
 typedef struct sdvm_functionCompilationState_s
 {
@@ -293,6 +313,29 @@ typedef struct sdvm_functionCompilationState_s
     sdvm_registerSet_t usedFloatRegisterSet;
     sdvm_registerSet_t usedVectorFloatRegisterSet;
     sdvm_registerSet_t usedVectorIntegerRegisterSet;
+
+    sdvm_registerSet_t usedCallPreservedIntegerRegisterSet;
+    sdvm_registerSet_t usedCallPreservedFloatRegister;
+    sdvm_registerSet_t usedCallPreservedVectorRegisterSet;
+
+    union
+    {
+        struct
+        {
+            sdvm_functionCompilationStackSegment_t argumentPassingStackSegment;
+            sdvm_functionCompilationStackSegment_t prologueStackSegment;
+            sdvm_functionCompilationStackSegment_t floatCallPreservedRegisterStackSegment;
+            sdvm_functionCompilationStackSegment_t vectorCallPreservedRegisterStackSegment;
+            sdvm_functionCompilationStackSegment_t gcSpillingStackSegment;
+            sdvm_functionCompilationStackSegment_t spillingStackSegment;
+            sdvm_functionCompilationStackSegment_t calloutStackSegment;
+        };
+
+        sdvm_functionCompilationStackSegment_t stackSegments[SDVM_FUNCTION_COMPILATION_MAX_STACK_SEGMENT_COUNT];
+    };
+
+    bool hasCallout;
+    bool requiresStackFrame;
 } sdvm_functionCompilationState_t;
 
 typedef struct sdvm_linearScanActiveInterval_s
@@ -377,7 +420,8 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF32(sdvm_comp
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF64(sdvm_compiler_t *compiler, double value);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedGlobalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle);
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_localSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle, int64_t offset);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle, int64_t offset);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegister(uint8_t size);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedIntegerRegister(uint8_t size);
@@ -410,5 +454,11 @@ SDVM_API bool sdvm_compileObjectFile_saveToFileNamed(sdvm_compilerObjectFile_t *
 
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler);
 SDVM_API bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
+
+SDVM_API void sdvm_registerSet_clear(sdvm_registerSet_t *set);
+SDVM_API bool sdvm_registerSet_includes(sdvm_registerSet_t *set, uint8_t value);
+SDVM_API void sdvm_registerSet_set(sdvm_registerSet_t *set, uint8_t value);
+SDVM_API void sdvm_registerSet_unset(sdvm_registerSet_t *set, uint8_t value);
+SDVM_API bool sdvm_registerSet_isEmpty(sdvm_registerSet_t *set);
 
 #endif //SDVM_COMPILER_H

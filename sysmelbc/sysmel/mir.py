@@ -174,6 +174,20 @@ class MIRConstantValue(MIRConstant):
 class MIRConstantVoid(MIRConstantValue):
     pass
 
+class MIRConstantStringData(MIRConstantValue):
+    def __init__(self, type: MIRType, value: bytes, nullTerminated: bool = True) -> None:
+        super().__init__(type.context, type)
+        self.value = value
+        self.nullTerminated = nullTerminated
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitConstantStringData(self)
+
+    def __str__(self) -> str:
+        if self.nullTerminated:
+            return '%s cstring(%s)' % (str(self.type), repr(self.value))
+        return '%s string(%s)' % (str(self.type), repr(self.value))
+
 class MIRConstantInteger(MIRConstantValue):
     def __init__(self, type: MIRType, value: int) -> None:
         super().__init__(type.context, type)
@@ -712,7 +726,19 @@ class MIRModuleFrontend:
         translatedType = type.accept(self)
         self.translatedTypeDictionary[type] = translatedType
         return translatedType
-    
+
+    def visitPointerLikeType(self, type: HIRPointerLikeType):
+        return self.context.pointerType
+
+    def visitPointerType(self, type: HIRPointerType):
+        return self.visitPointerLikeType(type)
+
+    def visitReferenceType(self, type: HIRPointerType):
+        return self.visitPointerLikeType(type)
+
+    def visitTemporaryReferenceType(self, type: HIRPointerType):
+        return self.visitPointerLikeType(type)
+
     def visitFunctionType(self, type: HIRFunctionType):
         if type.callingConvention is not None:
             return self.context.callingConventionFunctionTypeMap[type.callingConvention]
@@ -720,6 +746,9 @@ class MIRModuleFrontend:
     
     def visitConstantUnit(self, constant: HIRConstantUnit) -> MIRValue:
         return self.context.void
+    
+    def visitConstantStringData(self, constant: HIRConstantStringData) -> MIRValue:
+        return MIRConstantStringData(self.translateType(constant.getType()), constant.value, constant.nullTerminated)
 
     def visitConstantPrimitiveInteger(self, constant: HIRConstantPrimitiveInteger) -> MIRValue:
         return MIRConstantInteger(self.translateType(constant.getType()), constant.value)

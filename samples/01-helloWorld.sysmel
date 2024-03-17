@@ -11,7 +11,8 @@ export: #main external: #C with: (:(Int32)argc :: Int32) __cdecl :=> {
     ##abort().
     ##(myModuleInt32 + argc) + 1i32
     puts("Hello World" elements).
-    argc + 1i32
+    ##argc + 1i32
+    0i32
 }.
 
 ##moduleEntryPoint: (:: Int32) :=> 0i32.

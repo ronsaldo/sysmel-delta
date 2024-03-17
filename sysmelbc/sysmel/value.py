@@ -585,7 +585,7 @@ class PrimitiveFloatValue(TypedValue):
         return PrimitiveFloatValue(targetType, self.value)
 
 class StringDataValue(TypedValue):
-    def __init__(self, value: str) -> None:
+    def __init__(self, value: bytes) -> None:
         super().__init__()
         self.value = value
 
@@ -599,7 +599,7 @@ class StringDataValue(TypedValue):
         return isinstance(other, self.__class__) and self.value == other.value
 
     def toJson(self):
-        return self.value
+        return repr(self.value)
 
 class FunctionType(BaseType):
     FunctionTypeCache = dict()
@@ -1075,7 +1075,7 @@ Char8ConstPointerType = PointerType.makeWithBaseType(DecoratedType.makeConst(Cha
 StringType = RecordType([Char8ConstPointerType, SizeType], [Symbol.intern('elements'), Symbol.intern('size')], 'String')
 
 def makeStringValue(value: str):
-    data = StringDataValue(value)
+    data = StringDataValue(value.encode('utf-8'))
     size = PrimitiveIntegerValue(SizeType, len(value))
     return StringType.makeWithElements((data, size))
 

@@ -38,16 +38,25 @@ SdvmModuleExternalTypeCpp = sdvmModuleFourCC('C++ ')
 
 SdvmModuleExternalTypeMap = {None: SdvmModuleExternalTypeNone, '': SdvmModuleExternalTypeNone, 'C': SdvmModuleExternalTypeC}
 
+SdvmConstantPayloadBits = 52
+SdvmConstantPayloadHalfBits = SdvmConstantPayloadBits // 2
+SdvmConstantPayloadHalfMaxValue = (1 << SdvmConstantPayloadHalfBits) - 1
+
 class SDVMString:
     def __init__(self, offset: int = 0, size: int = 0, value: str = None) -> None:
         self.value = value
         self.offset = offset
         self.size = size
 
+    def encodeForConstant(self) -> int:
+        assert 0 <= self.offset and self.offset <= SdvmConstantPayloadHalfMaxValue
+        assert 0 <= self.size and self.size <= SdvmConstantPayloadHalfMaxValue
+        return self.offset | (self.size << SdvmConstantPayloadHalfBits)
+
     def __str__(self) -> str:
         if self.size == 0:
             return ''
-        return self.value
+        return self.value.decode('utf-8')
     
 class SDVMModule:
     def __init__(self, pointerSize = 8) -> None:
@@ -86,7 +95,10 @@ class SDVMModule:
 
     def addString(self, value: str) -> SDVMString:
         return self.stringSection.add(value)
-    
+
+    def addEncodedString(self, value: bytes) -> SDVMString:
+        return self.stringSection.addEncoded(value)
+
     def setName(self, name: str) -> SDVMString:
         self.name = self.addString(name)
         return self.name
@@ -169,6 +181,7 @@ class SDVMStringSection(SDVMModuleSection):
     def __init__(self) -> None:
         super().__init__(SdvmModuleSectionTypeString)
         self.stringDict: dict[str,SDVMString] = dict()
+        self.encodedStringDict: dict[bytes,SDVMString] = dict()
 
     def add(self, value: str | None) -> SDVMString:
         if value is None or len(value) == 0:
@@ -176,10 +189,19 @@ class SDVMStringSection(SDVMModuleSection):
         if value in self.stringDict:
             return self.stringDict
         
-        encodedValue = value.encode('utf-8')
-        stringValue = SDVMString(len(self.contents), len(encodedValue), value)
-        self.contents += encodedValue
+        stringValue = self.addEncoded(value.encode('utf-8'))
         self.stringDict[value] = stringValue
+        return stringValue
+
+    def addEncoded(self, encodedValue: bytes | None) -> SDVMString:
+        if encodedValue is None or len(encodedValue) == 0:
+            return SDVMString()
+        if encodedValue in self.encodedStringDict:
+            return self.encodedStringDict
+
+        stringValue = SDVMString(len(self.contents), len(encodedValue), encodedValue)
+        self.contents += encodedValue
+        self.encodedStringDict[encodedValue] = stringValue
         return stringValue
 
 class SDVMImportModuleTableSection(SDVMModuleSection):
@@ -400,6 +422,14 @@ class SDVMFunction:
 
     def constFloat64(self, value: float) -> SDVMConstant:
         assert False
+
+    def constCString(self, value: bytes) -> SDVMConstant:
+        stringValue = self.module.addEncodedString(value)
+        return self.const(SdvmConstPointerCString, stringValue, stringValue.encodeForConstant())
+
+    def constString(self, value: bytes) -> SDVMConstant:
+        stringValue = self.module.addEncodedString(value)
+        return self.const(SdvmConstPointerString, stringValue, stringValue.encodeForConstant())
 
     def finishBuilding(self):
         if self.isFinished:

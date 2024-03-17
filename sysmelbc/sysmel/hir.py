@@ -398,7 +398,7 @@ class HIRConstantUnit(HIRConstantPrimitive):
         return '%s()' % str(self.type)
 
 class HIRConstantStringData(HIRConstantPrimitive):
-    def __init__(self, context: HIRContext, type: HIRValue, value: str, nullTerminated: bool = True) -> None:
+    def __init__(self, context: HIRContext, type: HIRValue, value: bytes, nullTerminated: bool = True) -> None:
         super().__init__(context, type)
         self.value = value
         self.nullTerminated = nullTerminated
@@ -840,6 +840,7 @@ class HIRModuleFrontend:
         self.module = HIRModule(self.context)
         self.translatedValueDictionary = dict()
         self.translatedConstantValueDictionary = dict()
+        self.valueTranslator = HIRModuleFrontendValueTranslator(self)
         self.runtimeDependencyChecker = GHIRRuntimeDependencyChecker()
 
         for baseType, targetType in [
@@ -885,7 +886,7 @@ class HIRModuleFrontend:
         if typedValue in self.translatedConstantValueDictionary:
             return self.translatedConstantValueDictionary[typedValue]
         
-        translatedValue = typedValue.acceptTypedValueVisitor(self)
+        translatedValue = typedValue.acceptTypedValueVisitor(self.valueTranslator)
         self.translatedConstantValueDictionary[typedValue] = translatedValue
         return translatedValue
 
@@ -900,17 +901,8 @@ class HIRModuleFrontend:
     def visitConstantValue(self, graphValue: GHIRConstantValue) -> HIRValue:
         return self.translateConstantTypedValue(graphValue.value)
 
-    def visitUnitTypeValue(self, value: UnitTypeValue) -> HIRValue:
-        return HIRConstantUnit(self.context, self.translateConstantTypedValue(value.type))
-    
-    def visitStringDataValue(self, value: StringDataValue):
-        return HIRConstantStringData(self.context, self.translateConstantTypedValue(value.getType()), value.value, True)
-
     def visitPrimitiveFunction(self, value: GHIRPrimitiveFunction) -> HIRValue:
         return HIRConstantPrimitiveFunction(self.context, self.translateGraphValue(value.type), value.name, value.compileTimeImplementation)
-    
-    def visitPrimitiveIntegerValue(self, value: PrimitiveIntegerValue) -> HIRValue:
-        return HIRConstantPrimitiveInteger(self.context, self.translatedConstantValueDictionary[value.type], value.value)
 
     def visitProductType(self, value: GHIRProductType) -> HIRValue:
         elements = list(map(self.translateGraphValue, value.elements))
@@ -959,6 +951,31 @@ class HIRModuleFrontend:
         importedExternal = HIRImportedExternalValue(self.context, type, graphValue.externalName, graphValue.name);
         self.module.addGlobalValue(importedExternal)
         return importedExternal
+
+class HIRModuleFrontendValueTranslator:
+    def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:
+        self.context = moduleFrontend.context
+        self.moduleFrontend = moduleFrontend
+
+    def translateConstantTypedValue(self, value: TypedValue):
+        return self.moduleFrontend.translateConstantTypedValue(value)
+
+    def visitDecoratedType(self, value: DecoratedType) -> HIRValue:
+        baseType = self.translateConstantTypedValue(value.baseType)
+        return HIRDecoratedType(self.context, baseType, value.decorations)
+
+    def visitPointerType(self, value: PointerType) -> HIRValue:
+        baseType = self.translateConstantTypedValue(value.baseType)
+        return HIRPointerType(self.context, baseType)
+
+    def visitUnitTypeValue(self, value: UnitTypeValue) -> HIRValue:
+        return HIRConstantUnit(self.context, self.translateConstantTypedValue(value.type))
+    
+    def visitStringDataValue(self, value: StringDataValue):
+        return HIRConstantStringData(self.context, self.translateConstantTypedValue(value.getType()), value.value, True)
+
+    def visitPrimitiveIntegerValue(self, value: PrimitiveIntegerValue) -> HIRValue:
+        return HIRConstantPrimitiveInteger(self.context, self.moduleFrontend.translatedConstantValueDictionary[value.type], value.value)
 
 class HIRFunctionalDefinitionFrontend:
     def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:

@@ -256,8 +256,11 @@ void sdvm_compilerLocation_print(sdvm_compiler_t *compiler, sdvm_compilerLocatio
     case SdvmCompLocationStackPair:
         printf("stack %d:%d", location->firstStackOffset, location->secondStackOffset);
         return;
+    case SdvmCompLocationLocalSymbolValue:
+        printf("localValueOf[%s]", sdvm_compiler_symbolHandleNameCString(compiler, location->symbolHandle));
+        return;
     case SdvmCompLocationGlobalSymbolValue:
-        printf("valueOf[%s]", sdvm_compiler_symbolHandleNameCString(compiler, location->symbolHandle));
+        printf("globalValueOf[%s]", sdvm_compiler_symbolHandleNameCString(compiler, location->symbolHandle));
         return;
     }
 }
@@ -463,11 +466,23 @@ sdvm_compilerLocation_t sdvm_compilerLocation_constSectionF64(sdvm_compiler_t *c
     return location;
 }
 
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle)
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_localSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle, int64_t offset)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationLocalSymbolValue,
+        .symbolHandle = symbolHandle,
+        .symbolOffset = offset
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_globalSymbolValue(sdvm_compilerSymbolHandle_t symbolHandle, int64_t offset)
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationGlobalSymbolValue,
-        .symbolHandle = symbolHandle
+        .symbolHandle = symbolHandle,
+        .symbolOffset = offset
     };
 
     return location;
@@ -691,7 +706,9 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_pointerPair(sdvm_com
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledFunction(sdvm_functionCompilationState_t *functionState, sdvm_compilerCallingConventionState_t *state, sdvm_compilerInstruction_t *operand)
 {
-    (void)functionState;
+    functionState->hasCallout = true;
+    if(state->convention->supportsLocalSymbolValueCall && operand->location.kind == SdvmCompLocationLocalSymbolValue)
+        return operand->location;
     if(state->convention->supportsGlobalSymbolValueCall && operand->location.kind == SdvmCompLocationGlobalSymbolValue)
         return operand->location;
 
@@ -700,7 +717,7 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledFunction(sdvm_
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledClosure(sdvm_functionCompilationState_t *functionState, sdvm_compilerCallingConventionState_t *state)
 {
-    (void)functionState;
+    functionState->hasCallout = true;
     return sdvm_compilerLocation_specificRegisterPair(*state->convention->closureRegister, *state->convention->closureGCRegister);
 }
 
@@ -756,7 +773,34 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
                 if(importValueIndex > 0)
                 {
                     sdvm_compilerSymbolHandle_t symbolHandle = state->moduleState->importedValueTableSymbols[importValueIndex - 1];
-                    instruction->location = sdvm_compilerLocation_globalSymbolValue(symbolHandle);
+                    instruction->location = sdvm_compilerLocation_globalSymbolValue(symbolHandle, 0);
+                }
+                else
+                {
+                    instruction->location = sdvm_compilerLocation_null();
+                }
+            }
+            break;
+        case SdvmConstPointerCString:
+        case SdvmConstPointerString:
+        case SdvmConstGCPointerCString:
+        case SdvmConstGCPointerString:
+            {
+                bool nullTerminated = instruction->decoding.baseOpcode == SdvmConstOpConstCString;
+                uint32_t stringOffset = instruction->decoding.constant.unsignedPayload & SDVM_CONSTANT_PAYLOAD_HALF_BITS_MASK;
+                uint32_t stringSize = (instruction->decoding.constant.unsignedPayload >> SDVM_CONSTANT_PAYLOAD_HALF_BITS) & SDVM_CONSTANT_PAYLOAD_HALF_BITS_MASK;
+                if(stringSize > 0 || nullTerminated)
+                {
+                    size_t rodataOffset = compiler->rodataSection.contents.size;
+                    sdvm_dynarray_addAll(&compiler->rodataSection.contents, stringSize, state->module->stringSectionData + stringOffset);
+                    
+                    if(nullTerminated)
+                    {
+                        uint8_t terminator = 0;
+                        sdvm_dynarray_add(&compiler->rodataSection.contents, &terminator);
+                    }
+
+                    instruction->location = sdvm_compilerLocation_localSymbolValue(compiler->rodataSection.symbolIndex, rodataOffset);
                 }
                 else
                 {
@@ -809,23 +853,23 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     case SdvmInstCallArgInt8:
     case SdvmInstCallArgInt16:
     case SdvmInstCallArgInt32:
-        instruction->destinationLocation = sdvm_compilerCallingConventionState_signedInteger32(&state->currentCallCallingConventionState);
+        instruction->arg0Location = sdvm_compilerCallingConventionState_signedInteger32(&state->currentCallCallingConventionState);
         return;
     case SdvmInstCallArgUInt8:
     case SdvmInstCallArgUInt16:
     case SdvmInstCallArgUInt32:
-        instruction->destinationLocation = sdvm_compilerCallingConventionState_integer32(&state->currentCallCallingConventionState);
+        instruction->arg0Location = sdvm_compilerCallingConventionState_integer32(&state->currentCallCallingConventionState);
         return;
     case SdvmInstCallArgInt64:
     case SdvmInstCallArgUInt64:
-        instruction->destinationLocation = sdvm_compilerCallingConventionState_integer64(&state->currentCallCallingConventionState);
+        instruction->arg0Location = sdvm_compilerCallingConventionState_integer64(&state->currentCallCallingConventionState);
         return;
     case SdvmInstCallArgPointer:
     case SdvmInstCallArgProcedureHandle:
-        instruction->destinationLocation = sdvm_compilerCallingConventionState_pointer(&state->currentCallCallingConventionState);
+        instruction->arg0Location = sdvm_compilerCallingConventionState_pointer(&state->currentCallCallingConventionState);
         return;
     case SdvmInstCallArgGCPointer:
-        instruction->destinationLocation = sdvm_compilerCallingConventionState_pointerPair(&state->currentCallCallingConventionState);
+        instruction->arg0Location = sdvm_compilerCallingConventionState_pointerPair(&state->currentCallCallingConventionState);
         return;
 #pragma endregion CallArgumentConstraints
 
@@ -978,6 +1022,17 @@ void sdvm_registerSet_unset(sdvm_registerSet_t *set, uint8_t value)
     uint8_t wordIndex = value / 32;
     uint8_t bitIndex = value % 32;
     set->masks[wordIndex] &= ~(1<<bitIndex);
+}
+
+bool sdvm_registerSet_isEmpty(sdvm_registerSet_t *set)
+{
+    for(int i = 0; i < SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS; ++i)
+    {
+        if(set->masks[i] != 0)
+            return false;
+    }
+
+    return true;
 }
 
 bool sdvm_compilerLocationKind_isImmediate(sdvm_compilerLocationKind_t kind)

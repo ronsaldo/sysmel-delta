@@ -1,9 +1,11 @@
 // Constant opcodes.
-SDVM_CONSTANT_OPCODE_DEF(ConstSExt, 0, "Small signed extended constant")
-SDVM_CONSTANT_OPCODE_DEF(ConstZExt, 1, "Small zero extended constant")
+SDVM_CONSTANT_OPCODE_DEF(ConstSExt,       0, "Small signed extended constant")
+SDVM_CONSTANT_OPCODE_DEF(ConstZExt,       1, "Small zero extended constant")
 SDVM_CONSTANT_OPCODE_DEF(ConstSmallFloat, 2, "Small floating point constant")
-SDVM_CONSTANT_OPCODE_DEF(ConstSection, 3, "Constant section")
-SDVM_CONSTANT_OPCODE_DEF(ConstImport, 4, "Constant imported value")
+SDVM_CONSTANT_OPCODE_DEF(ConstSection,    3, "Constant section")
+SDVM_CONSTANT_OPCODE_DEF(ConstImport,     4, "Constant imported value")
+SDVM_CONSTANT_OPCODE_DEF(ConstCString,    5, "Constant null terminated C string")
+SDVM_CONSTANT_OPCODE_DEF(ConstString,     6, "Constant non-null terminated string")
 
 // Constants.
 SDVM_CONSTANT_DEF(Boolean,            ConstSExt,    Boolean, "Boolean constant.")
@@ -23,9 +25,13 @@ SDVM_CONSTANT_DEF(UInt64ConstSection, ConstSection, UInt64,   "Int64 literal enc
 SDVM_CONSTANT_DEF(PointerSExt,           ConstSExt,     Pointer,   "Signed extended small pointer constant.")
 SDVM_CONSTANT_DEF(PointerZExt,           ConstZExt,     Pointer,   "Zero extended small pointer constant.")
 SDVM_CONSTANT_DEF(PointerConstSection,   ConstSection,  Pointer,   "Pointer literal encoded in const section at zero extended offset.")
+SDVM_CONSTANT_DEF(PointerCString,        ConstCString,  Pointer,   "Pointer into null terminated c string.")
+SDVM_CONSTANT_DEF(PointerString,         ConstString,   Pointer,   "Pointer into non-null terminated string.")
 SDVM_CONSTANT_DEF(GCPointerSExt,         ConstSExt,     GCPointer, "Signed extended small gc pointer constant.")
 SDVM_CONSTANT_DEF(GCPointerZExt,         ConstZExt,     GCPointer, "Zero extended small gc pointer constant.")
 SDVM_CONSTANT_DEF(GCPointerConstSection, ConstSection,  GCPointer, "GC Pointer literal encoded in const section at zero extended offset.")
+SDVM_CONSTANT_DEF(GCPointerCString,      ConstCString,  GCPointer, "GC Pointer into null terminated c string.")
+SDVM_CONSTANT_DEF(GCPointerString,       ConstString,   GCPointer, "GC Pointer into non-null terminated string.")
 SDVM_CONSTANT_DEF(ImportPointer,         ConstImport,   Pointer,   "Pointer imported constant.")
 SDVM_CONSTANT_DEF(ImportProcedureHandle, ConstImport,   ProcedureHandle, "Procedure handle imported constant.")
 
