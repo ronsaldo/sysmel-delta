@@ -253,9 +253,11 @@ class ASTErrorNode(ASTNode):
         return {'kind': 'Error', 'message': self.message}
 
 class ASTFunctionalDependentTypeNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], resultType: ASTNode, callingConvention: Symbol = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], tupleArguments: list[ASTNode], isVariadic: bool, resultType: ASTNode, callingConvention: Symbol = None) -> None:
         super().__init__(sourcePosition)
         self.arguments = arguments
+        self.tupleArguments = tupleArguments
+        self.isVariadic = isVariadic
         self.resultType = resultType
         self.callingConvention = callingConvention
 
@@ -268,7 +270,7 @@ class ASTFunctionalDependentTypeNode(ASTNode):
     def withCallingConventionNamed(self, callingConventionName: TypedValue):
         if callingConventionName == self.callingConvention:
             return self
-        return ASTFunctionalDependentTypeNode(self.sourcePosition, self.arguments, self.resultType, callingConventionName)
+        return ASTFunctionalDependentTypeNode(self.sourcePosition, self.arguments, self.tupleArguments, self.isVariadic, self.resultType, callingConventionName)
     
     def toJson(self) -> dict:
         return {'kind': 'FunctionalType', 'arguments': list(map(optionalASTNodeToJson, self.arguments)), 'resultType': optionalASTNodeToJson(self.resultType)}

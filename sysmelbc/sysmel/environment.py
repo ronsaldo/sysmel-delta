@@ -528,6 +528,7 @@ BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType]
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
         AbsurdType, UnitType,
+        CVarArgType,
         IntegerType, StringType, FalseType, TrueType, BooleanType,
         Int8Type, Int16Type, Int32Type, Int64Type,
         UInt8Type, UInt16Type, UInt32Type, UInt64Type,

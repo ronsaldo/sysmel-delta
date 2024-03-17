@@ -185,6 +185,20 @@ def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
     while state.peekKind() == TokenKind.COLON:
         state, argument = parseArgument(state)
         arguments.append(argument)
+
+    remainingTupleArguments = []
+    while state.peekKind() == TokenKind.COMMA:
+        state.advance()
+        if state.peekKind() == TokenKind.COLON:
+            state, argument = parseArgument(state)
+            remainingTupleArguments.append(argument)
+        else:
+            remainingTupleArguments.append(ASTErrorNode(state.currentSourcePosition(), 'Expected an argument.'))
+
+    isVariadic = False
+    if (len(arguments) != 0 or len(remainingTupleArguments) != 0) and state.peekKind() == TokenKind.ELLIPSIS:
+        state.advance()
+        isVariadic = True
     
     resultTypeExpression = None
     hasResultTypeExpression = state.peekKind() == TokenKind.COLON_COLON
@@ -192,9 +206,15 @@ def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
         state.advance()
         state, resultTypeExpression = parseUnaryPostfixExpression(state)
     
-    if len(arguments) == 0 and not hasResultTypeExpression:
+    if len(arguments) == 0 and len(remainingTupleArguments) == 0 and not hasResultTypeExpression:
         return state, None
-    return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), arguments, resultTypeExpression)
+    
+    tupleArguments = []
+    if len(remainingTupleArguments) != 0 or isVariadic:
+        tupleArguments = [arguments[-1]] + remainingTupleArguments
+        arguments = arguments[:-1]
+
+    return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), arguments, tupleArguments, isVariadic, resultTypeExpression)
 
 def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     # (

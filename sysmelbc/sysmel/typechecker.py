@@ -345,7 +345,7 @@ class Typechecker(ASTVisitor):
            return self.visitNode(ASTSequenceNode(node.sourcePosition, [functionalTypeNode, node.body]))
         
         if len(functionalTypeNode.arguments) == 0:
-            return self.visitNode(ASTLambdaNode(node.sourcePosition, False, None, None, node.functionalType.resultType, node.body))
+            return self.visitNode(ASTLambdaNode(node.sourcePosition, False, None, None, functionalTypeNode.resultType, node.body, functionalTypeNode.callingConvention))
 
         resultType = functionalTypeNode.resultType
         body = node.body
@@ -365,7 +365,7 @@ class Typechecker(ASTVisitor):
 
     def visitFunctionalDependentTypeNode(self, node: ASTFunctionalDependentTypeNode):
         if len(node.arguments) == 0:
-            return self.visitNode(ASTPiNode(node.sourcePosition, False, None, None, node.resultTypeExpression))
+            return self.visitNode(ASTPiNode(node.sourcePosition, False, None, None, node.resultType, node.callingConvention))
 
         resultType = node.resultType
         for argument in reversed(node.arguments):
@@ -416,7 +416,7 @@ class Typechecker(ASTVisitor):
         argumentName = self.evaluateOptionalSymbol(node.argumentName)
         argumentType = self.visitOptionalTypeExpression(node.argumentType)
         if argumentName is None and argumentType is None:
-            argumentType = ASTLiteralTypeNode(UnitType)
+            argumentType = ASTLiteralTypeNode(node.sourcePosition, UnitType)
 
         argumentBinding = SymbolArgumentBinding(node.sourcePosition, argumentName, argumentType, isImplicit = node.hasImplicitArgument)
         functionalEnvironment = FunctionalAnalysisEnvironment(self.lexicalEnvironment, argumentBinding, node.sourcePosition)

@@ -279,6 +279,9 @@ class UnitTypeClass(BaseType):
     def getSingleton(self) -> UnitTypeValue:
         return self.singleton
 
+class CVarArgTypeClass(BaseType):
+    pass
+
 class IntegerTypeClass(BaseType):
     pass
 
@@ -351,6 +354,8 @@ class ModuleTypeClass(BaseType):
 
 AbsurdType = AbsurdTypeClass("Absurd")
 UnitType = UnitTypeClass("Unit", "unit")
+
+CVarArgType = CVarArgTypeClass("CVarArg")
 
 IntegerType = IntegerTypeClass("Integer")
 Float32Type = PrimitiveFloat32TypeClass("Float32", 4, 'f32')
