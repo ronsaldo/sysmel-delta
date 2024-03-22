@@ -59,7 +59,7 @@ int main(int argc, const char *argv[])
 
     //sdvm_module_dump(module);
 
-    sdvm_compiler_t *compiler = sdvm_compiler_create(module->header->pointerSize);
+    sdvm_compiler_t *compiler = sdvm_compiler_create(sdvm_compilerTarget_getDefault());
     bool compilationSucceeded = sdvm_compiler_compileModule(compiler, module);
     sdvm_module_destroy(module);
 
@@ -73,7 +73,7 @@ int main(int argc, const char *argv[])
     // Save the object file
     if(outputFileName)
     {
-        if(!sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(compiler, outputFileName))
+        if(!sdvm_compiler_encodeObjectAndSaveToFileNamed(compiler, outputFileName))
         {
             sdvm_compiler_destroy(compiler);
             fprintf(stderr, "Failed to encode the object file %s\n", outputFileName);

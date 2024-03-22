@@ -5,8 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 
-bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *state);
-
 void sdvm_compilerSymbolTable_initialize(sdvm_compilerSymbolTable_t *symbolTable)
 {
     sdvm_dynarray_initialize(&symbolTable->strings, 1, 4096);
@@ -83,10 +81,11 @@ void sdvm_compilerObjectSection_destroy(sdvm_compilerObjectSection_t *section)
     sdvm_dynarray_destroy(&section->relocations);
 }
 
-sdvm_compiler_t *sdvm_compiler_create(uint32_t pointerSize)
+sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
 {
     sdvm_compiler_t *compiler = calloc(1, sizeof(sdvm_compiler_t));
-    compiler->pointerSize = pointerSize;
+    compiler->target = target;
+    compiler->pointerSize = target->pointerSize;
 
     sdvm_compilerSymbolTable_initialize(&compiler->symbolTable);
     sdvm_dynarray_initialize(&compiler->labels, sizeof(sdvm_compilerLabel_t), 512);
@@ -125,6 +124,25 @@ void sdvm_compiler_destroy(sdvm_compiler_t *compiler)
     sdvm_compilerObjectSection_destroy(&compiler->dataSection);
 
     free(compiler);
+}
+
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getDefault(void)
+{
+    return sdvm_compilerTarget_getNamed(sdvm_compilerTarget_getDefaultTargetName());
+}
+
+SDVM_API const char *sdvm_compilerTarget_getDefaultTargetName(void)
+{
+#ifdef SDVM_DEFAULT_TARGET_NAME
+    return SDVM_DEFAULT_TARGET_NAME;
+#else
+    return "x86_64-linux-gnu";
+#endif 
+}
+
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *targetName)
+{
+    return sdvm_compilerTarget_x64_linux();
 }
 
 void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module)
@@ -1322,11 +1340,11 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
     sdvm_functionCompilationState_computeLiveIntervals(&functionState);
 
     // Ask the backend to compile the function.
-    sdvm_compiler_x64_compileModuleFunction(&functionState);
+    bool result = moduleState->compiler->target->compileModuleFunction(&functionState);
     
     // Destroy the function compilation state.
     sdvm_functionCompilationState_destroy(&functionState);
-    return true;
+    return result;
 }
 
 SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction)
@@ -1491,7 +1509,18 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     return hasSucceeded;
 }
 
-
+SDVM_API bool sdvm_compiler_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName)
+{
+    switch(compiler->target->objectFileType)
+    {
+    case SdvmObjectFileTypeElf:
+    default:
+        if(compiler->pointerSize <= 4)
+            return sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(compiler, objectFileName);
+        else
+            return sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(compiler, objectFileName);
+    }
+}
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compileObjectFile_allocate(size_t size)
 {
     sdvm_compilerObjectFile_t *objectFile = calloc(1, sizeof(sdvm_compilerObjectFile_t));

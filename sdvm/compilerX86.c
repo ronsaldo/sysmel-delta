@@ -1,5 +1,6 @@
 #include "compilerX86.h"
 #include "module.h"
+#include "elf.h"
 #include <string.h>
 
 #define SDVM_X86_REG_DEF(regKind, regSize, name, regValue) const sdvm_compilerRegister_t sdvm_x86_ ## name = {\
@@ -854,8 +855,9 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
 
 void sdvm_compiler_x64_computeFunctionLocationConstraints(sdvm_functionCompilationState_t *state)
 {
-    state->callingConvention = &sdvm_x64_sysv_callingConvention;
-    state->currentCallCallingConvention = &sdvm_x64_sysv_callingConvention;
+    const sdvm_compilerTarget_t *target = state->compiler->target;
+    state->callingConvention = target->defaultCC;
+    state->currentCallCallingConvention = target->defaultCC;
 
     for(uint32_t i = 0; i < state->instructionCount; ++i)
         sdvm_compiler_x64_computeInstructionLocationConstraints(state, state->instructions + i);
@@ -1376,4 +1378,41 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
     sdvm_compiler_x64_emitFunctionPrologue(state);
     sdvm_compiler_x64_emitFunctionInstructions(state);
     return true;
+}
+
+uint32_t sdvm_compiler_x64_mapElfRelocation(sdvm_compilerRelocationKind_t kind)
+{
+    switch(kind)
+    {
+    case SdvmCompRelocationAbsolute8: return SDVM_R_X86_64_8;
+    case SdvmCompRelocationAbsolute16: return SDVM_R_X86_64_16;
+    case SdvmCompRelocationAbsolute32: return SDVM_R_X86_64_32;
+    case SdvmCompRelocationAbsolute64: return SDVM_R_X86_64_64;
+    case SdvmCompRelocationRelative32: return SDVM_R_X86_64_PC32;
+    case SdvmCompRelocationRelative32AtGot: return SDVM_R_X86_64_GOTPCREL;
+    case SdvmCompRelocationRelative32AtPlt: return SDVM_R_X86_64_PLT32;
+    case SdvmCompRelocationRelative64: return SDVM_R_X86_64_PC64;
+    default: abort();
+    }
+}
+
+static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
+    .pointerSize = 8,
+    .objectFileType = SdvmObjectFileTypeElf,
+    .elfMachine = SDVM_EM_X86_64,
+
+    .defaultCC = &sdvm_x64_sysv_callingConvention,
+    .cdecl = &sdvm_x64_sysv_callingConvention,
+    .stdcall = &sdvm_x64_sysv_callingConvention,
+    .apicall = &sdvm_x64_sysv_callingConvention,
+    .thiscall = &sdvm_x64_sysv_callingConvention,
+    .vectorcall = &sdvm_x64_sysv_callingConvention,
+
+    .compileModuleFunction = sdvm_compiler_x64_compileModuleFunction,
+    .mapElfRelocation = sdvm_compiler_x64_mapElfRelocation,
+};
+
+const sdvm_compilerTarget_t *sdvm_compilerTarget_x64_linux()
+{
+    return &sdvm_compilerTarget_x64_linux_pie;
 }

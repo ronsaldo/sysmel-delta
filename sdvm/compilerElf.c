@@ -169,22 +169,6 @@ static uint32_t sdvm_compilerElf64_mapSymbolKind(sdvm_compilerSymbolKind_t kind)
     }
 }
 
-uint32_t sdvm_compilerElf_mapX64RelocationType(sdvm_compilerRelocationKind_t kind)
-{
-    switch(kind)
-    {
-    case SdvmCompRelocationAbsolute8: return SDVM_R_X86_64_8;
-    case SdvmCompRelocationAbsolute16: return SDVM_R_X86_64_16;
-    case SdvmCompRelocationAbsolute32: return SDVM_R_X86_64_32;
-    case SdvmCompRelocationAbsolute64: return SDVM_R_X86_64_64;
-    case SdvmCompRelocationRelative32: return SDVM_R_X86_64_PC32;
-    case SdvmCompRelocationRelative32AtGot: return SDVM_R_X86_64_GOTPCREL;
-    case SdvmCompRelocationRelative32AtPlt: return SDVM_R_X86_64_PLT32;
-    case SdvmCompRelocationRelative64: return SDVM_R_X86_64_PC64;
-    default: abort();
-    }
-}
-
 sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
 {
     bool useRela = true;
@@ -203,7 +187,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
     header->ident[SDVM_EI_DATA] = SDVM_ELFDATA2LSB;
     header->ident[SDVM_EI_VERSION] = SDVM_ELFCURRENT_VERSION;
     header->type = SDVM_ET_REL;
-    header->machine = SDVM_EM_X86_64;
+    header->machine = compiler->target->elfMachine;
     header->elfHeaderSize = sizeof(sdvm_elf64_header_t);
     header->version = SDVM_ELFCURRENT_VERSION;
     header->sectionHeaderEntrySize = sizeof(sdvm_elf64_sectionHeader_t);
@@ -276,7 +260,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
             {
                 sdvm_compilerRelocation_t *relocationEntry = relocationTable + i;
                 sdvm_elf64_rela_t *relaEntry = relaTable + i;
-                uint32_t mappedRelocationType = sdvm_compilerElf_mapX64RelocationType(relocationEntry->kind);
+                uint32_t mappedRelocationType = compiler->target->mapElfRelocation(relocationEntry->kind);
                 relaEntry->info = SDVM_ELF64_R_INFO(relocationEntry->symbol ? symbols[relocationEntry->symbol - 1].objectSymbolIndex : 0, mappedRelocationType);
                 relaEntry->offset = relocationEntry->offset;
                 relaEntry->addend = relocationEntry->addend;
@@ -336,6 +320,23 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
 bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName)
 {
     sdvm_compilerObjectFile_t *objectFile = sdvm_compilerElf64_encode(compiler);
+    if(!objectFile)
+        return false;
+
+    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, elfFileName);
+    sdvm_compileObjectFile_destroy(objectFile);
+    return succeeded;
+}
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf32_encode(sdvm_compiler_t *compiler)
+{
+    (void)compiler;
+    abort();
+}
+
+SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName)
+{
+    sdvm_compilerObjectFile_t *objectFile = sdvm_compilerElf32_encode(compiler);
     if(!objectFile)
         return false;
 

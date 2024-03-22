@@ -80,6 +80,17 @@ typedef enum sdvm_compilerRegisterKind_e
     SdvmCompRegisterKindCount
 } sdvm_compilerRegisterKind_t;
 
+typedef enum sdvm_compilerObjectFileType_e
+{
+    SdvmObjectFileTypeElf = 0,
+    SdvmObjectFileTypeCoff,
+    SdvmObjectFileTypeMachO,
+} sdvm_compilerObjectFileType_t;
+
+typedef struct sdvm_compilerTarget_s sdvm_compilerTarget_t;
+typedef struct sdvm_functionCompilationState_s sdvm_functionCompilationState_t;
+typedef struct sdvm_compilerCallingConvention_s sdvm_compilerCallingConvention_t;
+
 typedef struct sdvm_compilerSymbol_s
 {
     uint32_t name;
@@ -135,6 +146,7 @@ typedef struct sdvm_compilerSymbolTable_s
 typedef struct sdvm_compiler_s
 {
     uint32_t pointerSize;
+    const sdvm_compilerTarget_t *target;
     sdvm_compilerSymbolTable_t symbolTable;
     sdvm_dynarray_t labels;
 
@@ -149,6 +161,23 @@ typedef struct sdvm_compiler_s
         sdvm_compilerObjectSection_t sections[SDVM_COMPILER_SECTION_COUNT];
     };
 } sdvm_compiler_t;
+
+struct sdvm_compilerTarget_s
+{
+    uint32_t pointerSize;
+    sdvm_compilerObjectFileType_t objectFileType;
+    uint32_t elfMachine;
+
+    const sdvm_compilerCallingConvention_t *defaultCC;
+    const sdvm_compilerCallingConvention_t *cdecl;
+    const sdvm_compilerCallingConvention_t *stdcall;
+    const sdvm_compilerCallingConvention_t *apicall;
+    const sdvm_compilerCallingConvention_t *thiscall;
+    const sdvm_compilerCallingConvention_t *vectorcall;
+
+    bool (*compileModuleFunction) (sdvm_functionCompilationState_t *state);
+    uint32_t (*mapElfRelocation) (sdvm_compilerRelocationKind_t kind);
+};
 
 typedef struct sdvm_compilerObjectFile_s
 {
@@ -236,7 +265,7 @@ typedef struct sdvm_registerSet_s
     uint32_t masks[(SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32];
 } sdvm_registerSet_t;
 
-typedef struct sdvm_compilerCallingConvention_s
+struct sdvm_compilerCallingConvention_s
 {
     bool supportsLocalSymbolValueCall;
     bool supportsGlobalSymbolValueCall;
@@ -270,7 +299,7 @@ typedef struct sdvm_compilerCallingConvention_s
     const sdvm_compilerRegister_t *firstVectorIntegerResultRegister;
     const sdvm_compilerRegister_t *secondVectorFloatResultRegister;
     const sdvm_compilerRegister_t *secondVectorIntegerResultRegister;
-} sdvm_compilerCallingConvention_t;
+};
 
 typedef struct sdvm_compilerCallingConventionState_s
 {
@@ -293,7 +322,7 @@ typedef struct sdvm_functionCompilationStackSegment_s
 
 #define SDVM_FUNCTION_COMPILATION_MAX_STACK_SEGMENT_COUNT 7
 
-typedef struct sdvm_functionCompilationState_s
+struct sdvm_functionCompilationState_s
 {
     sdvm_compiler_t *compiler;
     sdvm_module_t *module;
@@ -336,7 +365,7 @@ typedef struct sdvm_functionCompilationState_s
 
     bool hasCallout;
     bool requiresStackFrame;
-} sdvm_functionCompilationState_t;
+};
 
 typedef struct sdvm_linearScanActiveInterval_s
 {
@@ -392,8 +421,14 @@ SDVM_API void sdvm_compilerSymbolTable_setSymbolSize(sdvm_compilerSymbolTable_t 
 SDVM_API void sdvm_compilerObjectSection_initialize(sdvm_compilerObjectSection_t *section);
 SDVM_API void sdvm_compilerObjectSection_destroy(sdvm_compilerObjectSection_t *section);
 
-SDVM_API sdvm_compiler_t *sdvm_compiler_create(uint32_t pointerSize);
+SDVM_API sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target);
 SDVM_API void sdvm_compiler_destroy(sdvm_compiler_t *compiler);
+
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getDefault(void);
+SDVM_API const char *sdvm_compilerTarget_getDefaultTargetName(void);
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *targetName);
+
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_x64_linux(void);
 
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state);
@@ -447,6 +482,7 @@ SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint
 SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);
+SDVM_API bool sdvm_compiler_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);
 
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compileObjectFile_allocate(size_t size);
 SDVM_API void sdvm_compileObjectFile_destroy(sdvm_compilerObjectFile_t *objectFile);
@@ -454,6 +490,9 @@ SDVM_API bool sdvm_compileObjectFile_saveToFileNamed(sdvm_compilerObjectFile_t *
 
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler);
 SDVM_API bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf32_encode(sdvm_compiler_t *compiler);
+SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
 
 SDVM_API void sdvm_registerSet_clear(sdvm_registerSet_t *set);
 SDVM_API bool sdvm_registerSet_includes(sdvm_registerSet_t *set, uint8_t value);
