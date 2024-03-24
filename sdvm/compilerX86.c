@@ -64,6 +64,24 @@ static const sdvm_compilerRegister_t *sdvm_x64_sysv_vectorIntegerPassingRegister
 };
 static const uint32_t sdvm_x64_sysv_vectorIntegerPassingRegisterCount = sizeof(sdvm_x64_sysv_vectorIntegerPassingRegister) / sizeof(sdvm_x64_sysv_vectorIntegerPassingRegister[0]);
 
+static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_callPreservedIntegerRegisters[] = {
+    SDVM_X86_RBX, SDVM_X86_R12, SDVM_X86_R13, SDVM_X86_R14, SDVM_X86_R15, SDVM_X86_RSP, SDVM_X86_RBP
+};
+static const uint32_t sdvm_x64_sysv_callPreservedIntegerRegisterCount = sizeof(sdvm_x64_sysv_callPreservedIntegerRegisters) / sizeof(sdvm_x64_sysv_callPreservedIntegerRegisters[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_callTouchedIntegerRegisters[] = {
+    SDVM_X86_RAX, SDVM_X86_RCX, SDVM_X86_RDX, SDVM_X86_RSI, SDVM_X86_RDI, SDVM_X86_R8, SDVM_X86_R9, SDVM_X86_R10, SDVM_X86_R11
+};
+static const uint32_t sdvm_x64_sysv_callTouchedIntegerRegisterCount = sizeof(sdvm_x64_sysv_callTouchedIntegerRegisters) / sizeof(sdvm_x64_sysv_callTouchedIntegerRegisters[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_callTouchedVectorRegisters[] = {
+    SDVM_X86_XMM0,  SDVM_X86_XMM1,  SDVM_X86_XMM2,  SDVM_X86_XMM3,
+    SDVM_X86_XMM4,  SDVM_X86_XMM5,  SDVM_X86_XMM6,  SDVM_X86_XMM7,
+    SDVM_X86_XMM8,  SDVM_X86_XMM9,  SDVM_X86_XMM10, SDVM_X86_XMM11,
+    SDVM_X86_XMM12, SDVM_X86_XMM13, SDVM_X86_XMM14, SDVM_X86_XMM15,
+};
+static const uint32_t sdvm_x64_sysv_callTouchedVectorRegisterCount = sizeof(sdvm_x64_sysv_callTouchedVectorRegisters) / sizeof(sdvm_x64_sysv_callTouchedVectorRegisters[0]);
+
 static const sdvm_compilerRegisterValue_t sdvm_x64_allocatableVectorRegisters[] = {
     SDVM_X86_XMM0,  SDVM_X86_XMM1,  SDVM_X86_XMM2,  SDVM_X86_XMM3,
     SDVM_X86_XMM4,  SDVM_X86_XMM5,  SDVM_X86_XMM6,  SDVM_X86_XMM7,
@@ -106,6 +124,21 @@ const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
     .firstVectorIntegerResultRegister = &sdvm_x86_XMM0I,
     .secondVectorFloatResultRegister = &sdvm_x86_XMM1,
     .secondVectorIntegerResultRegister = &sdvm_x86_XMM1I,
+
+    .allocatableIntegerRegisterCount = sdvm_x64_sysv_allocatableIntegerRegisterCount,
+    .allocatableIntegerRegisters = sdvm_x64_sysv_allocatableIntegerRegisters,
+    
+    .allocatableVectorRegisterCount = sdvm_x64_allocatableVectorRegisterCount,
+    .allocatableVectorRegisters = sdvm_x64_allocatableVectorRegisters,
+
+    .callPreservedIntegerRegisterCount = sdvm_x64_sysv_callPreservedIntegerRegisterCount,
+    .callPreservedIntegerRegisters = sdvm_x64_sysv_callPreservedIntegerRegisters,
+    
+    .callTouchedIntegerRegisterCount = sdvm_x64_sysv_callTouchedIntegerRegisterCount,
+    .callTouchedIntegerRegisters = sdvm_x64_sysv_callTouchedIntegerRegisters,
+
+    .callTouchedVectorRegisterCount = sdvm_x64_sysv_callTouchedVectorRegisterCount,
+    .callTouchedVectorRegisters = sdvm_x64_sysv_callTouchedVectorRegisters
 };
 
 uint8_t sdvm_compiler_x86_modRmByte(int8_t rm, uint8_t regOpcode, uint8_t mod)
@@ -381,6 +414,13 @@ void sdvm_compiler_x86_lea64RegLsv(sdvm_compiler_t *compiler, sdvm_x86_registerI
     sdvm_compiler_x86_rexReg(compiler, true, destination);
     sdvm_compiler_x86_opcode(compiler, 0x8D);
     sdvm_compiler_x86_modLsvReg(compiler, sourceSymbol, destination, offset, 0);
+}
+
+void sdvm_compiler_x86_lea64RegRmo(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, true, base, destination);
+    sdvm_compiler_x86_opcode(compiler, 0x8D);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
 
 void sdvm_compiler_x86_mov64RegImmS32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value)
@@ -869,6 +909,7 @@ void sdvm_compiler_x64_computeFunctionLocationConstraints(sdvm_functionCompilati
 
 void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *state)
 {
+    const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_compiler_x86_endbr64(compiler);
 
@@ -878,17 +919,67 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
     sdvm_compiler_x86_push(compiler, SDVM_X86_RBP);
     sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RBP, SDVM_X86_RSP);
 
+    // Preserved integer registers.
+    for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
+    {
+        sdvm_compilerRegisterValue_t reg = convention->callPreservedIntegerRegisters[i];
+        if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, reg))
+            sdvm_compiler_x86_push(compiler, reg);
+    }
+
     sdvm_compiler_x86_sub64RegImmS32(compiler, SDVM_X86_RSP, state->calloutStackSegment.endOffset - state->prologueStackSegment.endOffset);
+
+    // Preserved vector registers.
+    int32_t vectorOffset = state->stackFramePointerAnchorOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
+    for(uint32_t i = 0; i < convention->callPreservedVectorRegisterCount; ++i)
+    {
+        sdvm_compilerRegisterValue_t reg = convention->callPreservedVectorRegisters[i];
+        if(sdvm_registerSet_includes(&state->usedCallPreservedVectorRegisterSet, reg))
+        {
+            // TODO: Emit movapd
+            abort();
+            vectorOffset += 16;
+        }
+    }
 }
 
 void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *state)
 {
+    const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
 
     if(!state->requiresStackFrame)
         return;
 
-    sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RSP, SDVM_X86_RBP);
+    // Preserved vector registers.
+    int32_t vectorOffset = state->stackFramePointerAnchorOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
+    for(uint32_t i = 0; i < convention->callPreservedVectorRegisterCount; ++i)
+    {
+        sdvm_compilerRegisterValue_t reg = convention->callPreservedVectorRegisters[i];
+        if(sdvm_registerSet_includes(&state->usedCallPreservedVectorRegisterSet, reg))
+        {
+            // TODO: Emit movapd
+            abort();
+            vectorOffset += 16;
+        }
+    }
+    
+    uint32_t pointerSize = compiler->pointerSize;
+    if(state->prologueStackSegment.size > pointerSize * 2)
+    {
+        sdvm_compiler_x86_lea64RegRmo(compiler, SDVM_X86_RSP, SDVM_X86_RBP, state->stackFramePointerAnchorOffset - state->prologueStackSegment.endOffset);
+        for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
+        {
+            sdvm_compilerRegisterValue_t reg = convention->callPreservedIntegerRegisters[convention->callPreservedIntegerRegisterCount - i - 1];
+            if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, reg))
+                sdvm_compiler_x86_pop(compiler, reg);
+        }
+    }
+    else
+    {
+        sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RSP, SDVM_X86_RBP);
+    }
+
     sdvm_compiler_x86_pop(compiler, SDVM_X86_RBP);
 }
 
@@ -1373,14 +1464,16 @@ void sdvm_compiler_x64_emitFunctionInstructions(sdvm_functionCompilationState_t 
 
 void sdvm_compiler_x64_allocateFunctionRegisters(sdvm_functionCompilationState_t *state)
 {
+    const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
+    
     sdvm_linearScanRegisterAllocatorFile_t integerRegisterFile = {
-        .allocatableRegisterCount = sdvm_x64_sysv_allocatableIntegerRegisterCount,
-        .allocatableRegisters = sdvm_x64_sysv_allocatableIntegerRegisters
+        .allocatableRegisterCount = convention->allocatableIntegerRegisterCount,
+        .allocatableRegisters = convention->allocatableIntegerRegisters
     };
 
     sdvm_linearScanRegisterAllocatorFile_t vectorRegisterFile = {
-        .allocatableRegisterCount = sdvm_x64_allocatableVectorRegisterCount,
-        .allocatableRegisters = sdvm_x64_allocatableVectorRegisters
+        .allocatableRegisterCount = convention->allocatableFloatRegisterCount,
+        .allocatableRegisters = convention->allocatableVectorRegisters
     };
 
     sdvm_linearScanRegisterAllocator_t registerAllocator = {
@@ -1392,12 +1485,6 @@ void sdvm_compiler_x64_allocateFunctionRegisters(sdvm_functionCompilationState_t
     };
 
     sdvm_compiler_allocateFunctionRegisters(state, &registerAllocator);
-
-    // Store a copy of the used register sets. We need it for preserving called saved registers.
-    state->usedIntegerRegisterSet = registerAllocator.integerRegisterFile->usedRegisterSet;
-    state->usedFloatRegisterSet = registerAllocator.floatRegisterFile->usedRegisterSet;
-    state->usedVectorFloatRegisterSet = registerAllocator.vectorFloatRegisterFile->usedRegisterSet;
-    state->usedVectorIntegerRegisterSet = registerAllocator.vectorIntegerRegisterFile->usedRegisterSet;
 }
 
 void sdvm_compiler_x64_allocateFunctionSpillLocations(sdvm_functionCompilationState_t *state)
@@ -1407,9 +1494,11 @@ void sdvm_compiler_x64_allocateFunctionSpillLocations(sdvm_functionCompilationSt
 
 void sdvm_compiler_x64_computeFunctionStackLayout(sdvm_functionCompilationState_t *state)
 {
+    const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
+
     state->requiresStackFrame = state->hasCallout
         || !sdvm_registerSet_isEmpty(&state->usedCallPreservedIntegerRegisterSet)
-        || !sdvm_registerSet_isEmpty(&state->usedCallPreservedFloatRegister)
+        || !sdvm_registerSet_isEmpty(&state->usedCallPreservedVectorRegisterSet)
         || state->gcSpillingStackSegment.size > 0
         || state->spillingStackSegment.size > 0
         || state->calloutStackSegment.size > 0;
@@ -1430,6 +1519,23 @@ void sdvm_compiler_x64_computeFunctionStackLayout(sdvm_functionCompilationState_
     {
         state->stackFrameRegister = SDVM_X86_RBP;
         state->stackFramePointerAnchorOffset = pointerSize * 2;
+
+        // Preserved integer registers.
+        for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
+        {
+            if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, convention->callPreservedIntegerRegisters[i]))
+                state->prologueStackSegment.size += pointerSize;
+        }
+
+        // Preserved vector registers.
+        for(uint32_t i = 0; i < convention->callPreservedVectorRegisterCount; ++i)
+        {
+            if(sdvm_registerSet_includes(&state->usedCallPreservedVectorRegisterSet, convention->callPreservedVectorRegisters[i]))
+            {
+                state->vectorCallPreservedRegisterStackSegment.alignment = 16;
+                state->vectorCallPreservedRegisterStackSegment.size += 16;
+            }
+        }
     }
     else
     {

@@ -274,6 +274,19 @@ typedef struct sdvm_compilerLocation_s
     };
 } sdvm_compilerLocation_t;
 
+#define SDVM_REGISTER_SET_WORD_COUNT ((SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32)
+typedef struct sdvm_registerSet_s
+{
+    uint32_t masks[SDVM_REGISTER_SET_WORD_COUNT];
+} sdvm_registerSet_t;
+
+typedef struct sdvm_compilerInstructionClobberSets_s
+{
+    sdvm_registerSet_t integerSet;
+    sdvm_registerSet_t floatSet;
+    sdvm_registerSet_t vectorSet;
+} sdvm_compilerInstructionClobberSets_t;
+
 typedef struct sdvm_compilerInstruction_s
 {
     int32_t index;
@@ -287,13 +300,8 @@ typedef struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t arg1Location;
     sdvm_compilerLocation_t scratchLocation0;
     sdvm_compilerLocation_t scratchLocation1;
+    sdvm_compilerInstructionClobberSets_t clobberSets;
 } sdvm_compilerInstruction_t;
-
-#define SDVM_REGISTER_SET_WORD_COUNT ((SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32)
-typedef struct sdvm_registerSet_s
-{
-    uint32_t masks[SDVM_REGISTER_SET_WORD_COUNT];
-} sdvm_registerSet_t;
 
 struct sdvm_compilerCallingConvention_s
 {
@@ -329,6 +337,33 @@ struct sdvm_compilerCallingConvention_s
     const sdvm_compilerRegister_t *firstVectorIntegerResultRegister;
     const sdvm_compilerRegister_t *secondVectorFloatResultRegister;
     const sdvm_compilerRegister_t *secondVectorIntegerResultRegister;
+
+    uint32_t allocatableIntegerRegisterCount;
+    const sdvm_compilerRegisterValue_t *allocatableIntegerRegisters;
+
+    uint32_t allocatableFloatRegisterCount;
+    const sdvm_compilerRegisterValue_t *allocatableFloatRegisters;
+
+    uint32_t allocatableVectorRegisterCount;
+    const sdvm_compilerRegisterValue_t *allocatableVectorRegisters;
+
+    uint32_t callPreservedIntegerRegisterCount;
+    const sdvm_compilerRegisterValue_t *callPreservedIntegerRegisters;
+
+    uint32_t callTouchedIntegerRegisterCount;
+    const sdvm_compilerRegisterValue_t *callTouchedIntegerRegisters;
+
+    uint32_t callPreservedFloatRegisterCount;
+    const sdvm_compilerRegisterValue_t *callPreservedFloatRegisters;
+
+    uint32_t callTouchedFloatRegisterCount;
+    const sdvm_compilerRegisterValue_t *callTouchedFloatRegisters;
+
+    uint32_t callPreservedVectorRegisterCount;
+    const sdvm_compilerRegisterValue_t *callPreservedVectorRegisters;
+
+    uint32_t callTouchedVectorRegisterCount;
+    const sdvm_compilerRegisterValue_t *callTouchedVectorRegisters;
 };
 
 typedef struct sdvm_compilerCallingConventionState_s
@@ -374,7 +409,7 @@ struct sdvm_functionCompilationState_s
     sdvm_registerSet_t usedVectorIntegerRegisterSet;
 
     sdvm_registerSet_t usedCallPreservedIntegerRegisterSet;
-    sdvm_registerSet_t usedCallPreservedFloatRegister;
+    sdvm_registerSet_t usedCallPreservedFloatRegisterSet;
     sdvm_registerSet_t usedCallPreservedVectorRegisterSet;
 
     union
@@ -410,6 +445,8 @@ typedef struct sdvm_linearScanActiveInterval_s
 
 typedef struct sdvm_linearScanRegisterAllocatorFile_s
 {
+    int32_t currentInstructionIndex;
+
     uint32_t allocatableRegisterCount;
     const sdvm_compilerRegisterValue_t *allocatableRegisters;
 
@@ -541,9 +578,10 @@ SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf32_encode(sdvm_compiler_t *c
 SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
 
 SDVM_API void sdvm_registerSet_clear(sdvm_registerSet_t *set);
-SDVM_API bool sdvm_registerSet_includes(sdvm_registerSet_t *set, uint8_t value);
+SDVM_API bool sdvm_registerSet_includes(const sdvm_registerSet_t *set, uint8_t value);
 SDVM_API void sdvm_registerSet_set(sdvm_registerSet_t *set, uint8_t value);
 SDVM_API void sdvm_registerSet_unset(sdvm_registerSet_t *set, uint8_t value);
-SDVM_API bool sdvm_registerSet_isEmpty(sdvm_registerSet_t *set);
+SDVM_API bool sdvm_registerSet_hasIntersection(const sdvm_registerSet_t *a, const sdvm_registerSet_t *b);
+SDVM_API bool sdvm_registerSet_isEmpty(const sdvm_registerSet_t *set);
 
 #endif //SDVM_COMPILER_H

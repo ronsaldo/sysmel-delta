@@ -827,6 +827,18 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledClosure(sdvm_f
     return sdvm_compilerLocation_specificRegisterPair(*state->convention->closureRegister, *state->convention->closureGCRegister);
 }
 
+sdvm_compilerInstructionClobberSets_t sdvm_compilerCallingConventionState_getClobberSets(const sdvm_compilerCallingConvention_t *convention)
+{
+    sdvm_compilerInstructionClobberSets_t sets = {0};
+    for(uint32_t i = 0; i < convention->callTouchedIntegerRegisterCount; ++i)
+        sdvm_registerSet_set(&sets.integerSet, convention->callTouchedIntegerRegisters[i]);
+    for(uint32_t i = 0; i < convention->callTouchedFloatRegisterCount; ++i)
+        sdvm_registerSet_set(&sets.floatSet, convention->callTouchedFloatRegisters[i]);
+    for(uint32_t i = 0; i < convention->callTouchedVectorRegisterCount; ++i)
+        sdvm_registerSet_set(&sets.vectorSet, convention->callTouchedVectorRegisters[i]);
+    return sets;
+}
+
 void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
     sdvm_compiler_t *compiler = state->compiler;
@@ -1029,6 +1041,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
 #pragma region CallConstraints
     case SdvmInstCallVoid:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState, arg0);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallInt8:
@@ -1036,6 +1049,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     case SdvmInstCallInt32:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState, arg0);
         instruction->destinationLocation = sdvm_compilerLocation_specificSignedRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallInt64:
@@ -1045,6 +1059,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger64ResultRegister);
         else
             instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstInteger32ResultRegister, *state->currentCallCallingConvention->secondInteger32ResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallUInt8:
@@ -1052,23 +1067,27 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     case SdvmInstCallUInt32:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState, arg0);
         instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallPointer:
     case SdvmInstCallProcedureHandle:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState, arg0);
         instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstIntegerResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallGCPointer:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledFunction(state, &state->currentCallCallingConventionState, arg0);
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstIntegerResultRegister, *state->currentCallCallingConvention->secondIntegerResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 #pragma endregion CallConstraints
 
 #pragma region CallClosureConstraints
     case SdvmInstCallClosureVoid:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallClosureInt8:
@@ -1076,6 +1095,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     case SdvmInstCallClosureInt32:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
         instruction->destinationLocation = sdvm_compilerLocation_specificSignedRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallClosureInt64:
@@ -1086,6 +1106,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger64ResultRegister);
         else
             instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstInteger32ResultRegister, *state->currentCallCallingConvention->secondInteger32ResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallClosureUInt8:
@@ -1093,17 +1114,20 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     case SdvmInstCallClosureUInt32:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
         instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallClosurePointer:
     case SdvmInstCallClosureProcedureHandle:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
         instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstIntegerResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 
     case SdvmInstCallClosureGCPointer:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstIntegerResultRegister, *state->currentCallCallingConvention->secondIntegerResultRegister);
+        instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         return;
 #pragma endregion CallClosureConstraints
 
@@ -1124,11 +1148,22 @@ void sdvm_registerSet_clear(sdvm_registerSet_t *set)
     memset(set->masks, 0, sizeof(set->masks));
 }
 
-bool sdvm_registerSet_includes(sdvm_registerSet_t *set, uint8_t value)
+bool sdvm_registerSet_includes(const sdvm_registerSet_t *set, uint8_t value)
 {
     uint8_t wordIndex = value / 32;
     uint8_t bitIndex = value % 32;
     return set->masks[wordIndex] & (1<<bitIndex);
+}
+
+bool sdvm_registerSet_hasIntersection(const sdvm_registerSet_t *a, const sdvm_registerSet_t *b)
+{
+    for(int i = 0; i < SDVM_REGISTER_SET_WORD_COUNT; ++i)
+    {
+        if((a->masks[i] & b->masks[i]) != 0)
+            return true;
+    }
+    
+    return false;
 }
 
 void sdvm_registerSet_set(sdvm_registerSet_t *set, uint8_t value)
@@ -1145,7 +1180,7 @@ void sdvm_registerSet_unset(sdvm_registerSet_t *set, uint8_t value)
     set->masks[wordIndex] &= ~(1<<bitIndex);
 }
 
-bool sdvm_registerSet_isEmpty(sdvm_registerSet_t *set)
+bool sdvm_registerSet_isEmpty(const sdvm_registerSet_t *set)
 {
     for(int i = 0; i < SDVM_REGISTER_SET_WORD_COUNT; ++i)
     {
@@ -1223,6 +1258,7 @@ void sdvm_linearScanRegisterAllocatorFile_beginInstruction(sdvm_linearScanRegist
     if(!registerFile)
         return;
 
+    registerFile->currentInstructionIndex = instruction->index;
     sdvm_linearScanRegisterAllocatorFile_expireIntervalsUntil(registerFile, instruction->index);
     sdvm_registerSet_clear(&registerFile->activeRegisterSet);
 }
@@ -1242,6 +1278,13 @@ void sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(sdvm_linearScan
 void sdvm_linearScanRegisterAllocatorFile_spillInterval(sdvm_compiler_t *compiler, sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_linearScanActiveInterval_t *interval)
 {
     interval->instruction->location = sdvm_compilerLocation_spillForOperandType(compiler, interval->instruction->decoding.destType);
+    sdvm_registerSet_unset(&registerFile->allocatedRegisterSet, interval->registerValue);
+}
+
+void sdvm_linearScanRegisterAllocatorFile_spillOrExpireClobberedInterval(sdvm_compiler_t *compiler, sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_linearScanActiveInterval_t *interval)
+{
+    if(interval->end > (uint32_t)registerFile->currentInstructionIndex)
+        interval->instruction->location = sdvm_compilerLocation_spillForOperandType(compiler, interval->instruction->decoding.destType);
     sdvm_registerSet_unset(&registerFile->allocatedRegisterSet, interval->registerValue);
 }
 
@@ -1293,6 +1336,22 @@ sdvm_compilerRegisterValue_t sdvm_linearScanRegisterAllocatorFile_allocate(sdvm_
     sdvm_registerSet_set(&registerFile->usedRegisterSet, spilledRegister);
 
     return spilledRegister;
+}
+
+void sdvm_linearScanRegisterAllocatorFile_spillClobberSets(sdvm_compiler_t *compiler, sdvm_linearScanRegisterAllocatorFile_t *registerFile, const sdvm_registerSet_t *set)
+{
+    if(!sdvm_registerSet_hasIntersection(&registerFile->allocatedRegisterSet, set))
+        return;
+
+    uint32_t destIndex = 0;
+    for(uint32_t i = 0; i < registerFile->activeIntervalCount; ++i)
+    {
+        sdvm_linearScanActiveInterval_t *interval = registerFile->activeIntervals + i;
+        if(sdvm_registerSet_includes(set, interval->registerValue))
+            sdvm_linearScanRegisterAllocatorFile_spillOrExpireClobberedInterval(compiler, registerFile, interval);
+        else
+            registerFile->activeIntervals[destIndex++] = *interval;
+    }
 }
 
 void sdvm_linearScanRegisterAllocatorFile_endInstruction(sdvm_linearScanRegisterAllocatorFile_t *registerFile)
@@ -1392,6 +1451,21 @@ void sdvm_linearScanRegisterAllocator_allocateRegisterLocation(sdvm_linearScanRe
     }
 }
 
+void sdvm_linearScanRegisterAllocator_spillClobberSets(sdvm_linearScanRegisterAllocator_t *registerAllocator, const sdvm_compilerInstructionClobberSets_t *clobberSet)
+{
+    if(!sdvm_registerSet_isEmpty(&clobberSet->integerSet))
+        sdvm_linearScanRegisterAllocatorFile_spillClobberSets(registerAllocator->compiler, registerAllocator->integerRegisterFile, &clobberSet->integerSet);
+
+    if(!sdvm_registerSet_isEmpty(&clobberSet->floatSet))
+        sdvm_linearScanRegisterAllocatorFile_spillClobberSets(registerAllocator->compiler, registerAllocator->floatRegisterFile, &clobberSet->floatSet);
+
+    if(!sdvm_registerSet_isEmpty(&clobberSet->vectorSet))
+    {
+        sdvm_linearScanRegisterAllocatorFile_spillClobberSets(registerAllocator->compiler, registerAllocator->vectorFloatRegisterFile, &clobberSet->vectorSet);
+        sdvm_linearScanRegisterAllocatorFile_spillClobberSets(registerAllocator->compiler, registerAllocator->vectorIntegerRegisterFile, &clobberSet->vectorSet);
+    }
+}
+
 void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t *state, sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction)
 {
     if(instruction->decoding.isConstant)
@@ -1431,6 +1505,8 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation0, NULL);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation1, NULL);
 
+    sdvm_linearScanRegisterAllocator_spillClobberSets(registerAllocator, &instruction->clobberSets);
+
     sdvm_linearScanRegisterAllocator_endInstruction(registerAllocator, instruction);
 }
 
@@ -1440,6 +1516,32 @@ void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *st
     {
         sdvm_compilerInstruction_t *instruction = state->instructions + i;
         sdvm_compiler_allocateInstructionRegisters(state, registerAllocator, instruction);
+    }
+
+    // Store a copy of the used register sets. We need it for preserving called saved registers.
+    state->usedIntegerRegisterSet = registerAllocator->integerRegisterFile->usedRegisterSet;
+    state->usedFloatRegisterSet = registerAllocator->floatRegisterFile->usedRegisterSet;
+    state->usedVectorFloatRegisterSet = registerAllocator->vectorFloatRegisterFile->usedRegisterSet;
+    state->usedVectorIntegerRegisterSet = registerAllocator->vectorIntegerRegisterFile->usedRegisterSet;
+
+    const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
+    for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
+    {
+        if(sdvm_registerSet_includes(&state->usedIntegerRegisterSet, convention->callPreservedIntegerRegisters[i]))
+            sdvm_registerSet_set(&state->usedCallPreservedIntegerRegisterSet, convention->callPreservedIntegerRegisters[i]);
+    }
+
+    for(uint32_t i = 0; i < convention->callPreservedFloatRegisterCount; ++i)
+    {
+        if(sdvm_registerSet_includes(&state->usedFloatRegisterSet, convention->callPreservedFloatRegisters[i]))
+            sdvm_registerSet_set(&state->usedCallPreservedFloatRegisterSet, convention->callPreservedFloatRegisters[i]);
+    }
+
+    for(uint32_t i = 0; i < convention->callPreservedVectorRegisterCount; ++i)
+    {
+        if(sdvm_registerSet_includes(&state->usedVectorFloatRegisterSet, convention->callPreservedVectorRegisters[i]) ||
+           sdvm_registerSet_includes(&state->usedVectorIntegerRegisterSet, convention->callPreservedVectorRegisters[i]))
+            sdvm_registerSet_set(&state->usedCallPreservedVectorRegisterSet, convention->callPreservedVectorRegisters[i]);
     }
 }
 
@@ -1492,7 +1594,7 @@ void sdvm_compiler_allocateInstructionSpillLocations(sdvm_functionCompilationSta
 
 void sdvm_compiler_allocateFunctionSpillLocations(sdvm_functionCompilationState_t *state)
 {
-    for(uint32_t i = 0; i <state->instructionCount; ++i)
+    for(uint32_t i = 0; i < state->instructionCount; ++i)
     {
         sdvm_compilerInstruction_t *instruction = state->instructions + i;
         sdvm_compiler_allocateInstructionSpillLocations(state, instruction);
