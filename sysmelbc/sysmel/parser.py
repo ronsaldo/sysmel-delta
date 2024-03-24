@@ -340,7 +340,9 @@ def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
         arguments.append(argument)
 
     functionIdentifier = ASTIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
-    return state, ASTApplicationNode(state.sourcePositionFrom(startPosition), functionIdentifier, arguments)
+    sourcePosition = state.sourcePositionFrom(startPosition)
+    argumentsTuple = ASTTupleNode(sourcePosition, arguments)
+    return state, ASTApplicationNode(sourcePosition, functionIdentifier, [argumentsTuple])
 
 def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position

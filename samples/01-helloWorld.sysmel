@@ -1,7 +1,6 @@
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 const pointer pointer)format, :(CVarArg)... :: Int32) __cdecl).
 let: #puts with: (fromExternal: #C import: #puts withType: (Char8 const pointer => Unit) __cdecl).
 
-let: #plusOne with: (:(Int32)x :: Int32) __cdecl :=> x + 1i32.
 let: #myAdd with: (:(Int32)x, :(Int32)y :: Int32) __cdecl :=> x + y.
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 const pointer pointer)argv :: Int32) __cdecl :=> {
@@ -9,5 +8,6 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 const pointer pointer)ar
     ##argc + 1i32
     ##0i32
     myAdd(argc, 1i32)
-    ##plusOne(argc)
 }.
+
+##1i32 + 2i32

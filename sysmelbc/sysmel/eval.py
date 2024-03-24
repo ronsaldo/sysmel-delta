@@ -45,7 +45,10 @@ class ASTEvaluator(ASTTypecheckedVisitor):
 
         functional = self.visitNode(node.functional)
         argument = self.visitNode(node.argument)
-        return functional(argument)
+        if argument.isProductTypeValue():
+            return functional(*argument.elements)
+        else:
+            return functional(argument)
     
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
         assert False

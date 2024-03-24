@@ -346,9 +346,8 @@ class SigmaValue(FunctionalValue):
         return True
     
 class PrimitiveFunction(TypedValue):
-    def __init__(self, type: TypedValue, uncurriedType: TypedValue, value, name: Symbol = None, primitiveName: Symbol = None, isMacro = False, isPure = True) -> None:
+    def __init__(self, type: TypedValue, value, name: Symbol = None, primitiveName: Symbol = None, isMacro = False, isPure = True) -> None:
         self.type = type
-        self.uncurriedType = uncurriedType
         self.name = name
         self.primitiveName = primitiveName
         self.value = value
@@ -367,6 +366,10 @@ class PrimitiveFunction(TypedValue):
     def isMacroValue(self) -> bool:
         return self.isMacro
 
+    def expectsMacroEvaluationContext(self) -> bool:
+        argumentType = self.type.argumentType
+        return argumentType.isProductType() and argumentType.elementTypes[0].isEquivalentTo(MacroContextType)
+    
     def getType(self):
         return self.type
 
@@ -417,9 +420,6 @@ class CurryingFunctionalValue(TypedValue):
 
     def isMacroValue(self) -> bool:
         return self.innerFunction.isMacroValue()
-    
-    def expectsMacroEvaluationContext(self) -> bool:
-        return self.type.argumentType.isEquivalentTo(MacroContextType)
 
     def getType(self):
         return self.type
@@ -439,18 +439,23 @@ def optionalIdentifierToString(symbol: TypedValue) -> str:
 def makeFunctionTypeFromTo(first: TypedValue, second: TypedValue, sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     return FunctionType.makeFromTo(first, second)
 
+def parseSimpleTypeSignature(signature: TypedValue | tuple[TypedValue]) -> TypedValue:
+    if isinstance(signature, tuple):
+        return ProductType.makeWithElementTypes(list(signature))
+    return signature
+
 def makeSimpleFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     assert len(signature) >= 2
     if len(signature) == 2:
-        return makeFunctionTypeFromTo(signature[0], signature[1], sourcePosition)
+        return makeFunctionTypeFromTo(parseSimpleTypeSignature(signature[0]), signature[1], sourcePosition)
     else:
-        return makeFunctionTypeFromTo(signature[0], (makeSimpleFunctionType(signature[1:], sourcePosition)), sourcePosition)
+        return makeFunctionTypeFromTo(parseSimpleTypeSignature(signature[0]), (makeSimpleFunctionType(signature[1:], sourcePosition)), sourcePosition)
 
 def makeUncurriedFunctionType(signature: list[TypedValue], sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     assert len(signature) >= 1
     return UncurriedFunctionType(signature[:-1], signature[-1])
 
-def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False, previousArgumentTypes: list[TypedValue] = []):
+def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False):
     assert len(signature) >= 2
     nameSymbol = None
     if name is not None:
@@ -458,10 +463,9 @@ def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedVa
 
     if len(signature) == 2:
         functionType = makeSimpleFunctionType(signature, sourcePosition)
-        uncurriedFunctionType = makeUncurriedFunctionType(previousArgumentTypes + signature, sourcePosition)
-        return PrimitiveFunction(functionType, uncurriedFunctionType, function, nameSymbol, Symbol.intern(primitiveName), isMacro = isMacro)
+        return PrimitiveFunction(functionType, function, nameSymbol, Symbol.intern(primitiveName), isMacro = isMacro)
     else:
-        innerFunction = makePrimitiveFunction(name, primitiveName, signature[1:], function, sourcePosition, isMacro = isMacro, previousArgumentTypes = previousArgumentTypes + [signature[0]])
+        innerFunction = makePrimitiveFunction(name, primitiveName, signature[1:], function, sourcePosition, isMacro = isMacro)
         functionType = makeFunctionTypeFromTo(signature[0], innerFunction.getType(), sourcePosition)
         return CurryingFunctionalValue(functionType, innerFunction, nameSymbol)
 
@@ -576,35 +580,35 @@ for baseType in [
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleton())
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-    ['let:type:with:', 'Macro::let:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeWithMacro, ['macro']],
-    ['let:with:', 'Macro::let:with:',[MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letWithMacro, ['macro']],
-    ['let:type:mutableWith:', 'Macro::let:type:mutableWith:',[MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], letTypeMutableWithMacro, ['macro']],
-    ['let:mutableWith:', 'Macro::let:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], letMutableWithMacro, ['macro']],
+    ['let:type:with:', 'Macro::let:type:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], letTypeWithMacro, ['macro']],
+    ['let:with:', 'Macro::let:with:',[(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], letWithMacro, ['macro']],
+    ['let:type:mutableWith:', 'Macro::let:type:mutableWith:',[(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], letTypeMutableWithMacro, ['macro']],
+    ['let:mutableWith:', 'Macro::let:mutableWith:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], letMutableWithMacro, ['macro']],
 
-    ['public:type:with:', 'Macro::public:type:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeWithMacro, ['macro']],
-    ['public:with:', 'Macro::public:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicWithMacro, ['macro']],
-    ['public:type:mutableWith:', 'Macro::public:type:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], publicTypeMutableWithMacro, ['macro']],
-    ['public:mutableWith:', 'Macro::public:mutableWith:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], publicMutableWithMacro, ['macro']],
+    ['public:type:with:', 'Macro::public:type:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], publicTypeWithMacro, ['macro']],
+    ['public:with:', 'Macro::public:with:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], publicWithMacro, ['macro']],
+    ['public:type:mutableWith:', 'Macro::public:type:mutableWith:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], publicTypeMutableWithMacro, ['macro']],
+    ['public:mutableWith:', 'Macro::public:mutableWith:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], publicMutableWithMacro, ['macro']],
 
-    ['loadSourceNamed:', 'Macro::loadSourceNamed:', [MacroContextType, ASTNodeType, ASTNodeType], loadSourceNamedMacro, ['macro']],
+    ['loadSourceNamed:', 'Macro::loadSourceNamed:', [(MacroContextType, ASTNodeType), ASTNodeType], loadSourceNamedMacro, ['macro']],
 
-    ['importModule:', 'Macro::importModule:', [MacroContextType, ASTNodeType, ASTNodeType], importModuleMacro, ['macro']],
-    ['fromModule:import:withType:', 'Macro::fromModule:import:withType:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], fromModuleImportWithType, ['macro']],
-    ['fromExternal:import:withType:', 'Macro::fromModule:import:withType:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], fromExternalImportWithType, ['macro']],
-    ['export:with:', 'Macro::export:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportWithMacro, ['macro']],
-    ['export:external:with:', 'Macro::export:external:with:', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType], moduleExportExternalWithMacro, ['macro']],
-    ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [MacroContextType, ASTNodeType, ASTNodeType], moduleEntryPointMacro, ['macro']],
+    ['importModule:', 'Macro::importModule:', [(MacroContextType, ASTNodeType), ASTNodeType], importModuleMacro, ['macro']],
+    ['fromModule:import:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromModuleImportWithType, ['macro']],
+    ['fromExternal:import:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromExternalImportWithType, ['macro']],
+    ['export:with:', 'Macro::export:with:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExportWithMacro, ['macro']],
+    ['export:external:with:', 'Macro::export:external:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExportExternalWithMacro, ['macro']],
+    ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [(MacroContextType, ASTNodeType), ASTNodeType], moduleEntryPointMacro, ['macro']],
 
-    ['=>', 'Type::=>', [MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType], arrowMacro, ['macro']],
-    ['__cdecl', 'Type::__cdecl', [MacroContextType, ASTNodeType, ASTNodeType], cdeclMacro, ['macro']],
-    ['__stdcall', 'Type::__stdcall', [MacroContextType, ASTNodeType, ASTNodeType], stdcallMacro, ['macro']],
-    ['__apicall', 'Type::__apicall', [MacroContextType, ASTNodeType, ASTNodeType], apicallMacro, ['macro']],
-    ['__thiscall', 'Type::__thiscall', [MacroContextType, ASTNodeType, ASTNodeType], thiscallMacro, ['macro']],
-    ['__vectorcall', 'Type::__vectorcall', [MacroContextType, ASTNodeType, ASTNodeType], vectorcallMacro, ['macro']],
+    ['=>', 'Type::=>', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], arrowMacro, ['macro']],
+    ['__cdecl', 'Type::__cdecl', [(MacroContextType, ASTNodeType), ASTNodeType], cdeclMacro, ['macro']],
+    ['__stdcall', 'Type::__stdcall', [(MacroContextType, ASTNodeType), ASTNodeType], stdcallMacro, ['macro']],
+    ['__apicall', 'Type::__apicall', [(MacroContextType, ASTNodeType), ASTNodeType], apicallMacro, ['macro']],
+    ['__thiscall', 'Type::__thiscall', [(MacroContextType, ASTNodeType), ASTNodeType], thiscallMacro, ['macro']],
+    ['__vectorcall', 'Type::__vectorcall', [(MacroContextType, ASTNodeType), ASTNodeType], vectorcallMacro, ['macro']],
 
     ['const', 'Type::const', [TypeType, TypeType], DecoratedType.makeConst, []],
     ['volatile', 'Type::volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],
-    ['array:', 'Type::array:', [TypeType, IntegerType, TypeType], ArrayType.makeWithElementTypeAndSize, []],
+    ['array:', 'Type::array:', [(TypeType, IntegerType), TypeType], ArrayType.makeWithElementTypeAndSize, []],
     ['pointer', 'Type::pointer', [TypeType, TypeType], PointerType.makeWithBaseType, []],
     ['ref', 'Type::ref', [TypeType, TypeType], ReferenceType.makeWithBaseType, []],
     ['tempRef', 'Type::tempRef', [TypeType, TypeType], TemporaryReferenceType.makeWithBaseType, []],
@@ -615,9 +619,9 @@ for primitiveNumberType in NumberTypes:
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
         ['negated', prefix + 'negated', [primitiveNumberType, primitiveNumberType], lambda x: -x, []],
 
-        ['+', prefix + '+',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x + y, []],
-        ['-', prefix + '-',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x - y, []],
-        ['*', prefix + '*',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x * y, []],
+        ['+', prefix + '+',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x + y, []],
+        ['-', prefix + '-',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x - y, []],
+        ['*', prefix + '*',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x * y, []],
 
         ['asInt8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
         ['asInt16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
@@ -647,14 +651,14 @@ for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
         ['bitInvert', prefix + 'bitInvert',  [primitiveNumberType, primitiveNumberType], lambda x: ~x, []],
 
-        ['//', prefix + '//',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.quotientWith(y), []],
-        ['%', prefix + '%',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x.remainderWith(y), []],
+        ['//', prefix + '//',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.quotientWith(y), []],
+        ['%', prefix + '%',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.remainderWith(y), []],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in PrimitiveFloatTypes:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['/', prefix + '/',  [primitiveNumberType, primitiveNumberType, primitiveNumberType], lambda x, y: x / y, []],
+        ['/', prefix + '/',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, []],
         ['sqrt', prefix + 'sqrt',  [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
     ], TopLevelEnvironment)
 

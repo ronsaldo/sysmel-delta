@@ -70,10 +70,6 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitUncurriedFunctionType(self, value):
-        pass
-
-    @abstractmethod
     def visitRecordType(self, value):
         pass
 
@@ -152,6 +148,12 @@ class TypedValue(ABC):
     def isSigma(self) -> bool:
         return False
     
+    def isProductType(self):
+        return False
+    
+    def isProductTypeValue(self):
+        return False
+
     def isEquivalentTo(self, other) -> bool:
         return self == other
 
@@ -636,7 +638,7 @@ class FunctionType(BaseType):
         return self.argumentType.isEquivalentTo(other.argumentType) and self.resultType.isEquivalentTo(other.resultType)
 
     def toJson(self):
-        return {'Function': self.argumentType.toJson(), 'resultType': self.resultType, 'callingConvention': optionalToJson(self.callingConventionName)}
+        return {'Function': self.argumentType.toJson(), 'resultType': self.resultType.toJson(), 'callingConvention': optionalToJson(self.callingConventionName)}
 
     @classmethod
     def makeFromTo(cls, argumentType: TypedValue, resultType: TypedValue, callingConventionName: TypedValue = None):
@@ -647,27 +649,6 @@ class FunctionType(BaseType):
         functionType = cls(argumentType, resultType, callingConventionName)
         cls.FunctionTypeCache[functionKey] = functionType
         return functionType
-
-class UncurriedFunctionType(BaseType):
-    def __init__(self, argumentTypes: list[TypedValue], resultType: TypedValue) -> None:
-        self.argumentTypes = argumentTypes
-        self.resultType = resultType
-
-    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
-        return visitor.visitUncurriedFunctionType(self)
-
-    def isEquivalentTo(self, other: TypedValue) -> bool:
-        if not isinstance(other, UncurriedFunctionType): return False
-
-        if len(self.argumentTypes) != len(other.argumentTypes): return False
-        for i in range(len(self.elementTypes)):
-            if not self.argumentTypes[i].isEquivalentTo(other.argumentTypes[i]):
-                return False
-
-        return self.resultType.isEquivalentTo(other.resultType)
-
-    def toJson(self):
-        return {'UncurriedFunction': list(map(lambda v: v.toJson(), self.argumentTypes)), 'resultType': self.resultType}
 
 class OverloadsTypeValue(TypedValue):
     def __init__(self, type: TypedValue, alternatives: tuple) -> None:
@@ -732,6 +713,9 @@ class ProductTypeValue(TypedValue):
     def getType(self):
         return self.type
 
+    def isProductTypeValue(self) -> bool:
+        return True
+
     def isEquivalentTo(self, other: TypedValue) -> bool:
         if not self.type.isEquivalentTo(other.getType()): return False
         if len(self.elements) != len(other.elements): return False
@@ -762,6 +746,9 @@ class ProductType(BaseType):
 
     def getType(self):
         return TypeType
+    
+    def isProductType(self):
+        return True
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         if not isinstance(other, ProductType): return False

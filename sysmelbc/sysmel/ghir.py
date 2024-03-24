@@ -1123,7 +1123,10 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         if value.callingConventionName is not None:
             conventionName = value.callingConventionName.value
 
-        return self.context.getFunctionType(type, [argumentType], resultType, conventionName)
+        if argumentType.isProductType():
+            return self.context.getFunctionType(type, argumentType.elements, resultType, conventionName)
+        else:
+            return self.context.getFunctionType(type, [argumentType], resultType, conventionName)
 
     def visitSigmaValue(self, value: SigmaValue):
         type = self.translateValue(value.getType())
@@ -1133,7 +1136,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         return translatedValue.simplify()
 
     def visitPrimitiveFunction(self, value: PrimitiveFunction):
-        type = self.translateValue(value.uncurriedType)
+        type = self.translateValue(value.type)
         return GHIRPrimitiveFunction(self.context, type, self.optionalSymbolToString(value.primitiveName), value.value)
 
     def visitCurriedFunctionalValue(self, value: CurriedFunctionalValue):
@@ -1152,12 +1155,6 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         elementTypes = list(map(self.translateValue, value.elementTypes))
         return self.context.getProductType(type, elementTypes)
     
-    def visitUncurriedFunctionType(self, value: UncurriedFunctionType):
-        type = self.translateValue(value.getType())
-        argumentTypes = list(map(self.translateValue, value.argumentTypes))
-        resultType = self.translateValue(value.resultType)
-        return self.context.getFunctionType(type, argumentTypes, resultType)
-
     def visitRecordType(self, value):
         assert False
 

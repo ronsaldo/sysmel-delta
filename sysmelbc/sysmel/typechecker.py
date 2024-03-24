@@ -82,14 +82,15 @@ class Typechecker(ASTVisitor):
                 bindingValue = binding.value
                 if bindingValue.isMacroValue():
                     macroValue = bindingValue
+                    applicationArguments = []
                     if macroValue.expectsMacroEvaluationContext():
-                        macroValue = macroValue(MacroContext(node.sourcePosition, self.lexicalEnvironment, self))
+                        applicationArguments = [MacroContext(node.sourcePosition, self.lexicalEnvironment, self)]
 
                     if messageSend.receiver is not None:
-                        macroValue = macroValue(messageSend.receiver)
-                    for argument in messageSend.arguments:
-                        macroValue = macroValue(argument)
+                        applicationArguments.append(messageSend.receiver)
+                    applicationArguments += messageSend.arguments
 
+                    macroValue = macroValue(*applicationArguments)
                     if not macroValue.isASTNode():
                         return self.makeSemanticError(node.sourcePosition, "Macro expansion does not complete into an AST node.")
                     
@@ -242,6 +243,25 @@ class Typechecker(ASTVisitor):
 
         reduced = ASTBetaReducer(substitutionContext).visitNode(piBody)
         return None, self.packArguments(unpackedTypedArguments, argument.sourcePosition), reduced, implicitValueSubstitutions, errorMessage
+    
+    def unpackArgumentsForMacro(self, macroValue: TypedValue, node: ASTNode, sourcePosition: SourcePosition):
+        macroType = macroValue.getType()
+        if not macroType.argumentType.isProductType():
+            return node, None
+        
+        requiredArity = len(macroType.argumentType.elementTypes)
+        if macroValue.expectsMacroEvaluationContext():
+            requiredArity -= 1
+
+        if requiredArity == 0:
+            return [], None
+        elif requiredArity == 1:
+            return [node], None
+        
+        if node.isTupleNode() or node.isTypedTupleNode():
+            return node.elements, None
+
+        return None, "Macro requires %d arguments instead of one." % requiredArity
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         functional = self.visitNode(node.functional)
@@ -250,9 +270,15 @@ class Typechecker(ASTVisitor):
         
         if isMacroValueNode(functional):
             macroValue = functional.value
+            applicationArguments = []
             if macroValue.expectsMacroEvaluationContext():
-                macroValue = macroValue(MacroContext(node.sourcePosition, self.lexicalEnvironment, self))
-            macroEvaluationResult = macroValue(node.argument)
+                applicationArguments = [MacroContext(node.sourcePosition, self.lexicalEnvironment, self)]
+            unpackedArguments, errorMessage = self.unpackArgumentsForMacro(macroValue, node.argument, node.sourcePosition)
+            if errorMessage is not None:
+                return self.makeSemanticError(node.sourcePosition, errorMessage, functional, node.argument)
+
+            applicationArguments = applicationArguments + unpackedArguments
+            macroEvaluationResult = macroValue(*applicationArguments)
 
             if macroEvaluationResult.isMacroValue():
                 return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, macroEvaluationResult.getType()), macroEvaluationResult)
@@ -534,6 +560,11 @@ class Typechecker(ASTVisitor):
         self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(localBinding)
         return ASTTypedBindingDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue, isMutable = node.isMutable, isPublic = node.isPublic, module = module)
 
+    def packMessageSendArguments(self, sourcePosition: SourcePosition, arguments: list[ASTNode]):
+        if len(arguments) <= 1:
+            return arguments
+        return [ASTTupleNode(sourcePosition, arguments)]
+    
     def visitMessageSendNode(self, node: ASTMessageSendNode):
         analyzedReceiver = None
         if node.receiver is not None:
@@ -553,9 +584,9 @@ class Typechecker(ASTVisitor):
             selectorNode = errorNode
         
         if analyzedReceiver is None:
-            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, node.arguments))
+            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, self.packMessageSendArguments(node.sourcePosition, node.arguments)))
         else:
-            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, [analyzedReceiver] + node.arguments))
+            return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, self.packMessageSendArguments(node.sourcePosition, [analyzedReceiver] + node.arguments)))
 
     def visitSequenceNode(self, node: ASTSequenceNode):
         if len(node.elements) == 0:
@@ -982,7 +1013,13 @@ def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
     hasBetaReducibleFunctional = node.functional.isTypedLambdaNode() or node.functional.isTypedPiNode() or node.functional.isTypedLiteralReducibleFunctionalValue()
 
     if hasLiteralFunctionalNode and node.functional.value.isPurelyFunctional() and hasLiteralArgument:
-        return makeTypedLiteralForValueAt(node.functional.value(node.argument.value), node.sourcePosition)
+        functionalValue = node.functional.value
+        argumentValue = node.argument.value
+        if argumentValue.isProductTypeValue():
+            evaluationResult = functionalValue(*argumentValue)
+        else:
+            evaluationResult = functionalValue(argumentValue)
+        return makeTypedLiteralForValueAt(evaluationResult, node.sourcePosition)
 
     if hasTypeArgument and hasBetaReducibleFunctional:
         return betaReduceFunctionalNodeWithArgument(node.functional, node.argument)
@@ -1057,6 +1094,9 @@ def reduceProductTypeNode(node: ASTProductTypeNode):
         return ASTLiteralTypeNode(node.sourcePosition, UnitType)
     elif len(node.elementTypes) == 1:
         return node.elementTypes[0]
+
+    if all(elementType.isLiteralTypeNode() for elementType in node.elementTypes):
+        return ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(list(map(lambda n: n.value, node.elementTypes))))
     return node
 
 def reduceTupleNode(node: ASTTypedTupleNode):
@@ -1064,6 +1104,11 @@ def reduceTupleNode(node: ASTTypedTupleNode):
         return ASTLiteralNode(node.sourcePosition, node.type, UnitType.getSingleton())
     elif len(node.elements) == 1:
         return node.elements[0]
+
+    if node.type.isLiteralTypeNode() and all(element.isTypedLiteralNode() for element in node.elements):
+        productType: ProductType = node.type.value
+        tuple = productType.makeWithElements(list(map(lambda n: n.value, node.elements)))
+        return ASTTypedLiteralNode(node.sourcePosition, node.type, tuple)
     return node
 
 def reduceTupleAtNode(node: ASTTypedTupleAtNode):
