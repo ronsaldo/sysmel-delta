@@ -149,9 +149,9 @@ void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state
 {
     state->compiler = compiler;
     state->module = module;
-    state->importedValueTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
+    state->importedValueTableSymbols = calloc(module->importValueTableSize, sizeof(sdvm_compilerSymbolHandle_t));
     state->functionTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
-    state->exportedValueTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
+    state->exportedValueTableSymbols = calloc(module->exportValueTableSize, sizeof(sdvm_compilerSymbolHandle_t));
 }
 
 void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
@@ -799,6 +799,21 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
                 }
             }
             break;
+        case SdvmConstLocalProcedureHandle:
+            {
+                uint32_t functionIndex = instruction->decoding.constant.unsignedPayload;
+                SDVM_ASSERT(functionIndex <= state->module->functionTableSize);
+                if(functionIndex > 0)
+                {
+                    sdvm_compilerSymbolHandle_t symbolHandle = state->moduleState->functionTableSymbols[functionIndex - 1];
+                    instruction->location = sdvm_compilerLocation_localSymbolValue(symbolHandle, 0);
+                }
+                else
+                {
+                    instruction->location = sdvm_compilerLocation_null();
+                }
+            }
+            break;
         case SdvmConstPointerCString:
         case SdvmConstPointerString:
         case SdvmConstGCPointerCString:
@@ -1044,7 +1059,7 @@ void sdvm_registerSet_unset(sdvm_registerSet_t *set, uint8_t value)
 
 bool sdvm_registerSet_isEmpty(sdvm_registerSet_t *set)
 {
-    for(int i = 0; i < SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS; ++i)
+    for(int i = 0; i < SDVM_REGISTER_SET_WORD_COUNT; ++i)
     {
         if(set->masks[i] != 0)
             return false;
@@ -1479,7 +1494,7 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     // Declare the function symbols.
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
-        if(state.functionTableSymbols)
+        if(state.functionTableSymbols[i])
             continue;
 
         char functionName[32];
@@ -1504,7 +1519,7 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
         sdvm_compilerSymbolTable_setSymbolSize(&compiler->symbolTable, state.functionTableSymbols[i], endOffset - startOffset);
     }
 
-    free(state.functionTableSymbols);
+    sdvm_moduleCompilationState_destroy(&state);
 
     return hasSucceeded;
 }

@@ -47,6 +47,12 @@ class AbstractEnvironment(ABC):
     def withImplicitValueBindingSubstitution(self, binding: SymbolValueBinding, substitution: ASTNode):
         return ChildEnvironmentWithBindingSubstitution(self, binding, substitution)
 
+    def withImplicitValueBindingSubstitutions(self, substitutions: list[tuple[SymbolImplicitValueBinding, ASTNode]]):
+        result = self
+        for binding, substitution in substitutions:
+            result = result.withImplicitValueBindingSubstitution(binding, substitution)
+        return result
+
     def hasSubstitutionForImplicitValueBinding(self, binding) -> bool:
         return False
 
@@ -556,7 +562,7 @@ BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType]
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
-        AbsurdType, UnitType,
+        VoidType, UnitType,
         CVarArgType,
         IntegerType, StringType, FalseType, TrueType, BooleanType,
         Int8Type, Int16Type, Int32Type, Int64Type,

@@ -248,7 +248,7 @@ class BaseType(TypedValue):
             return True
         return self == otherType
 
-class AbsurdTypeClass(BaseType):
+class VoidTypeClass(BaseType):
     pass
 
 class UnitTypeValue(TypedValue):
@@ -352,7 +352,7 @@ class MacroContextTypeClass(BaseType):
 class ModuleTypeClass(BaseType):
     pass
 
-AbsurdType = AbsurdTypeClass("Absurd")
+VoidType = VoidTypeClass("Void")
 UnitType = UnitTypeClass("Unit", "unit")
 
 CVarArgType = CVarArgTypeClass("CVarArg")
@@ -1224,6 +1224,9 @@ class ASTNode(TypedValue):
         return False
 
     def isTypedOverloadsNode(self) -> bool:
+        return False
+
+    def isTupleNode(self) -> bool:
         return False
 
 class ASTTypeNode(ASTNode):

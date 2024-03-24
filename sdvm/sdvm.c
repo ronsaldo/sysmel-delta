@@ -86,6 +86,7 @@ int main(int argc, const char *argv[])
     else
     {
         printf("TODO: encode and write the object memory, and run it\n");
+        sdvm_compiler_destroy(compiler);
     }
 
     return 0;

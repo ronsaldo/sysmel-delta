@@ -191,6 +191,10 @@ class SDVMFunctionFrontEnd:
             return self.function.constCString(constant.value)
         else:
             return self.function.constString(constant.value)
+        
+    def visitFunction(self, function: MIRFunction):
+        sdvmFunction = self.moduleFrontend.translateValue(function)
+        return self.function.constLocalProcedure(sdvmFunction)
 
     def visitNullaryPrimitiveInstruction(self, instruction: MIRNullaryPrimitiveInstruction) -> SDVMOperand:
         return self.function.addInstruction(SDVMInstruction(instruction.instructionDef))

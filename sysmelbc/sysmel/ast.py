@@ -450,6 +450,9 @@ class ASTTupleNode(ASTNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTupleNode(self)
+    
+    def isTupleNode(self) -> bool:
+        return True
 
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}

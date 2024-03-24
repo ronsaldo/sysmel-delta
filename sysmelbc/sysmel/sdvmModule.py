@@ -430,6 +430,9 @@ class SDVMFunction:
     def constString(self, value: bytes) -> SDVMConstant:
         stringValue = self.module.addEncodedString(value)
         return self.const(SdvmConstPointerString, stringValue, stringValue.encodeForConstant())
+    
+    def constLocalProcedure(self, value) -> SDVMConstant:
+        return self.const(SdvmConstLocalProcedureHandle, value, value.index)
 
     def finishBuilding(self):
         if self.isFinished:

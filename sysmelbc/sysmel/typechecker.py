@@ -39,7 +39,7 @@ class Typechecker(ASTVisitor):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
 
-    def attemptToVisitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode) -> tuple[ASTTypedNode | ASTTypeNode, str | None]:
+    def attemptToVisitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode, startingImplicitValueSubstitutions = []) -> tuple[tuple[SymbolImplicitValueBinding, ASTNode], ASTTypedNode | ASTTypeNode, str | None]:
         typedNode = self.visitNode(node)
 
         if expectedTypeExpression is None:
@@ -47,7 +47,7 @@ class Typechecker(ASTVisitor):
 
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
         startingEnvironment = self.lexicalEnvironment
-        doesTypeCheck, newEnvironment = self.doesTypedNodeConformToTypeExpression(typedNode, expectedTypeNode)
+        doesTypeCheck, newEnvironment = self.withEnvironment(self.lexicalEnvironment.withImplicitValueBindingSubstitutions(startingImplicitValueSubstitutions)).doesTypedNodeConformToTypeExpression(typedNode, expectedTypeNode)
         implicitValueSubstitutions = newEnvironment.getImplicitValueSubstitutionsUpTo(startingEnvironment)
         if not doesTypeCheck:
             return implicitValueSubstitutions, typedNode, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition).prettyPrint(), expectedTypeNode.prettyPrint())
@@ -124,7 +124,7 @@ class Typechecker(ASTVisitor):
             return reduceType(analyzedNode)
 
         if analyzedNode.isTypedErrorNode():
-            return ASTLiteralTypeNode(node.sourcePosition, AbsurdType)
+            return ASTLiteralTypeNode(node.sourcePosition, VoidType)
 
         return self.makeSemanticError(node.sourcePosition, "Expression is not a type.", analyzedNode)
 
@@ -143,7 +143,7 @@ class Typechecker(ASTVisitor):
             innerNodes.append(innerNode)
         if innerNode2 is not None:
             innerNodes.append(innerNode2)
-        errorNode = ASTTypedErrorNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, AbsurdType), errorMessage, innerNodes)
+        errorNode = ASTTypedErrorNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, VoidType), errorMessage, innerNodes)
         self.errorAccumulator.add(errorNode)
         return errorNode
 
@@ -158,6 +158,26 @@ class Typechecker(ASTVisitor):
             functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument, isImplicit = isImplicit))
         return functional
     
+    def unpackArgumentsToRequiredArity(self, argument: ASTNode, requiredArity):
+        assert requiredArity >= 1
+        if requiredArity == 1:
+            return [argument], None
+        
+        if argument.isTupleNode() or argument.isTypedTupleNode():
+            argumentArity = len(argument.elements)
+            if argumentArity != requiredArity:
+                return None, "Expected %d arguments instead of %d." % (requiredArity, argumentArity)
+            return argument.elements, None
+        
+        assert False
+
+    def packArguments(self, arguments: list[ASTTypedNode], sourcePosition: SourcePosition):
+        if len(arguments) == 0:
+            return self.visitNode(ASTLiteralNode(sourcePosition), UnitType.getSingleton())
+        elif len(arguments) == 1:
+            return arguments[0]
+        return self.visitNode(ASTTupleNode(sourcePosition, arguments))
+
     def attemptBetaReducePiWithTypedArgument(self, piNode: ASTNode, argument: ASTNode, isImplicitApplication = False):
         substitutionContext = SubstitutionContext()
         if piNode.isFunctionTypeLiteralValue():
@@ -176,19 +196,32 @@ class Typechecker(ASTVisitor):
             assert False
         elif piNode.isPiLiteralValue():
             piValue: FunctionalValue = piNode.value
-            argumentBinding = piValue.argumentBinding
+            argumentBindings = piValue.argumentBindings
             piBody = piValue.body
         else:
             assert piNode.isTypedPiNode()
             typedFunctionalNode: ASTTypedFunctionalNode = piNode
-            argumentBinding = typedFunctionalNode.argumentBinding
+            argumentBindings = typedFunctionalNode.argumentBindings
             piBody = typedFunctionalNode.body
 
-        if isImplicitApplication and not argumentBinding.isImplicit:
-            return None, self.visitNode(argument), None, [], "Unexpected implicit argument application, when an explicit argument of type %s is required." % argumentBinding.getTypeExpression().prettyPrint()
+        ## If there are zero arguments, the argument must be unit.
+        if len(argumentBindings) == 0:
+            implicitValueSubstitutions, typedArgument, errorMessage = self.attemptToVisitNodeWithExpectedType(argument, UnitType)
+            if errorMessage is not None:
+                return None, typedArgument, None, implicitValueSubstitutions, errorMessage
+            return piBody
+
+        firstArgumentBinding = argumentBindings[0]
+        if isImplicitApplication and not firstArgumentBinding.isImplicit:
+            return None, self.visitNode(argument), None, [], "Unexpected implicit argument application, when an explicit argument of type %s is required." % firstArgumentBinding.getTypeExpression().prettyPrint()
+        
+        unpackedArguments, errorMessage = self.unpackArgumentsToRequiredArity(argument, len(argumentBindings))
+        if errorMessage is not None:
+            return None, [argument], None, [], errorMessage
 
         ## Are we missing implicit arguments that need to be inferred?
-        if argumentBinding.isImplicit and not isImplicitApplication:
+        if firstArgumentBinding.isImplicit and not isImplicitApplication:
+            assert False
             placeHolderBinding = SymbolImplicitValueBinding(argument.sourcePosition, argumentBinding.name, argumentBinding.getTypeExpression())
             implicitArgumentValueNode = ASTTypedIdentifierReferenceNode(argument.sourcePosition, placeHolderBinding.typeExpression, placeHolderBinding)
 
@@ -196,14 +229,19 @@ class Typechecker(ASTVisitor):
             reduced = ASTBetaReducer(substitutionContext).visitNode(piBody)
             return implicitArgumentValueNode, argument, reduced, [], None
 
-        implicitValueSubstitutions, typedArgument, errorMessage = self.attemptToVisitNodeWithExpectedTypeExpression(argument, argumentBinding.getTypeExpression())
-        if errorMessage is not None:
-            return None, typedArgument, None, implicitValueSubstitutions, errorMessage
+        implicitValueSubstitutions = []
+        unpackedTypedArguments = []
+        for i in range(len(argumentBindings)):
+            argumentBinding = argumentBindings[i]
+            implicitValueSubstitutions, unpackedTypedArgument, errorMessage = self.attemptToVisitNodeWithExpectedTypeExpression(unpackedArguments[i], argumentBinding.getTypeExpression(), implicitValueSubstitutions)
+            if errorMessage is not None:
+                return None, typedArgument, None, implicitValueSubstitutions, errorMessage
 
-        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, typedArgument)
+            substitutionContext.setSubstitutionNodeForBinding(argumentBinding, unpackedTypedArgument)
+            unpackedTypedArguments.append(unpackedTypedArgument)
 
         reduced = ASTBetaReducer(substitutionContext).visitNode(piBody)
-        return None, typedArgument, reduced, implicitValueSubstitutions, errorMessage
+        return None, self.packArguments(unpackedTypedArguments, argument.sourcePosition), reduced, implicitValueSubstitutions, errorMessage
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         functional = self.visitNode(node.functional)
@@ -254,7 +292,7 @@ class Typechecker(ASTVisitor):
 
         if not functionalType.isAnyFunctionTypeNode():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
-            return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), functional, self.visitNode(node.argument), [])
+            return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, VoidType), functional, self.visitNode(node.argument), [])
         
         pendingInferenceArgument, typedArgument, resultType, implicitValueSubstitutions, errorMessage = self.attemptBetaReducePiWithTypedArgument(functionalType, node.argument, isImplicitApplication = node.isImplicit)
         if errorMessage is not None:
@@ -333,7 +371,7 @@ class Typechecker(ASTVisitor):
         assert False
 
     def visitErrorNode(self, node: ASTErrorNode):
-        errorNode = ASTTypedErrorNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbsurdType), node.message, [])
+        errorNode = ASTTypedErrorNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, VoidType), node.message, [])
         self.errorAccumulator.add(errorNode)
         return errorNode
 
@@ -774,6 +812,9 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
 
         return reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.functional), self.visitNode(node.argument), []))
 
+    def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
+        return ASTTypedArgumentNode(node.sourcePosition, self.visitNode(node.type), node.binding, node.isImplicit, node.isExistential)
+
     def visitTypedErrorNode(self, node: ASTTypedErrorNode):
         return node
 
@@ -784,6 +825,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         return reduceFunctionTypeNode(ASTTypedFunctionTypeNode(node.sourcePosition, newType, argumentType, resultType))
 
     def visitTypedPiNode(self, node: ASTTypedPiNode):
+        assert False
         argumentBinding = node.argumentBinding
         newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
         newType = self.visitNode(node.type)
@@ -802,6 +844,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         return node
     
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
+        assert False
         argumentBinding = node.argumentBinding
         newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
         newType = self.visitNode(node.type)
@@ -814,6 +857,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         return reduceLambdaNode(ASTTypedLambdaNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody))
 
     def visitTypedSigmaNode(self, node: ASTTypedLambdaNode):
+        assert False
         argumentBinding = node.argumentBinding
         newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
         newType = self.visitNode(node.type)
@@ -893,6 +937,9 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
 
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode):
         return ASTTypedModuleEntryPointNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.entryPoint))
+    
+    def visitTypedFromExternalImportWithTypeNode(self, node: ASTTypedFromExternalImportWithTypeNode):
+        return ASTTypedFromExternalImportWithTypeNode(node.sourcePosition, self.visitNode(node.type), node.externalName, node.name)
     
 def getTypeOfAnalyzedNode(node: ASTTypedNode | ASTTypeNode, sourcePosition: SourcePosition) -> ASTTypedNode | ASTTypeNode:
     if node.isTypeNode():
@@ -1013,9 +1060,9 @@ def reduceProductTypeNode(node: ASTProductTypeNode):
     return node
 
 def reduceTupleNode(node: ASTTypedTupleNode):
-    if len(node.elementTypes) == 0:
-        return ASTTypedLiteralNode(node.sourcePosition, node.type, UnitType.getSingleton())
-    elif len(node.elementTypes) == 1:
+    if len(node.elements) == 0:
+        return ASTLiteralNode(node.sourcePosition, node.type, UnitType.getSingleton())
+    elif len(node.elements) == 1:
         return node.elements[0]
     return node
 
@@ -1043,7 +1090,7 @@ def reduceFromExternalImportNode(node: ASTTypedFromExternalImportWithTypeNode):
 
 def reduceSumTypeNode(node: ASTSumTypeNode):
     if len(node.alternativeTypes) == 0:
-        return ASTLiteralTypeNode(node.sourcePosition, AbsurdType)
+        return ASTLiteralTypeNode(node.sourcePosition, VoidType)
     elif len(node.alternativeTypes) == 1:
         return node.alternativeTypes[0]
     return node

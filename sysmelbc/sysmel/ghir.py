@@ -13,6 +13,7 @@ class GHIRContext:
         self.pointerTypes = dict()
         self.refTypes = dict()
         self.tempRefTypes = dict()
+        self.universeTypes = dict()
 
     def getConstantValue(self, value: TypedValue):
         if value in self.constantValues:
@@ -84,6 +85,14 @@ class GHIRContext:
         tempRefType = GHIRTemporaryReferenceType(self, type, baseType)
         self.tempRefTypes[hashKey] = tempRefType
         return tempRefType
+    
+    def getUniverse(self, index):
+        if index in self.universeTypes:
+            return self.universeTypes[index]
+        
+        universe = GHIRTypeUniverse(self, index)
+        self.universeTypes[index] = universe
+        return universe
     
 class GHIRVisitor(ABC):
     @abstractmethod
@@ -193,6 +202,9 @@ class GHIRValue(ABC):
         return True
     
     def isProductType(self) -> bool:
+        return False
+
+    def isMakeTupleExpression(self) -> bool:
         return False
 
     def hasArgumentDependency(self) -> bool:
@@ -430,6 +442,36 @@ class GHIRArgumentBindingValue(GHIRLocalBindingValue):
 
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         graphPrinter.printLine('%s := argument %s' % (valueName, graphPrinter.printValue(self.type)))
+
+class GHIRTypeUniverse(GHIRValue):
+    def __init__(self, context: GHIRContext, index) -> None:    
+        super().__init__(context)
+        self.index = index
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitSimpleFunctionType(self)
+
+    def getType(self) -> GHIRValue:
+        return self.context.getUniverse(self.index + 1)
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        graphPrinter.printLine('%s := type%d' % (valueName, self.index))
+
+    def usedValues(self):
+        yield self.type
+        for argument in self.arguments:
+            yield argument
+        yield self.resultType
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+
+        self.arguments = self.replacedUsedValueInListWith(self.arguments, usedValue, replacement)
+        if self.resultType is usedValue:
+            self.resultType = replacement
+            replacement.registerUserValue(self)
 
 class GHIRSimpleFunctionType(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, arguments: list[GHIRValue], resultType: GHIRValue, callingConvention: str | None = None) -> None:    
@@ -783,6 +825,9 @@ class GHIRMakeTupleExpression(GHIRValue):
     def getType(self) -> GHIRValue:
         return self.type
 
+    def isMakeTupleExpression(self) -> bool:
+        return True
+
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         type = graphPrinter.printValue(self.type)
         elementList = ''
@@ -860,6 +905,11 @@ class GHIRApplicationValue(GHIRValue):
 
     def simplify(self):
         if len(self.arguments) == 0: return self
+        if len(self.arguments) == 1:
+            singleArgument = self.arguments[0]
+            if singleArgument.isMakeTupleExpression():
+                unpackedApplication = GHIRApplicationValue(self.context, self.type, self.functional, singleArgument.elements)
+                return self.replaceWith(unpackedApplication)
 
         if self.functional.isCurryingFunction():
             curryingFunction: GHIRCurryingFunction = self.functional
@@ -1182,13 +1232,13 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         assert False
 
     def visitProductTypeNode(self, node: ASTProductTypeNode):
-        type = self.translateExpression(node.type)
-        elements = list(map(self.translateExpression), node.elements)
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        elements = list(map(self.translateExpression, node.elementTypes))
         return GHIRProductType(self.context, type, elements).simplify()
 
     def visitSumTypeNode(self, node: ASTSumTypeNode):
-        type = self.translateExpression(node.type)
-        elements = list(map(self.translateExpression), node.elements)
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        elements = list(map(self.translateExpression, node.elementTypes))
         return GHIRSumType(self.context, type, elements).simplify()
     
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
@@ -1211,7 +1261,6 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         argumentType = self.translateExpression(node.argumentType)
         resultType = self.translateExpression(node.resultType)
         return self.context.getFunctionType(type, [argumentType], resultType)
-
 
     def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
         type = self.translateExpression(node.type)
@@ -1261,7 +1310,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
         type = self.translateExpression(node.type)
-        elements = list(map(self.translateExpression), node.elements)
+        elements = list(map(self.translateExpression, node.elements))
         return GHIRMakeTupleExpression(self.context, type, elements).simplify()
 
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode) -> TypedValue:

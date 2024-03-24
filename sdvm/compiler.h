@@ -260,9 +260,10 @@ typedef struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t scratchLocation1;
 } sdvm_compilerInstruction_t;
 
+#define SDVM_REGISTER_SET_WORD_COUNT ((SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32)
 typedef struct sdvm_registerSet_s
 {
-    uint32_t masks[(SDVM_LINEAR_SCAN_MAX_AVAILABLE_REGISTERS + 31) / 32];
+    uint32_t masks[SDVM_REGISTER_SET_WORD_COUNT];
 } sdvm_registerSet_t;
 
 struct sdvm_compilerCallingConvention_s
