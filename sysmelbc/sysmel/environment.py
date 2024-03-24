@@ -620,7 +620,7 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['__thiscall', 'Type::__thiscall', [(MacroContextType, ASTNodeType), ASTNodeType], thiscallMacro, ['macro']],
     ['__vectorcall', 'Type::__vectorcall', [(MacroContextType, ASTNodeType), ASTNodeType], vectorcallMacro, ['macro']],
 
-    ['const', 'Type::const', [TypeType, TypeType], DecoratedType.makeConst, []],
+    ['mutable', 'Type::mutable', [TypeType, TypeType], DecoratedType.makeMutable, []],
     ['volatile', 'Type::volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],
     ['array:', 'Type::array:', [(TypeType, IntegerType), TypeType], ArrayType.makeWithElementTypeAndSize, []],
     ['pointer', 'Type::pointer', [TypeType, TypeType], PointerType.makeWithBaseType, []],

@@ -234,16 +234,16 @@ class HIRDecoratedType(HIRDerivedType):
     def getSize(self) -> int:
         return self.baseType.getSize()
 
-    def isConst(self) -> bool:
-        return (self.decorations & DecoratedType.Const) != 0
+    def isMutable(self) -> bool:
+        return (self.decorations & DecoratedType.Mutable) != 0
 
     def isVolatile(self) -> bool:
         return (self.decorations & DecoratedType.Volatile) != 0
     
     def __str__(self) -> str:
         result = str(self.baseType)
-        if self.isConst():
-            result += ' const'
+        if self.isMutable():
+            result += ' mutable'
         if self.isVolatile():
             result += ' volatile'
         return result

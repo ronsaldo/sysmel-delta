@@ -600,7 +600,7 @@ class StringDataValue(TypedValue):
         return visitor.visitStringDataValue(self)
 
     def getType(self):
-        return Char8ConstPointerType
+        return Char8PointerType
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         return isinstance(other, self.__class__) and self.value == other.value
@@ -886,7 +886,7 @@ class DerivedType(BaseType):
 class DecoratedType(DerivedType):
     DecoratedTypeCache = dict()
 
-    Const = 1<<0
+    Mutable = 1<<0
     Volatile = 1<<1
     
     def __init__(self, baseType, decorations: int) -> None:
@@ -898,16 +898,16 @@ class DecoratedType(DerivedType):
     
     def prettyPrint(self) -> str:
         result = self.baseType.prettyPrint()
-        if self.isConst():
-            result += ' const'
+        if self.isMutable():
+            result += ' mutable'
 
         if self.isVolatile():
             result += ' volatile'
 
         return result
     
-    def isConst(self) -> bool:
-        return (self.decorations & DecoratedType.Const) != 0
+    def isMutable(self) -> bool:
+        return (self.decorations & DecoratedType.Mutable) != 0
 
     def isVolatile(self) -> bool:
         return (self.decorations & DecoratedType.Volatile) != 0
@@ -934,8 +934,8 @@ class DecoratedType(DerivedType):
         return cls.privateMakeWithDecorations(baseType, decorations)
 
     @classmethod
-    def makeConst(cls, baseType: TypedValue):
-        return cls.makeWithDecorations(baseType, cls.Const)
+    def makeMutable(cls, baseType: TypedValue):
+        return cls.makeWithDecorations(baseType, cls.Mutable)
 
     @classmethod
     def makeVolatile(cls, baseType: TypedValue):
@@ -1063,8 +1063,8 @@ class Symbol(TypedValue):
     def toJson(self):
         return repr(self)
 
-Char8ConstPointerType = PointerType.makeWithBaseType(DecoratedType.makeConst(Char8Type))
-StringType = RecordType([Char8ConstPointerType, SizeType], [Symbol.intern('elements'), Symbol.intern('size')], 'String')
+Char8PointerType = PointerType.makeWithBaseType(Char8Type)
+StringType = RecordType([Char8PointerType, SizeType], [Symbol.intern('elements'), Symbol.intern('size')], 'String')
 
 def makeStringValue(value: str):
     data = StringDataValue(value.encode('utf-8'))
