@@ -269,10 +269,10 @@ void sdvm_compilerLocation_print(sdvm_compiler_t *compiler, sdvm_compilerLocatio
         printf("reg %d:%d", location->firstRegister.value, location->secondRegister.value);
         return;
     case SdvmCompLocationStack:
-        printf("stack %d", location->firstStackOffset);
+        printf("stack %d", location->firstStackLocation.framePointerOffset);
         return;
     case SdvmCompLocationStackPair:
-        printf("stack %d:%d", location->firstStackOffset, location->secondStackOffset);
+        printf("stack %d:%d", location->firstStackLocation.framePointerOffset, location->secondStackLocation.framePointerOffset);
         return;
     case SdvmCompLocationLocalSymbolValue:
         printf("localValueOf[%s]", sdvm_compiler_symbolHandleNameCString(compiler, location->symbolHandle));
@@ -618,6 +618,50 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm
     return location;
 }
 
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackSignedInteger(uint32_t size)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationStack,
+        .isSigned = true,
+        .firstStackLocation = {
+            .size = size,
+            .alignment = size
+        }
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stack(uint32_t size, uint32_t alignment)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationStack,
+        .firstStackLocation = {
+            .size = size,
+            .alignment = alignment
+        }
+    };
+
+    return location;
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackPair(uint32_t firstSize, uint32_t firstAlignment, uint32_t secondSize, uint32_t secondAlignment)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationStackPair,
+        .firstStackLocation = {
+            .size = firstSize,
+            .alignment = firstAlignment
+        },
+        .secondStackLocation = {
+            .size = secondSize,
+            .alignment = secondAlignment
+        }
+    };
+
+    return location;
+}
+
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_type_t type)
 {
     switch(type)
@@ -655,6 +699,50 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
     default:
         abort();
     }
+}
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_spillForOperandType(sdvm_compiler_t *compiler, sdvm_type_t type)
+{
+    switch(type)
+    {
+    case SdvmTypeVoid:
+    case SdvmTypeInfo:
+        return sdvm_compilerLocation_null();
+
+    case SdvmTypeInt8:
+        return sdvm_compilerLocation_stackSignedInteger(1);
+    case SdvmTypeInt16:
+        return sdvm_compilerLocation_stackSignedInteger(2);
+    case SdvmTypeInt32:
+        return sdvm_compilerLocation_stackSignedInteger(4);
+    case SdvmTypeInt64:
+        return sdvm_compilerLocation_stackSignedInteger(8);
+
+    case SdvmTypeUInt8:
+        return sdvm_compilerLocation_stack(1, 1);
+    case SdvmTypeUInt16:
+        return sdvm_compilerLocation_stack(2, 2);
+    case SdvmTypeUInt32:
+        return sdvm_compilerLocation_stack(4, 4);
+    case SdvmTypeUInt64:
+        return sdvm_compilerLocation_stack(8, 8);
+
+    case SdvmTypePointer:
+    case SdvmTypeProcedureHandle:
+    case SdvmTypeLabel:
+        return sdvm_compilerLocation_stack(compiler->pointerSize, compiler->pointerSize);
+
+    case SdvmTypeGCPointer:
+        return sdvm_compilerLocation_stackPair(compiler->pointerSize, compiler->pointerSize, compiler->pointerSize, compiler->pointerSize);
+
+    default:
+        abort();
+    }
+}
+
+SDVM_API bool sdvm_compilerLocation_isStackOrPair(const sdvm_compilerLocation_t *location)
+{
+    return location->kind == SdvmCompLocationStack || location->kind == SdvmCompLocationStackPair;
 }
 
 void sdvm_compilerCallingConventionState_reset(sdvm_compilerCallingConventionState_t *state, const sdvm_compilerCallingConvention_t *convention, uint32_t argumentCount, bool isCallout)
@@ -1151,19 +1239,34 @@ void sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(sdvm_linearScan
     sdvm_registerSet_set(&registerFile->usedRegisterSet, registerValue);
 }
 
-void sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint8_t registerValue)
+void sdvm_linearScanRegisterAllocatorFile_spillInterval(sdvm_compiler_t *compiler, sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_linearScanActiveInterval_t *interval)
+{
+    interval->instruction->location = sdvm_compilerLocation_spillForOperandType(compiler, interval->instruction->decoding.destType);
+    sdvm_registerSet_unset(&registerFile->allocatedRegisterSet, interval->registerValue);
+}
+
+void sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(sdvm_compiler_t *compiler, sdvm_linearScanRegisterAllocatorFile_t *registerFile, uint8_t registerValue)
 {
     if(sdvm_registerSet_includes(&registerFile->allocatedRegisterSet, registerValue))
     {
-        // TODO: spill the register
-        abort();
+        uint32_t destIndex = 0;
+        for(uint32_t i = 0; i < registerFile->activeIntervalCount; ++i)
+        {
+            sdvm_linearScanActiveInterval_t *interval = registerFile->activeIntervals + i;
+            if(interval->registerValue == registerValue)
+                sdvm_linearScanRegisterAllocatorFile_spillInterval(compiler, registerFile, interval);
+            else
+                registerFile->activeIntervals[destIndex++] = *interval;
+        }
+
+        SDVM_ASSERT(!sdvm_registerSet_includes(&registerFile->allocatedRegisterSet, registerValue));
     }
 
     sdvm_registerSet_set(&registerFile->activeRegisterSet, registerValue);
     sdvm_registerSet_set(&registerFile->usedRegisterSet, registerValue);
 }
 
-uint8_t sdvm_linearScanRegisterAllocatorFile_allocate(sdvm_linearScanRegisterAllocatorFile_t *registerFile)
+sdvm_compilerRegisterValue_t sdvm_linearScanRegisterAllocatorFile_allocate(sdvm_compiler_t *compiler, sdvm_linearScanRegisterAllocatorFile_t *registerFile)
 {
     // Find an available allocatable register.
     for(uint32_t i = 0; i < registerFile->allocatableRegisterCount; ++i)
@@ -1179,9 +1282,17 @@ uint8_t sdvm_linearScanRegisterAllocatorFile_allocate(sdvm_linearScanRegisterAll
         }
     }
 
+    // Spill the last active interval.
     SDVM_ASSERT(registerFile->activeIntervalCount > 0);
-    // TODO: Expire an available register.
-    abort();
+    --registerFile->activeIntervalCount;
+    sdvm_linearScanActiveInterval_t *interval = registerFile->activeIntervals + registerFile->activeIntervalCount;
+    sdvm_compilerRegisterValue_t spilledRegister = interval->registerValue;
+    sdvm_linearScanRegisterAllocatorFile_spillInterval(compiler, registerFile, interval);
+
+    sdvm_registerSet_set(&registerFile->activeRegisterSet, spilledRegister);
+    sdvm_registerSet_set(&registerFile->usedRegisterSet, spilledRegister);
+
+    return spilledRegister;
 }
 
 void sdvm_linearScanRegisterAllocatorFile_endInstruction(sdvm_linearScanRegisterAllocatorFile_t *registerFile)
@@ -1221,7 +1332,7 @@ void sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(sdvm_line
             && location->firstRegister.value == sourceInstruction->location.firstRegister.value)
             sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->firstRegister.kind], sourceInstruction->location.firstRegister.value);
         else
-            sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(registerAllocator->registerFiles[location->firstRegister.kind], location->firstRegister.value);
+            sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(registerAllocator->compiler, registerAllocator->registerFiles[location->firstRegister.kind], location->firstRegister.value);
     }
 
     if(location->kind == SdvmCompLocationRegisterPair && !location->secondRegister.isPending)
@@ -1233,7 +1344,7 @@ void sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(sdvm_line
             && location->secondRegister.value == sourceInstruction->location.secondRegister.value)
             sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->secondRegister.kind], sourceInstruction->location.secondRegister.value);
         else
-            sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(registerAllocator->registerFiles[location->secondRegister.kind], location->secondRegister.value);
+            sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(registerAllocator->compiler, registerAllocator->registerFiles[location->secondRegister.kind], location->secondRegister.value);
     }
 }
 
@@ -1255,7 +1366,7 @@ void sdvm_linearScanRegisterAllocator_allocateRegisterLocation(sdvm_linearScanRe
         }
         else
         {
-            location->firstRegister.value = sdvm_linearScanRegisterAllocatorFile_allocate(registerAllocator->registerFiles[location->firstRegister.kind]);
+            location->firstRegister.value = sdvm_linearScanRegisterAllocatorFile_allocate(registerAllocator->compiler, registerAllocator->registerFiles[location->firstRegister.kind]);
         }
         
         location->firstRegister.isPending = false;
@@ -1274,7 +1385,7 @@ void sdvm_linearScanRegisterAllocator_allocateRegisterLocation(sdvm_linearScanRe
         }
         else
         {
-            location->secondRegister.value = sdvm_linearScanRegisterAllocatorFile_allocate(registerAllocator->registerFiles[location->secondRegister.kind]);
+            location->secondRegister.value = sdvm_linearScanRegisterAllocatorFile_allocate(registerAllocator->compiler, registerAllocator->registerFiles[location->secondRegister.kind]);
         }
         
         location->secondRegister.isPending = false;
@@ -1332,6 +1443,129 @@ void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *st
     }
 }
 
+void sdvm_compiler_allocateNewStackLocationIfNeeded(sdvm_functionCompilationState_t *state, sdvm_compilerStackLocation_t *location, bool isGC)
+{
+    if(location->isValid)
+        return;
+
+    location->segment = isGC ? SdvmFunctionStackSegmentGCSpilling : SdvmFunctionStackSegmentSpilling;
+    
+    sdvm_functionCompilationStackSegment_t *segment = state->stackSegments + location->segment;
+    if(location->alignment > segment->alignment)
+        segment->alignment = location->alignment;
+    
+    location->segmentOffset = (segment->size + location->alignment - 1) & (-location->alignment);
+    segment->size = location->segmentOffset + location->size;
+    location->isValid = true;
+}
+
+void sdvm_compiler_allocateNewStackLocationsIfNeeded(sdvm_functionCompilationState_t *state, sdvm_compilerLocation_t *location, sdvm_type_t type)
+{
+    if(location->kind == SdvmCompLocationStack)
+    {
+        sdvm_compiler_allocateNewStackLocationIfNeeded(state, &location->firstStackLocation, false);
+    }
+    else if(location->kind == SdvmCompLocationStack)
+    {
+        sdvm_compiler_allocateNewStackLocationIfNeeded(state, &location->firstStackLocation, false);
+        sdvm_compiler_allocateNewStackLocationIfNeeded(state, &location->secondStackLocation, type == SdvmTypeGCPointer);
+    }
+}
+
+void sdvm_compiler_allocateInstructionSpillLocations(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
+{
+    if(!sdvm_compilerLocation_isStackOrPair(&instruction->location) && !sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+        return;
+
+    if(sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+    {
+        sdvm_compiler_allocateNewStackLocationsIfNeeded(state, &instruction->stackLocation, instruction->decoding.destType);
+        instruction->location = instruction->stackLocation;
+    }
+    else if(sdvm_compilerLocation_isStackOrPair(&instruction->location))
+    {
+        sdvm_compiler_allocateNewStackLocationsIfNeeded(state, &instruction->location, instruction->decoding.destType);
+        if(!sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+            instruction->stackLocation = instruction->location;
+    }
+}
+
+void sdvm_compiler_allocateFunctionSpillLocations(sdvm_functionCompilationState_t *state)
+{
+    for(uint32_t i = 0; i <state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        sdvm_compiler_allocateInstructionSpillLocations(state, instruction);
+    }
+}
+
+void sdvm_compiler_computeStackSegmentLayouts(sdvm_functionCompilationState_t *state)
+{
+    if(state->calloutStackSegment.alignment < state->callingConvention->stackAlignment)
+        state->calloutStackSegment.alignment = state->callingConvention->stackAlignment;
+
+    uint32_t offset = 0;
+
+    // Argument segment
+    {
+        state->argumentPassingStackSegment.startOffset = -state->argumentPassingStackSegment.size;
+        state->argumentPassingStackSegment.endOffset = 0;
+    }
+
+    // Prologue segment.
+    {
+        state->prologueStackSegment.startOffset = offset;
+        offset += state->prologueStackSegment.size;
+        state->prologueStackSegment.endOffset = offset;
+    }
+
+    for(int i = SdvmFunctionStackSegmentFirstAfterPrologue; i < SdvmFunctionStackSegmentCount; ++i)
+    {
+        sdvm_functionCompilationStackSegment_t *segment = state->stackSegments + i;
+        segment->endOffset = (offset + segment->size + segment->alignment - 1) & (-segment->alignment);
+        segment->startOffset = offset - segment->size;
+        offset = segment->endOffset;
+    }
+}
+
+void sdvm_compiler_computeStackFrameLocation(sdvm_functionCompilationState_t *state, sdvm_compilerStackLocation_t *location)
+{
+    sdvm_functionCompilationStackSegment_t *segment = state->stackSegments + location->segment;
+    location->framePointerRegister = state->stackFrameRegister;
+    location->framePointerOffset = state->stackFramePointerAnchorOffset - segment->endOffset + location->segmentOffset;
+}
+
+void sdvm_compiler_computeStackFrameLocations(sdvm_functionCompilationState_t *state, sdvm_compilerLocation_t *location)
+{
+    if(location->kind == SdvmCompLocationStack)
+    {
+        sdvm_compiler_computeStackFrameLocation(state, &location->firstStackLocation);
+    }
+    else if(location->kind == SdvmCompLocationStack)
+    {
+        sdvm_compiler_computeStackFrameLocation(state, &location->firstStackLocation);
+        sdvm_compiler_computeStackFrameLocation(state, &location->secondStackLocation);
+    }
+}
+
+void sdvm_compiler_computeInstructionStackFrameOffsets(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
+{
+    if(sdvm_compilerLocation_isStackOrPair(&instruction->location))
+        sdvm_compiler_computeStackFrameLocations(state, &instruction->location);
+
+    if(sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+        sdvm_compiler_computeStackFrameLocations(state, &instruction->stackLocation);
+}
+
+void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *state)
+{
+    for(uint32_t i = 0; i <state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        sdvm_compiler_computeInstructionStackFrameOffsets(state, instruction);
+    }
+}
+
 static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry)
 {
     sdvm_functionCompilationState_t functionState = {
@@ -1341,6 +1575,10 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         .sourceInstructions = (sdvm_constOrInstruction_t*)(moduleState->module->textSectionData + functionTableEntry->textSectionOffset),
         .instructionCount = functionTableEntry->textSectionSize / sizeof(sdvm_constOrInstruction_t)
     };
+
+    // The alignment of the stack segments must be at least one.
+    for(int i = 0; i < SdvmFunctionStackSegmentCount; ++i)
+        functionState.stackSegments[i].alignment = 1;
 
     // Decode all of the instructions.
     functionState.instructions = calloc(functionState.instructionCount, sizeof(sdvm_compilerInstruction_t));

@@ -212,11 +212,11 @@ void sdvm_compiler_x86_modRmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerInd
     base &= SDVM_X86_REG_HALF_MASK;
     reg &= SDVM_X86_REG_HALF_MASK;
 
-    if(offset == 0)
+    if(offset == 0 && base != SDVM_X86_RBP)
     {
-        if(reg == SDVM_X86_RSP || reg == SDVM_X86_RBP)
+        if(base == SDVM_X86_RSP)
         {
-            sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_modRmByte(SDVM_X86_RSP, base, 0));
+            sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_modRmByte(SDVM_X86_RSP, reg, 0));
             sdvm_compiler_addInstructionByte(compiler, sdvm_compiler_x86_sibOnlyBase(base));
         }
         else
@@ -361,11 +361,11 @@ void sdvm_compiler_x86_mov64RegRmo(sdvm_compiler_t *compiler, sdvm_x86_registerI
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
 
-void sdvm_compiler_x86_mov64RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t destination)
+void sdvm_compiler_x86_mov64RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t source)
 {
-    sdvm_compiler_x86_rexRmReg(compiler, true, base, destination);
+    sdvm_compiler_x86_rexRmReg(compiler, true, base, source);
     sdvm_compiler_x86_opcode(compiler, 0x89);
-    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, source);
 }
 
 void sdvm_compiler_x86_mov64RegGsv(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_compilerSymbolHandle_t sourceSymbol, int64_t offset)
@@ -549,11 +549,11 @@ void sdvm_compiler_x86_mov32RegRmo(sdvm_compiler_t *compiler, sdvm_x86_registerI
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
 
-void sdvm_compiler_x86_mov32RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t destination)
+void sdvm_compiler_x86_mov32RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t source)
 {
-    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, source);
     sdvm_compiler_x86_opcode(compiler, 0x89);
-    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, source);
 }
 
 void sdvm_compiler_x86_mov32RegGsv(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_compilerSymbolHandle_t sourceSymbol, int32_t offset)
@@ -877,6 +877,8 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
 
     sdvm_compiler_x86_push(compiler, SDVM_X86_RBP);
     sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RBP, SDVM_X86_RSP);
+
+    sdvm_compiler_x86_sub64RegImmS32(compiler, SDVM_X86_RSP, state->calloutStackSegment.endOffset - state->prologueStackSegment.endOffset);
 }
 
 void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *state)
@@ -911,6 +913,14 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
         if(sourceLocation->firstRegister.size <= 4)
             return sdvm_compiler_x86_mov32RegReg(compiler, reg->value, sourceLocation->firstRegister.value);
         return sdvm_compiler_x86_mov64RegReg(compiler, reg->value, sourceLocation->firstRegister.value);
+    case SdvmCompLocationStack:
+    case SdvmCompLocationStackPair:
+        switch(reg->size)
+        {
+        case 4: return sdvm_compiler_x86_mov32RegRmo(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        case 8: return sdvm_compiler_x86_mov64RegRmo(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        default: return abort();
+        }
     case SdvmCompLocationLocalSymbolValue:
         {
             switch(reg->size)
@@ -1042,6 +1052,43 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoRegisterPair(sdvm_compiler_t *com
     }
 }
 
+void sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t *compiler, const sdvm_compilerRegister_t *sourceRegister, const sdvm_compilerStackLocation_t *stackLocation)
+{
+    switch(sourceRegister->kind)
+    {
+    case SdvmCompRegisterKindInteger:
+        switch(sourceRegister->size)
+        {
+        case 4: return sdvm_compiler_x86_mov32RmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
+        case 8: return sdvm_compiler_x86_mov64RmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
+        default:
+            return abort();
+        }
+    default:
+        return abort();
+    }
+}
+
+void sdvm_compiler_x64_emitMoveFromLocationIntoStack(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerStackLocation_t *stackLocation)
+{
+    switch(sourceLocation->kind)
+    {
+    case SdvmCompLocationRegister:
+        return sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+    case SdvmCompLocationRegisterPair:
+        {
+            sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+
+            sdvm_compilerStackLocation_t nextLocation = *stackLocation;
+            nextLocation.segmentOffset += sourceLocation->firstRegister.size;
+            nextLocation.framePointerOffset += sourceLocation->firstRegister.size;
+
+            return sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->secondRegister, &nextLocation);
+        }
+    default: return abort();
+    }
+}
+
 void sdvm_compiler_x64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerLocation_t *destinationLocation)
 {
     switch(destinationLocation->kind)
@@ -1054,7 +1101,7 @@ void sdvm_compiler_x64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, const
     case SdvmCompLocationRegisterPair:
         return sdvm_compiler_x64_emitMoveFromLocationIntoRegisterPair(compiler, sourceLocation, &destinationLocation->firstRegister, &destinationLocation->secondRegister);
     case SdvmCompLocationStack:
-        return abort();
+        return sdvm_compiler_x64_emitMoveFromLocationIntoStack(compiler, sourceLocation, &destinationLocation->firstStackLocation);
     case SdvmCompLocationStackPair:
         return abort();
     case SdvmCompLocationImmediateS32:
@@ -1337,6 +1384,7 @@ void sdvm_compiler_x64_allocateFunctionRegisters(sdvm_functionCompilationState_t
     };
 
     sdvm_linearScanRegisterAllocator_t registerAllocator = {
+        .compiler = state->compiler,
         .integerRegisterFile = &integerRegisterFile,
         .floatRegisterFile = &vectorRegisterFile,
         .vectorFloatRegisterFile = &vectorRegisterFile,
@@ -1354,7 +1402,7 @@ void sdvm_compiler_x64_allocateFunctionRegisters(sdvm_functionCompilationState_t
 
 void sdvm_compiler_x64_allocateFunctionSpillLocations(sdvm_functionCompilationState_t *state)
 {
-    (void)state;
+    sdvm_compiler_allocateFunctionSpillLocations(state);
 }
 
 void sdvm_compiler_x64_computeFunctionStackLayout(sdvm_functionCompilationState_t *state)
@@ -1365,6 +1413,31 @@ void sdvm_compiler_x64_computeFunctionStackLayout(sdvm_functionCompilationState_
         || state->gcSpillingStackSegment.size > 0
         || state->spillingStackSegment.size > 0
         || state->calloutStackSegment.size > 0;
+
+    uint32_t pointerSize = state->compiler->pointerSize;
+    state->prologueStackSegment.size = pointerSize;
+    state->prologueStackSegment.alignment = 16;
+
+    if(state->requiresStackFrame)
+    {
+        // Frame pointer.
+        state->prologueStackSegment.size += pointerSize;
+    }
+
+    sdvm_compiler_computeStackSegmentLayouts(state);
+
+    if(state->requiresStackFrame)
+    {
+        state->stackFrameRegister = SDVM_X86_RBP;
+        state->stackFramePointerAnchorOffset = pointerSize * 2;
+    }
+    else
+    {
+        state->stackFrameRegister = SDVM_X86_RSP;
+        state->stackFramePointerAnchorOffset = state->calloutStackSegment.endOffset;
+    }
+
+    sdvm_compiler_computeStackFrameOffsets(state);
 }
 
 bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *state)

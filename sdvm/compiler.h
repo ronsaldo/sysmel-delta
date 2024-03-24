@@ -87,6 +87,22 @@ typedef enum sdvm_compilerObjectFileType_e
     SdvmObjectFileTypeMachO,
 } sdvm_compilerObjectFileType_t;
 
+
+typedef enum sdvm_functionStackSegmentName_e
+{
+    SdvmFunctionStackSegmentArgumentPassing = 0,
+    SdvmFunctionStackSegmentPrologue,
+    SdvmFunctionStackSegmentFloatCallPreservedRegister,
+    SdvmFunctionStackSegmentVectorCallPreservedRegister,
+    SdvmFunctionStackSegmentGCSpilling,
+    SdvmFunctionStackSegmentSpilling,
+    SdvmFunctionStackSegmentTemporary,
+    SdvmFunctionStackSegmentCallout,
+    
+    SdvmFunctionStackSegmentCount,
+    SdvmFunctionStackSegmentFirstAfterPrologue = SdvmFunctionStackSegmentFloatCallPreservedRegister,
+} sdvm_functionStackSegmentName_t;
+
 typedef struct sdvm_compilerTarget_s sdvm_compilerTarget_t;
 typedef struct sdvm_functionCompilationState_s sdvm_functionCompilationState_t;
 typedef struct sdvm_compilerCallingConvention_s sdvm_compilerCallingConvention_t;
@@ -214,6 +230,18 @@ typedef struct sdvm_compilerRegister_s
     sdvm_compilerRegisterValue_t value;
 } sdvm_compilerRegister_t;
 
+typedef struct sdvm_compilerStackLocation_s
+{
+    bool isValid;
+    sdvm_compilerRegisterValue_t framePointerRegister;
+
+    uint32_t size;
+    uint32_t alignment;
+    uint32_t segment;
+    uint32_t segmentOffset;
+    int32_t framePointerOffset;
+} sdvm_compilerStackLocation_t;
+
 typedef struct sdvm_compilerLocation_s
 {
     sdvm_compilerLocationKind_t kind;
@@ -235,8 +263,8 @@ typedef struct sdvm_compilerLocation_s
         };
 
         struct {
-            int32_t firstStackOffset;
-            int32_t secondStackOffset;
+            sdvm_compilerStackLocation_t firstStackLocation;
+            sdvm_compilerStackLocation_t secondStackLocation;
         };
 
         struct {
@@ -253,6 +281,7 @@ typedef struct sdvm_compilerInstruction_s
     sdvm_compilerLiveInterval_t liveInterval;
 
     sdvm_compilerLocation_t location;
+    sdvm_compilerLocation_t stackLocation;
     sdvm_compilerLocation_t destinationLocation;
     sdvm_compilerLocation_t arg0Location;
     sdvm_compilerLocation_t arg1Location;
@@ -319,9 +348,9 @@ typedef struct sdvm_functionCompilationStackSegment_s
 {
     uint32_t alignment;
     uint32_t size;
+    int32_t startOffset;
+    int32_t endOffset;
 } sdvm_functionCompilationStackSegment_t;
-
-#define SDVM_FUNCTION_COMPILATION_MAX_STACK_SEGMENT_COUNT 7
 
 struct sdvm_functionCompilationState_s
 {
@@ -358,14 +387,17 @@ struct sdvm_functionCompilationState_s
             sdvm_functionCompilationStackSegment_t vectorCallPreservedRegisterStackSegment;
             sdvm_functionCompilationStackSegment_t gcSpillingStackSegment;
             sdvm_functionCompilationStackSegment_t spillingStackSegment;
+            sdvm_functionCompilationStackSegment_t temporarySegment;
             sdvm_functionCompilationStackSegment_t calloutStackSegment;
         };
 
-        sdvm_functionCompilationStackSegment_t stackSegments[SDVM_FUNCTION_COMPILATION_MAX_STACK_SEGMENT_COUNT];
+        sdvm_functionCompilationStackSegment_t stackSegments[SdvmFunctionStackSegmentCount];
     };
 
     bool hasCallout;
     bool requiresStackFrame;
+    sdvm_compilerRegisterValue_t stackFrameRegister;
+    uint32_t stackFramePointerAnchorOffset;
 };
 
 typedef struct sdvm_linearScanActiveInterval_s
@@ -391,6 +423,8 @@ typedef struct sdvm_linearScanRegisterAllocatorFile_s
 
 typedef struct sdvm_linearScanRegisterAllocator_s
 {
+    sdvm_compiler_t *compiler;
+
     union
     {
         struct
@@ -466,13 +500,24 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegister(sdvm_com
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificSignedRegister(sdvm_compilerRegister_t reg);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister);
 
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stack(uint32_t size, uint32_t alignment);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackSignedInteger(uint32_t size);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackPair(uint32_t firstSize, uint32_t firstAlignment, uint32_t secondSize, uint32_t secondAlignment);
+
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_type_t type);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_spillForOperandType(sdvm_compiler_t *compiler, sdvm_type_t type);
+
+SDVM_API bool sdvm_compilerLocation_isStackOrPair(const sdvm_compilerLocation_t *location);
 
 SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction);
+
 SDVM_API void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *state, sdvm_linearScanRegisterAllocator_t *registerAllocator);
+SDVM_API void sdvm_compiler_allocateFunctionSpillLocations(sdvm_functionCompilationState_t *state);
+SDVM_API void sdvm_compiler_computeStackSegmentLayouts(sdvm_functionCompilationState_t *state);
+SDVM_API void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *state);
 
 SDVM_API uint32_t sdvm_compiler_makeLabel(sdvm_compiler_t *compiler);
 SDVM_API void sdvm_compiler_setLabelValue(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section, int64_t value);
