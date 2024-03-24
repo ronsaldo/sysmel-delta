@@ -4,10 +4,8 @@ let: #puts with: (fromExternal: #C import: #puts withType: (Char8 const pointer 
 let: #myAdd with: (:(Int32)x, :(Int32)y :: Int32) __cdecl :=> x + y.
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 const pointer pointer)argv :: Int32) __cdecl :=> {
-    ##puts("Hello World" elements).
+    puts("Hello World" elements).
     ##argc + 1i32
     ##0i32
     myAdd(argc, 1i32)
 }.
-
-##1i32 + 2i32

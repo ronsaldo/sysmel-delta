@@ -298,7 +298,7 @@ class LambdaValue(FunctionalValue):
         return result
 
     def toJson(self):
-        return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
+        return {'lambda': list(map(lambda n: n.toJson(), self.argumentBindings)), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class PiValue(FunctionalValue):
     def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
@@ -321,11 +321,18 @@ class PiValue(FunctionalValue):
         return PiValue(self.type, self.argumentBindings, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, self.callingConvention)
 
     def toJson(self):
-        return {'pi': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}
+        return {'pi': list(map(lambda n: n.toJson(), self.argumentBindings)), 'body': self.body.toJson(), 'type': self.type.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}
 
     def prettyPrint(self) -> str:
-        return '(:(%s)%s :: %s)' % (self.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.argumentBinding.name), self.body.prettyPrint())
+        result = '('
+        for argument in self.argumentBindings:
+            if len(result) != 1:
+                result += ', '
+            result += ':(%s)%s' % (argument.getTypeExpression().prettyPrint(), optionalIdentifierToString(argument.name))
 
+        result += ' :: %s) :=> ...' % self.body.prettyPrint()
+        return result
+    
     def isPi(self) -> bool:
         return True
     
@@ -340,8 +347,15 @@ class SigmaValue(FunctionalValue):
         return {'sigma': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
     def prettyPrint(self) -> str:
-        return '(:?(%s)%s :: %s)' % (self.type.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.type.argumentBinding.name), self.type.body.prettyPrint())
+        result = '('
+        for argument in self.argumentBindings:
+            if len(result) != 1:
+                result += ', :(%s)%s' % (argument.getTypeExpression().prettyPrint(), optionalIdentifierToString(argument.name))
+            else:
+                result += ':?(%s)%s' % (argument.getTypeExpression().prettyPrint(), optionalIdentifierToString(argument.name))
 
+        result += ' :: %s) :=> ...' % self.body.prettyPrint()
+        return result
     def isSigma(self) -> bool:
         return True
     

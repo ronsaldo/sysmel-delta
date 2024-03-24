@@ -638,6 +638,9 @@ class Typechecker(ASTVisitor):
             typedExpression = self.visitNode(expression)
             elementTypeExpressions.append(getTypeOfAnalyzedNode(typedExpression, typedExpression.sourcePosition))
             typedElements.append(typedExpression)
+
+        if all(isLiteralTypeOfTypeNode(elementType) for elementType in elementTypeExpressions):
+            return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, typedElements))
         
         tupleType = reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
         return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements))
