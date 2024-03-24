@@ -451,11 +451,11 @@ class SDVMFunction:
         return result
     
     def allInstructions(self):
-        for instruction in self.constants:
-            yield instruction
         for instruction in self.argumentInstructions:
             yield instruction
         for instruction in self.captureInstructions:
+            yield instruction
+        for instruction in self.constants:
             yield instruction
         for instruction in self.instructions:
             yield instruction

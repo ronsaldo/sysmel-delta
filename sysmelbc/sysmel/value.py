@@ -1160,6 +1160,9 @@ class ASTNode(TypedValue):
 
         return self.isEquivalentTo(other), environment
     
+    def isArgumentNode(self) -> bool:
+        return False
+    
     def isMessageSendNode(self) -> bool:
         return False
 

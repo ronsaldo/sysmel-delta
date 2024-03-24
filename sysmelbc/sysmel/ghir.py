@@ -1144,9 +1144,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def translateFunctionalValueDefinition(self, functionalValue: FunctionalValue) -> GHIRFunctionalDefinitionValue:
         captures = list(map(self.translateCaptureBinding, functionalValue.captureBindings))
-        argument = self.translateArgumentBinding(functionalValue.argumentBinding)
+        arguments = list(map(self.translateArgumentBinding, functionalValue.argumentBindings))
         body = self.translateExpression(functionalValue.body)
-        return GHIRFunctionalDefinitionValue(self.context, captures, [argument], body).simplify()
+        return GHIRFunctionalDefinitionValue(self.context, captures, arguments, body).simplify()
     
     def visitImportedModuleValue(self, value: ImportedModuleValue):
         type: GHIRValue = self.translateValue(value.type)
@@ -1190,6 +1190,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateExpression(node.type)
         elements = list(map(self.translateExpression), node.elements)
         return GHIRSumType(self.context, type, elements).simplify()
+    
+    def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
+        assert False
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         functional = self.translateExpression(node.functional)

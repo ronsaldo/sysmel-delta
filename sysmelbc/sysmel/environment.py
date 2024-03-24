@@ -1,6 +1,7 @@
 from .value import *
 from .ast import *
 import os.path
+import copy
 
 class AbstractEnvironment(ABC):
     @abstractmethod
@@ -176,18 +177,39 @@ class ScriptEnvironment(LexicalEnvironment):
         return super().lookLocalSymbol(symbol)
 
 class FunctionalAnalysisEnvironment(LexicalEnvironment):
-    def __init__(self, parent: AbstractEnvironment, argumentBinding: SymbolArgumentBinding, sourcePosition: SourcePosition = None) -> None:
+    def __init__(self, parent: AbstractEnvironment, arguments: list[SymbolArgumentBinding], sourcePosition: SourcePosition = None) -> None:
         super().__init__(parent, sourcePosition)
-        self.argumentBinding = argumentBinding
+        self.arguments = arguments
+        self.argumentBindingMap = dict()
+
         self.captureBindings = []
         self.capturedBindingMap = dict()
+        for argument in arguments:
+            if argument.name is not None:
+                self.argumentBindingMap[argument.name] = argument
+
+    def postCopy(self):
+        self.arguments = list(self.arguments)
+        self.argumentBindingMap = dict(self.argumentBindingMap)
+
+        self.captureBindings = list(self.captureBindings)
+        self.capturedBindingMap = dict(self.capturedBindingMap)
+        return self
+
+    def withArgumentBinding(self, newBinding: SymbolArgumentBinding):
+        result = copy.copy(self)
+        result.postCopy()
+        result.arguments.append(newBinding)
+        if newBinding.name is not None:
+            result.argumentBindingMap[newBinding.name] = newBinding
+        return result
 
     def lookFunctionalAnalysisEnvironment(self):
         return self
 
     def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
-        if self.argumentBinding is not None and symbol == self.argumentBinding.name:
-            return self.argumentBinding
+        if symbol in self.argumentBindingMap:
+            return self.argumentBindingMap[symbol]
         return None
     
     def getOrCreateCaptureForBinding(self, binding: SymbolBinding | None) -> SymbolBinding | None:
@@ -231,9 +253,9 @@ class FunctionalActivationEnvironment:
         raise Exception('%s: Binding for %s does not have an active value.' % (str(sourcePosition), repr(binding.name)))
     
 class FunctionalValue(TypedValue):
-    def __init__(self, type: TypedValue, argumentBinding: SymbolArgumentBinding, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None) -> None:
+    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None) -> None:
         self.type = type
-        self.argumentBinding = argumentBinding
+        self.argumentBindings = argumentBindings
         self.captureBindings = captureBindings
         self.captureBindingValues = captureBindingValues
         self.body = body
@@ -260,14 +282,21 @@ class LambdaValue(FunctionalValue):
     
     def prettyPrint(self) -> str:
         assert self.type.isPi()
-        return '(:(%s)%s :: %s) :=> ...' % (self.type.argumentBinding.getTypeExpression().prettyPrint(), optionalIdentifierToString(self.type.argumentBinding.name), self.type.body.prettyPrint())
+        result = '('
+        for argument in self.argumentBindings:
+            if len(result) != 1:
+                result += ', '
+            result += ':(%s)%s' % (argument.getTypeExpression().prettyPrint(), optionalIdentifierToString(argument.name))
+
+        result += ' :: %s) :=> ...' % self.type.body.prettyPrint()
+        return result
 
     def toJson(self):
         return {'lambda': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class PiValue(FunctionalValue):
-    def __init__(self, type: TypedValue, argumentBinding: SymbolArgumentBinding, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
-        super().__init__(type, argumentBinding, captureBindings, captureBindingValues, body, sourcePosition)
+    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
+        super().__init__(type, argumentBindings, captureBindings, captureBindingValues, body, sourcePosition)
         self.callingConvention = callingConvention
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
@@ -283,7 +312,7 @@ class PiValue(FunctionalValue):
         if self.callingConvention == conventionName:
             return self
 
-        return PiValue(self.type, self.argumentBinding, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, self.callingConvention)
+        return PiValue(self.type, self.argumentBindings, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, self.callingConvention)
 
     def toJson(self):
         return {'pi': str(self.argumentBinding.name), 'body': self.body.toJson(), 'type': self.type.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}

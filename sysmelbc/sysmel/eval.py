@@ -46,6 +46,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         functional = self.visitNode(node.functional)
         argument = self.visitNode(node.argument)
         return functional(argument)
+    
+    def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
+        assert False
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         type = self.visitNode(node.type)
