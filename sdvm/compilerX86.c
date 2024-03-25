@@ -2007,7 +2007,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         else
             sdvm_compiler_x86_cmp16RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
 
-        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, arg0->isSigned, instruction->decoding.baseOpcode);
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt16, instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstInt32Add:
@@ -2088,7 +2088,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         else
             sdvm_compiler_x86_cmp32RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
 
-        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, arg0->isSigned, instruction->decoding.baseOpcode);
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt32, instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstInt64Add:
@@ -2169,7 +2169,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         else
             sdvm_compiler_x86_cmp64RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
 
-        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, arg0->isSigned, instruction->decoding.baseOpcode);
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt64, instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstJump:
