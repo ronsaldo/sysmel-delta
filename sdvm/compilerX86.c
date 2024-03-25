@@ -1884,6 +1884,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
     .pointerSize = 8,
     .objectFileType = SdvmObjectFileTypeElf,
     .elfMachine = SDVM_EM_X86_64,
+    .usesUnderscorePrefix = false,
 
     .defaultCC = &sdvm_x64_sysv_callingConvention,
     .cdecl = &sdvm_x64_sysv_callingConvention,

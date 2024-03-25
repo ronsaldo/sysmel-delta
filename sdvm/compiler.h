@@ -183,6 +183,7 @@ struct sdvm_compilerTarget_s
     uint32_t pointerSize;
     sdvm_compilerObjectFileType_t objectFileType;
     uint32_t elfMachine;
+    bool usesUnderscorePrefix;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
     const sdvm_compilerCallingConvention_t *cdecl;

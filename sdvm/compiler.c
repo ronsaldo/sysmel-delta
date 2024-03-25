@@ -1724,12 +1724,17 @@ SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, 
     sdvm_dynarray_add(&compiler->textSection.relocations, &relocation);
 }
 
-char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_t_moduleExternalType_t externalType, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
+char *sdvm_compile_makeModuleSymbolInterface(sdvm_compiler_t *compiler, sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_t_moduleExternalType_t externalType, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
 {
     size_t symbolSize = 0;
+
+    // Add the underscore prefix when required.
+    bool underscorePrefix = compiler->target->usesUnderscorePrefix;
+    if(underscorePrefix)
+        symbolSize += 1;
+
     if(externalType == SdvmModuleExternalTypeC)
     {
-        // TODO: Add the underscore prefix when required.
         symbolSize += valueName->stringSectionSize;
     }
     else
@@ -1751,6 +1756,11 @@ char *sdvm_compile_makeModuleSymbolInterface(sdvm_module_t *module, sdvm_moduleS
 
     char *symbol = malloc(symbolSize + 1);
     size_t destIndex = 0;
+
+    // Add the underscore prefix, when is it required.
+    if(underscorePrefix)
+        symbol[destIndex++] = '_';
+
     if(externalType == SdvmModuleExternalTypeC)
     {
         // TODO: Add the underscore prefix when required.
@@ -1787,7 +1797,7 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     {
         sdvm_moduleExportValueTableEntry_t *exportValueTableEntry = module->exportValueTable + i;
 
-        char *exportedSymbolName = sdvm_compile_makeModuleSymbolInterface(module, &module->header->name, exportValueTableEntry->externalType, &exportValueTableEntry->name, &exportValueTableEntry->typeDescriptor);
+        char *exportedSymbolName = sdvm_compile_makeModuleSymbolInterface(compiler, module, &module->header->name, exportValueTableEntry->externalType, &exportValueTableEntry->name, &exportValueTableEntry->typeDescriptor);
         sdvm_compilerSymbolKind_t symbolKind = SdvmCompSymbolKindNull;
 
         switch(exportValueTableEntry->kind)
@@ -1826,7 +1836,7 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
         if(importValueTableEntry->module != 0)
             moduleName = &module->importTable[importValueTableEntry->module - 1].name;
 
-        char *importedSymbolName = sdvm_compile_makeModuleSymbolInterface(module, moduleName, importValueTableEntry->externalType, &importValueTableEntry->name, &importValueTableEntry->typeDescriptor);
+        char *importedSymbolName = sdvm_compile_makeModuleSymbolInterface(compiler, module, moduleName, importValueTableEntry->externalType, &importValueTableEntry->name, &importValueTableEntry->typeDescriptor);
         state.importedValueTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, importedSymbolName, SdvmCompSymbolKindNull, SdvmCompSymbolBindingGlobal);
         free(importedSymbolName);
     }
