@@ -286,6 +286,7 @@ void sdvm_compilerLocation_print(sdvm_compiler_t *compiler, sdvm_compilerLocatio
 }
 void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
 {
+    printf("Function IR:\n");
     for(uint32_t i = 0; i < state->instructionCount; ++i)
     {
         sdvm_compilerInstruction_t *instruction = state->instructions + i;

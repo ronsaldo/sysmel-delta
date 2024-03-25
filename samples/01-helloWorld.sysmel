@@ -14,5 +14,4 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
     ##argc + 1i32
     ##0i32
     myAdd(argc, 1i32)
-    ##argc max: 2i32
 }.
