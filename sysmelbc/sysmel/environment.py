@@ -692,27 +692,27 @@ for primitiveNumberType in PrimitiveFloatTypes:
 for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['i8',  prefix + 'i8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
-        ['i16', prefix + 'i16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
-        ['i32', prefix + 'i32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
-        ['i64', prefix + 'i64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+        ['i8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
+        ['i16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
+        ['i32', prefix + 'asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
+        ['i64', prefix + 'asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
 
-        ['u8',  prefix + 'u8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
-        ['u16', prefix + 'u16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
-        ['u32', prefix + 'u32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
-        ['u64', prefix + 'u64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+        ['u8',  prefix + 'asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
+        ['u16', prefix + 'asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
+        ['u32', prefix + 'asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
+        ['u64', prefix + 'asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
 
-        ['sz',   prefix +  'sz',  [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), []],
-        ['ssz',  prefix + 'ssz',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), []],
-        ['uptr', prefix + 'uptr', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), []],
-        ['iptr', prefix + 'iptr', [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), []],
+        ['sz',   prefix + 'asSize',        [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), []],
+        ['ssz',  prefix + 'asSignedSize',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), []],
+        ['uptr', prefix + 'asUIntPointer', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), []],
+        ['iptr', prefix + 'asIntPointer',  [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), []],
 
-        ['c8',  prefix + 'c8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
-        ['c16', prefix + 'c16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
-        ['c32', prefix + 'c32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
+        ['c8',  prefix + 'asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
+        ['c16', prefix + 'asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
+        ['c32', prefix + 'asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
 
-        ['f32', prefix + 'f32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
-        ['f64', prefix + 'f64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
+        ['f32', prefix + 'asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
+        ['f64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
     ], TopLevelEnvironment)
 
 TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(FalseType.getSingleton())
