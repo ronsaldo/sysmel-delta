@@ -641,12 +641,15 @@ for primitiveNumberType in NumberTypes:
         ['-', prefix + '-',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x - y, []],
         ['*', prefix + '*',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x * y, []],
 
-        ['=', prefix + '=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x == y, []],
-        ['~=', prefix + '~=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x != y, []],
-        ['<', prefix + '<',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x < y, []],
-        ['<=', prefix + '<=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x <= y, []],
-        ['>', prefix + '>',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x > y, []],
-        ['>=', prefix + '>=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x >= y, []],
+        ['=', prefix + '=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.equals(y), []],
+        ['~=', prefix + '~=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.notEquals(y), []],
+        ['<', prefix + '<',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.lessThan(y), []],
+        ['<=', prefix + '<=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.lessOrEquals(y), []],
+        ['>', prefix + '>',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.greaterThan(y), []],
+        ['>=', prefix + '>=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.greaterOrEquals(y), []],
+
+        ['min:', prefix + 'min:',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.minWith(y), []],
+        ['max:', prefix + 'max:',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.maxWith(y), []],
 
         ['asInt8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
         ['asInt16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],

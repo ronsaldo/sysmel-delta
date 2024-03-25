@@ -448,30 +448,42 @@ class IntegerValue(TypedValue):
     def __rshift__(self, other):
         return self.__class__(self.value >> other.value)
     
-    def __eq__(self, other):
+    def equals(self, other):
         return booleanValueFor(self.value == other.value)
 
-    def __ne__(self, other):
+    def notEquals(self, other):
         return booleanValueFor(self.value != other.value)
 
-    def __lt__(self, other):
+    def lessThan(self, other):
         return booleanValueFor(self.value < other.value)
 
-    def __le__(self, other):
+    def lessOrEquals(self, other):
         return booleanValueFor(self.value <= other.value)
 
-    def __gt__(self, other):
+    def greaterThan(self, other):
         return booleanValueFor(self.value > other.value)
 
-    def __ge__(self, other):
+    def greaterOrEquals(self, other):
         return booleanValueFor(self.value >= other.value)
-
+    
     def quotientWith(self, other):
         return self.__class__(int(self.value / other.value))
 
     def remainderWith(self, other):
         quotient = int(self.value / other.value)
         return self.__class__(self.value - quotient*other.value)
+
+    def minWith(self, other):
+        if self.value <= other.value:
+            return self
+        else:
+            return other
+
+    def maxWith(self, other):
+        if self.value <= other.value:
+            return self
+        else:
+            return other
 
     def castToInteger(self):
         return self
@@ -538,7 +550,37 @@ class PrimitiveIntegerValue(TypedValue):
 
     def __rshift__(self, other):
         return self.__class__(self.type, self.value >> other.value)
-        
+
+    def equals(self, other):
+        return booleanValueFor(self.value == other.value)
+
+    def notEquals(self, other):
+        return booleanValueFor(self.value != other.value)
+
+    def lessThan(self, other):
+        return booleanValueFor(self.value < other.value)
+
+    def lessOrEquals(self, other):
+        return booleanValueFor(self.value <= other.value)
+
+    def greaterThan(self, other):
+        return booleanValueFor(self.value > other.value)
+
+    def greaterOrEquals(self, other):
+        return booleanValueFor(self.value >= other.value)
+    
+    def minWith(self, other):
+        if self.value <= other.value:
+            return self
+        else:
+            return other
+
+    def maxWith(self, other):
+        if self.value <= other.value:
+            return self
+        else:
+            return other
+
     def castToInteger(self):
         return IntegerValue(self.value)
 
@@ -600,6 +642,36 @@ class PrimitiveFloatValue(TypedValue):
     def sqrt(self):
         return self.__class__(self.type, math.sqrt(self.value))
 
+    def minWith(self, other):
+        if self.value <= other.value:
+            return self
+        else:
+            return other
+
+    def maxWith(self, other):
+        if self.value <= other.value:
+            return self
+        else:
+            return other
+
+    def equals(self, other):
+        return booleanValueFor(self.value == other.value)
+
+    def notEquals(self, other):
+        return booleanValueFor(self.value != other.value)
+
+    def lessThan(self, other):
+        return booleanValueFor(self.value < other.value)
+
+    def lessOrEquals(self, other):
+        return booleanValueFor(self.value <= other.value)
+
+    def greaterThan(self, other):
+        return booleanValueFor(self.value > other.value)
+
+    def greaterOrEquals(self, other):
+        return booleanValueFor(self.value >= other.value)
+    
     def castToInteger(self):
         return IntegerValue(int(self.value))
 
