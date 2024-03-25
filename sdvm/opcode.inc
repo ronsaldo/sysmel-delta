@@ -91,6 +91,26 @@ SDVM_OPCODE_DEF(LessOrEquals, 32, "Less or equals. Unordered if float.")
 SDVM_OPCODE_DEF(GreaterThan, 33, "Less than. Unordered if float.")
 SDVM_OPCODE_DEF(GreaterOrEquals, 34, "Greater or equals. Unordered if float.")
 
+SDVM_OPCODE_DEF(Min, 35, "Minimum. Signed if integer.")
+SDVM_OPCODE_DEF(UMin, 36, "Unsigned minimum")
+SDVM_OPCODE_DEF(Max, 37, "Maximum. Signed if integer.")
+SDVM_OPCODE_DEF(UMax, 38, "Unsigned maximum.")
+
+SDVM_OPCODE_DEF(Floor, 39, "Floating point floor.")
+SDVM_OPCODE_DEF(Ceil, 40, "Floating point ceiling.")
+SDVM_OPCODE_DEF(Truncate, 41, "Floating point truncate.")
+SDVM_OPCODE_DEF(Round, 42, "Floating point round.")
+
+SDVM_OPCODE_DEF(Bitcast, 43, "Bit cast.")
+SDVM_OPCODE_DEF(SignExtend, 44, "Sign extend.")
+SDVM_OPCODE_DEF(ZeroExtend, 45, "Zero extend.")
+SDVM_OPCODE_DEF(TruncateCast, 46, "Truncate cast.")
+SDVM_OPCODE_DEF(FloatExtend, 47, "Floating point extension.")
+SDVM_OPCODE_DEF(FloatToSigned, 48, "Floating point to signed integer.")
+SDVM_OPCODE_DEF(FloatToUnsigned, 49, "Floating point to unsigned integer.")
+SDVM_OPCODE_DEF(SignedToFloat, 50, "Signed integer to floating point.")
+SDVM_OPCODE_DEF(UnsignedToFloat, 51, "Unsigned integer to floating point.")
+
 // Common instructions
 SDVM_INSTRUCTION_DEF(Nop, Nop, Void, Void, Void, "No operation")
 SDVM_INSTRUCTION_DEF(BeginArguments, BeginArguments, Void, Info, Info, "Begin fetching arguments. Argument count. Calling convention.")
@@ -193,3 +213,118 @@ SDVM_INSTRUCTION_DEF(JumpIfFalse, JumpIfFalse, Void, Boolean, Label, "Jump if fa
 #define FloatType Float64
 #include "floatOpcodes.inc"
 #undef FloatType
+
+// Casting instructions
+SDVM_CAST_INSTRUCTION_DEF( Int8, Bitcast, UInt8)
+SDVM_CAST_INSTRUCTION_DEF(UInt8, Bitcast,  Int8)
+
+SDVM_CAST_INSTRUCTION_DEF( Int16, Bitcast, UInt16)
+SDVM_CAST_INSTRUCTION_DEF(UInt16, Bitcast,  Int16)
+
+SDVM_CAST_INSTRUCTION_DEF(  Int32, Bitcast,  UInt32)
+SDVM_CAST_INSTRUCTION_DEF(  Int32, Bitcast, Float32)
+SDVM_CAST_INSTRUCTION_DEF( UInt32, Bitcast,   Int32)
+SDVM_CAST_INSTRUCTION_DEF( UInt32, Bitcast, Float32)
+SDVM_CAST_INSTRUCTION_DEF(Float32, Bitcast,   Int32)
+SDVM_CAST_INSTRUCTION_DEF(Float32, Bitcast,  UInt32)
+
+SDVM_CAST_INSTRUCTION_DEF(  Int64, Bitcast,  UInt64)
+SDVM_CAST_INSTRUCTION_DEF(  Int64, Bitcast, Float64)
+SDVM_CAST_INSTRUCTION_DEF( UInt64, Bitcast,   Int64)
+SDVM_CAST_INSTRUCTION_DEF( UInt64, Bitcast, Float64)
+SDVM_CAST_INSTRUCTION_DEF(Float64, Bitcast,   Int64)
+SDVM_CAST_INSTRUCTION_DEF(Float64, Bitcast,  UInt64)
+
+SDVM_CAST_INSTRUCTION_DEF( Int8, SignExtend, Int16)
+SDVM_CAST_INSTRUCTION_DEF( Int8, SignExtend, Int32)
+SDVM_CAST_INSTRUCTION_DEF( Int8, SignExtend, Int64)
+SDVM_CAST_INSTRUCTION_DEF(Int16, SignExtend, Int32)
+SDVM_CAST_INSTRUCTION_DEF(Int16, SignExtend, Int64)
+SDVM_CAST_INSTRUCTION_DEF(Int32, SignExtend, Int64)
+
+SDVM_CAST_INSTRUCTION_DEF( UInt8, ZeroExtend, UInt16)
+SDVM_CAST_INSTRUCTION_DEF( UInt8, ZeroExtend, UInt32)
+SDVM_CAST_INSTRUCTION_DEF( UInt8, ZeroExtend, UInt64)
+SDVM_CAST_INSTRUCTION_DEF(UInt16, ZeroExtend, UInt32)
+SDVM_CAST_INSTRUCTION_DEF(UInt16, ZeroExtend, UInt64)
+SDVM_CAST_INSTRUCTION_DEF(UInt32, ZeroExtend, UInt64)
+
+SDVM_CAST_INSTRUCTION_DEF( Int8, ZeroExtend, UInt16)
+SDVM_CAST_INSTRUCTION_DEF( Int8, ZeroExtend, UInt32)
+SDVM_CAST_INSTRUCTION_DEF( Int8, ZeroExtend, UInt64)
+SDVM_CAST_INSTRUCTION_DEF(Int16, ZeroExtend, UInt32)
+SDVM_CAST_INSTRUCTION_DEF(Int16, ZeroExtend, UInt64)
+SDVM_CAST_INSTRUCTION_DEF(Int32, ZeroExtend, UInt64)
+
+SDVM_CAST_INSTRUCTION_DEF(Int64, Truncate,  Int32)
+SDVM_CAST_INSTRUCTION_DEF(Int64, Truncate,  Int16)
+SDVM_CAST_INSTRUCTION_DEF(Int64, Truncate,   Int8)
+SDVM_CAST_INSTRUCTION_DEF(Int64, Truncate, UInt32)
+SDVM_CAST_INSTRUCTION_DEF(Int64, Truncate, UInt16)
+SDVM_CAST_INSTRUCTION_DEF(Int64, Truncate,  UInt8)
+
+SDVM_CAST_INSTRUCTION_DEF(UInt64, Truncate,  Int32)
+SDVM_CAST_INSTRUCTION_DEF(UInt64, Truncate,  Int16)
+SDVM_CAST_INSTRUCTION_DEF(UInt64, Truncate,   Int8)
+SDVM_CAST_INSTRUCTION_DEF(UInt64, Truncate, UInt32)
+SDVM_CAST_INSTRUCTION_DEF(UInt64, Truncate, UInt16)
+SDVM_CAST_INSTRUCTION_DEF(UInt64, Truncate,  UInt8)
+
+SDVM_CAST_INSTRUCTION_DEF(Int32, Truncate,  Int16)
+SDVM_CAST_INSTRUCTION_DEF(Int32, Truncate,   Int8)
+SDVM_CAST_INSTRUCTION_DEF(Int32, Truncate, UInt16)
+SDVM_CAST_INSTRUCTION_DEF(Int32, Truncate,  UInt8)
+
+SDVM_CAST_INSTRUCTION_DEF(UInt32, Truncate,  Int16)
+SDVM_CAST_INSTRUCTION_DEF(UInt32, Truncate,   Int8)
+SDVM_CAST_INSTRUCTION_DEF(UInt32, Truncate, UInt16)
+SDVM_CAST_INSTRUCTION_DEF(UInt32, Truncate,  UInt8)
+
+SDVM_CAST_INSTRUCTION_DEF(Int16, Truncate,   Int8)
+SDVM_CAST_INSTRUCTION_DEF(Int16, Truncate,  UInt8)
+
+SDVM_CAST_INSTRUCTION_DEF(UInt16, Truncate,   Int8)
+SDVM_CAST_INSTRUCTION_DEF(UInt16, Truncate,  UInt8)
+
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatExtend, Float64)
+SDVM_CAST_INSTRUCTION_DEF(Float64, Truncate, Float32)
+
+SDVM_CAST_INSTRUCTION_DEF( Int8, SignedToFloat, Float32)
+SDVM_CAST_INSTRUCTION_DEF(Int16, SignedToFloat, Float32)
+SDVM_CAST_INSTRUCTION_DEF(Int32, SignedToFloat, Float32)
+SDVM_CAST_INSTRUCTION_DEF(Int64, SignedToFloat, Float32)
+
+SDVM_CAST_INSTRUCTION_DEF( Int8, SignedToFloat, Float64)
+SDVM_CAST_INSTRUCTION_DEF(Int16, SignedToFloat, Float64)
+SDVM_CAST_INSTRUCTION_DEF(Int32, SignedToFloat, Float64)
+SDVM_CAST_INSTRUCTION_DEF(Int64, SignedToFloat, Float64)
+
+SDVM_CAST_INSTRUCTION_DEF( UInt8, UnsignedToFloat, Float32)
+SDVM_CAST_INSTRUCTION_DEF(UInt16, UnsignedToFloat, Float32)
+SDVM_CAST_INSTRUCTION_DEF(UInt32, UnsignedToFloat, Float32)
+SDVM_CAST_INSTRUCTION_DEF(UInt64, UnsignedToFloat, Float32)
+
+SDVM_CAST_INSTRUCTION_DEF( UInt8, UnsignedToFloat, Float64)
+SDVM_CAST_INSTRUCTION_DEF(UInt16, UnsignedToFloat, Float64)
+SDVM_CAST_INSTRUCTION_DEF(UInt32, UnsignedToFloat, Float64)
+SDVM_CAST_INSTRUCTION_DEF(UInt64, UnsignedToFloat, Float64)
+
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToSigned,  Int8)
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToSigned, Int16)
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToSigned, Int32)
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToSigned, Int64)
+
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToSigned,  Int8)
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToSigned, Int16)
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToSigned, Int32)
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToSigned, Int64)
+
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToUnsigned,  UInt8)
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToUnsigned, UInt16)
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToUnsigned, UInt32)
+SDVM_CAST_INSTRUCTION_DEF(Float32, FloatToUnsigned, UInt64)
+
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToUnsigned,  UInt8)
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToUnsigned, UInt16)
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToUnsigned, UInt32)
+SDVM_CAST_INSTRUCTION_DEF(Float64, FloatToUnsigned, UInt64)

@@ -28,9 +28,17 @@ typedef enum sdvm_type_e
     SDVM_INSTRUCTION_DEF(type ## opcode,  opcode, type, type, type, #type " " #opcode)
 #define SDVM_ALU_INSTRUCTION_DEF(type, opcode) SDVM_ALU_INSTRUCTION_DEF_(type, opcode)
 
+#define SDVM_UNARY_ALU_INSTRUCTION_DEF_(type, opcode) \
+    SDVM_INSTRUCTION_DEF(type ## opcode,  opcode, type, type, Void, #type " " #opcode)
+#define SDVM_UNARY_ALU_INSTRUCTION_DEF(type, opcode) SDVM_UNARY_ALU_INSTRUCTION_DEF_(type, opcode)
+
 #define SDVM_COMP_INSTRUCTION_DEF_(type, opcode) \
     SDVM_INSTRUCTION_DEF(type ## opcode,  opcode, Boolean, type, type, #type " " #opcode)
 #define SDVM_COMP_INSTRUCTION_DEF(type, opcode) SDVM_COMP_INSTRUCTION_DEF_(type, opcode)
+
+#define SDVM_CAST_INSTRUCTION_DEF_(sourceType, opcode, destinationType) \
+    SDVM_INSTRUCTION_DEF(sourceType ## _ ## opcode ## _ ## destinationType,  opcode, destinationType, sourceType, Void, #sourceType " " #opcode " into " #destinationType)
+#define SDVM_CAST_INSTRUCTION_DEF(sourceType, opcode, destinationType) SDVM_CAST_INSTRUCTION_DEF_(sourceType, opcode, destinationType)
 
 typedef enum sdvm_constBaseOpcode_e
 {

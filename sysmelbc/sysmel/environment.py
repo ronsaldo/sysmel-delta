@@ -637,6 +637,13 @@ for primitiveNumberType in NumberTypes:
         ['-', prefix + '-',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x - y, []],
         ['*', prefix + '*',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x * y, []],
 
+        ['=', prefix + '=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x == y, []],
+        ['~=', prefix + '~=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x != y, []],
+        ['<', prefix + '<',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x < y, []],
+        ['<=', prefix + '<=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x <= y, []],
+        ['>', prefix + '>',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x > y, []],
+        ['>=', prefix + '>=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x >= y, []],
+
         ['asInt8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
         ['asInt16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
         ['asInt32', prefix + 'asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
@@ -664,6 +671,12 @@ for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
         ['bitInvert', prefix + 'bitInvert',  [primitiveNumberType, primitiveNumberType], lambda x: ~x, []],
+
+        ['&', prefix + '&',  [primitiveNumberType, primitiveNumberType], lambda x, y: x & y, []],
+        ['|', prefix + '|',  [primitiveNumberType, primitiveNumberType], lambda x, y: x | y, []],
+        ['^', prefix + '|',  [primitiveNumberType, primitiveNumberType], lambda x, y: x ^ y, []],
+        ['<<', prefix + '<<',  [primitiveNumberType, primitiveNumberType], lambda x, y: x << y, []],
+        ['>>', prefix + '>>',  [primitiveNumberType, primitiveNumberType], lambda x, y: x >> y, []],
 
         ['//', prefix + '//',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.quotientWith(y), []],
         ['%', prefix + '%',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.remainderWith(y), []],
