@@ -912,9 +912,10 @@ class MIRFunctionFrontend:
         return self.builder.returnValue(resultValue)
 
 for name, translator in [
-    ('Int32::+', sdvmBinaryPrimitiveFor(SdvmInstInt32Add)),
-    ('Int32::-', sdvmBinaryPrimitiveFor(SdvmInstInt32Sub)),
-    ('Int32::*', sdvmBinaryPrimitiveFor(SdvmInstInt32Mul)),
-    ('Int32::/', sdvmBinaryPrimitiveFor(SdvmInstInt32Div))
+    ('Int32::+',  sdvmBinaryPrimitiveFor(SdvmInstInt32Add)),
+    ('Int32::-',  sdvmBinaryPrimitiveFor(SdvmInstInt32Sub)),
+    ('Int32::*',  sdvmBinaryPrimitiveFor(SdvmInstInt32Mul)),
+    ('Int32:://', sdvmBinaryPrimitiveFor(SdvmInstInt32Div)),
+    ('Int32::%',  sdvmBinaryPrimitiveFor(SdvmInstInt32Rem))
 ]:
     PrimitiveFunctionTranslators[name] = translator

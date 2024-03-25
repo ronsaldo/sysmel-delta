@@ -1,7 +1,7 @@
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer pointer)format, :(CVarArg)... :: Int32) __cdecl).
 let: #puts with: (fromExternal: #C import: #puts withType: (Char8 pointer => Unit) __cdecl).
 
-let: #myAdd with: (:(Int32)x, :(Int32)y :: Int32) __cdecl :=> x + y.
+let: #myAdd with: (:(Int32)x, :(Int32)y :: Int32) __cdecl :=> x % y.
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: Int32) __cdecl :=> {
     puts("Hello World" elements).
