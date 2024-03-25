@@ -145,6 +145,7 @@ typedef struct sdvm_compilerObjectSection_s
 
     sdvm_dynarray_t contents;
     sdvm_dynarray_t relocations;
+    sdvm_dynarray_t pendingLabelRelocations;
 } sdvm_compilerObjectSection_t;
 
 typedef struct sdvm_compilerLabel_s
@@ -152,6 +153,14 @@ typedef struct sdvm_compilerLabel_s
     sdvm_compilerObjectSection_t *section;
     int64_t value;
 } sdvm_compilerLabel_t;
+
+typedef struct sdvm_compilerPendingLabelRelocation_s
+{
+    sdvm_compilerRelocationKind_t kind;
+    uint32_t labelIndex;
+    uint32_t offset;
+    int64_t addend;
+} sdvm_compilerPendingLabelRelocation_t;
 
 typedef struct sdvm_compilerSymbolTable_s
 {
@@ -542,7 +551,7 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stack(uint32_t size, uint
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackSignedInteger(uint32_t size);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackPair(uint32_t firstSize, uint32_t firstAlignment, uint32_t secondSize, uint32_t secondAlignment);
 
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_type_t type);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_compilerInstruction_t *argument, sdvm_type_t type);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_spillForOperandType(sdvm_compiler_t *compiler, sdvm_type_t type);
 
 SDVM_API bool sdvm_compilerLocation_isStackOrPair(const sdvm_compilerLocation_t *location);
@@ -550,6 +559,7 @@ SDVM_API bool sdvm_compilerLocation_isStackOrPair(const sdvm_compilerLocation_t 
 SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state);
+SDVM_API void sdvm_functionCompilationState_computeLabelLocations(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction);
 
 SDVM_API void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *state, sdvm_linearScanRegisterAllocator_t *registerAllocator);
@@ -560,10 +570,12 @@ SDVM_API void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationSta
 SDVM_API uint32_t sdvm_compiler_makeLabel(sdvm_compiler_t *compiler);
 SDVM_API void sdvm_compiler_setLabelValue(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section, int64_t value);
 SDVM_API void sdvm_compiler_setLabelAtSectionEnd(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section);
+SDVM_API void sdvm_compiler_applyPendingLabelRelocations(sdvm_compiler_t *compiler);
 
 SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
 SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);
 SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend);
+SDVM_API void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler, uint32_t labelIndex, int32_t addend);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API bool sdvm_compiler_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);

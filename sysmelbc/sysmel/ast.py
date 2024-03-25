@@ -47,6 +47,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitIfNode(self, node):
+        pass
+
+    @abstractmethod
     def visitOverloadsNode(self, node):
         pass
 
@@ -140,6 +144,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedIdentifierReferenceNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedIfNode(self, node):
         pass
 
     @abstractmethod
@@ -292,6 +300,19 @@ class ASTIdentifierReferenceNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'Identifier', 'value': repr(self.value)}
+
+class ASTIfNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, condition: ASTNode, trueExpression: ASTNode, falseExpression: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.condition = condition
+        self.trueExpression = trueExpression
+        self.falseExpression = falseExpression
+    
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitIfNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'If', 'condition': self.condition.toJson(), 'trueExpression' : optionalASTNodeToJson(self.trueExpression), 'falseExpression' : optionalASTNodeToJson(self.falseExpression)}
 
 class ASTPiNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], body: ASTNode, callingConvention: Symbol = None) -> None:
@@ -668,6 +689,19 @@ class ASTTypedFunctionalNode(ASTTypedNode):
     def isTypedFunctionalNode(self) -> bool:
         return True
 
+class ASTTypedIfNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, condition: ASTTypedNode, trueExpression: ASTTypedNode, falseExpression: ASTTypedNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.condition = condition
+        self.trueExpression = trueExpression
+        self.falseExpression = falseExpression
+    
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedIfNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'TypedIf', 'condition': self.condition.toJson(), 'trueExpression' : self.trueExpression.toJson(), 'falseExpression' : self.falseExpression.toJson()}
+    
 class ASTTypedPiNode(ASTTypedFunctionalNode):
     def isTypedPiNode(self) -> bool:
         return True
@@ -865,6 +899,13 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
         pass
 
+    def visitIfNode(self, node: ASTIfNode):
+        self.visitNode(node.condition)
+        if node.trueExpression is not None:
+            self.visitNode(node.trueExpression)
+        if node.falseExpression is not None:
+            self.visitNode(node.falseExpression)
+
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
         self.visitNode(node.expression)
 
@@ -980,6 +1021,12 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         self.visitNode(node.type)
 
+    def visitTypedIfNode(self, node: ASTTypedIfNode):
+        self.visitNode(node.type)
+        self.visitNode(node.condition)
+        self.visitNode(node.trueExpression)
+        self.visitNode(node.falseExpression)
+
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
         self.visitNode(node.type)
         for argument in node.arguments:
@@ -1082,6 +1129,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitIdentifierReferenceNode(self, node):
+        assert False
+
+    def visitIfNode(self, node):
         assert False
 
     def visitLambdaNode(self, node):

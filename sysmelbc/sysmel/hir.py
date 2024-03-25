@@ -147,6 +147,12 @@ class HIRTypeValue(HIRValue):
 
     def isType(self):
         return True
+    
+    def isUnitType(self):
+        return False
+    
+    def canonicalizeResult(self, resultValue: HIRValue) -> HIRValue:
+        return resultValue
 
     @abstractmethod
     def getSize(self) -> int:
@@ -199,7 +205,13 @@ class HIRCompositeType(HIRTypeValue):
     def getType(self):
         return self.context.getTypeUniverse(0)
 
+def alignedTo(offset, alignment):
+    return (offset + alignment - 1) & (-alignment)
+
 class HIRProductType(HIRCompositeType):
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitProductType(self)
+
     def __str__(self) -> str:
         result = '('
         isFirst = True
@@ -212,6 +224,75 @@ class HIRProductType(HIRCompositeType):
         result += ')'
         return result
 
+class HIRSumType(HIRCompositeType):
+    def __init__(self, context: HIRContext, elements: list[HIRTypeValue]) -> None:
+        super().__init__(context, elements)
+        self.discriminantType = None
+        self.discriminantAlignment = None
+        self.discriminantSize = None
+
+        self.variantDataOffset = None
+        self.variantDataAlignment = None
+        self.variantDataSize = None
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitSumType(self)
+    
+    def getVariantDataAlignment(self) -> int:
+        if self.variantDataAlignment is None:
+            self.computeLayout()
+
+        return self.variantDataAlignment
+
+    def getVariantDataSize(self) -> int:
+        if self.variantDataSize is None:
+            self.computeLayout()
+
+        return self.variantDataSize
+    
+    def isStateless(self) -> bool:
+        return self.getVariantDataSize() == 0
+    
+    def computeDiscriminantType(self):
+        variantCount = len(self.elements)
+        if variantCount <= 2:
+            return self.context.booleanType
+        elif variantCount <= 0xFF:
+            return self.context.uint8Type
+        elif variantCount <= 0xFFFF:
+            return self.context.uint16Type
+        else:
+            assert variantCount <= 0xFFFFFFFF
+            return self.context.uint32Type
+
+    def computeLayout(self):
+        self.discriminantType = self.computeDiscriminantType()
+        self.discriminantAlignment = self.discriminantType.getAlignment()
+        self.discriminantSize = self.discriminantType.getSize()
+
+        self.variantDataSize = 0
+        self.variantDataAlignment = 1
+        for variant in self.elements:
+            self.variantDataAlignment = max(self.variantDataAlignment, variant.getAlignment())
+            self.variantDataSize = max(self.variantDataSize, variant.getSize())
+
+        self.variantDataOffset = alignedTo(self.discriminantSize, self.variantDataAlignment)
+        self.variantDataSize = alignedTo(self.variantDataSize, self.variantDataAlignment)
+        self.alignment = max(self.discriminantAlignment, self.variantDataAlignment)
+        self.size = alignedTo(self.variantDataOffset + self.variantDataSize, self.alignment)
+
+    def __str__(self) -> str:
+        result = '('
+        isFirst = True
+        for element in self.elements:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ' | '
+            result += str(element)
+        result += ')'
+        return result
+    
 class HIRDerivedType(HIRTypeValue):
     def  __init__(self, context: HIRContext, baseType: HIRTypeValue) -> None:
         super().__init__(context)
@@ -305,7 +386,20 @@ class HIRAnyType(HIRPrimitiveType):
     pass
 
 class HIRUnitType(HIRPrimitiveType):
-    pass
+    def __init__(self, context: HIRContext, name: str, size: int, alignment: int) -> None:
+        super().__init__(context, name, size, alignment)
+        self.singleton = None
+
+    def canonicalizeResult(self, resultValue: HIRValue) -> HIRValue:
+        return self.getSingleton()
+
+    def getSingleton(self):
+        if self.singleton is None:
+            self.singleton = HIRConstantUnit(self.context, self)
+        return self.singleton
+
+    def isUnitType(self):
+        return True
 
 class HIRBasicBlockType(HIRPrimitiveType):
     pass
@@ -566,6 +660,24 @@ class HIRFunctionalDefinition(HIRGlobalValue):
 
         return list(reversed(visitedList))
 
+    def reachableBasicBlocksInReversePostOrder(self):
+        visitedSet = set()
+        visitedList = []
+
+        def visit(basicBlock: HIRBasicBlock):
+            if basicBlock in visitedSet:
+                return
+            
+            visitedSet.add(basicBlock)
+            for successor in basicBlock.successorBlocks():
+                visit(successor)
+            visitedList.append(basicBlock)
+
+        if self.firstBasicBlock is not None:
+            visit(self.firstBasicBlock)
+
+        return list(reversed(visitedList))
+
     def fullPrintString(self) -> str:
         self.enumerateLocalValues()
         result = str(self)
@@ -685,7 +797,7 @@ class HIRCallInstruction(HIRInstruction):
         return visitor.visitCallInstruction(self)
 
     def fullPrintString(self) -> str:
-        result = '%s := call %s (' % (str(self.type), str(self.functional))
+        result = '%s : %s := call %s (' % (str(self), str(self.type), str(self.functional))
         isFirst = True
         for arg in self.arguments:
             if isFirst:
@@ -703,6 +815,36 @@ class HIRTerminatorInstruction(HIRInstruction):
     def isTerminatorInstruction(self) -> bool:
         return True
 
+class HIRBranchInstruction(HIRTerminatorInstruction):
+    def __init__(self, context: HIRContext, destination: HIRBasicBlock) -> None:
+        super().__init__(context)
+        self.destination = destination
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitBranchInstruction(self)
+
+    def successorBlocks(self) -> list[HIRBasicBlock]:
+        return [self.destination]
+
+    def fullPrintString(self) -> str:
+        return 'branch %s' % str(self.destination)
+
+class HIRCondBranchInstruction(HIRTerminatorInstruction):
+    def __init__(self, context: HIRContext, condition: HIRValue, trueDestination: HIRBasicBlock, falseDestination: HIRBasicBlock) -> None:
+        super().__init__(context)
+        self.condition = condition
+        self.trueDestination = trueDestination
+        self.falseDestination = falseDestination
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitCondBranchInstruction(self)
+
+    def successorBlocks(self) -> list[HIRBasicBlock]:
+        return [self.trueDestination, self.falseDestination]
+
+    def fullPrintString(self) -> str:
+        return 'condBranch: %s ifTrue: %s ifFalse: %s' %  (str(self.condition), str(self.trueDestination), str(self.falseDestination))
+    
 class HIRReturnInstruction(HIRTerminatorInstruction):
     def __init__(self, context: HIRContext, result: HIRValue) -> None:
         super().__init__(context)
@@ -767,7 +909,13 @@ class HIRBuilder:
     
     def call(self, resultType: HIRValue, functional: HIRValue, arguments: list[HIRValue]) -> HIRInstruction:
         return self.addInstruction(HIRCallInstruction(self.context, resultType, functional, arguments))
-    
+
+    def condBranch(self, condition: HIRValue, trueDestination: HIRBasicBlock, falseDestination) -> HIRInstruction:
+        return self.addInstruction(HIRCondBranchInstruction(self.context, condition, trueDestination, falseDestination))
+
+    def branch(self, destination: HIRBasicBlock) -> HIRInstruction:
+        return self.addInstruction(HIRBranchInstruction(self.context, destination))
+
     def returnValue(self, value) -> HIRInstruction:
         return self.addInstruction(HIRReturnInstruction(self.context, value))
 
@@ -868,9 +1016,8 @@ class HIRModuleFrontend:
             (Float32Type, self.context.float32Type),
             (Float64Type, self.context.float64Type),
 
-            (FalseType, self.context.booleanType),
-            (TrueType, self.context.booleanType),
-            (BooleanType, self.context.booleanType),
+            (FalseType, self.context.unitType),
+            (TrueType, self.context.unitType),
         ]:
             self.translatedConstantValueDictionary[baseType] = targetType
 
@@ -907,6 +1054,10 @@ class HIRModuleFrontend:
     def visitProductType(self, value: GHIRProductType) -> HIRValue:
         elements = list(map(self.translateGraphValue, value.elements))
         return HIRProductType(self.context, elements)
+
+    def visitSumType(self, value: GHIRSumType) -> HIRValue:
+        elements = list(map(self.translateGraphValue, value.elements))
+        return HIRSumType(self.context, elements)
 
     def visitDecoratedType(self, value: GHIRDecoratedType) -> HIRValue:
         baseType = self.translateGraphValue(value.baseType)
@@ -969,7 +1120,7 @@ class HIRModuleFrontendValueTranslator:
         return HIRPointerType(self.context, baseType)
 
     def visitUnitTypeValue(self, value: UnitTypeValue) -> HIRValue:
-        return HIRConstantUnit(self.context, self.translateConstantTypedValue(value.type))
+        return self.translateConstantTypedValue(value.type).getSingleton()
     
     def visitStringDataValue(self, value: StringDataValue):
         return HIRConstantStringData(self.context, self.translateConstantTypedValue(value.getType()), value.value, True)
@@ -1017,7 +1168,42 @@ class HIRFunctionalDefinitionFrontend:
         functional = self.translateGraphValue(application.functional)
         arguments = list(map(self.translateGraphValue, application.arguments))
         resultType = self.translateGraphValue(application.type)
-        return self.builder.call(resultType, functional, arguments)
+        return resultType.canonicalizeResult(self.builder.call(resultType, functional, arguments))
+    
+    def visitIfExpression(self, ifExpression: GHIRIfExpression) -> HIRValue:
+        ## Condition
+        condition = self.translateGraphValue(ifExpression.condition)
+
+        trueBlock = self.builder.newBasicBlock('ifTrue')
+        falseBlock = self.builder.newBasicBlock('ifFalse')
+        mergeBlock = self.builder.newBasicBlock('ifMerge')
+        self.builder.condBranch(condition, trueBlock, falseBlock)
+
+        ## True expression
+        self.builder.beginBasicBlock(trueBlock)
+        trueResult = self.translateGraphValue(ifExpression.trueExpression)
+        trueResultIncomingBlock = self.builder.basicBlock
+        trueBlockTerminates = self.builder.isLastTerminator()
+        if not trueBlockTerminates:
+            self.builder.branch(mergeBlock)
+
+        ## False expression
+        self.builder.beginBasicBlock(falseBlock)
+        falseResult = self.translateGraphValue(ifExpression.falseExpression)
+        falseResultIncomingBlock = self.builder.basicBlock
+        falseBlockTerminates = self.builder.isLastTerminator()
+        if not falseBlockTerminates:
+            self.builder.branch(mergeBlock)
+
+        ## Merge
+        self.builder.beginBasicBlock(mergeBlock)
+
+        resultType = self.translateGraphValue(ifExpression.getType())
+        if resultType.isUnitType():
+            return resultType.getSingleton()
+
+        #if trueBlockTerminates and falseBlockTerminates:
+        assert False
     
     def visitSequence(self, sequence: GHIRSequence) -> HIRValue:
         result = self.moduleFrontend.translateConstantTypedValue(UnitType.getSingleton())

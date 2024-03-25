@@ -513,6 +513,12 @@ def publicTypeMutableWithMacro(macroContext: MacroContext, localName: ASTNode, e
 def publicMutableWithMacro(macroContext: MacroContext, localName: ASTNode, localValue: ASTNode) -> ASTNode:
     return ASTBindingDefinitionNode(macroContext.sourcePosition, localName, None, localValue, isMutable = True, isPublic = True)
 
+def ifThenMacro(macroContext: MacroContext, condition: ASTNode, trueExpression: ASTNode) -> ASTNode:
+    return ASTIfNode(macroContext.sourcePosition, condition, trueExpression, None)
+
+def ifThenElseMacro(macroContext: MacroContext, condition: ASTNode, trueExpression: ASTNode, falseExpression: ASTNode) -> ASTNode:
+    return ASTIfNode(macroContext.sourcePosition, condition, trueExpression, falseExpression)
+
 def arrowMacro(macroContext: MacroContext, argumentType: ASTNode, resultType: ASTNode) -> ASTNode:
     return ASTFunctionTypeNode(macroContext.sourcePosition, argumentType, resultType)
 
@@ -573,11 +579,6 @@ def loadSourceNamedMacro(macroContext: MacroContext, sourceName: ASTNode) -> AST
     except FileNotFoundError:
         return ASTErrorNode(macroContext.sourcePosition, 'Failed to find source file "%s".' % sourceNameString)
 
-## Boolean :: False | True.
-FalseType = UnitTypeClass("False", "false")
-TrueType = UnitTypeClass("True", "true")
-BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType])
-
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
         VoidType, UnitType,
@@ -603,6 +604,9 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['public:with:', 'Macro::public:with:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], publicWithMacro, ['macro']],
     ['public:type:mutableWith:', 'Macro::public:type:mutableWith:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], publicTypeMutableWithMacro, ['macro']],
     ['public:mutableWith:', 'Macro::public:mutableWith:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], publicMutableWithMacro, ['macro']],
+
+    ['if:then:', 'Macro::if:then:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], ifThenMacro, ['macro']],
+    ['if:then:else:', 'Macro::if:then:else:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], ifThenElseMacro, ['macro']],
 
     ['loadSourceNamed:', 'Macro::loadSourceNamed:', [(MacroContextType, ASTNodeType), ASTNodeType], loadSourceNamedMacro, ['macro']],
 

@@ -152,6 +152,10 @@ class GHIRVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitIfExpression(self, value):
+        pass
+
+    @abstractmethod
     def visitMakeTupleExpression(self, value):
         pass
 
@@ -813,6 +817,50 @@ class GHIRSequence(GHIRValue):
             replacement.registerUserValue(self)
         self.expressions = self.replacedUsedValueInListWith(self.expressions, usedValue, replacement)
 
+class GHIRIfExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, condition: GHIRValue, trueExpression: GHIRValue, falseExpression: GHIRValue) -> None:
+        super().__init__(context)
+        self.type = type
+        self.condition = condition
+        self.trueExpression = trueExpression
+        self.falseExpression = falseExpression
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitIfExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isIfExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        condition = graphPrinter.printValue(self.condition)
+        trueExpression = graphPrinter.printValue(self.trueExpression)
+        falseExpression = graphPrinter.printValue(self.falseExpression)
+        graphPrinter.printLine('%s := if: %s then: %s else: %s : %s' % (valueName, condition, trueExpression, falseExpression, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.condition
+        yield self.trueExpression
+        yield self.falseExpression
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.condition is usedValue:
+            self.condition = replacement
+            replacement.registerUserValue(self)
+        if self.trueExpression is usedValue:
+            self.trueExpression = replacement
+            replacement.registerUserValue(self)
+        if self.falseExpression is usedValue:
+            self.falseExpression = replacement
+            replacement.registerUserValue(self)
+
 class GHIRMakeTupleExpression(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
         super().__init__(context)
@@ -1160,8 +1208,8 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitSumType(self, value):
         type = self.translateValue(value.getType())
-        elementTypes = list(map(self.translateValue, value.elementTypes))
-        return self.context.getSumType(type, elementTypes)
+        variantTypes = list(map(self.translateValue, value.variantTypes))
+        return self.context.getSumType(type, variantTypes)
 
     def visitDecoratedType(self, value: DecoratedType):
         type = self.translateValue(value.getType())
@@ -1279,6 +1327,13 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.translatedBindingValueDictionary[node.binding]
+
+    def visitTypedIfNode(self, node: ASTTypedIfNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        condition = self.translateExpression(node.condition)
+        trueExpression = self.translateExpression(node.trueExpression)
+        falseExpression = self.translateExpression(node.falseExpression)
+        return GHIRIfExpression(self.context, type, condition, trueExpression, falseExpression).simplify()
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.translateExpression(node.type)
@@ -1426,6 +1481,9 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
             if self.checkValue(expression):
                 return True
         return False
+
+    def visitIfExpression(self, value: GHIRIfExpression):
+        return self.checkValue(value.condition) or self.checkValue(value.trueExpression) or self.checkValue(value.falseExpression)
 
     def visitMakeTupleExpression(self, value: GHIRMakeTupleExpression):
         for element in value.elements:

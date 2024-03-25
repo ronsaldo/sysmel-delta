@@ -85,6 +85,13 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.evaluateBindingAt(node.binding, node.sourcePosition)
 
+    def visitTypedIfNode(self, node: ASTTypedIfNode) -> TypedValue:
+        condition = self.visitNode(node.condition)
+        if condition.interpretAsBoolean():
+            return self.visitNode(node.trueExpression)
+        else:
+            return self.visitNode(node.falseExpression)
+
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.visitNode(node.type)
         capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))

@@ -16,6 +16,7 @@ typedef struct sdvm_dynarray_s
 SDVM_API void sdvm_dynarray_initialize(sdvm_dynarray_t *dynarray, size_t entrySize, size_t initialCapacity);
 SDVM_API size_t sdvm_dynarray_addAll(sdvm_dynarray_t *dynarray, size_t entryCount, const void *newEntries);
 SDVM_API size_t sdvm_dynarray_add(sdvm_dynarray_t *dynarray, const void *newEntry);
+SDVM_API void sdvm_dynarray_clear(sdvm_dynarray_t *dynarray);
 SDVM_API void sdvm_dynarray_destroy(sdvm_dynarray_t *dynarray);
 
 #define sdvm_dynarray_entryOfTypeAt(dynarray, entryType, index) (((entryType*)(dynarray).data) + index)

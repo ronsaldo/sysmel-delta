@@ -192,6 +192,9 @@ class TypedValue(ABC):
     
     def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
         return typechecker.makeSemanticError(sourcePosition, "Failed to convert value into function type node %s." % self.prettyPrint())
+    
+    def interpretAsBoolean(self) -> bool:
+        raise Exception("Not a boolean value.")
 
 class TypeUniverse(TypedValue):
     InstancedUniverses = dict()
@@ -444,6 +447,24 @@ class IntegerValue(TypedValue):
 
     def __rshift__(self, other):
         return self.__class__(self.value >> other.value)
+    
+    def __eq__(self, other):
+        return booleanValueFor(self.value == other.value)
+
+    def __ne__(self, other):
+        return booleanValueFor(self.value != other.value)
+
+    def __lt__(self, other):
+        return booleanValueFor(self.value < other.value)
+
+    def __le__(self, other):
+        return booleanValueFor(self.value <= other.value)
+
+    def __gt__(self, other):
+        return booleanValueFor(self.value > other.value)
+
+    def __ge__(self, other):
+        return booleanValueFor(self.value >= other.value)
 
     def quotientWith(self, other):
         return self.__class__(int(self.value / other.value))
@@ -780,7 +801,7 @@ class RecordTypeValue(ProductTypeValue):
     def toJson(self):
         result = dict()
         for i in range(len(self.elements)):
-            result[self.type.fields[i]] = self.elements[i]
+            result[self.type.fields[i].value] = self.elements[i].toJson()
 
         return result
     
@@ -825,7 +846,10 @@ class SumTypeValue(TypedValue):
         return self.type
 
     def toJson(self):
-        return {'sum': self.typeIndex, 'value': self.value.toJson}
+        return {'sum': self.variantIndex, 'value': self.value.toJson()}
+    
+    def interpretAsBoolean(self) -> bool:
+        return self.variantIndex != 0
 
 class SumType(BaseType):
     SumTypeCache = dict()
@@ -841,7 +865,7 @@ class SumType(BaseType):
         if not isinstance(other, SumType): return False
 
         if len(self.variantTypes) != len(other.variantTypes): return False
-        for i in range(len(self.elementTypes)):
+        for i in range(len(self.variantTypes)):
             if not self.variantTypes[i].isEquivalentTo(other.variantTypes[i]):
                 return False
 
@@ -858,7 +882,7 @@ class SumType(BaseType):
 
     @classmethod
     def makeNamedWithVariantTypes(cls, name, variantTypes: list[TypedValue]):
-        return cls(name, tuple(variantTypes))
+        return cls(tuple(variantTypes), name)
 
     @classmethod
     def makeWithVariantTypes(cls, variantTypes: list[TypedValue]):
@@ -869,6 +893,21 @@ class SumType(BaseType):
         sumType = cls(key)
         cls.SumTypeCache[key] = sumType
         return sumType
+
+## Boolean :: False | True.
+FalseType = UnitTypeClass("False", "false")
+TrueType = UnitTypeClass("True", "true")
+BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType])
+FalseValue = BooleanType.makeWithTypeIndexAndValue(0, FalseType.getSingleton())
+TrueValue = BooleanType.makeWithTypeIndexAndValue(1, TrueType.getSingleton())
+assert not FalseValue.interpretAsBoolean()
+assert TrueValue.interpretAsBoolean()
+
+def booleanValueFor(b: bool):
+    if b:
+        return TrueValue
+    else:
+        return FalseValue
 
 class DerivedType(BaseType):
     def __init__(self, baseType) -> None:

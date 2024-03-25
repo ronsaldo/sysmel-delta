@@ -38,6 +38,15 @@ class Typechecker(ASTVisitor):
         if typedNodeType != expectedTypeNode and not typedNodeType.isEquivalentTo(expectedTypeNode):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
+    
+    def visitNodeWithCurrentExpectedType(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
+        return self.visitNode(node)
+    
+    def mergeTypesOfBranch(self, leftTypeExpression: ASTNode, rightTypeExpression: ASTNode, sourcePosition: SourcePosition):
+        if leftTypeExpression.isEquivalentTo(rightTypeExpression):
+            return leftTypeExpression
+
+        return self.makeSemanticError(sourcePosition, "Type checking failure. Branch has mismatching types. '%s' vs '%s'" % (leftTypeExpression.prettyPrint(), rightTypeExpression.prettyPrint()))
 
     def attemptToVisitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode, startingImplicitValueSubstitutions = []) -> tuple[tuple[SymbolImplicitValueBinding, ASTNode], ASTTypedNode | ASTTypeNode, str | None]:
         typedNode = self.visitNode(node)
@@ -466,6 +475,22 @@ class Typechecker(ASTVisitor):
         tupleNode = ASTOverloadsNode(node.sourcePosition, bindingReferenceNodes)
         return self.visitNode(tupleNode)
     
+    def visitIfNode(self, node: ASTIfNode):
+        condition = self.visitNodeWithExpectedType(node.condition, BooleanType)
+        trueExpression = node.trueExpression
+        if trueExpression is None:
+            trueExpression = ASTLiteralNode(node.sourcePosition, UnitType.getSingleton())
+        trueExpression = self.visitNodeWithCurrentExpectedType(trueExpression)
+
+        falseExpression = node.falseExpression
+        if falseExpression is None:
+            falseExpression = ASTLiteralNode(node.sourcePosition, UnitType.getSingleton())
+        falseExpression = self.visitNodeWithCurrentExpectedType(falseExpression)
+
+        type = self.mergeTypesOfBranch(getTypeOfAnalyzedNode(trueExpression, trueExpression.sourcePosition), getTypeOfAnalyzedNode(falseExpression, falseExpression.sourcePosition), node.sourcePosition)
+        ifNode = ASTTypedIfNode(node.sourcePosition, type, condition, trueExpression, falseExpression)
+        return reduceIfNode(ifNode)
+    
     def analyzeArgumentNode(self, node: ASTArgumentNode) -> ASTTypedArgumentNode:
         assert node.isArgumentNode()
         name = self.evaluateOptionalSymbol(node.nameExpression)
@@ -675,6 +700,9 @@ class Typechecker(ASTVisitor):
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         return node
 
+    def visitTypedIfNode(self, node: ASTTypedIfNode):
+        return node
+
     def visitTypedImplicitValueNode(self, node):
         return node
 
@@ -873,6 +901,13 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         return node.binding.evaluateSubstitutionInContextFor(self.substitutionContext, node)
+
+    def visitTypedIfNode(self, node: ASTTypedIfNode):
+        type = self.visitNode(node.type)
+        condition = self.visitNode(node.condition)
+        trueExpression = self.visitNode(node.trueExpression)
+        falseExpression = self.visitNode(node.falseExpression)
+        return reduceIfNode(ASTTypedIfNode(node.sourcePosition, node.type, condition, trueExpression, falseExpression))
 
     def visitTypedImplicitValueNode(self, node):
         return node
@@ -1141,6 +1176,14 @@ def reduceSumTypeNode(node: ASTSumTypeNode):
         return ASTLiteralTypeNode(node.sourcePosition, VoidType)
     elif len(node.alternativeTypes) == 1:
         return node.alternativeTypes[0]
+    return node
+
+def reduceIfNode(node: ASTTypedIfNode):
+    if node.condition.isTypedLiteralNode():
+        if node.condition.value.interpretAsBoolean():
+            return node.trueExpression
+        else:
+            return node.falseExpression
     return node
 
 def mergeTypeUniversesOfTypeNodePair(leftNode: ASTTypedNode, rightNode: ASTTypedNode, sourcePosition: SourcePosition) -> ASTLiteralTypeNode:

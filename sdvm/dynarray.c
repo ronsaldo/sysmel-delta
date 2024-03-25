@@ -40,6 +40,11 @@ size_t sdvm_dynarray_add(sdvm_dynarray_t *dynarray, const void *newEntry)
     return sdvm_dynarray_addAll(dynarray, 1, newEntry);
 }
 
+void sdvm_dynarray_clear(sdvm_dynarray_t *dynarray)
+{
+    dynarray->size = 0;
+}
+
 void sdvm_dynarray_destroy(sdvm_dynarray_t *dynarray)
 {
     free(dynarray->data);

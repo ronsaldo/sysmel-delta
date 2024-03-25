@@ -73,12 +73,14 @@ void sdvm_compilerObjectSection_initialize(sdvm_compilerObjectSection_t *section
     section->alignment = 1;
     sdvm_dynarray_initialize(&section->contents, 1, 4096);
     sdvm_dynarray_initialize(&section->relocations, sizeof(sdvm_compilerRelocation_t), 512);
+    sdvm_dynarray_initialize(&section->pendingLabelRelocations, sizeof(sdvm_compilerPendingLabelRelocation_t), 512);
 }
 
 void sdvm_compilerObjectSection_destroy(sdvm_compilerObjectSection_t *section)
 {
     sdvm_dynarray_destroy(&section->contents);
     sdvm_dynarray_destroy(&section->relocations);
+    sdvm_dynarray_destroy(&section->pendingLabelRelocations);
 }
 
 sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
@@ -327,7 +329,7 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
 uint32_t sdvm_compiler_makeLabel(sdvm_compiler_t *compiler)
 {
     sdvm_compilerLabel_t label = {0};
-    uint32_t labelIndex = 0;
+    uint32_t labelIndex = compiler->labels.size;
     sdvm_dynarray_add(&compiler->labels, &label);
     return labelIndex;
 }
@@ -343,6 +345,37 @@ void sdvm_compiler_setLabelValue(sdvm_compiler_t *compiler, uint32_t labelIndex,
 void sdvm_compiler_setLabelAtSectionEnd(sdvm_compiler_t *compiler, uint32_t label, sdvm_compilerObjectSection_t *section)
 {
     sdvm_compiler_setLabelValue(compiler, label, section, section->contents.size);
+}
+
+void sdvm_compiler_applyPendingLabelRelocationsInSection(sdvm_compiler_t *compiler, sdvm_compilerObjectSection_t *section)
+{
+    for(size_t i = 0; i < section->pendingLabelRelocations.size; ++i)
+    {
+        sdvm_compilerPendingLabelRelocation_t *relocation = (sdvm_compilerPendingLabelRelocation_t*)section->pendingLabelRelocations.data + i;
+        sdvm_compilerLabel_t *label = (sdvm_compilerLabel_t*)compiler->labels.data + relocation->labelIndex;
+        SDVM_ASSERT(label->section == section);
+
+        switch(relocation->kind)
+        {
+        case SdvmCompRelocationRelative32:
+            {
+                int32_t value = label->value - relocation->offset + relocation->addend;
+                memcpy(section->contents.data + relocation->offset, &value, 4);
+            }
+            break;
+        default: abort();
+        }
+    }
+    sdvm_dynarray_clear(&section->pendingLabelRelocations);
+}
+
+void sdvm_compiler_applyPendingLabelRelocations(sdvm_compiler_t *compiler)
+{
+    for(int i = 0; i < SDVM_COMPILER_SECTION_COUNT; ++i)
+        sdvm_compiler_applyPendingLabelRelocationsInSection(compiler, compiler->sections + i);
+        
+    sdvm_dynarray_clear(&compiler->textSection.pendingLabelRelocations);
+    sdvm_dynarray_clear(&compiler->labels);
 }
 
 sdvm_compilerLocation_t sdvm_compilerLocation_null(void)
@@ -662,7 +695,7 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackPair(uint32_t firstS
     return location;
 }
 
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_type_t type)
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_compilerInstruction_t *argument, sdvm_type_t type)
 {
     switch(type)
     {
@@ -679,6 +712,7 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
     case SdvmTypeInt64:
         return sdvm_compilerLocation_signedIntegerRegister(8);
 
+    case SdvmTypeBoolean:
     case SdvmTypeUInt8:
         return sdvm_compilerLocation_integerRegister(1);
     case SdvmTypeUInt16:
@@ -691,6 +725,8 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
     case SdvmTypePointer:
     case SdvmTypeProcedureHandle:
     case SdvmTypeLabel:
+        if(argument && argument->location.kind == SdvmCompLocationImmediateLabel)
+            return argument->location;
         return sdvm_compilerLocation_integerRegister(compiler->pointerSize);
 
     case SdvmTypeGCPointer:
@@ -839,6 +875,27 @@ sdvm_compilerInstructionClobberSets_t sdvm_compilerCallingConventionState_getClo
     return sets;
 }
 
+void sdvm_functionCompilationState_computeLabelLocations(sdvm_functionCompilationState_t *state)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+
+    for(uint32_t i = 0; i < state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        if(instruction->decoding.isConstant)
+        {
+            switch(instruction->decoding.opcode)
+            {
+            case SdvmConstLabel:
+                instruction->location = sdvm_compilerLocation_immediateLabel(sdvm_compiler_makeLabel(compiler));
+                break;
+            default:
+                break;
+            }
+        }
+    }
+}
+
 void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
     sdvm_compiler_t *compiler = state->compiler;
@@ -881,7 +938,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstLabel:
-            instruction->location = sdvm_compilerLocation_immediateLabel(sdvm_compiler_makeLabel(compiler));
+            SDVM_ASSERT(instruction->location.kind == SdvmCompLocationImmediateLabel);
             break;
         case SdvmConstImportPointer:
         case SdvmConstImportProcedureHandle:
@@ -949,6 +1006,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     }
 
     sdvm_compilerInstruction_t *arg0 = instruction->decoding.arg0IsInstruction ? state->instructions + instruction->decoding.instruction.arg0 : NULL;
+    sdvm_compilerInstruction_t *arg1 = instruction->decoding.arg1IsInstruction ? state->instructions + instruction->decoding.instruction.arg1 : NULL;
     switch(instruction->decoding.opcode)
     {
     case SdvmInstBeginArguments:
@@ -1133,12 +1191,12 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
 
     default:
         if(instruction->decoding.arg0IsInstruction)
-            instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg0Type);
+            instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, arg0, instruction->decoding.instruction.arg0Type);
 
         if(instruction->decoding.arg1IsInstruction)
-            instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.instruction.arg1Type);
+            instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, arg1, instruction->decoding.instruction.arg1Type);
 
-        instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, instruction->decoding.destType);
+        instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, NULL, instruction->decoding.destType);
         return;
     }
 }
@@ -1696,23 +1754,25 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
 
     // Ask the backend to compile the function.
     bool result = moduleState->compiler->target->compileModuleFunction(&functionState);
+
+    sdvm_compiler_applyPendingLabelRelocations(moduleState->compiler);
     
     // Destroy the function compilation state.
     sdvm_functionCompilationState_destroy(&functionState);
     return result;
 }
 
-SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction)
+size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction)
 {
     return sdvm_dynarray_addAll(&compiler->textSection.contents, instructionSize, instruction);
 }
 
-SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte)
+size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte)
 {
     return sdvm_dynarray_add(&compiler->textSection.contents, &byte);
 }
 
-SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend)
+void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend)
 {
     sdvm_compilerRelocation_t relocation = {
         .kind = kind,
@@ -1722,6 +1782,29 @@ SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, 
     };
 
     sdvm_dynarray_add(&compiler->textSection.relocations, &relocation);
+}
+
+void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler, uint32_t labelIndex, int32_t addend)
+{
+    uint32_t addressValue = 0;
+    sdvm_compilerLabel_t *label = (sdvm_compilerLabel_t*)compiler->labels.data + labelIndex;
+    if(label->section == &compiler->textSection)
+    {
+        addressValue = (int32_t)(label->value - compiler->textSection.contents.size + addend);
+    }
+    else
+    {
+        sdvm_compilerPendingLabelRelocation_t pendingRelocation = {
+            .kind = SdvmCompRelocationRelative32,
+            .labelIndex = labelIndex,
+            .addend = addend,
+            .offset = compiler->textSection.contents.size
+        };
+
+        sdvm_dynarray_add(&compiler->textSection.pendingLabelRelocations, &pendingRelocation);
+    }
+
+    sdvm_compiler_addInstructionBytes(compiler, 4, &addressValue);
 }
 
 char *sdvm_compile_makeModuleSymbolInterface(sdvm_compiler_t *compiler, sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_t_moduleExternalType_t externalType, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)

@@ -133,7 +133,7 @@ class SDVMFunctionFrontEnd:
         pass
 
     def translateBasicBlocksOf(self, mirFunction: MIRFunction):
-        basicBlocks = mirFunction.basicBlocksInReversePostOrder()
+        basicBlocks = mirFunction.reachableBasicBlocksInReversePostOrder()
         for basicBlock in basicBlocks:
             basicBlockLabel = SDVMInstruction(SdvmConstLabel)
             self.translatedValueDictionary[basicBlock] = basicBlockLabel
@@ -241,6 +241,19 @@ class SDVMFunctionFrontEnd:
         else:
             callInstruction = self.moduleFrontend.callInstructionDictionary[instruction.getType()]
         return self.function.addInstruction(SDVMInstruction(callInstruction, calledFunctional))
+
+    def visitBranchInstruction(self, instruction: MIRBranchInstruction) -> SDVMOperand:
+        destination = self.translateValue(instruction.destination)
+        self.function.inst(SdvmInstJump, destination)
+        return None
+
+    def visitCondBranchInstruction(self, instruction: MIRCondBranchInstruction) -> SDVMOperand:
+        condition = self.translateValue(instruction.condition)
+        trueDestination = self.translateValue(instruction.trueDestination)
+        falseDestination = self.translateValue(instruction.falseDestination)
+        self.function.inst(SdvmInstJumpIfTrue, condition, trueDestination)
+        self.function.inst(SdvmInstJump, falseDestination)
+        return None
 
     def visitReturnInstruction(self, instruction: MIRReturnInstruction) -> SDVMOperand:
         result = self.translateValue(instruction.result)

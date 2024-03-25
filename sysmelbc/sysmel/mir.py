@@ -357,6 +357,24 @@ class MIRFunction(MIRGlobalValue):
 
         return list(reversed(visitedList))
     
+    def reachableBasicBlocksInReversePostOrder(self):
+        visitedSet = set()
+        visitedList = []
+
+        def visit(basicBlock: HIRBasicBlock):
+            if basicBlock in visitedSet:
+                return
+            
+            visitedSet.add(basicBlock)
+            for successor in basicBlock.successorBlocks():
+                visit(successor)
+            visitedList.append(basicBlock)
+
+        if self.firstBasicBlock is not None:
+            visit(self.firstBasicBlock)
+
+        return list(reversed(visitedList))
+    
     def allLocalValues(self):
         for argument in self.arguments:
             yield argument
@@ -562,6 +580,36 @@ class MIRTerminatorInstruction(MIRInstruction):
     def isTerminatorInstruction(self) -> bool:
         return True
 
+class MIRBranchInstruction(MIRTerminatorInstruction):
+    def __init__(self, context: MIRContext, destination: MIRBasicBlock) -> None:
+        super().__init__(context)
+        self.destination = destination
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitBranchInstruction(self)
+
+    def successorBlocks(self) -> list[MIRBasicBlock]:
+        return [self.destination]
+
+    def fullPrintString(self) -> str:
+        return 'branch %s' % str(self.destination)
+
+class MIRCondBranchInstruction(MIRTerminatorInstruction):
+    def __init__(self, context: MIRContext, condition: MIRValue, trueDestination: MIRBasicBlock, falseDestination: MIRBasicBlock) -> None:
+        super().__init__(context)
+        self.condition = condition
+        self.trueDestination = trueDestination
+        self.falseDestination = falseDestination
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitCondBranchInstruction(self)
+
+    def successorBlocks(self) -> list[MIRBasicBlock]:
+        return [self.trueDestination, self.falseDestination]
+
+    def fullPrintString(self) -> str:
+        return 'condBranch: %s ifTrue: %s ifFalse: %s' % (str(self.condition), str(self.trueDestination), str(self.falseDestination))
+    
 class MIRReturnInstruction(MIRTerminatorInstruction):
     def __init__(self, context: MIRContext, result: MIRValue) -> None:
         super().__init__(context)
@@ -596,10 +644,16 @@ class MIRBuilder:
     def addInstruction(self, instruction: MIRInstruction) -> HIRValue:
         self.basicBlock.addInstruction(instruction)
         return instruction
-    
+
+    def branch(self, destination: MIRBasicBlock) -> MIRInstruction:
+        return self.addInstruction(MIRBranchInstruction(self.context, destination))
+
     def call(self, resultType: MIRType, function: MIRValue, arguments: list[HIRValue]) -> MIRInstruction:
         return self.addInstruction(MIRCallInstruction(self.context, resultType, function, arguments))
-    
+
+    def condBranch(self, condition: MIRBasicBlock, trueDestination: MIRBasicBlock, falseDestination: MIRBasicBlock) -> MIRInstruction:
+        return self.addInstruction(MIRCondBranchInstruction(self.context, condition, trueDestination, falseDestination))
+
     def returnValue(self, value: MIRValue) -> MIRInstruction:
         return self.addInstruction(MIRReturnInstruction(self.context, value))
 
@@ -744,6 +798,11 @@ class MIRModuleFrontend:
             return self.context.callingConventionFunctionTypeMap[type.callingConvention]
         return self.context.closureType
     
+    def visitSumType(self, type: HIRSumType):
+        if type.isStateless():
+            return type.discriminantType
+        assert False
+    
     def visitConstantUnit(self, constant: HIRConstantUnit) -> MIRValue:
         return self.context.void
     
@@ -862,11 +921,12 @@ class MIRFunctionFrontend:
         self.function.captures.append(mirCapture)
 
     def translateBasicBlocksOf(self, functional: HIRFunctionalDefinition):
-        for hirBasicBlock in functional.basicBlocks():
+        hirBasicBlocks = functional.reachableBasicBlocksInReversePostOrder()
+        for hirBasicBlock in hirBasicBlocks:
             mirBasicBlock = MIRBasicBlock(self.context, hirBasicBlock.name)
             self.translatedValueDictionary[hirBasicBlock] = mirBasicBlock
 
-        for hirBasicBlock in functional.basicBlocksInReversePostOrder():
+        for hirBasicBlock in hirBasicBlocks:
             mirBasicBlock: MIRBasicBlock = self.translatedValueDictionary[hirBasicBlock]
             self.builder.beginBasicBlock(mirBasicBlock)
             self.translateBasicBlock(hirBasicBlock, mirBasicBlock)
@@ -892,6 +952,10 @@ class MIRFunctionFrontend:
             return self.builder.load(valueType, importedValue)
 
         return self.moduleFrontend.translateValue(value)
+    
+    def visitBranchInstruction(self, hirInstruction: HIRBranchInstruction):
+        destination = self.translateValue(hirInstruction.destination)
+        return self.builder.branch(destination)
 
     def visitCallInstruction(self, hirInstruction: HIRCallInstruction):
         hirFunctional = hirInstruction.functional
@@ -910,6 +974,12 @@ class MIRFunctionFrontend:
         arguments = list(filter(lambda x: x.hasNotVoidType(), map(self.translateValue, hirInstruction.arguments)))
         return self.builder.call(resultType, functional, arguments)
     
+    def visitCondBranchInstruction(self, hirInstruction: HIRCondBranchInstruction):
+        condition = self.translateValue(hirInstruction.condition)
+        trueDestination = self.translateValue(hirInstruction.trueDestination)
+        falseDestination = self.translateValue(hirInstruction.falseDestination)
+        return self.builder.condBranch(condition, trueDestination, falseDestination)
+
     def visitReturnInstruction(self, hirInstruction: HIRReturnInstruction):
         resultValue = self.translateValue(hirInstruction.result)
         return self.builder.returnValue(resultValue)
