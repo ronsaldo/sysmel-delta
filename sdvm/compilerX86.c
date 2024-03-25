@@ -189,6 +189,11 @@ void sdvm_compiler_x86_rexRm(sdvm_compiler_t *compiler, bool W, sdvm_x86_registe
     sdvm_compiler_x86_rex(compiler, W, false, false, rm > SDVM_X86_REG_HALF_MASK);
 }
 
+void sdvm_compiler_x86_prefix(sdvm_compiler_t *compiler, uint8_t prefix)
+{
+    sdvm_compiler_addInstructionByte(compiler, prefix);
+}
+
 void sdvm_compiler_x86_opcode(sdvm_compiler_t *compiler, uint8_t opcode)
 {
     sdvm_compiler_addInstructionByte(compiler, opcode);
@@ -222,6 +227,41 @@ void sdvm_compiler_x86_imm32(sdvm_compiler_t *compiler, uint32_t value)
 void sdvm_compiler_x86_imm64(sdvm_compiler_t *compiler, uint64_t value)
 {
     sdvm_compiler_addInstructionBytes(compiler, 8, &value);
+}
+
+void sdvm_compiler_x86_lock(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_prefix(compiler, 0xF0);
+}
+
+void sdvm_compiler_x86_repne(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_prefix(compiler, 0xF2);
+}
+
+void sdvm_compiler_x86_rep(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_prefix(compiler, 0xF3);
+}
+
+void sdvm_compiler_x86_fsPrefix(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_prefix(compiler, 0x64);
+}
+
+void sdvm_compiler_x86_gsPrefix(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_prefix(compiler, 0x65);
+}
+
+void sdvm_compiler_x86_operandPrefix(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_prefix(compiler, 0x66);
+}
+
+void sdvm_compiler_x86_addressPrefix(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_prefix(compiler, 0x67);
 }
 
 void sdvm_compiler_x86_modGsvReg(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, sdvm_x86_registerIndex_t reg, int32_t addend, int32_t relativeOffset)
@@ -709,6 +749,173 @@ void sdvm_compiler_x86_xor32RegImm32(sdvm_compiler_t *compiler, sdvm_x86_registe
 
 #pragma endregion X86_Instructions_32
 
+#pragma region X86_Instructions_16
+
+void sdvm_compiler_x86_mov16RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_operandPrefix(compiler);
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, source);
+    sdvm_compiler_x86_opcode(compiler, 0x89);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, source);
+}
+
+void sdvm_compiler_x86_movzxReg32Reg16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, source, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FB7);
+    sdvm_compiler_x86_modRmReg(compiler, source, destination);
+}
+
+void sdvm_compiler_x86_movzxReg32Rmo16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FB7);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+}
+
+void sdvm_compiler_x86_movzxReg64Reg16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, true, source, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FB7);
+    sdvm_compiler_x86_modRmReg(compiler, source, destination);
+}
+
+void sdvm_compiler_x86_movzxReg64Rmo16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, true, base, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FB7);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+}
+
+void sdvm_compiler_x86_movsxReg32Reg16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, source, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FBF);
+    sdvm_compiler_x86_modRmReg(compiler, source, destination);
+}
+
+void sdvm_compiler_x86_movsxReg32Rmo16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FBF);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+}
+
+void sdvm_compiler_x86_movsxReg64Reg16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, true, source, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FBF);
+    sdvm_compiler_x86_modRmReg(compiler, source, destination);
+}
+
+void sdvm_compiler_x86_movsxReg64Rmo16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, true, base, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0FBF);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+}
+
+void sdvm_compiler_x86_alu16RmReg(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_operandPrefix(compiler);
+    sdvm_compiler_x86_rexRmReg(compiler, false, destination, source);
+    sdvm_compiler_x86_opcode(compiler, opcode);
+    sdvm_compiler_x86_modRmReg(compiler, destination, source);
+}
+
+void sdvm_compiler_x86_alu16RmImm16(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, uint8_t regOpcode, uint16_t value)
+{
+    sdvm_compiler_x86_operandPrefix(compiler);
+    sdvm_compiler_x86_rexRm(compiler, false, destination);
+    sdvm_compiler_x86_opcode(compiler, opcode);
+    sdvm_compiler_x86_modRmOp(compiler, destination, regOpcode);
+    sdvm_compiler_x86_imm16(compiler, value);
+}
+
+void sdvm_compiler_x86_alu16RmImm8(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, uint8_t regOpcode, uint8_t value)
+{
+    sdvm_compiler_x86_operandPrefix(compiler);
+    sdvm_compiler_x86_rexRm(compiler, false, destination);
+    sdvm_compiler_x86_opcode(compiler, opcode);
+    sdvm_compiler_x86_modRmOp(compiler, destination, regOpcode);
+    sdvm_compiler_x86_imm8(compiler, value);
+}
+
+void sdvm_compiler_x86_alu16RmImm16_S8(sdvm_compiler_t *compiler, uint8_t opcodeImm32, uint8_t opcodeImm8, sdvm_x86_registerIndex_t destination, uint8_t regOpcode, uint32_t value)
+{
+    if((int16_t)value == (int16_t)(int8_t)value)
+        sdvm_compiler_x86_alu16RmImm8(compiler, opcodeImm8, destination, regOpcode, value);
+    else
+        sdvm_compiler_x86_alu16RmImm16(compiler, opcodeImm32, destination, regOpcode, value);
+}
+
+void sdvm_compiler_x86_add16RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu16RmReg(compiler, 0x01, destination, source);
+}
+
+void sdvm_compiler_x86_sub16RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu16RmReg(compiler, 0x29, destination, source);
+}
+
+void sdvm_compiler_x86_and16RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu16RmReg(compiler, 0x21, destination, source);
+}
+
+void sdvm_compiler_x86_or16RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu16RmReg(compiler, 0x09, destination, source);
+}
+
+void sdvm_compiler_x86_xor16RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu16RmReg(compiler, 0x31, destination, source);
+}
+
+void sdvm_compiler_x86_add16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu16RmImm16_S8(compiler, 0x81, 0x83, destination, 0, value);
+}
+
+void sdvm_compiler_x86_sub16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu16RmImm16_S8(compiler, 0x81, 0x83, destination, 5, value);
+}
+
+void sdvm_compiler_x86_and16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value)
+{
+    if(value == -1)
+        return;
+
+    sdvm_compiler_x86_alu16RmImm16_S8(compiler, 0x81, 0x83, destination, 4, value);
+}
+
+void sdvm_compiler_x86_or16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu16RmImm16_S8(compiler, 0x81, 0x83, destination, 1, value);
+}
+
+void sdvm_compiler_x86_xor16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu16RmImm16_S8(compiler, 0x81, 0x83, destination, 6, value);
+}
+
+#pragma endregion X86_Instructions_16
+
 #pragma region X86_RegisterConstraints
 sdvm_compilerLocation_t sdvm_compilerLocation_x64_immediateS64(sdvm_compiler_t *compiler, int64_t value)
 {
@@ -805,6 +1012,48 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
 
     switch (instruction->decoding.opcode)
     {
+    case SdvmInstInt16Add:
+    case SdvmInstInt16Sub:
+    case SdvmInstInt16And:
+    case SdvmInstInt16Or:
+    case SdvmInstUInt16Add:
+    case SdvmInstUInt16Sub:
+    case SdvmInstUInt16And:
+    case SdvmInstUInt16Xor:
+        instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg0);
+        instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(2);
+        return;
+    case SdvmInstInt16Mul:
+    case SdvmInstUInt16Mul:
+        instruction->arg0Location = sdvm_compilerLocation_integerRegister(2);
+        instruction->arg1Location = sdvm_compilerLocation_integerRegister(2);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(2);
+        return;
+    case SdvmInstInt16Div:
+    case SdvmInstInt16UDiv:
+    case SdvmInstInt16Rem:
+    case SdvmInstInt16URem:
+    case SdvmInstUInt16Div:
+    case SdvmInstUInt16UDiv:
+    case SdvmInstUInt16Rem:
+    case SdvmInstUInt16URem:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        instruction->arg1Location = sdvm_compilerLocation_integerRegister(2);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        instruction->scratchLocation0 = sdvm_compilerLocation_specificRegister(sdvm_x86_DX);
+        return;
+    case SdvmInstInt16Lsl:
+    case SdvmInstInt16Lsr:
+    case SdvmInstInt16Asr:
+    case SdvmInstUInt16Lsl:
+    case SdvmInstUInt16Lsr:
+    case SdvmInstUInt16Asr:
+        instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg0);
+        instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_CX, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(2);
+        return;
+
     case SdvmInstInt32Add:
     case SdvmInstInt32Sub:
     case SdvmInstInt32And:
@@ -963,7 +1212,7 @@ void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *sta
             vectorOffset += 16;
         }
     }
-    
+
     uint32_t pointerSize = compiler->pointerSize;
     if(state->prologueStackSegment.size > pointerSize * 2)
     {
@@ -1008,6 +1257,11 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
     case SdvmCompLocationStackPair:
         switch(reg->size)
         {
+        case 2:
+            if(sourceLocation->isSigned)
+                return sdvm_compiler_x86_movsxReg32Rmo16(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+            else
+                return sdvm_compiler_x86_movzxReg32Rmo16(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
         case 4: return sdvm_compiler_x86_mov32RegRmo(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
         case 8: return sdvm_compiler_x86_mov64RegRmo(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
         default: return abort();
@@ -1016,10 +1270,6 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
         {
             switch(reg->size)
             {
-            case 1:
-                return abort();
-            case 2:
-                return abort();
             case 4:
                 return sdvm_compiler_x86_lea32RegLsv(compiler, reg->value, sourceLocation->symbolHandle, sourceLocation->symbolOffset);
             case 8:
@@ -1032,10 +1282,6 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
         {
             switch(reg->size)
             {
-            case 1:
-                return abort();
-            case 2:
-                return abort();
             case 4:
                 return sdvm_compiler_x86_mov32RegGsv(compiler, reg->value, sourceLocation->symbolHandle, sourceLocation->symbolOffset);
             case 8:
@@ -1150,6 +1396,7 @@ void sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t *co
     case SdvmCompRegisterKindInteger:
         switch(sourceRegister->size)
         {
+        case 2: return sdvm_compiler_x86_mov16RmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
         case 4: return sdvm_compiler_x86_mov32RmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
         case 8: return sdvm_compiler_x86_mov64RmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
         default:
@@ -1312,6 +1559,13 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         sdvm_compiler_x86_callRmo(compiler, arg0->firstRegister.value, 0);
         return true;
 
+    case SdvmInstLoadInt16:
+        sdvm_compiler_x86_movsxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+    case SdvmInstLoadUInt16:
+        sdvm_compiler_x86_movzxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+
     case SdvmInstLoadInt32:
     case SdvmInstLoadUInt32:
         sdvm_compiler_x86_mov32RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
@@ -1328,9 +1582,60 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         sdvm_compiler_x86_mov64RegRmo(compiler, dest->secondRegister.value, arg0->firstRegister.value, 8);
         return true;
 
+    case SdvmInstStoreInt16:
+    case SdvmInstStoreUInt16:
+        sdvm_compiler_x86_mov16RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        return true;
+
     case SdvmInstStoreInt32:
     case SdvmInstStoreUInt32:
         sdvm_compiler_x86_mov32RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstStoreInt64:
+    case SdvmInstStoreUInt64:
+        sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstInt16Add:
+    case SdvmInstUInt16Add:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_add16RegImm16(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_add16RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt16Sub:
+    case SdvmInstUInt16Sub:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_sub16RegImm16(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_sub16RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt16And:
+    case SdvmInstUInt16And:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_and16RegImm16(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_and16RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt16Or:
+    case SdvmInstUInt16Or:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_or16RegImm16(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_or16RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt16Xor:
+    case SdvmInstUInt16Xor:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_xor16RegImm16(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_xor16RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
         return true;
 
     case SdvmInstInt32Add:
