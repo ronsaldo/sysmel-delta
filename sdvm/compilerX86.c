@@ -1326,6 +1326,22 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_CX, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(2);
         return;
+    case SdvmInstInt16Equals:
+    case SdvmInstInt16NotEquals:
+    case SdvmInstInt16LessThan:
+    case SdvmInstInt16LessOrEquals:
+    case SdvmInstInt16GreaterThan:
+    case SdvmInstInt16GreaterOrEquals:
+    case SdvmInstUInt16Equals:
+    case SdvmInstUInt16NotEquals:
+    case SdvmInstUInt16LessThan:
+    case SdvmInstUInt16LessOrEquals:
+    case SdvmInstUInt16GreaterThan:
+    case SdvmInstUInt16GreaterOrEquals:
+        instruction->arg0Location = sdvm_compilerLocation_integerRegister(2);
+        instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
+        return;
 
     case SdvmInstInt32Add:
     case SdvmInstInt32Sub:
@@ -1373,6 +1389,22 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_ECX, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(4);
         return;
+    case SdvmInstInt32Equals:
+    case SdvmInstInt32NotEquals:
+    case SdvmInstInt32LessThan:
+    case SdvmInstInt32LessOrEquals:
+    case SdvmInstInt32GreaterThan:
+    case SdvmInstInt32GreaterOrEquals:
+    case SdvmInstUInt32Equals:
+    case SdvmInstUInt32NotEquals:
+    case SdvmInstUInt32LessThan:
+    case SdvmInstUInt32LessOrEquals:
+    case SdvmInstUInt32GreaterThan:
+    case SdvmInstUInt32GreaterOrEquals:
+        instruction->arg0Location = sdvm_compilerLocation_integerRegister(4);
+        instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(4, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
+        return;
 
     case SdvmInstInt64Add:
     case SdvmInstInt64Sub:
@@ -1419,6 +1451,22 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(8, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_RCX, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(8);
+        return;
+    case SdvmInstInt64Equals:
+    case SdvmInstInt64NotEquals:
+    case SdvmInstInt64LessThan:
+    case SdvmInstInt64LessOrEquals:
+    case SdvmInstInt64GreaterThan:
+    case SdvmInstInt64GreaterOrEquals:
+    case SdvmInstUInt64Equals:
+    case SdvmInstUInt64NotEquals:
+    case SdvmInstUInt64LessThan:
+    case SdvmInstUInt64LessOrEquals:
+    case SdvmInstUInt64GreaterThan:
+    case SdvmInstUInt64GreaterOrEquals:
+        instruction->arg0Location = sdvm_compilerLocation_integerRegister(8);
+        instruction->arg1Location = sdvm_compilerLocation_x64_intRegOrImmS32(8, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         return;
     default:
         sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
