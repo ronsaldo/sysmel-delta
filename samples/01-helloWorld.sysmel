@@ -5,9 +5,11 @@ let: #myAdd with: (:(Int32)x, :(Int32)y :: Int32) __cdecl :=> x + y.
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: Int32) __cdecl :=> {
 
-    #*while: (i < argc) do: {
+    #*
+    while: (i < argc) do: {
         puts("Loop body" elements)
-    }. ##continueWith: (i := i + 1i32).
+    }.
+    *# ##continueWith: (i := i + 1i32).
 
     if: argc > 1i32 then: {
         puts("Got args" elements).
@@ -18,9 +20,13 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
     puts("Hello World" elements).
     ##argc + 1i32
     ##0i32
-    myAdd(argc, 1i32).*#
+    myAdd(argc, 1i32).
     ##i __refLoad__
     ##let: #i mutableWith: 1i32.
     ##i.
     0i32
 }.
+
+
+##(:*(Type)T :(T)x :: T)[Int32]
+##((:*(Type)T :(T)x :: T) :=> x) [Int32](0i32)

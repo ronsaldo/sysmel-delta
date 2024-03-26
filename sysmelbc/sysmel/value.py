@@ -1569,10 +1569,11 @@ class SymbolLocalBinding(SymbolBinding):
         return {'localBinding': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
 class SymbolArgumentBinding(SymbolBinding):
-    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode, isImplicit = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode, isImplicit = False, isExistential = False) -> None:
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
         self.isImplicit = isImplicit
+        self.isExistential = isExistential
 
     def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
         return self.typeExpression

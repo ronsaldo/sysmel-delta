@@ -724,7 +724,7 @@ class ASTTypedArgumentNode(ASTTypedNode):
         return visitor.visitTypedArgumentNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedArgument', 'type': self.type.toJson(), 'name': self.name.toJson(), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}
+        return {'kind': 'TypedArgument', 'type': self.type.toJson(), 'name': optionalToJson(self.binding.name), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}
 
 class ASTTypedApplicationNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, functional: ASTTypedNode, argument: ASTTypedNode, implicitValueSubstitutions: list[tuple[SymbolBinding, ASTNode]]) -> None:

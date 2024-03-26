@@ -349,7 +349,7 @@ class PiValue(FunctionalValue):
                 result += ', '
             result += ':(%s)%s' % (argument.getTypeExpression().prettyPrint(), optionalIdentifierToString(argument.name))
 
-        result += ' :: %s) :=> ...' % self.body.prettyPrint()
+        result += ' :: %s)' % self.body.prettyPrint()
         return result
     
     def isPi(self) -> bool:

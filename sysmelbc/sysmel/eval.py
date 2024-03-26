@@ -79,12 +79,14 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
         type = self.visitNode(node.type)
         capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
-        return PiValue(type, node.argumentBinding, node.captureBindings, capturedValues, node.body, node.sourcePosition)
+        argumentBindings = list(map(lambda n: n.binding, node.arguments))
+        return PiValue(type, argumentBindings, node.captureBindings, capturedValues, node.body, node.sourcePosition, node.callingConvention)
 
     def visitTypedSigmaNode(self, node: ASTTypedSigmaNode) -> TypedValue:
         type = self.visitNode(node.type)
         capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
-        return SigmaValue(type, node.argumentBinding, node.captureBindings, capturedValues, node.body, node.sourcePosition)
+        argumentBindings = list(map(lambda n: n.binding, node.arguments))
+        return SigmaValue(type, argumentBindings, node.captureBindings, capturedValues, node.body, node.sourcePosition, node.callingConvention)
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.evaluateBindingAt(node.binding, node.sourcePosition)
@@ -120,7 +122,8 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.visitNode(node.type)
         capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
-        return LambdaValue(type, node.argumentBinding, node.captureBindings, capturedValues, node.body, node.sourcePosition)
+        argumentBindings = list(map(lambda n: n.binding, node.arguments))
+        return LambdaValue(type, argumentBindings, node.captureBindings, capturedValues, node.body, node.sourcePosition)
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return node.value
@@ -177,13 +180,14 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         node.module.entryPoint = entryPoint
         return entryPoint
 
-def evaluateFunctionalValueWithParameter(functionalValue: FunctionalValue, argumentValue: TypedValue):
+def evaluateFunctionalValueWithParameters(functionalValue: FunctionalValue, *argumentValues: TypedValue):
     activationEnvironment = FunctionalActivationEnvironment()
-    activationEnvironment.setBindingValue(functionalValue.argumentBinding, argumentValue)
+    for i in range(len(functionalValue.argumentBindings)):
+        activationEnvironment.setBindingValue(functionalValue.argumentBindings[i], argumentValues[i])
     for i in range(len(functionalValue.captureBindings)):
         activationEnvironment.setBindingValue(functionalValue.captureBindings[i], functionalValue.captureBindingValues[i])
 
     return ASTEvaluator(activationEnvironment).evaluate(functionalValue.body)
 
-LambdaValue.__call__ = evaluateFunctionalValueWithParameter
-PiValue.__call__ = evaluateFunctionalValueWithParameter
+LambdaValue.__call__ = evaluateFunctionalValueWithParameters
+PiValue.__call__ = evaluateFunctionalValueWithParameters
