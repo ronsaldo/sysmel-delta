@@ -8,7 +8,7 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
 
     while: (i < argc) do: {
         puts("Loop body" elements)
-    }. ##continueWith: (i := i + 1i32).*#
+    }. ##continueWith: (i := i + 1i32).
 
     if: argc > 1i32 then: {
         puts("Got args" elements).
@@ -21,5 +21,4 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
     ##0i32
     myAdd(argc, 1i32).
     ##i __refLoad__
-    ##i
 }.

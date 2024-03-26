@@ -19,7 +19,7 @@ class GHIRContext:
         if value in self.constantValues:
             return self.constantValues[value]
         
-        constantValue = GHIRConstantValue(self, value)
+        constantValue = GHIRConstantValue(self, None, value)
         self.constantValues[value] = constantValue
         return constantValue
     
@@ -28,7 +28,7 @@ class GHIRContext:
         if hashKey in self.simpleFunctionTypes:
             return self.simpleFunctionTypes[hashKey]
         
-        simpleFunctionType = GHIRSimpleFunctionType(self, type, argumentTypes, resultType, callingConventionName)
+        simpleFunctionType = GHIRSimpleFunctionType(self, None, type, argumentTypes, resultType, callingConventionName)
         self.simpleFunctionTypes[hashKey] = simpleFunctionType
         return simpleFunctionType
 
@@ -37,7 +37,7 @@ class GHIRContext:
         if hashKey in self.productTypes:
             return self.productTypes[hashKey]
         
-        productType = GHIRProductType(self, type, elements)
+        productType = GHIRProductType(self, None, type, elements)
         self.productTypes[hashKey] = productType
         return productType
 
@@ -46,7 +46,7 @@ class GHIRContext:
         if hashKey in self.sumTypes:
             return self.sumTypes[hashKey]
         
-        sumType = GHIRSumType(self, type, elements)
+        sumType = GHIRSumType(self, None, type, elements)
         self.sumTypes[hashKey] = sumType
         return sumType
 
@@ -55,7 +55,7 @@ class GHIRContext:
         if hashKey in self.decoratedTypes:
             return self.decoratedTypes[hashKey]
         
-        decoratedType = GHIRDecoratedType(self, type, baseType, decorations)
+        decoratedType = GHIRDecoratedType(self, None, type, baseType, decorations)
         self.decoratedTypes[hashKey] = decoratedType
         return decoratedType
 
@@ -64,7 +64,7 @@ class GHIRContext:
         if hashKey in self.pointerTypes:
             return self.pointerTypes[hashKey]
         
-        pointerType = GHIRPointerType(self, type, baseType)
+        pointerType = GHIRPointerType(self, None, type, baseType)
         self.pointerTypes[hashKey] = pointerType
         return pointerType
     
@@ -73,7 +73,7 @@ class GHIRContext:
         if hashKey in self.refTypes:
             return self.refTypes[hashKey]
         
-        refType = GHIRReferenceType(self, type, baseType)
+        refType = GHIRReferenceType(self, None, type, baseType)
         self.refTypes[hashKey] = refType
         return refType
     
@@ -82,7 +82,7 @@ class GHIRContext:
         if hashKey in self.tempRefTypes:
             return self.tempRefTypes[hashKey]
         
-        tempRefType = GHIRTemporaryReferenceType(self, type, baseType)
+        tempRefType = GHIRTemporaryReferenceType(self, None, type, baseType)
         self.tempRefTypes[hashKey] = tempRefType
         return tempRefType
     
@@ -90,7 +90,7 @@ class GHIRContext:
         if index in self.universeTypes:
             return self.universeTypes[index]
         
-        universe = GHIRTypeUniverse(self, index)
+        universe = GHIRTypeUniverse(self, None, index)
         self.universeTypes[index] = universe
         return universe
     
@@ -184,8 +184,9 @@ class GHIRVisitor(ABC):
         pass
 
 class GHIRValue(ABC):
-    def __init__(self, context: GHIRContext) -> None:
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition) -> None:
         self.context = context
+        self.sourcePosition = sourcePosition
         self.userValues = []
 
     def getName(self) -> str | None:
@@ -298,8 +299,8 @@ class GHIRGraphPrinter:
         return self.result
 
 class GHIRConstantValue(GHIRValue):
-    def __init__(self, context: GHIRContext, value: TypedValue) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, value: TypedValue) -> None:
+        super().__init__(context, sourcePosition)
         self.value = value
         self.type = None
 
@@ -325,8 +326,8 @@ class GHIRConstantValue(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRPrimitiveFunction(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, name: str, compileTimeImplementation = None) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, name: str, compileTimeImplementation = None) -> None:
+        super().__init__(context, sourcePosition)
         assert type is not None
         self.type = type
         self.name = name
@@ -355,8 +356,8 @@ class GHIRPrimitiveFunction(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRCurryingFunction(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, innerFunction: GHIRValue) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, innerFunction: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.innerFunction = innerFunction
         self.registerInUsedValues()
@@ -387,8 +388,8 @@ class GHIRCurryingFunction(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRCurriedFunction(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, innerFunction: GHIRValue, partialApplications: list[GHIRValue]) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, innerFunction: GHIRValue, partialApplications: list[GHIRValue]) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.innerFunction = innerFunction
         self.partialApplications = partialApplications
@@ -429,8 +430,8 @@ class GHIRCurriedFunction(GHIRValue):
         self.partialApplications = self.replacedUsedValueInListWith(self.partialApplications, usedValue, replacement)
 
 class GHIRLocalBindingValue(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, name: str = None) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, name: str = None) -> None:
+        super().__init__(context, sourcePosition)
         assert type is not None
         self.type = type
         self.name = name
@@ -465,7 +466,7 @@ class GHIRArgumentBindingValue(GHIRLocalBindingValue):
 
 class GHIRTypeUniverse(GHIRValue):
     def __init__(self, context: GHIRContext, index) -> None:    
-        super().__init__(context)
+        super().__init__(context, None)
         self.index = index
 
     def accept(self, visitor: GHIRVisitor):
@@ -494,8 +495,8 @@ class GHIRTypeUniverse(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRSimpleFunctionType(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, arguments: list[GHIRValue], resultType: GHIRValue, callingConvention: str | None = None) -> None:    
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, arguments: list[GHIRValue], resultType: GHIRValue, callingConvention: str | None = None) -> None:    
+        super().__init__(context, sourcePosition)
         self.type = type
         self.arguments = arguments
         self.resultType = resultType
@@ -538,8 +539,8 @@ class GHIRSimpleFunctionType(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRFunctionalDefinitionValue(GHIRValue):
-    def __init__(self, context: GHIRContext, captures: list[GHIRCaptureBindingValue] = [], arguments: list[GHIRArgumentBindingValue] = [], body: GHIRValue = None) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, captures: list[GHIRCaptureBindingValue] = [], arguments: list[GHIRArgumentBindingValue] = [], body: GHIRValue = None) -> None:
+        super().__init__(context, sourcePosition)
         self.captures = captures
         self.arguments = arguments
         self.body = body
@@ -593,8 +594,8 @@ class GHIRFunctionalDefinitionValue(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRFunctionalValue(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, definition: GHIRFunctionalDefinitionValue = None, captures: list[GHIRValue] = [], callingConvention: str = None) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, definition: GHIRFunctionalDefinitionValue = None, captures: list[GHIRValue] = [], callingConvention: str = None) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.definition = definition
         self.captures = captures
@@ -671,8 +672,8 @@ class GHIRSigmaValue(GHIRFunctionalValue):
         return super().simplify()
 
 class GHIRProductType(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elements: list[GHIRValue]) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.elements = elements
 
@@ -707,8 +708,8 @@ class GHIRProductType(GHIRValue):
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
 class GHIRSumType(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elements: list[GHIRValue]) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.elements = elements
 
@@ -740,8 +741,8 @@ class GHIRSumType(GHIRValue):
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
 class GHIRDerivedType(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, baseType: GHIRValue) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, baseType: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.baseType = baseType
 
@@ -761,8 +762,8 @@ class GHIRDerivedType(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRDecoratedType(GHIRDerivedType):
-    def __init__(self, context: GHIRContext, type: GHIRValue, baseType: GHIRValue, decorations: int) -> None:
-        super().__init__(context, type, baseType)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, baseType: GHIRValue, decorations: int) -> None:
+        super().__init__(context, sourcePosition, type, baseType)
         self.decorations = decorations
 
     def accept(self, visitor: GHIRVisitor):
@@ -801,8 +802,8 @@ class GHIRTemporaryReferenceType(GHIRDerivedType):
         graphPrinter.printLine('%s := tempRef %s : %s' % (valueName, baseType, type))
 
 class GHIRSequence(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, expressions: list[GHIRValue]) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, expressions: list[GHIRValue]) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.expressions = expressions
 
@@ -834,8 +835,8 @@ class GHIRSequence(GHIRValue):
         self.expressions = self.replacedUsedValueInListWith(self.expressions, usedValue, replacement)
 
 class GHIRIfExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, condition: GHIRValue, trueExpression: GHIRValue, falseExpression: GHIRValue) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, condition: GHIRValue, trueExpression: GHIRValue, falseExpression: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.condition = condition
         self.trueExpression = trueExpression
@@ -878,8 +879,8 @@ class GHIRIfExpression(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRBreakExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue):
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue):
+        super().__init__(context, sourcePosition)
         self.type = type
 
     def accept(self, visitor: GHIRVisitor):
@@ -904,8 +905,8 @@ class GHIRBreakExpression(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRContinueExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue):
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue):
+        super().__init__(context, sourcePosition)
         self.type = type
 
     def accept(self, visitor: GHIRVisitor):
@@ -930,8 +931,8 @@ class GHIRContinueExpression(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRDoWhileExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, bodyExpression: GHIRValue, condition: GHIRValue, continueExpression: GHIRValue) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, bodyExpression: GHIRValue, condition: GHIRValue, continueExpression: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.bodyExpression = bodyExpression
         self.condition = condition
@@ -974,8 +975,8 @@ class GHIRDoWhileExpression(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRWhileExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, condition: GHIRValue, bodyExpression: GHIRValue, continueExpression: GHIRValue) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, condition: GHIRValue, bodyExpression: GHIRValue, continueExpression: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.condition = condition
         self.bodyExpression = bodyExpression
@@ -1018,8 +1019,8 @@ class GHIRWhileExpression(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRMakeTupleExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elements: list[GHIRValue]) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.elements = elements
 
@@ -1054,8 +1055,8 @@ class GHIRMakeTupleExpression(GHIRValue):
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
 class GHIRTupleAtExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, tuple: GHIRValue, index: int) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, tuple: GHIRValue, index: int) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.tuple = tuple
         self.index = index
@@ -1084,8 +1085,8 @@ class GHIRTupleAtExpression(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRApplicationValue(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.functional = functional
         self.arguments = arguments
@@ -1112,16 +1113,16 @@ class GHIRApplicationValue(GHIRValue):
         if len(self.arguments) == 1:
             singleArgument = self.arguments[0]
             if singleArgument.isMakeTupleExpression():
-                unpackedApplication = GHIRApplicationValue(self.context, self.type, self.functional, singleArgument.elements)
+                unpackedApplication = GHIRApplicationValue(self.context, self.sourcePosition, self.type, self.functional, singleArgument.elements)
                 return self.replaceWith(unpackedApplication)
 
         if self.functional.isCurryingFunction():
             curryingFunction: GHIRCurryingFunction = self.functional
-            curriedApplication = GHIRCurriedFunction(self.context, self.type, curryingFunction.innerFunction, self.arguments)
+            curriedApplication = GHIRCurriedFunction(self.context, self.sourcePosition, self.type, curryingFunction.innerFunction, self.arguments)
             return self.replaceWith(curriedApplication.simplify())
         elif self.functional.isCurriedFunction():
             curriedApplication: GHIRCurriedFunction = self.functional
-            uncurriedApplication = GHIRApplicationValue(self.context, self.type, curriedApplication.innerFunction, curriedApplication.partialApplications + self.arguments)
+            uncurriedApplication = GHIRApplicationValue(self.context, self.sourcePosition, self.type, curriedApplication.innerFunction, curriedApplication.partialApplications + self.arguments)
             return self.replaceWith(uncurriedApplication.simplify())
         return self
 
@@ -1141,8 +1142,8 @@ class GHIRApplicationValue(GHIRValue):
         self.arguments = self.replacedUsedValueInListWith(self.arguments, usedValue, replacement)
 
 class GHIRImportedModule(GHIRValue):
-    def __init__(self, context: GHIRContext, name: str) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, name: str) -> None:
+        super().__init__(context, sourcePosition)
         self.name = name
 
     def accept(self, visitor: GHIRVisitor):
@@ -1164,8 +1165,8 @@ class GHIRImportedModule(GHIRValue):
         graphPrinter.printLine('%s := importedModule "%s"' % (valueName, self.name))
 
 class GHIRImportedModuleValue(GHIRValue):
-    def __init__(self, context: GHIRContext, module: GHIRImportedModule, type: GHIRValue, name: str) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, module: GHIRImportedModule, type: GHIRValue, name: str) -> None:
+        super().__init__(context, sourcePosition)
         self.module = module
         self.type = type
         self.name = name
@@ -1190,8 +1191,8 @@ class GHIRImportedModuleValue(GHIRValue):
         graphPrinter.printLine('%s := from %s import %s : %s' % (valueName, graphPrinter.printValue(self.module), self.name, graphPrinter.printValue(self.type)))
 
 class GHIRImportedExternalValue(GHIRValue):
-    def __init__(self, context: GHIRContext, type: GHIRValue, externalName: str, name: str) -> None:
-        super().__init__(context)
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, externalName: str, name: str) -> None:
+        super().__init__(context, sourcePosition)
         self.type = type
         self.externalName = externalName
         self.name = name
@@ -1213,8 +1214,9 @@ class GHIRImportedExternalValue(GHIRValue):
         graphPrinter.printLine('%s := from external %s import %s : %s' % (valueName, self.externalName, self.name, graphPrinter.printValue(self.type)))
 
 class GHIRModule(GHIRValue):
-    def __init__(self, context: GHIRContext) -> None:
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition) -> None:
         self.context = context
+        self.sourcePosition = sourcePosition
         self.exportedValues: list[tuple[str, GHIRValue]] = []
         self.entryPoint: GHIRValue = None
         self.name = ''
@@ -1249,7 +1251,7 @@ class GHIRModule(GHIRValue):
 class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def __init__(self, context = GHIRContext()) -> None:
         self.context = context
-        self.ghirModule = GHIRModule(context)
+        self.ghirModule = GHIRModule(context, None)
         self.translatedValueDictionary = dict()
         self.translatedBindingValueDictionary = dict()
 
@@ -1303,7 +1305,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitLambdaValue(self, value: LambdaValue):
         type = self.translateValue(value.getType())
-        translatedValue = GHIRLambdaValue(self.context, type)
+        translatedValue = GHIRLambdaValue(self.context, value.sourcePosition, type)
         if value.type.callingConvention is not None:
             translatedValue.callingConvention = value.type.callingConvention.value
         self.translatedValueDictionary[value] = translatedValue
@@ -1312,7 +1314,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitPiValue(self, value: PiValue):
         type = self.translateValue(value.getType())
-        translatedValue = GHIRPiValue(self.context, type)
+        translatedValue = GHIRPiValue(self.context, value.sourcePosition, type)
         if value.callingConvention is not None:
             translatedValue.callingConvention = value.callingConvention.value
         self.translatedValueDictionary[value] = translatedValue
@@ -1334,25 +1336,25 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitSigmaValue(self, value: SigmaValue):
         type = self.translateValue(value.getType())
-        translatedValue = GHIRSigmaValue(self.context, type)
+        translatedValue = GHIRSigmaValue(self.context, value.sourcePosition, type)
         self.translatedValueDictionary[value] = translatedValue
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
         return translatedValue.simplify()
 
     def visitPrimitiveFunction(self, value: PrimitiveFunction):
         type = self.translateValue(value.type)
-        return GHIRPrimitiveFunction(self.context, type, self.optionalSymbolToString(value.primitiveName), value.value)
+        return GHIRPrimitiveFunction(self.context, None, type, self.optionalSymbolToString(value.primitiveName), value.value)
 
     def visitCurriedFunctionalValue(self, value: CurriedFunctionalValue):
         type = self.translateValue(value.type)
         innerFunction = self.translateValue(value.innerFunction)
         arguments = list(map(lambda arg: self.translateValue(arg), list(value.arguments)))
-        return GHIRCurriedFunction(self.context, type, innerFunction, arguments).simplify()
+        return GHIRCurriedFunction(self.context, None, type, innerFunction, arguments).simplify()
 
     def visitCurryingFunctionalValue(self, value:  CurryingFunctionalValue):
         innerFunction = self.translateValue(value.innerFunction)
         type = self.translateValue(value.type)
-        return GHIRCurryingFunction(self.context, type, innerFunction).simplify()
+        return GHIRCurryingFunction(self.context, None, type, innerFunction).simplify()
 
     def visitProductType(self, value: ProductType):
         type = self.translateValue(value.getType())
@@ -1397,7 +1399,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         captures = list(map(self.translateCaptureBinding, functionalValue.captureBindings))
         arguments = list(map(self.translateArgumentBinding, functionalValue.argumentBindings))
         body = self.translateExpression(functionalValue.body)
-        return GHIRFunctionalDefinitionValue(self.context, captures, arguments, body).simplify()
+        return GHIRFunctionalDefinitionValue(self.context, functionalValue.sourcePosition, captures, arguments, body).simplify()
     
     def visitImportedModuleValue(self, value: ImportedModuleValue):
         type: GHIRValue = self.translateValue(value.type)
@@ -1409,20 +1411,20 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type: GHIRValue = self.translateValue(value.type)
         externalName: str = value.externalName.value
         name: str = value.name.value
-        return GHIRImportedExternalValue(self.context, type, externalName, name)
+        return GHIRImportedExternalValue(self.context, None, type, externalName, name)
 
     def visitImportedModule(self, value: ImportedModule):
-        return GHIRImportedModule(self.context, value.name.value)
+        return GHIRImportedModule(self.context, None, value.name.value)
 
     def translateCaptureBinding(self, binding: SymbolCaptureBinding) -> GHIRCaptureBindingValue:
         type = self.translateExpression(binding.getTypeExpression())
-        bindingValue = GHIRCaptureBindingValue(self.context, type, self.optionalSymbolToString(binding.name))
+        bindingValue = GHIRCaptureBindingValue(self.context, binding.sourcePosition, type, self.optionalSymbolToString(binding.name))
         self.translatedBindingValueDictionary[binding] = bindingValue
         return bindingValue
 
     def translateArgumentBinding(self, binding: SymbolArgumentBinding) -> GHIRArgumentBindingValue:
         type = self.translateExpression(binding.getTypeExpression())
-        bindingValue = GHIRArgumentBindingValue(self.context, type, self.optionalSymbolToString(binding.name))
+        bindingValue = GHIRArgumentBindingValue(self.context, binding.sourcePosition, type, self.optionalSymbolToString(binding.name))
         self.translatedBindingValueDictionary[binding] = bindingValue
         return bindingValue
 
@@ -1435,12 +1437,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())
         elements = list(map(self.translateExpression, node.elementTypes))
-        return GHIRProductType(self.context, type, elements).simplify()
+        return GHIRProductType(self.context, node.sourcePosition, type, elements).simplify()
 
     def visitSumTypeNode(self, node: ASTSumTypeNode):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())
         elements = list(map(self.translateExpression, node.elementTypes))
-        return GHIRSumType(self.context, type, elements).simplify()
+        return GHIRSumType(self.context, node.sourcePosition, type, elements).simplify()
     
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
         assert False
@@ -1449,7 +1451,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         functional = self.translateExpression(node.functional)
         argument = self.translateExpression(node.argument)
         type = self.translateExpression(node.type)
-        return GHIRApplicationValue(self.context, type, functional, [argument]).simplify()
+        return GHIRApplicationValue(self.context, node.sourcePosition, type, functional, [argument]).simplify()
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         assert False
@@ -1470,7 +1472,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         body = self.translateExpression(node.body)
         functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
         capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
-        return GHIRPiValue(self.context, type, functionDefinition, capturedValues).simplify()
+        return GHIRPiValue(self.context, node.sourcePosition, type, functionDefinition, capturedValues).simplify()
 
     def visitTypedSigmaNode(self, node: ASTTypedSigmaNode) -> TypedValue:
         type = self.translateExpression(node.type)
@@ -1479,7 +1481,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         body = self.translateExpression(node.body)
         functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
         capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
-        return GHIRSigmaValue(self.context, type, functionDefinition, capturedValues).simplify()
+        return GHIRSigmaValue(self.context, node.sourcePosition, type, functionDefinition, capturedValues).simplify()
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode) -> TypedValue:
         return self.translatedBindingValueDictionary[node.binding]
@@ -1489,29 +1491,29 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         condition = self.translateExpression(node.condition)
         trueExpression = self.translateExpression(node.trueExpression)
         falseExpression = self.translateExpression(node.falseExpression)
-        return GHIRIfExpression(self.context, type, condition, trueExpression, falseExpression).simplify()
+        return GHIRIfExpression(self.context, node.sourcePosition, type, condition, trueExpression, falseExpression).simplify()
 
     def visitTypedBreakNode(self, node: ASTTypedBreakNode) -> TypedValue:
         type = self.translateExpression(node.type)
-        return GHIRBreakExpression(self.context, type)
+        return GHIRBreakExpression(self.context, node.sourcePosition, type)
 
     def visitTypedContinueNode(self, node: ASTTypedContinueNode) -> TypedValue:
         type = self.translateExpression(node.type)
-        return GHIRContinueExpression(self.context, type)
+        return GHIRContinueExpression(self.context, node.sourcePosition, type)
 
     def visitTypedDoWhileNode(self, node: ASTTypedDoWhileNode) -> TypedValue:
         type = self.translateExpression(node.type)
         bodyExpression = self.translateExpression(node.bodyExpression)
         condition = self.translateExpression(node.condition)
         continueExpression = self.translateExpression(node.continueExpression)
-        return GHIRDoWhileExpression(self.context, type, bodyExpression, condition, continueExpression).simplify()
+        return GHIRDoWhileExpression(self.context, node.sourcePosition, type, bodyExpression, condition, continueExpression).simplify()
 
     def visitTypedWhileNode(self, node: ASTTypedWhileNode) -> TypedValue:
         type = self.translateExpression(node.type)
         condition = self.translateExpression(node.condition)
         bodyExpression = self.translateExpression(node.bodyExpression)
         continueExpression = self.translateExpression(node.continueExpression)
-        return GHIRWhileExpression(self.context, type, condition, bodyExpression, continueExpression).simplify()
+        return GHIRWhileExpression(self.context, node.sourcePosition, type, condition, bodyExpression, continueExpression).simplify()
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.translateExpression(node.type)
@@ -1520,7 +1522,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         body = self.translateExpression(node.body)
         functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
         capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
-        return GHIRLambdaValue(self.context, type, functionDefinition, capturedValues).simplify()
+        return GHIRLambdaValue(self.context, node.sourcePosition, type, functionDefinition, capturedValues).simplify()
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return self.translateValue(node.value)
@@ -1536,17 +1538,17 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
         type = self.translateExpression(node.type)
         expressions = list(map(self.translateExpression, node.elements))
-        return GHIRSequence(self.context, type, expressions).simplify()
+        return GHIRSequence(self.context, node.sourcePosition, type, expressions).simplify()
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
         type = self.translateExpression(node.type)
         elements = list(map(self.translateExpression, node.elements))
-        return GHIRMakeTupleExpression(self.context, type, elements).simplify()
+        return GHIRMakeTupleExpression(self.context, node.sourcePosition, type, elements).simplify()
 
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode) -> TypedValue:
         type = self.translateExpression(node.type)
         tuple = self.translateExpression(node.tuple)
-        return GHIRTupleAtExpression(self.context, type, tuple, node.index).simplify()
+        return GHIRTupleAtExpression(self.context, node.sourcePosition, type, tuple, node.index).simplify()
 
     def visitTypedFromModuleImportNode(self, node):
         assert False
