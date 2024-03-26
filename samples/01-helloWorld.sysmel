@@ -1,15 +1,16 @@
+#*
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer pointer)format, :(CVarArg)... :: Int32) __cdecl).
 let: #puts with: (fromExternal: #C import: #puts withType: (Char8 pointer => Void) __cdecl).
 
 let: #myAdd with: (:(Int32)x, :(Int32)y :: Int32) __cdecl :=> x + y.
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: Int32) __cdecl :=> {
-    #*
+    let: #i mutableWith: 1i32.
     while: (i < argc) do: {
         puts("Loop body" elements)
     }.
     ##continueWith: (i := i + 1i32).
-    *#
+    
 
     if: argc > 1i32 then: {
         puts("Got args" elements).
@@ -26,9 +27,11 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
     ##i.
     0i32
 }.
+*#
 
 ##(:*(Type)T :(T)x :: T)[Int32]
-##((:*(Type)T :(T)x :: T) :=> x) [Int32](0i32)
+##((:*(Type)T :(T)x :: T) :=> x) [Int32]
 ##(:(Int32)x :: Int32) :=> x
 
+((:*(Type)T :(T)x :: T) :=> x) (0i32)
 ##0i32
