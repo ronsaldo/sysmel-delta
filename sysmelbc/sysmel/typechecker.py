@@ -994,7 +994,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         reducer, newArguments, newCaptureBindings = self.reduceArguments(node.arguments, node.captureBindings)
 
         reducedBody = reducer.visitNode(node.body)
-        return reducePiNode(ASTTypedPiNode(node.sourcePosition, newType, newArguments, newCaptureBindings, reducedBody))
+        return reducePiNode(ASTTypedPiNode(node.sourcePosition, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         return node.binding.evaluateSubstitutionInContextFor(self.substitutionContext, node)
@@ -1030,30 +1030,18 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         return node
     
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
-        assert False
-        argumentBinding = node.argumentBinding
-        newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
         newType = self.visitNode(node.type)
-        
-        bodyContext = SubstitutionContext(self.substitutionContext)
-        bodyContext.setSubstitutionBindingForBinding(argumentBinding, newArgumentBinding)
-        bodyContext.addSubstitutionsForCaptureBindings(node.captureBindings)
+        reducer, newArguments, newCaptureBindings = self.reduceArguments(node.arguments, node.captureBindings)
 
-        reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
-        return reduceLambdaNode(ASTTypedLambdaNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody))
+        reducedBody = reducer.visitNode(node.body)
+        return reduceLambdaNode(ASTTypedLambdaNode(node.sourcePosition, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
 
-    def visitTypedSigmaNode(self, node: ASTTypedLambdaNode):
-        assert False
-        argumentBinding = node.argumentBinding
-        newArgumentBinding = SymbolArgumentBinding(argumentBinding.sourcePosition, argumentBinding.name, self.visitNode(argumentBinding.typeExpression))
+    def visitTypedSigmaNode(self, node: ASTTypedSigmaNode):
         newType = self.visitNode(node.type)
-        
-        bodyContext = SubstitutionContext(self.substitutionContext)
-        bodyContext.setSubstitutionBindingForBinding(argumentBinding, newArgumentBinding)
-        bodyContext.addSubstitutionsForCaptureBindings(node.captureBindings)
+        reducer, newArguments, newCaptureBindings = self.reduceArguments(node.arguments, node.captureBindings)
 
-        reducedBody = ASTBetaReducer(bodyContext).visitNode(node.body)
-        return reduceSigmaNode(ASTTypedSigmaNode(node.sourcePosition, newType, newArgumentBinding, bodyContext.captureBindings, reducedBody))
+        reducedBody = reducer.visitNode(node.body)
+        return reduceSigmaNode(ASTTypedSigmaNode(node.sourcePosition, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
@@ -1132,52 +1120,82 @@ def getTypeOfAnalyzedNode(node: ASTTypedNode | ASTTypeNode, sourcePosition: Sour
         return ASTLiteralTypeNode(sourcePosition, node.getTypeUniverse())
     return node.type
 
-def betaReduceFunctionalNodeWithArgument(functionalNode: ASTTypedNode | ASTTypeNode, argument: ASTTypedNode | ASTTypeNode):
-    if functionalNode.isTypedFunctionalNode():
-        typedFunctionalNode: ASTTypedFunctionalNode = functionalNode
-        argumentBinding = typedFunctionalNode.argumentBinding
-        body = typedFunctionalNode.body
+def unpackReductionArgumentToArity(argument: ASTTypedTupleNode, requiredArity: int):
+    if requiredArity == 0:
+        return []
+    elif requiredArity == 1:
+        return [argument]
 
-        assert len(typedFunctionalNode.captureBindings) == 0
+    if argument.isTypedTupleNode():
+        return argument.elements
+    
+    assert False
 
-        substitutionContext = SubstitutionContext()
-        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
-    else:
-        assert functionalNode.isTypedLiteralNode() or functionalNode.isLiteralTypeNode()
-        functionalValue: FunctionalValue = functionalNode.value
-        argumentBinding = functionalValue.argumentBinding
-        body = functionalValue.body
-        assert len(functionalValue.captureBindings) == 0
+def betaReduceFunctionalValueApplicationWithArgument(functionalValue: FunctionalValue | ASTTypeNode, application: ASTTypedApplicationNode, argument: ASTTypedNode | ASTTypeNode):
+    argumentBindings = functionalValue.argumentBindings
+    unpackedArguments = unpackReductionArgumentToArity(argument, len(argumentBindings))
+    body = functionalValue.body
+    assert len(functionalValue.captureBindings) == 0
 
-        substitutionContext = SubstitutionContext()
-        substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
+    substitutionContext = SubstitutionContext()
+    for i in range(len(unpackedArguments)):
+        substitutionContext.setSubstitutionNodeForBinding(argumentBindings[i], unpackedArguments[i])
     return ASTBetaReducer(substitutionContext).visitNode(body)
+
+def betaReduceTypedFunctionalNodeApplicationWithArgument(typedFunctionalNode: ASTTypedFunctionalNode, application: ASTTypedApplicationNode, argument: ASTTypedNode | ASTTypeNode):
+    argumentBinding = typedFunctionalNode.argumentBinding
+    body = typedFunctionalNode.body
+
+    assert len(typedFunctionalNode.captureBindings) == 0
+
+    substitutionContext = SubstitutionContext()
+    substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
+    return ASTBetaReducer(substitutionContext).visitNode(body)
+
+def betaReduceFunctionalNodeApplicationWithArgument(functionalNode: ASTTypedNode | ASTTypeNode, application: ASTTypedApplicationNode, argument: ASTTypedNode | ASTTypeNode):
+    if functionalNode.isTypedFunctionalNode():
+        return betaReduceTypedFunctionalNodeApplicationWithArgument(functionalNode, application, argument)
+    
+    assert functionalNode.isTypedLiteralNode() or functionalNode.isLiteralTypeNode()
+    return betaReduceFunctionalValueApplicationWithArgument(functionalNode.value, application, argument)
+    
     
 def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition) -> ASTTypedLiteralNode | ASTTypeNode:
     if value.isType():
         return ASTLiteralTypeNode(sourcePosition, value)
     return ASTTypedLiteralNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, value.getType()), value)
 
+def reducePrimitiveFunctionalValueApplicationWithArgumentNode(functionalValue: TypedValue, applicationNode: ASTTypedApplicationNode, argumentNode: ASTTypedNode):
+    hasLiteralArgument = argumentNode.isLiteralTypeNode() or argumentNode.isTypedLiteralNode()
+    if hasLiteralArgument:
+        argumentValue = argumentNode.value
+        if argumentValue.isProductTypeValue():
+            evaluationResult = functionalValue(*argumentValue)
+        else:
+            evaluationResult = functionalValue(argumentValue)
+        return makeTypedLiteralForValueAt(evaluationResult, applicationNode.sourcePosition)
+    return applicationNode
+
+PiValue.betaReduceApplicationWithArgumentWithArgumentNode = betaReduceFunctionalValueApplicationWithArgument
+LambdaValue.betaReduceApplicationWithArgumentWithArgumentNode = betaReduceFunctionalValueApplicationWithArgument
+CurriedFunctionalValue.betaReduceApplicationWithArgumentWithArgumentNode = reducePrimitiveFunctionalValueApplicationWithArgumentNode
+CurryingFunctionalValue.betaReduceApplicationWithArgumentWithArgumentNode = reducePrimitiveFunctionalValueApplicationWithArgumentNode
+PrimitiveFunction.betaReduceApplicationWithArgumentWithArgumentNode = reducePrimitiveFunctionalValueApplicationWithArgumentNode
+
 def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
     if len(node.implicitValueSubstitutions) != 0:
         return ASTBetaReducer(SubstitutionContext()).visitNode(node)
 
     hasTypeArgument = node.argument.isTypeNode()
-    hasLiteralArgument = node.argument.isLiteralTypeNode() or node.argument.isTypedLiteralNode()
     hasLiteralFunctionalNode = node.functional.isLiteralTypeNode() or node.functional.isTypedLiteralNode()
     hasBetaReducibleFunctional = node.functional.isTypedLambdaNode() or node.functional.isTypedPiNode() or node.functional.isTypedLiteralReducibleFunctionalValue()
 
-    if hasLiteralFunctionalNode and node.functional.value.isPurelyFunctional() and hasLiteralArgument:
-        functionalValue = node.functional.value
-        argumentValue = node.argument.value
-        if argumentValue.isProductTypeValue():
-            evaluationResult = functionalValue(*argumentValue)
-        else:
-            evaluationResult = functionalValue(argumentValue)
-        return makeTypedLiteralForValueAt(evaluationResult, node.sourcePosition)
-
     if hasTypeArgument and hasBetaReducibleFunctional:
-        return betaReduceFunctionalNodeWithArgument(node.functional, node.argument)
+        return betaReduceFunctionalNodeApplicationWithArgument(node.functional, node, node.argument)
+
+    if hasLiteralFunctionalNode and node.functional.value.isPurelyFunctional():
+        functionalValue = node.functional.value
+        return functionalValue.betaReduceApplicationWithArgumentWithArgumentNode(node, node.argument)
 
     return node
 
