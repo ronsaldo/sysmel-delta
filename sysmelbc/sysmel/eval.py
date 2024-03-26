@@ -92,6 +92,27 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         else:
             return self.visitNode(node.falseExpression)
 
+    def visitTypedBreakNode(self, node: ASTTypedIfNode) -> TypedValue:
+        assert False
+
+    def visitTypedContinueNode(self, node: ASTTypedIfNode) -> TypedValue:
+        assert False
+
+    def visitTypedDoWhileNode(self, node: ASTTypedWhileNode) -> TypedValue:
+        shouldContinue = True
+        while shouldContinue:
+            self.visitNode(node.bodyExpression)
+            shouldContinue = self.visitNode(node.condition).interpretAsBoolean()
+            if shouldContinue:
+                self.visitNode(node.continueExpression)
+        return VoidType.getSingleton()            
+
+    def visitTypedWhileNode(self, node: ASTTypedWhileNode) -> TypedValue:
+        while self.visitNode(node.condition).interpretAsBoolean():
+            self.visitNode(node.bodyExpression)
+            self.visitNode(node.continueExpression)
+        return VoidType.getSingleton()            
+
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.visitNode(node.type)
         capturedValues = list(map(lambda binding: self.evaluateBindingAt(binding.capturedBinding, node.sourcePosition), node.captureBindings))
@@ -116,7 +137,7 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         return overloadFunctionType.makeWithAlternatives(tuple(alternatives))
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
-        result = UnitType.getSingleton()
+        result = VoidType.getSingleton()
         for expression in node.elements:
             result = self.visitNode(expression)
         return result

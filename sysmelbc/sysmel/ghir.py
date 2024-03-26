@@ -156,6 +156,22 @@ class GHIRVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitBreakExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitContinueExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitDoWhileExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitWhileExpression(self, value):
+        pass
+
+    @abstractmethod
     def visitMakeTupleExpression(self, value):
         pass
 
@@ -861,6 +877,146 @@ class GHIRIfExpression(GHIRValue):
             self.falseExpression = replacement
             replacement.registerUserValue(self)
 
+class GHIRBreakExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue):
+        super().__init__(context)
+        self.type = type
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitBreakExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isBreakExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        graphPrinter.printLine('%s := break : %s' % (valueName, type))
+
+    def usedValues(self):
+        yield self.type
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+
+class GHIRContinueExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue):
+        super().__init__(context)
+        self.type = type
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitContinueExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isContinueExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        graphPrinter.printLine('%s := continue : %s' % (valueName, type))
+
+    def usedValues(self):
+        yield self.type
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+
+class GHIRDoWhileExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, bodyExpression: GHIRValue, condition: GHIRValue, continueExpression: GHIRValue) -> None:
+        super().__init__(context)
+        self.type = type
+        self.bodyExpression = bodyExpression
+        self.condition = condition
+        self.continueExpression = continueExpression
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitDoWhileExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isDoWhileExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        bodyExpression = graphPrinter.printValue(self.bodyExpression)
+        condition = graphPrinter.printValue(self.condition)
+        continueExpression = graphPrinter.printValue(self.continueExpression)
+        graphPrinter.printLine('%s := do: %s while: %s continueWith: %s : %s' % (valueName, bodyExpression, condition, continueExpression, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.bodyExpression
+        yield self.condition
+        yield self.continueExpression
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.bodyExpression is usedValue:
+            self.bodyExpression = replacement
+            replacement.registerUserValue(self)
+        if self.condition is usedValue:
+            self.condition = replacement
+            replacement.registerUserValue(self)
+        if self.continueExpression is usedValue:
+            self.continueExpression = replacement
+            replacement.registerUserValue(self)
+
+class GHIRWhileExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, type: GHIRValue, condition: GHIRValue, bodyExpression: GHIRValue, continueExpression: GHIRValue) -> None:
+        super().__init__(context)
+        self.type = type
+        self.condition = condition
+        self.bodyExpression = bodyExpression
+        self.continueExpression = continueExpression
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitWhileExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isWhileExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        condition = graphPrinter.printValue(self.condition)
+        bodyExpression = graphPrinter.printValue(self.bodyExpression)
+        continueExpression = graphPrinter.printValue(self.continueExpression)
+        graphPrinter.printLine('%s := while: %s do: %s continueWith: %s : %s' % (valueName, condition, bodyExpression, continueExpression, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.condition
+        yield self.bodyExpression
+        yield self.continueExpression
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.condition is usedValue:
+            self.condition = replacement
+            replacement.registerUserValue(self)
+        if self.bodyExpression is usedValue:
+            self.bodyExpression = replacement
+            replacement.registerUserValue(self)
+        if self.continueExpression is usedValue:
+            self.continueExpression = replacement
+            replacement.registerUserValue(self)
+
 class GHIRMakeTupleExpression(GHIRValue):
     def __init__(self, context: GHIRContext, type: GHIRValue, elements: list[GHIRValue]) -> None:
         super().__init__(context)
@@ -1124,7 +1280,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitGenericTypedValue(self, value: TypedValue):
         return self.context.getConstantValue(value)
 
-    def visitUnitTypeValue(self, value):
+    def visitVoidTypeValue(self, value):
         return self.context.getConstantValue(value)
 
     def visitIntegerValue(self, value):
@@ -1335,6 +1491,28 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         falseExpression = self.translateExpression(node.falseExpression)
         return GHIRIfExpression(self.context, type, condition, trueExpression, falseExpression).simplify()
 
+    def visitTypedBreakNode(self, node: ASTTypedBreakNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        return GHIRBreakExpression(self.context, type)
+
+    def visitTypedContinueNode(self, node: ASTTypedContinueNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        return GHIRContinueExpression(self.context, type)
+
+    def visitTypedDoWhileNode(self, node: ASTTypedDoWhileNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        bodyExpression = self.translateExpression(node.bodyExpression)
+        condition = self.translateExpression(node.condition)
+        continueExpression = self.translateExpression(node.continueExpression)
+        return GHIRDoWhileExpression(self.context, type, bodyExpression, condition, continueExpression).simplify()
+
+    def visitTypedWhileNode(self, node: ASTTypedWhileNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        condition = self.translateExpression(node.condition)
+        bodyExpression = self.translateExpression(node.bodyExpression)
+        continueExpression = self.translateExpression(node.continueExpression)
+        return GHIRWhileExpression(self.context, type, condition, bodyExpression, continueExpression).simplify()
+
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.translateExpression(node.type)
         captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
@@ -1484,6 +1662,18 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
 
     def visitIfExpression(self, value: GHIRIfExpression):
         return self.checkValue(value.condition) or self.checkValue(value.trueExpression) or self.checkValue(value.falseExpression)
+    
+    def visitBreakExpression(self, value: GHIRBreakExpression):
+        return True
+
+    def visitContinueExpression(self, value: GHIRContinueExpression):
+        return True
+
+    def visitDoWhileExpression(self, value: GHIRDoWhileExpression):
+        return self.checkValue(value.bodyExpression) or self.checkValue(value.condition) or self.checkValue(value.continueExpression)
+
+    def visitWhileExpression(self, value: GHIRWhileExpression):
+        return self.checkValue(value.condition) or self.checkValue(value.bodyExpression) or self.checkValue(value.continueExpression)
 
     def visitMakeTupleExpression(self, value: GHIRMakeTupleExpression):
         for element in value.elements:

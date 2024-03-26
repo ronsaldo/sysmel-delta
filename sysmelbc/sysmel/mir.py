@@ -18,7 +18,7 @@ class MIRContext:
         self.basicBlockType = MIRBasicBlockType(self, 'BasicBlock', self.pointerSize, self.pointerAlignment)
         self.gcPointerType = MIRGCPointerType(self, 'GCPointer', self.gcPointerSize, self.gcPointerAlignment)
         self.pointerType = MIRPointerType(self, 'Pointer', self.pointerSize, self.pointerAlignment)
-        self.voidType = MIRVoidType(self, 'Void', 0, 1)
+        self.voidType = MIRAbortType(self, 'Void', 0, 1)
         self.void = MIRConstantVoid(self, self.voidType)
         self.booleanType = MIRBooleanType(self, 'Boolean', 1, 1)
         self.int8Type   = MIRSignedIntegerType(self, 'Int8', 1, 1)
@@ -50,7 +50,7 @@ class MIRType(ABC):
     def isGCPointerType(self) -> bool:
         return False
 
-    def isVoidType(self) -> bool:
+    def isAbortType(self) -> bool:
         return False
     
     def isClosureType(self) -> bool:
@@ -62,8 +62,8 @@ class MIRType(ABC):
     def __str__(self) -> str:
         return self.name
 
-class MIRVoidType(MIRType):
-    def isVoidType(self) -> bool:
+class MIRAbortType(MIRType):
+    def isAbortType(self) -> bool:
         return True
 
 class MIRBooleanType(MIRType):
@@ -153,11 +153,11 @@ class MIRValue(ABC):
     def isGCPointer(self) -> bool:
         return self.getType().isGCPointerType()
 
-    def hasVoidType(self) -> bool:
-        return self.getType().isVoidType()
+    def hasAbortType(self) -> bool:
+        return self.getType().isAbortType()
 
-    def hasNotVoidType(self) -> bool:
-        return not self.getType().isVoidType()
+    def hasNotAbortType(self) -> bool:
+        return not self.getType().isAbortType()
 
 class MIRConstant(MIRValue):
     def isConstant(self) -> bool:
@@ -348,7 +348,7 @@ class MIRFunction(MIRGlobalValue):
                 return
             
             visitedSet.add(basicBlock)
-            for successor in basicBlock.successorBlocks():
+            for successor in reversed(basicBlock.successorBlocks()):
                 visit(successor)
             visitedList.append(basicBlock)
 
@@ -366,7 +366,7 @@ class MIRFunction(MIRGlobalValue):
                 return
             
             visitedSet.add(basicBlock)
-            for successor in basicBlock.successorBlocks():
+            for successor in reversed(basicBlock.successorBlocks()):
                 visit(successor)
             visitedList.append(basicBlock)
 
@@ -904,7 +904,7 @@ class MIRFunctionFrontend:
 
     def translateArgument(self, hirArgument: HIRFunctionalArgumentValue):
         mirArgument = MIRArgument(self.context, self.translateType(hirArgument.getType()), hirArgument.name)
-        if mirArgument.hasVoidType():
+        if mirArgument.hasAbortType():
             self.translatedValueDictionary[mirArgument] = self.context.void
             return
 
@@ -913,7 +913,7 @@ class MIRFunctionFrontend:
 
     def translateCapture(self, hirCapture: HIRFunctionalCaptureValue):
         mirCapture = MIRCapture(self.context, self.translateType(hirCapture.getType()), hirCapture.name)
-        if mirCapture.hasVoidType():
+        if mirCapture.hasAbortType():
             self.translatedValueDictionary[hirCapture] = self.context.void
             return
 
@@ -971,7 +971,7 @@ class MIRFunctionFrontend:
 
         resultType = self.translateType(hirInstruction.type)
         functional = self.translateValue(hirInstruction.functional)
-        arguments = list(filter(lambda x: x.hasNotVoidType(), map(self.translateValue, hirInstruction.arguments)))
+        arguments = list(filter(lambda x: x.hasNotAbortType(), map(self.translateValue, hirInstruction.arguments)))
         return self.builder.call(resultType, functional, arguments)
     
     def visitCondBranchInstruction(self, hirInstruction: HIRCondBranchInstruction):

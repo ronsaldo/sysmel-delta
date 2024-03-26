@@ -10,7 +10,7 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitUnitTypeValue(self, value):
+    def visitVoidTypeValue(self, value):
         pass
 
     @abstractmethod
@@ -253,17 +253,17 @@ class BaseType(TypedValue):
             return True
         return self == otherType
 
-class VoidTypeClass(BaseType):
+class AbortTypeClass(BaseType):
     pass
 
-class UnitTypeValue(TypedValue):
+class VoidTypeValue(TypedValue):
     def __init__(self, type: BaseType, name: str) -> None:
         super().__init__()
         self.type = type
         self.name = name
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
-        return visitor.visitUnitTypeValue(self)
+        return visitor.visitVoidTypeValue(self)
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         return self.type.isEquivalentTo(other.getType())
@@ -276,12 +276,12 @@ class UnitTypeValue(TypedValue):
             return str(self.type) + ".value"
         return self.name
     
-class UnitTypeClass(BaseType):
+class VoidTypeClass(BaseType):
     def __init__(self, name: str, valueName: str) -> None:
         super().__init__(name)
-        self.singleton = UnitTypeValue(self, valueName)
+        self.singleton = VoidTypeValue(self, valueName)
 
-    def getSingleton(self) -> UnitTypeValue:
+    def getSingleton(self) -> VoidTypeValue:
         return self.singleton
 
 class CVarArgTypeClass(BaseType):
@@ -357,8 +357,8 @@ class MacroContextTypeClass(BaseType):
 class ModuleTypeClass(BaseType):
     pass
 
-VoidType = VoidTypeClass("Void")
-UnitType = UnitTypeClass("Unit", "unit")
+AbortType = AbortTypeClass("Abort")
+VoidType = VoidTypeClass("Void", "void")
 
 CVarArgType = CVarArgTypeClass("CVarArg")
 
@@ -967,8 +967,8 @@ class SumType(BaseType):
         return sumType
 
 ## Boolean :: False | True.
-FalseType = UnitTypeClass("False", "false")
-TrueType = UnitTypeClass("True", "true")
+FalseType = VoidTypeClass("False", "false")
+TrueType = VoidTypeClass("True", "true")
 BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType])
 FalseValue = BooleanType.makeWithTypeIndexAndValue(0, FalseType.getSingleton())
 TrueValue = BooleanType.makeWithTypeIndexAndValue(1, TrueType.getSingleton())

@@ -134,7 +134,7 @@ class Typechecker(ASTVisitor):
             return reduceType(analyzedNode)
 
         if analyzedNode.isTypedErrorNode():
-            return ASTLiteralTypeNode(node.sourcePosition, VoidType)
+            return ASTLiteralTypeNode(node.sourcePosition, AbortType)
 
         return self.makeSemanticError(node.sourcePosition, "Expression is not a type.", analyzedNode)
 
@@ -153,7 +153,7 @@ class Typechecker(ASTVisitor):
             innerNodes.append(innerNode)
         if innerNode2 is not None:
             innerNodes.append(innerNode2)
-        errorNode = ASTTypedErrorNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, VoidType), errorMessage, innerNodes)
+        errorNode = ASTTypedErrorNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, AbortType), errorMessage, innerNodes)
         self.errorAccumulator.add(errorNode)
         return errorNode
 
@@ -162,7 +162,7 @@ class Typechecker(ASTVisitor):
         isImplicit = node.kind == ASTApplicationNode.Bracket
 
         if len(node.arguments) == 0:
-            return self.visitNode(ASTArgumentApplicationNode(node.sourcePosition, functional, ASTLiteralNode(node.sourcePosition, UnitType.getSingleton()), isImplicit = isImplicit))
+            return self.visitNode(ASTArgumentApplicationNode(node.sourcePosition, functional, ASTLiteralNode(node.sourcePosition, VoidType.getSingleton()), isImplicit = isImplicit))
 
         for argument in node.arguments:
             functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument, isImplicit = isImplicit))
@@ -183,7 +183,7 @@ class Typechecker(ASTVisitor):
 
     def packArguments(self, arguments: list[ASTTypedNode], sourcePosition: SourcePosition):
         if len(arguments) == 0:
-            return self.visitNode(ASTLiteralNode(sourcePosition), UnitType.getSingleton())
+            return self.visitNode(ASTLiteralNode(sourcePosition), VoidType.getSingleton())
         elif len(arguments) == 1:
             return arguments[0]
         return self.visitNode(ASTTupleNode(sourcePosition, arguments))
@@ -216,7 +216,7 @@ class Typechecker(ASTVisitor):
 
         ## If there are zero arguments, the argument must be unit.
         if len(argumentBindings) == 0:
-            implicitValueSubstitutions, typedArgument, errorMessage = self.attemptToVisitNodeWithExpectedType(argument, UnitType)
+            implicitValueSubstitutions, typedArgument, errorMessage = self.attemptToVisitNodeWithExpectedType(argument, VoidType)
             if errorMessage is not None:
                 return None, typedArgument, None, implicitValueSubstitutions, errorMessage
             return piBody
@@ -327,7 +327,7 @@ class Typechecker(ASTVisitor):
 
         if not functionalType.isAnyFunctionTypeNode():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
-            return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, VoidType), functional, self.visitNode(node.argument), [])
+            return ASTTypedApplicationNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbortType), functional, self.visitNode(node.argument), [])
         
         pendingInferenceArgument, typedArgument, resultType, implicitValueSubstitutions, errorMessage = self.attemptBetaReducePiWithTypedArgument(functionalType, node.argument, isImplicitApplication = node.isImplicit)
         if errorMessage is not None:
@@ -406,7 +406,7 @@ class Typechecker(ASTVisitor):
         assert False
 
     def visitErrorNode(self, node: ASTErrorNode):
-        errorNode = ASTTypedErrorNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, VoidType), node.message, [])
+        errorNode = ASTTypedErrorNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbortType), node.message, [])
         self.errorAccumulator.add(errorNode)
         return errorNode
 
@@ -479,18 +479,72 @@ class Typechecker(ASTVisitor):
         condition = self.visitNodeWithExpectedType(node.condition, BooleanType)
         trueExpression = node.trueExpression
         if trueExpression is None:
-            trueExpression = ASTLiteralNode(node.sourcePosition, UnitType.getSingleton())
+            trueExpression = ASTLiteralNode(node.sourcePosition, VoidType.getSingleton())
         trueExpression = self.visitNodeWithCurrentExpectedType(trueExpression)
 
         falseExpression = node.falseExpression
         if falseExpression is None:
-            falseExpression = ASTLiteralNode(node.sourcePosition, UnitType.getSingleton())
+            falseExpression = ASTLiteralNode(node.sourcePosition, VoidType.getSingleton())
         falseExpression = self.visitNodeWithCurrentExpectedType(falseExpression)
 
         type = self.mergeTypesOfBranch(getTypeOfAnalyzedNode(trueExpression, trueExpression.sourcePosition), getTypeOfAnalyzedNode(falseExpression, falseExpression.sourcePosition), node.sourcePosition)
         ifNode = ASTTypedIfNode(node.sourcePosition, type, condition, trueExpression, falseExpression)
         return reduceIfNode(ifNode)
     
+    def visitBreakNode(self, node: ASTBreakNode):
+        if not self.lexicalEnvironment.isValidContextForBreak():
+            return self.makeSemanticError(node.sourcePosition, 'Invalid location for a break expression.', node)
+        return ASTTypedBreakNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbortType))
+
+    def visitContinueNode(self, node: ASTBreakNode):
+        if not self.lexicalEnvironment.isValidContextForContinue():
+            return self.makeSemanticError(node.sourcePosition, 'Invalid location for a continue expression.', node)
+        return ASTTypedContinueNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, AbortType))
+
+    def visitDoWhileNode(self, node: ASTWhileNode):
+        bodyExpression = node.bodyExpression
+        if bodyExpression is None:
+            bodyExpression = ASTLiteralNode(node.sourcePosition, VoidType.getSingleton())
+        
+        loopEnvironment = LexicalEnvironment(ChildEnvironmentBreakAndContinue(self.lexicalEnvironment), node.sourcePosition)
+        bodyExpression = self.withEnvironment(loopEnvironment).visitNode(bodyExpression)
+
+        condition = node.condition
+        if condition is None:
+            self.condition = ASTLiteralNode(node.sourcePosition, TrueValue.getSingleton())
+        condition = self.visitNodeWithExpectedType(condition, BooleanType)
+
+        continueExpression = node.continueExpression
+        if continueExpression is None:
+            continueExpression = ASTLiteralNode(node.sourcePosition, VoidType.getSingleton())
+        continueExpression = self.visitNode(continueExpression)
+
+        type = ASTLiteralTypeNode(node.sourcePosition, VoidType)
+        doWhileNode = ASTTypedDoWhileNode(node.sourcePosition, type, bodyExpression, condition, continueExpression)
+        return reduceDoWhileNode(doWhileNode)
+    
+    def visitWhileNode(self, node: ASTWhileNode):
+        condition = node.condition
+        if condition is None:
+            self.condition = ASTLiteralNode(node.sourcePosition, TrueValue.getSingleton())
+        condition = self.visitNodeWithExpectedType(condition, BooleanType)
+
+        bodyExpression = node.bodyExpression
+        if bodyExpression is None:
+            bodyExpression = ASTLiteralNode(node.sourcePosition, VoidType.getSingleton())
+        
+        loopEnvironment = LexicalEnvironment(ChildEnvironmentBreakAndContinue(self.lexicalEnvironment), node.sourcePosition)
+        bodyExpression = self.withEnvironment(loopEnvironment).visitNode(bodyExpression)
+
+        continueExpression = node.continueExpression
+        if continueExpression is None:
+            continueExpression = ASTLiteralNode(node.sourcePosition, VoidType.getSingleton())
+        continueExpression = self.visitNode(continueExpression)
+
+        type = ASTLiteralTypeNode(node.sourcePosition, VoidType)
+        whileNode = ASTTypedWhileNode(node.sourcePosition, type, condition, bodyExpression, continueExpression)
+        return reduceWhileNode(whileNode)
+
     def analyzeArgumentNode(self, node: ASTArgumentNode) -> ASTTypedArgumentNode:
         assert node.isArgumentNode()
         name = self.evaluateOptionalSymbol(node.nameExpression)
@@ -615,11 +669,11 @@ class Typechecker(ASTVisitor):
 
     def visitSequenceNode(self, node: ASTSequenceNode):
         if len(node.elements) == 0:
-            return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, UnitType), UnitType.getSingleton())
+            return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, VoidType), VoidType.getSingleton())
         elif len(node.elements) == 1:
             return self.visitNode(node.elements[0])
         
-        resultType = UnitType
+        resultType = VoidType
         typedElements = []
         expressionCount = len(node.elements)
         for i in range(expressionCount):
@@ -653,7 +707,7 @@ class Typechecker(ASTVisitor):
 
     def visitTupleNode(self, node: ASTTupleNode):
         if len(node.elements) == 0:
-            return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, UnitType), UnitType.getSingleton())
+            return ASTTypedLiteralNode(node.sourcePosition, ASTLiteralTypeNode(node.sourcePosition, VoidType), VoidType.getSingleton())
         elif len(node.elements) == 1:
             return self.visitNode(node.elements[0])
         
@@ -701,6 +755,18 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedIfNode(self, node: ASTTypedIfNode):
+        return node
+
+    def visitTypedBreakNode(self, node: ASTTypedBreakNode):
+        return node
+
+    def visitTypedContinueNode(self, node: ASTTypedContinueNode):
+        return node
+
+    def visitTypedDoWhileNode(self, node: ASTTypedDoWhileNode):
+        return node
+
+    def visitTypedWhileNode(self, node: ASTTypedWhileNode):
         return node
 
     def visitTypedImplicitValueNode(self, node):
@@ -907,7 +973,27 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         condition = self.visitNode(node.condition)
         trueExpression = self.visitNode(node.trueExpression)
         falseExpression = self.visitNode(node.falseExpression)
-        return reduceIfNode(ASTTypedIfNode(node.sourcePosition, node.type, condition, trueExpression, falseExpression))
+        return reduceIfNode(ASTTypedIfNode(node.sourcePosition, type, condition, trueExpression, falseExpression))
+    
+    def visitTypedBreakNode(self, node: ASTTypedBreakNode):
+        return node
+
+    def visitTypedContinueNode(self, node: ASTTypedContinueNode):
+        return node
+
+    def visitTypedDoWhileNode(self, node: ASTTypedDoWhileNode):
+        type = self.visitNode(node.type)
+        bodyExpression = self.visitNode(node.bodyExpression)
+        condition = self.visitNode(node.condition)
+        continueExpression = self.visitNode(node.continueExpression)
+        return reduceDoWhileNode(ASTTypedDoWhileNode(node.sourcePosition, type, bodyExpression, condition, continueExpression))
+
+    def visitTypedWhileNode(self, node: ASTTypedWhileNode):
+        type = self.visitNode(node.type)
+        condition = self.visitNode(node.condition)
+        bodyExpression = self.visitNode(node.bodyExpression)
+        continueExpression = self.visitNode(node.continueExpression)
+        return reduceWhileNode(ASTTypedWhileNode(node.sourcePosition, type, condition, bodyExpression, continueExpression))
 
     def visitTypedImplicitValueNode(self, node):
         return node
@@ -1129,7 +1215,7 @@ def reduceTypedOverloadsNode(node: ASTTypedOverloadsNode):
 
 def reduceProductTypeNode(node: ASTProductTypeNode):
     if len(node.elementTypes) == 0:
-        return ASTLiteralTypeNode(node.sourcePosition, UnitType)
+        return ASTLiteralTypeNode(node.sourcePosition, VoidType)
     elif len(node.elementTypes) == 1:
         return node.elementTypes[0]
 
@@ -1139,7 +1225,7 @@ def reduceProductTypeNode(node: ASTProductTypeNode):
 
 def reduceTupleNode(node: ASTTypedTupleNode):
     if len(node.elements) == 0:
-        return ASTLiteralNode(node.sourcePosition, node.type, UnitType.getSingleton())
+        return ASTLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
     elif len(node.elements) == 1:
         return node.elements[0]
 
@@ -1173,7 +1259,7 @@ def reduceFromExternalImportNode(node: ASTTypedFromExternalImportWithTypeNode):
 
 def reduceSumTypeNode(node: ASTSumTypeNode):
     if len(node.alternativeTypes) == 0:
-        return ASTLiteralTypeNode(node.sourcePosition, VoidType)
+        return ASTLiteralTypeNode(node.sourcePosition, AbortType)
     elif len(node.alternativeTypes) == 1:
         return node.alternativeTypes[0]
     return node
@@ -1184,6 +1270,19 @@ def reduceIfNode(node: ASTTypedIfNode):
             return node.trueExpression
         else:
             return node.falseExpression
+    return node
+
+def reduceWhileNode(node: ASTTypedWhileNode):
+    if node.condition.isTypedLiteralNode():
+        if not node.condition.value.interpretAsBoolean():
+            return ASTTypedLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
+    return node
+
+def reduceDoWhileNode(node: ASTTypedDoWhileNode):
+    if node.condition.isTypedLiteralNode():
+        if not node.condition.value.interpretAsBoolean():
+            resultValue = ASTTypedLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
+            sequence = ASTTypedSequenceNode(node.sourcePosition, node.type, [node.bodyExpression, resultValue])
     return node
 
 def mergeTypeUniversesOfTypeNodePair(leftNode: ASTTypedNode, rightNode: ASTTypedNode, sourcePosition: SourcePosition) -> ASTLiteralTypeNode:

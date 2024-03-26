@@ -51,6 +51,22 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitBreakNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitContinueNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitDoWhileNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitWhileNode(self, node):
+        pass
+
+    @abstractmethod
     def visitOverloadsNode(self, node):
         pass
 
@@ -148,6 +164,22 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedIfNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedBreakNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedContinueNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedDoWhileNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedWhileNode(self, node):
         pass
 
     @abstractmethod
@@ -313,6 +345,52 @@ class ASTIfNode(ASTNode):
     
     def toJson(self) -> dict:
         return {'kind': 'If', 'condition': self.condition.toJson(), 'trueExpression' : optionalASTNodeToJson(self.trueExpression), 'falseExpression' : optionalASTNodeToJson(self.falseExpression)}
+
+class ASTBreakNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition) -> None:
+        super().__init__(sourcePosition)
+    
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitBreakNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'Break'}
+
+class ASTContinueNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition) -> None:
+        super().__init__(sourcePosition)
+    
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitContinueNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'Continue'}
+
+class ASTDoWhileNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, bodyExpression: ASTNode, condition: ASTNode, continueExpression: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.bodyExpression = bodyExpression
+        self.condition = condition
+        self.continueExpression = continueExpression
+    
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitDoWhileNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'DoWhile', 'bodyExpression' : optionalASTNodeToJson(self.bodyExpression), 'condition': optionalASTNodeToJson(self.condition.toJson()), 'continueExpression' : optionalASTNodeToJson(self.continueExpression)}
+
+class ASTWhileNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, condition: ASTNode, bodyExpression: ASTNode, continueExpression: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.condition = condition
+        self.bodyExpression = bodyExpression
+        self.continueExpression = continueExpression
+    
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitWhileNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'While', 'condition': optionalASTNodeToJson(self.condition.toJson()), 'bodyExpression' : optionalASTNodeToJson(self.bodyExpression), 'continueExpression' : optionalASTNodeToJson(self.continueExpression)}
 
 class ASTPiNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], body: ASTNode, callingConvention: Symbol = None) -> None:
@@ -700,8 +778,49 @@ class ASTTypedIfNode(ASTTypedNode):
         return visitor.visitTypedIfNode(self)
     
     def toJson(self) -> dict:
-        return {'kind': 'TypedIf', 'condition': self.condition.toJson(), 'trueExpression' : self.trueExpression.toJson(), 'falseExpression' : self.falseExpression.toJson()}
+        return {'kind': 'TypedIf', 'type': self.type.toJson(), 'condition': self.condition.toJson(), 'trueExpression' : self.trueExpression.toJson(), 'falseExpression' : self.falseExpression.toJson()}
+
+class ASTTypedBreakNode(ASTTypedNode):
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedBreakNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedBreak', 'type': self.type.toJson()}
+
+class ASTTypedContinueNode(ASTTypedNode):
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedContinueNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedContinue', 'type': self.type.toJson()}
+
+class ASTTypedDoWhileNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, bodyExpression: ASTNode, condition: ASTNode, continueExpression: ASTNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.bodyExpression = bodyExpression
+        self.condition = condition
+        self.continueExpression = continueExpression
     
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedDoWhileNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'TypedDoWhile', 'type': self.type.toJson(), 'bodyExpression' : optionalASTNodeToJson(self.bodyExpression), 'condition': optionalASTNodeToJson(self.condition.toJson()), 'continueExpression' : optionalASTNodeToJson(self.continueExpression)}
+
+class ASTTypedWhileNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, condition: ASTNode, bodyExpression: ASTNode, continueExpression: ASTNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.condition = condition
+        self.bodyExpression = bodyExpression
+        self.continueExpression = continueExpression
+    
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedWhileNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'TypedWhile', 'type': self.type.toJson(), 'condition': optionalASTNodeToJson(self.condition.toJson()), 'bodyExpression' : optionalASTNodeToJson(self.bodyExpression), 'continueExpression' : optionalASTNodeToJson(self.continueExpression)}
+
+
 class ASTTypedPiNode(ASTTypedFunctionalNode):
     def isTypedPiNode(self) -> bool:
         return True
@@ -906,6 +1025,28 @@ class ASTSequentialVisitor(ASTVisitor):
         if node.falseExpression is not None:
             self.visitNode(node.falseExpression)
 
+    def visitBreakNode(self, node: ASTBreakNode):
+        pass
+
+    def visitContinueNode(self, node: ASTContinueNode):
+        pass
+
+    def visitDoWhileNode(self, node: ASTDoWhileNode):
+        if node.bodyExpression is not None:
+            self.visitNode(node.bodyExpression)
+        if node.condition is not None:
+            self.visitNode(node.condition)
+        if node.continueExpression is not None:
+            self.visitNode(node.continueExpression)
+
+    def visitWhileNode(self, node: ASTWhileNode):
+        if node.condition is not None:
+            self.visitNode(node.condition)
+        if node.bodyExpression is not None:
+            self.visitNode(node.bodyExpression)
+        if node.continueExpression is not None:
+            self.visitNode(node.continueExpression)
+
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
         self.visitNode(node.expression)
 
@@ -1027,6 +1168,24 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.trueExpression)
         self.visitNode(node.falseExpression)
 
+    def visitTypedBreakNode(self, node: ASTTypedBreakNode):
+        pass
+
+    def visitTypedContinueNode(self, node: ASTTypedContinueNode):
+        pass
+
+    def visitTypedDoWhileNode(self, node: ASTTypedDoWhileNode):
+        self.visitNode(node.type)
+        self.visitNode(node.bodyExpression)
+        self.visitNode(node.condition)
+        self.visitNode(node.continueExpression)
+
+    def visitTypedWhileNode(self, node: ASTTypedWhileNode):
+        self.visitNode(node.type)
+        self.visitNode(node.condition)
+        self.visitNode(node.bodyExpression)
+        self.visitNode(node.continueExpression)
+
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
         self.visitNode(node.type)
         for argument in node.arguments:
@@ -1132,6 +1291,18 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitIfNode(self, node):
+        assert False
+
+    def visitBreakNode(self, node):
+        assert False
+
+    def visitContinueNode(self, node):
+        assert False
+
+    def visitDoWhileNode(self, node):
+        assert False
+
+    def visitWhileNode(self, node):
         assert False
 
     def visitLambdaNode(self, node):

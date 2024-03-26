@@ -15,7 +15,7 @@ class HIRContext:
         self.functionTypeAlignment = self.gcPointerAlignment
         self.anyType = HIRAnyType(self, 'Any', self.anySize, self.anyAlignment)
         self.booleanType = HIRPrimitiveBooleanType(self, 'Boolean', 1, 1)
-        self.unitType = HIRUnitType(self, 'Unit', 0, 1)
+        self.unitType = HIRVoidType(self, 'Void', 0, 1)
 
         self.int8Type   = HIRPrimitiveIntegerType(self, 'Int8',   True, 1, 1)
         self.int16Type  = HIRPrimitiveIntegerType(self, 'Int16',  True, 2, 2)
@@ -148,7 +148,7 @@ class HIRTypeValue(HIRValue):
     def isType(self):
         return True
     
-    def isUnitType(self):
+    def isVoidType(self):
         return False
     
     def canonicalizeResult(self, resultValue: HIRValue) -> HIRValue:
@@ -385,7 +385,7 @@ class HIRPrimitiveType(HIRTypeValue):
 class HIRAnyType(HIRPrimitiveType):
     pass
 
-class HIRUnitType(HIRPrimitiveType):
+class HIRVoidType(HIRPrimitiveType):
     def __init__(self, context: HIRContext, name: str, size: int, alignment: int) -> None:
         super().__init__(context, name, size, alignment)
         self.singleton = None
@@ -398,7 +398,7 @@ class HIRUnitType(HIRPrimitiveType):
             self.singleton = HIRConstantUnit(self.context, self)
         return self.singleton
 
-    def isUnitType(self):
+    def isVoidType(self):
         return True
 
 class HIRBasicBlockType(HIRPrimitiveType):
@@ -651,7 +651,7 @@ class HIRFunctionalDefinition(HIRGlobalValue):
                 return
             
             visitedSet.add(basicBlock)
-            for successor in basicBlock.successorBlocks():
+            for successor in reversed(basicBlock.successorBlocks()):
                 visit(successor)
             visitedList.append(basicBlock)
 
@@ -669,7 +669,7 @@ class HIRFunctionalDefinition(HIRGlobalValue):
                 return
             
             visitedSet.add(basicBlock)
-            for successor in basicBlock.successorBlocks():
+            for successor in reversed(basicBlock.successorBlocks()):
                 visit(successor)
             visitedList.append(basicBlock)
 
@@ -992,7 +992,7 @@ class HIRModuleFrontend:
         self.runtimeDependencyChecker = GHIRRuntimeDependencyChecker()
 
         for baseType, targetType in [
-            (UnitType, self.context.unitType),
+            (VoidType, self.context.unitType),
 
             (Int8Type,  self.context.int8Type),
             (Int16Type, self.context.int16Type),
@@ -1119,7 +1119,7 @@ class HIRModuleFrontendValueTranslator:
         baseType = self.translateConstantTypedValue(value.baseType)
         return HIRPointerType(self.context, baseType)
 
-    def visitUnitTypeValue(self, value: UnitTypeValue) -> HIRValue:
+    def visitVoidTypeValue(self, value: VoidTypeValue) -> HIRValue:
         return self.translateConstantTypedValue(value.type).getSingleton()
     
     def visitStringDataValue(self, value: StringDataValue):
@@ -1135,6 +1135,8 @@ class HIRFunctionalDefinitionFrontend:
         self.functionalDefinition: HIRFunctionalDefinition = None
         self.localBindings = dict()
         self.builder: HIRBuilder = None
+        self.currentBreak: HIRBasicBlock = None
+        self.currentContinue: HIRBasicBlock = None
     
     def translateFunctionDefinitionInto(self, graphFunctionalDefinition: GHIRFunctionalDefinitionValue, hirDefinition: HIRFunctionalDefinition):
         self.functionalDefinition = hirDefinition
@@ -1163,6 +1165,17 @@ class HIRFunctionalDefinitionFrontend:
             return self.moduleFrontend.translateGraphValue(graphValue)
 
         return graphValue.accept(self)
+    
+    def withBreakAndContinueDo(self, breakBlock: HIRBasicBlock, continueBlock: HIRBasicBlock, action):
+        oldBreak = self.currentBreak
+        oldContinue = self.currentContinue
+        self.currentBreak = breakBlock
+        self.currentContinue = continueBlock
+        try:
+            action()
+        finally:
+            self.currentBreak = oldBreak
+            self.currentContinue = oldContinue
 
     def visitApplicationValue(self, application: GHIRApplicationValue) -> HIRValue:
         functional = self.translateGraphValue(application.functional)
@@ -1199,14 +1212,80 @@ class HIRFunctionalDefinitionFrontend:
         self.builder.beginBasicBlock(mergeBlock)
 
         resultType = self.translateGraphValue(ifExpression.getType())
-        if resultType.isUnitType():
+        if resultType.isVoidType():
             return resultType.getSingleton()
 
         #if trueBlockTerminates and falseBlockTerminates:
         assert False
+
+    def visitDoWhileExpression(self, doWhileExpression: GHIRDoWhileExpression) -> HIRValue:
+        resultType = self.translateGraphValue(doWhileExpression.getType())
+        assert resultType.isVoidType()
+
+        bodyBlock = self.builder.newBasicBlock('doWhileBody')
+        continueBlock = self.builder.newBasicBlock('doWhileContinue')
+        conditionBlock = self.builder.newBasicBlock('doWhileCondition')
+        mergeBlock = self.builder.newBasicBlock('doWhileMerge')
+
+        # Enter the loop.
+        self.builder.branch(bodyBlock)
+
+        # Loop body.
+        self.builder.beginBasicBlock(bodyBlock)
+        self.withBreakAndContinueDo(mergeBlock, continueBlock, lambda: self.translateGraphValue(doWhileExpression.bodyExpression))
+        if not self.builder.isLastTerminator():
+            self.builder.branch(continueBlock)
+
+        # Continue.
+        self.builder.beginBasicBlock(continueBlock)
+        self.translateGraphValue(doWhileExpression.continueExpression)
+        if not self.builder.isLastTerminator():
+            self.builder.branch(conditionBlock)
+        
+        # Condition
+        self.builder.beginBasicBlock(conditionBlock)
+        condition = self.translateGraphValue(doWhileExpression.condition)
+        self.builder.condBranch(condition, bodyBlock, mergeBlock)
+
+        # Merge
+        self.builder.beginBasicBlock(mergeBlock)
+        return resultType.getSingleton()
+
+    def visitWhileExpression(self, whileExpression: GHIRWhileExpression) -> HIRValue:
+        resultType = self.translateGraphValue(whileExpression.getType())
+        assert resultType.isVoidType()
+
+        headerBlock = self.builder.newBasicBlock('whileHeader')
+        bodyBlock = self.builder.newBasicBlock('whileBody')
+        continueBlock = self.builder.newBasicBlock('whileContinue')
+        mergeBlock = self.builder.newBasicBlock('whileMerge')
+
+        # Enter the loop.
+        self.builder.branch(headerBlock)
+
+        # Loop header
+        self.builder.beginBasicBlock(headerBlock)
+        condition = self.translateGraphValue(whileExpression.condition)
+        self.builder.condBranch(condition, bodyBlock, mergeBlock)
+
+        # Loop body.
+        self.builder.beginBasicBlock(bodyBlock)
+        self.withBreakAndContinueDo(mergeBlock, continueBlock, lambda: self.translateGraphValue(whileExpression.bodyExpression))
+        if not self.builder.isLastTerminator():
+            self.builder.branch(continueBlock)
+
+        # Continue.
+        self.builder.beginBasicBlock(continueBlock)
+        self.translateGraphValue(whileExpression.continueExpression)
+        if not self.builder.isLastTerminator():
+            self.builder.branch(headerBlock)
+        
+        # Merge
+        self.builder.beginBasicBlock(mergeBlock)
+        return resultType.getSingleton()
     
     def visitSequence(self, sequence: GHIRSequence) -> HIRValue:
-        result = self.moduleFrontend.translateConstantTypedValue(UnitType.getSingleton())
+        result = self.moduleFrontend.translateConstantTypedValue(VoidType.getSingleton())
         for element in sequence.expressions:
             result = self.translateGraphValue(element)
         return result

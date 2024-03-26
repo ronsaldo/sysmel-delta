@@ -30,7 +30,7 @@ class AbstractEnvironment(ABC):
         assert baseType.name is not None
         return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, Symbol.intern(baseType.name), baseType))
 
-    def withUnitTypeValue(self, unitTypeValue: UnitTypeValue, sourcePosition: SourcePosition = None):
+    def withVoidTypeValue(self, unitTypeValue: VoidTypeValue, sourcePosition: SourcePosition = None):
         assert unitTypeValue.name is not None
         return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, Symbol.intern(unitTypeValue.name), unitTypeValue))
 
@@ -61,6 +61,12 @@ class AbstractEnvironment(ABC):
     
     def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
         return []
+
+    def isValidContextForBreak(self) -> bool:
+        return False
+
+    def isValidContextForContinue(self) -> bool:
+        return False
 
 class EmptyEnvironment(AbstractEnvironment):
     Singleton = None
@@ -121,6 +127,12 @@ class ChildEnvironment(AbstractEnvironment):
     def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
         if self == targetEnvironment: return []
         return self.parent.getImplicitValueSubstitutionsUpTo(targetEnvironment)
+    
+    def isValidContextForBreak(self) -> bool:
+        return self.parent.isValidContextForBreak()
+
+    def isValidContextForContinue(self) -> bool:
+        return self.parent.isValidContextForContinue()
 
 class ChildEnvironmentWithBinding(ChildEnvironment):
     def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding) -> None:
@@ -140,6 +152,13 @@ class ChildEnvironmentWithBindingSubstitution(ChildEnvironment):
 
     def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
         return [(self.binding, self.substitution)] + self.parent.getImplicitValueSubstitutionsUpTo(targetEnvironment)
+
+class ChildEnvironmentBreakAndContinue(ChildEnvironment):
+    def isValidContextForBreak(self) -> bool:
+        return True
+
+    def isValidContextForContinue(self) -> bool:
+        return True
 
 class LexicalEnvironment(ChildEnvironment):
     def __init__(self, parent: AbstractEnvironment, sourcePosition: SourcePosition = None) -> None:
@@ -519,6 +538,18 @@ def ifThenMacro(macroContext: MacroContext, condition: ASTNode, trueExpression: 
 def ifThenElseMacro(macroContext: MacroContext, condition: ASTNode, trueExpression: ASTNode, falseExpression: ASTNode) -> ASTNode:
     return ASTIfNode(macroContext.sourcePosition, condition, trueExpression, falseExpression)
 
+def whileDoMacro(macroContext: MacroContext, condition: ASTNode, bodyExpression: ASTNode) -> ASTNode:
+    return ASTWhileNode(macroContext.sourcePosition, condition, bodyExpression, None)
+
+def whileDoContinueWithMacro(macroContext: MacroContext, condition: ASTNode, bodyExpression: ASTNode, continueExpression: ASTNode) -> ASTNode:
+    return ASTWhileNode(macroContext.sourcePosition, condition, bodyExpression, continueExpression)
+
+def doWhileMacro(macroContext: MacroContext, bodyExpression: ASTNode, condition: ASTNode) -> ASTNode:
+    return ASTDoWhileNode(macroContext.sourcePosition, bodyExpression, condition, None)
+
+def doWhileContinueWithMacro(macroContext: MacroContext, bodyExpression: ASTNode, condition: ASTNode, continueExpression: ASTNode) -> ASTNode:
+    return ASTDoWhileNode(macroContext.sourcePosition, bodyExpression, condition, continueExpression)
+
 def arrowMacro(macroContext: MacroContext, argumentType: ASTNode, resultType: ASTNode) -> ASTNode:
     return ASTFunctionTypeNode(macroContext.sourcePosition, argumentType, resultType)
 
@@ -581,7 +612,7 @@ def loadSourceNamedMacro(macroContext: MacroContext, sourceName: ASTNode) -> AST
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
-        VoidType, UnitType,
+        AbortType, VoidType,
         CVarArgType,
         IntegerType, StringType, FalseType, TrueType, BooleanType,
         Int8Type, Int16Type, Int32Type, Int64Type,
@@ -592,7 +623,7 @@ for baseType in [
         ASTNodeType, 
     ]:
     TopLevelEnvironment = TopLevelEnvironment.withBaseType(baseType)
-TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(UnitType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(VoidType.getSingleton())
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['let:type:with:', 'Macro::let:type:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], letTypeWithMacro, ['macro']],
@@ -607,6 +638,10 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
 
     ['if:then:', 'Macro::if:then:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], ifThenMacro, ['macro']],
     ['if:then:else:', 'Macro::if:then:else:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], ifThenElseMacro, ['macro']],
+    ['while:do:', 'Macro::while:do:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], whileDoMacro, ['macro']],
+    ['while:do:continueWith:', 'Macro::while:do:continueWith:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], whileDoContinueWithMacro, ['macro']],
+    ['do:while:', 'Macro::do:while:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], doWhileMacro, ['macro']],
+    ['do:while:continueWith:', 'Macro::do:while:continueWith:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], doWhileContinueWithMacro, ['macro']],
 
     ['loadSourceNamed:', 'Macro::loadSourceNamed:', [(MacroContextType, ASTNodeType), ASTNodeType], loadSourceNamedMacro, ['macro']],
 
@@ -722,8 +757,8 @@ for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
         ['f64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
     ], TopLevelEnvironment)
 
-TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(FalseType.getSingleton())
-TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(TrueType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(FalseType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(TrueType.getSingleton())
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Type"), TypeType)
 
