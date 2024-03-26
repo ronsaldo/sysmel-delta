@@ -49,6 +49,10 @@ class ASTEvaluator(ASTTypecheckedVisitor):
             return functional(*argument.elements)
         else:
             return functional(argument)
+        
+    def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
+        # TODO: Implement this
+        assert False
     
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
         assert False

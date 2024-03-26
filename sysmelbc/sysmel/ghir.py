@@ -1453,6 +1453,10 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateExpression(node.type)
         return GHIRApplicationValue(self.context, node.sourcePosition, type, functional, [argument]).simplify()
 
+    def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
+        # TODO: Implement this
+        assert False
+
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         assert False
 

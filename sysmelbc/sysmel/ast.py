@@ -7,6 +7,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitAllocaMutableWithValueNode(self, node):
+        pass
+
+    @abstractmethod
     def visitArgumentNode(self, node):
         pass
 
@@ -139,6 +143,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedAllocaMutableWithValueNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedArgumentNode(self, node):
         pass
 
@@ -229,6 +237,17 @@ class ASTVisitor(ABC):
     @abstractmethod
     def visitTypedModuleEntryPointNode(self, node):
         pass
+
+class ASTAllocaMutableWithValueNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, initialValue: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.initialValue = initialValue
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitAllocaMutableWithValueNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'AllocaMutableWithValue', 'initialValue': self.initialValue.toJson()}
 
 class ASTArgumentNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False) -> None:
@@ -679,6 +698,17 @@ class ASTModuleEntryPointNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'ModuleEntryPoint', 'entryPoint': self.entryPoint.toJson()}
+
+class ASTTypedAllocaMutableWithValueNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, initialValue: ASTNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.initialValue = initialValue
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedAllocaMutableWithValueNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'AllocaMutableWithValue', 'type' : self.type.toJson(), 'initialValue': self.initialValue.toJson()}
     
 class ASTTypedArgumentNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolArgumentBinding, isImplicit: bool = False, isExistential: bool = False) -> None:
@@ -819,7 +849,6 @@ class ASTTypedWhileNode(ASTTypedNode):
     
     def toJson(self) -> dict:
         return {'kind': 'TypedWhile', 'type': self.type.toJson(), 'condition': optionalASTNodeToJson(self.condition.toJson()), 'bodyExpression' : optionalASTNodeToJson(self.bodyExpression), 'continueExpression' : optionalASTNodeToJson(self.continueExpression)}
-
 
 class ASTTypedPiNode(ASTTypedFunctionalNode):
     def isTypedPiNode(self) -> bool:
@@ -991,6 +1020,9 @@ class ASTSequentialVisitor(ASTVisitor):
         for arg in node.arguments:
             self.visitNode(arg)
 
+    def visitAllocaMutableWithValueNode(self, node: ASTAllocaMutableWithValueNode):
+        self.visitNode(node.initialValue)
+
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):
         self.visitNode(node.functional)
         self.visitNode(node.argument)
@@ -1130,6 +1162,10 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitModuleEntryPointNode(self, node: ASTModuleEntryPointNode):
         self.visitNode(node.entryPoint)
 
+    def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
+        self.visitNode(node.type)
+        self.visitNode(node.initialValue)
+
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
         self.visitNode(node.type)
 
@@ -1258,6 +1294,9 @@ class ASTErrorVisitor(ASTSequentialVisitor):
 
 class ASTTypecheckedVisitor(ASTVisitor):
     def visitApplicationNode(self, node):
+        assert False
+
+    def visitAllocaMutableWithValueNode(self, node):
         assert False
 
     def visitArgumentNode(self, node):

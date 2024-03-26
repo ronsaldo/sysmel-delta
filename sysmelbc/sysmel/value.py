@@ -1553,10 +1553,11 @@ class SymbolValueBinding(SymbolBinding):
         return 0
 
 class SymbolLocalBinding(SymbolBinding):
-    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTTypeNode, valueExpression: ASTTypedNode | ASTTypeNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTTypeNode, valueExpression: ASTTypedNode | ASTTypeNode, isMutable: bool) -> None:
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
         self.valueExpression = valueExpression
+        self.isMutable = isMutable
 
     def getTypeExpression(self) -> ASTTypeNode:
         return self.typeExpression

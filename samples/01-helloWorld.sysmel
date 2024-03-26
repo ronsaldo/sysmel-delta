@@ -4,9 +4,8 @@ let: #puts with: (fromExternal: #C import: #puts withType: (Char8 pointer => Voi
 let: #myAdd with: (:(Int32)x, :(Int32)y :: Int32) __cdecl :=> x + y.
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: Int32) __cdecl :=> {
-    let: #i mutableWith: 1i32.
 
-    while: (i < argc) do: {
+    #*while: (i < argc) do: {
         puts("Loop body" elements)
     }. ##continueWith: (i := i + 1i32).
 
@@ -19,6 +18,9 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
     puts("Hello World" elements).
     ##argc + 1i32
     ##0i32
-    myAdd(argc, 1i32).
+    myAdd(argc, 1i32).*#
     ##i __refLoad__
+    ##let: #i mutableWith: 1i32.
+    ##i.
+    0i32
 }.

@@ -396,6 +396,11 @@ class Typechecker(ASTVisitor):
         if not entryPointType.isAnyFunctionTypeNode():
             return self.makeSemanticError(entryPoint.sourcePosition, "Module entry point must be a function.", entryPoint)
         return ASTTypedModuleEntryPointNode(node.sourcePosition, entryPointType, entryPoint, self.lexicalEnvironment.lookModule())
+    
+    def visitAllocaMutableWithValueNode(self, node: ASTAllocaMutableWithValueNode):
+        initialValue = self.visitNode(node.initialValue)
+        initialValueType = getTypeOfAnalyzedNode(initialValue, node.sourcePosition)
+        assert False
 
     def visitArgumentNode(self, node: ASTArgumentNode):
         assert False
@@ -624,16 +629,21 @@ class Typechecker(ASTVisitor):
 
         ## Use a symbol value binding if possible.
         module = None
-        if typecheckedValue.isTypedLiteralNode() or typecheckedValue.isLiteralTypeNode():
+        if not node.isMutable and (typecheckedValue.isTypedLiteralNode() or typecheckedValue.isLiteralTypeNode()):
             valueBinding = SymbolValueBinding(node.sourcePosition, localName, typecheckedValue.value)
             if node.isPublic:
                 module.exportBinding(valueBinding)
             self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(valueBinding)
             return typecheckedValue
-        
+
+        ## Allocate the box for the mutable value.
+        if node.isMutable:
+            typecheckedValue = self.visitNode(ASTAllocaMutableWithValueNode(node.sourcePosition, typecheckedValue))
+
         ## Make a local variable.
         bindingTypeExpression = typecheckedValue.getTypeExpressionAt(node.sourcePosition)
-        localBinding = SymbolLocalBinding(node.sourcePosition, localName, bindingTypeExpression, typecheckedValue)
+
+        localBinding = SymbolLocalBinding(node.sourcePosition, localName, bindingTypeExpression, typecheckedValue, node.isMutable)
         if node.isPublic:
             module.exportBinding(localBinding)
         self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(localBinding)
@@ -731,6 +741,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitSumTypeNode(self, node: ASTProductTypeNode):
+        return node
+    
+    def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
         return node
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
@@ -933,6 +946,11 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
 
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> ASTLiteralTypeNode:
         return node
+    
+    def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
+        type = self.visitNode(node.type)
+        initialValue = self.visitNode(node.initialValue)
+        return ASTTypedAllocaMutableWithValueNode(node.sourcePosition, type, initialValue)
     
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         for binding, substitution in node.implicitValueSubstitutions:
