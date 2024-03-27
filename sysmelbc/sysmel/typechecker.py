@@ -183,6 +183,11 @@ class Typechecker(ASTVisitor):
         return errorNode
 
     def visitApplicationNode(self, node: ASTApplicationNode):
+        if node.kind == ASTApplicationNode.Bracket:
+            return self.visitNode(ASTMessageSendNode(node.sourcePosition, node.functional, ASTLiteralNode(node.sourcePosition, Symbol.intern('[]:')), node.arguments))
+        elif node.kind == ASTApplicationNode.CurlyBracket:
+            return self.visitNode(ASTMessageSendNode(node.sourcePosition, node.functional, ASTLiteralNode(node.sourcePosition, Symbol.intern('{}:')), node.arguments))
+
         functional = self.visitNode(node.functional)
         isImplicit = node.kind == ASTApplicationNode.ByteArrayStart
 
@@ -727,6 +732,10 @@ class Typechecker(ASTVisitor):
 
         selector, errorNode = self.evaluateSymbol(node.selector)
         if selector is not None:
+            if analyzedReceiver.isTypeNode():
+                if selector in TypeMacros:
+                    return self.expandMessageSendWithMacro(node, analyzedReceiver, TypeMacros[selector])
+                
             if analyzedReceiver is not None and not analyzedReceiver.isLiteralTypeNode():
                 analyzedReceiverType = getTypeOfAnalyzedNode(analyzedReceiver, node.sourcePosition)
                 if analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral():

@@ -676,6 +676,18 @@ for name, expander in [
 ]:
     ReferenceLikeTypeMacros[Symbol.intern(name)] = expander
 
+TypeMacros = {}
+for name, expander in [
+    ('mutable', formMutableTypeMacro),
+    ('volatile', formVolatileTypeMacro),
+    ('array:', formArrayTypeMacro),
+    ('[]:', formArrayTypeMacro),
+    ('pointer', formPointerTypeMacro),
+    ('ref', formReferenceTypeMacro),
+    ('tempRef', formTemporaryReferenceTypeMacro),
+]:
+    TypeMacros[Symbol.intern(name)] = expander
+
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
         AbortType, VoidType,
@@ -724,13 +736,6 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['__apicall', 'Type::__apicall', [(MacroContextType, ASTNodeType), ASTNodeType], apicallMacro, ['macro']],
     ['__thiscall', 'Type::__thiscall', [(MacroContextType, ASTNodeType), ASTNodeType], thiscallMacro, ['macro']],
     ['__vectorcall', 'Type::__vectorcall', [(MacroContextType, ASTNodeType), ASTNodeType], vectorcallMacro, ['macro']],
-
-    ['mutable', 'Type::mutable', [(MacroContextType, TypeType), TypeType], formMutableTypeMacro, ['macro']],
-    ['volatile', 'Type::volatile', [(MacroContextType, TypeType), TypeType], formVolatileTypeMacro, ['macro']],
-    ['array:', 'Type::array:', [(MacroContextType, TypeType, IntegerType), TypeType], formArrayTypeMacro, ['macro']],
-    ['pointer', 'Type::pointer', [(MacroContextType, TypeType), TypeType], formPointerTypeMacro, ['macro']],
-    ['ref', 'Type::ref', [(MacroContextType, TypeType), TypeType], formReferenceTypeMacro, ['macro']],
-    ['tempRef', 'Type::tempRef', [(MacroContextType, TypeType), TypeType], formTemporaryReferenceTypeMacro, ['macro']],
 ], TopLevelEnvironment)
 
 for primitiveNumberType in NumberTypes:
