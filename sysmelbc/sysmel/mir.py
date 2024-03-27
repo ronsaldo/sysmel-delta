@@ -799,6 +799,9 @@ class MIRModuleFrontend:
         self.translatedTypeDictionary[type] = translatedType
         return translatedType
 
+    def visitArrayType(self, type: HIRArrayType):
+        return self.context.pointerType
+
     def visitPointerLikeType(self, type: HIRPointerLikeType):
         return self.context.pointerType
 

@@ -1,7 +1,7 @@
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer pointer)format, :(CVarArg)... :: Int32) __cdecl).
 let: #puts with: (fromExternal: #C import: #puts withType: (Char8 pointer => Void) __cdecl).
 
-export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: Int32) __cdecl :=> {
+export: #main external: #C with: (:(Int32)argc, :(Char8 pointer array: argc asSize)argv :: Int32) __cdecl :=> {
     puts("Hello World" elements).
 
     let: #i mutableWith: 1i32.

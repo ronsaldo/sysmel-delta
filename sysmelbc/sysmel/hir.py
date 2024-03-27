@@ -124,6 +124,9 @@ class HIRValue(ABC):
     def isConstantPrimitiveFunction(self) -> bool:
         return False
 
+    def isConstantPrimitiveInteger(self) -> bool:
+        return False
+
     def isConstantLambda(self) -> bool:
         return False
 
@@ -311,6 +314,26 @@ class HIRDerivedType(HIRTypeValue):
     def getType(self):
         return self.baseType.getType()
 
+class HIRArrayType(HIRDerivedType):
+    def  __init__(self, context: HIRContext, baseType: HIRTypeValue, size: int, hasDependentSize: bool) -> None:
+        super().__init__(context, baseType)
+        self.size = size
+        self.hasDependentSize = hasDependentSize
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitArrayType(self)
+
+    def getAlignment(self) -> int:
+        return self.baseType.getAlignment()
+    
+    def getSize(self) -> int:
+        return self.baseType.getAlignedSize() * self.size
+
+    def __str__(self) -> str:
+        if self.hasDependentSize:
+            return '%s[?]' % str(self.baseType)
+        return '%s[%d]' % (str(self.baseType), self.size)
+    
 class HIRDecoratedType(HIRDerivedType):
     def  __init__(self, context: HIRContext, baseType: HIRTypeValue, decorations: int) -> None:
         super().__init__(context, baseType)
@@ -523,6 +546,9 @@ class HIRConstantPrimitiveInteger(HIRConstantPrimitive):
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitConstantPrimitiveInteger(self)
+
+    def isConstantPrimitiveInteger(self) -> bool:
+        return True
 
     def __str__(self) -> str:
         return '%s(%d)' % (str(self.type), self.value)
@@ -1109,6 +1135,15 @@ class HIRModuleFrontend:
 
     def visitPrimitiveFunction(self, value: GHIRPrimitiveFunction) -> HIRValue:
         return HIRConstantPrimitiveFunction(self.context, self.translateGraphValue(value.type), value.name, value.compileTimeImplementation)
+
+    def visitArrayType(self, value: GHIRArrayType) -> HIRValue:
+        elementType = self.translateGraphValue(value.elementType)
+        if self.runtimeDependencyChecker.checkValue(value.size):
+            return HIRArrayType(self.context, elementType, 0, True)
+        else:
+            size = self.translateGraphValue(value.size)
+            assert size.isConstantPrimitiveInteger()
+            return HIRArrayType(self.context, elementType, size.value, False)
 
     def visitProductType(self, value: GHIRProductType) -> HIRValue:
         elements = list(map(self.translateGraphValue, value.elements))

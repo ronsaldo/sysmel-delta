@@ -10,6 +10,7 @@ class GHIRContext:
         self.productTypes = dict()
         self.sumTypes = dict()
         self.decoratedTypes = dict()
+        self.arrayTypes = dict()
         self.pointerTypes = dict()
         self.refTypes = dict()
         self.tempRefTypes = dict()
@@ -59,6 +60,15 @@ class GHIRContext:
         self.decoratedTypes[hashKey] = decoratedType
         return decoratedType
 
+    def getArrayType(self, type, elementType, size):
+        hashKey = (type, elementType, size)
+        if hashKey in self.arrayTypes:
+            return self.arrayTypes[hashKey]
+        
+        arrayType = GHIRArrayType(self, None, type, elementType, size)
+        self.arrayTypes[hashKey] = arrayType
+        return arrayType
+
     def getPointerType(self, type, baseType):
         hashKey = (type, baseType)
         if hashKey in self.pointerTypes:
@@ -90,7 +100,7 @@ class GHIRContext:
         if index in self.universeTypes:
             return self.universeTypes[index]
         
-        universe = GHIRTypeUniverse(self, None, index)
+        universe = GHIRTypeUniverse(self, index)
         self.universeTypes[index] = universe
         return universe
     
@@ -141,6 +151,26 @@ class GHIRVisitor(ABC):
 
     @abstractmethod
     def visitSigmaValue(self, value):
+        pass
+
+    @abstractmethod
+    def visitArrayType(self, value):
+        pass
+
+    @abstractmethod
+    def visitDecoratedType(self, value):
+        pass
+
+    @abstractmethod
+    def visitPointerType(self, value):
+        pass
+
+    @abstractmethod
+    def visitReferenceType(self, value):
+        pass
+
+    @abstractmethod
+    def visitTemporaryReferenceType(self, value):
         pass
 
     @abstractmethod
@@ -755,6 +785,42 @@ class GHIRSumType(GHIRValue):
             self.type = replacement
             replacement.registerUserValue(self)
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
+
+class GHIRArrayType(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elementType: GHIRValue, size: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.elementType = elementType
+        self.size = size
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitArrayType(self)
+    
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def usedValues(self):
+        yield self.type
+        yield self.elementType
+        yield self.size
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.elementType is usedValue:
+            self.elementType = replacement
+            replacement.registerUserValue(self)
+
+        if self.size is usedValue:
+            self.size = replacement
+            replacement.registerUserValue(self)
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        elementType = graphPrinter.printValue(self.elementType)
+        size = graphPrinter.printValue(self.size)
+        graphPrinter.printLine('%s := array %s size %s : %s' % (valueName, size, elementType, type))
 
 class GHIRDerivedType(GHIRValue):
     def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, baseType: GHIRValue) -> None:
@@ -1541,7 +1607,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitArrayType(self, value: ArrayType):
         type = self.translateValue(value.getType())
         baseType = self.translateValue(value.baseType)
-        size = IntegerValue(value.size)
+        size = self.context.getConstantValue(PrimitiveIntegerValue(SizeType, value.size))
         return self.context.getArrayType(type, baseType, size)
 
     def visitPointerType(self, value: PointerType):
@@ -1848,6 +1914,9 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
 
     def visitSigmaValue(self, value: GHIRSigmaValue):
         return self.visitFunctionalValue(value)
+
+    def visitArrayType(self, value: GHIRArrayType):
+        return self.checkValue(value.elementType) or self.checkValue(value.size)
 
     def visitProductType(self, value: GHIRProductType):
         for element in value.elements:

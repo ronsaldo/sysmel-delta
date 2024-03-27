@@ -36,7 +36,7 @@ class Typechecker(ASTVisitor):
         typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
         if typedNodeType != expectedTypeNode and not typedNodeType.isEquivalentTo(expectedTypeNode):
-            return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.type.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
+            return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
     
     def visitNodeWithCurrentExpectedType(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
@@ -728,16 +728,17 @@ class Typechecker(ASTVisitor):
         selector, errorNode = self.evaluateSymbol(node.selector)
         if selector is not None:
             if analyzedReceiver is not None and not analyzedReceiver.isLiteralTypeNode():
-                if analyzedReceiver.type.isReferenceLikeTypeNodeOrLiteral():
+                analyzedReceiverType = getTypeOfAnalyzedNode(analyzedReceiver, node.sourcePosition)
+                if analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral():
                     if selector in ReferenceLikeTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, ReferenceLikeTypeMacros[selector])
-                if analyzedReceiver.type.isPointerTypeNodeOrLiteral():
+                if analyzedReceiverType.isPointerTypeNodeOrLiteral():
                     if selector in PointerTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, PointerTypeMacros[selector])
 
                 ## Getter.
                 if len(node.arguments) == 0:
-                    fieldIndex, fieldType = analyzedReceiver.type.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
+                    fieldIndex, fieldType = analyzedReceiverType.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
                     if fieldIndex is not None:
                         return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldType, analyzedReceiver, fieldIndex))
 

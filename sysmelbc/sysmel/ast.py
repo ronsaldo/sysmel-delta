@@ -499,7 +499,7 @@ class ASTFormArrayTypeNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elementType: ASTNode, size: ASTNode) -> None:
         super().__init__(sourcePosition)
         self.elementType = elementType
-        self.size = elementType
+        self.size = size
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFormArrayTypeNode(self)
@@ -764,7 +764,7 @@ class ASTDerivedTypeNode(ASTTypeNode):
         return self.baseType
 
     def computeTypeUniverseIndex(self) -> int:
-        return self.baseType
+        return self.baseType.computeTypeUniverseIndex()
 
 class ASTDecoratedTypeNode(ASTDerivedTypeNode):
     def __init__(self, sourcePosition: SourcePosition, baseType: ASTTypeNode, decorations: int) -> None:
