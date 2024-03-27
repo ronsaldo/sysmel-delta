@@ -351,6 +351,8 @@ class ASTApplicationNode(ASTNode):
     Normal = 0
     Bracket = 1
     CurlyBracket = 2
+    ByteArrayStart = 3
+    Block = 4
 
     def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, arguments: list[ASTNode], kind = Normal) -> None:
         super().__init__(sourcePosition)

@@ -184,7 +184,7 @@ class Typechecker(ASTVisitor):
 
     def visitApplicationNode(self, node: ASTApplicationNode):
         functional = self.visitNode(node.functional)
-        isImplicit = node.kind == ASTApplicationNode.Bracket
+        isImplicit = node.kind == ASTApplicationNode.ByteArrayStart
 
         if len(node.arguments) == 0:
             return self.visitNode(ASTArgumentApplicationNode(node.sourcePosition, functional, ASTLiteralNode(node.sourcePosition, VoidType.getSingleton()), isImplicit = isImplicit))
