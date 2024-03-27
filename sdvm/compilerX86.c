@@ -1058,6 +1058,13 @@ void sdvm_compiler_x86_lea32RegLsv(sdvm_compiler_t *compiler, sdvm_x86_registerI
     sdvm_compiler_x86_modLsvReg(compiler, sourceSymbol, destination, offset, 0);
 }
 
+void sdvm_compiler_x86_lea32RegRmo(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_opcode(compiler, 0x8D);
+    sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
+}
+
 void sdvm_compiler_x86_alu32RmReg(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
 {
     sdvm_compiler_x86_rexRmReg(compiler, false, destination, source);
@@ -1896,6 +1903,19 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *
         case 8: return sdvm_compiler_x86_mov64RegRmo(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
         default: return abort();
         }
+    case SdvmCompLocationStackAddress:
+        switch(reg->size)
+        {
+        case 1:
+        case 2:
+        case 4:
+            return sdvm_compiler_x86_lea32RegRmo(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        case 8:
+            return sdvm_compiler_x86_lea64RegRmo(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        default:
+            return abort();
+        }
+
     case SdvmCompLocationLocalSymbolValue:
         {
             switch(reg->size)
@@ -2081,6 +2101,7 @@ void sdvm_compiler_x64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, const
     case SdvmCompLocationImmediateLabel:
     case SdvmCompLocationLocalSymbolValue:
     case SdvmCompLocationGlobalSymbolValue:
+    case SdvmCompLocationStackAddress:
         return;
     default:
         return abort();
@@ -2097,6 +2118,11 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
 
     switch(instruction->decoding.opcode)
     {
+    // Local only allocations. Handled by the register allocator.
+    case SdvmInstAllocateLocal:
+    case SdvmInstAllocateGCNoEscape:
+        return true;
+
     // Argument instructions are handled by the register allocator.
     case SdvmInstBeginArguments:
     case SdvmInstArgInt8:
@@ -2714,8 +2740,7 @@ void sdvm_compiler_x64_computeFunctionStackLayout(sdvm_functionCompilationState_
     state->requiresStackFrame = state->hasCallout
         || !sdvm_registerSet_isEmpty(&state->usedCallPreservedIntegerRegisterSet)
         || !sdvm_registerSet_isEmpty(&state->usedCallPreservedVectorRegisterSet)
-        || state->gcSpillingStackSegment.size > 0
-        || state->spillingStackSegment.size > 0
+        || state->temporarySegment.size > 0
         || state->calloutStackSegment.size > 0;
 
     uint32_t pointerSize = state->compiler->pointerSize;

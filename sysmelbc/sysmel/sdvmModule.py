@@ -1,6 +1,7 @@
 import struct
 from .sdvmInstructionTypes import *
 from .sdvmInstructions import *
+from .memoryDescriptor import *
 
 def sdvmModuleFourCC(cc):
     assert len(cc) == 4
@@ -22,6 +23,7 @@ SdvmModuleSectionTypeObjectTable = sdvmModuleFourCC('objt')
 SdvmModuleSectionTypeImportModuleTable = sdvmModuleFourCC('impm')
 SdvmModuleSectionTypeImportModuleValueTable = sdvmModuleFourCC('impv')
 SdvmModuleSectionTypeExportModuleValueTable = sdvmModuleFourCC('expv')
+SdvmModuleSectionTypeMemoryDescriptorTable = sdvmModuleFourCC('memd')
 
 SdvmModuleSectionTypeDebugLineStart = sdvmModuleFourCC('dlns')
 SdvmModuleSectionTypeDebugLineEnd = sdvmModuleFourCC('dlne')
@@ -70,11 +72,13 @@ class SDVMModule:
         self.objectTable = SDVMObjectTableSection()
         self.functionTable = SDVMFunctionTableSection()
         self.exportModuleValueTable = SDVMExportModuleValueTableSection(self)
+        self.memoryDescriptorTable = SDVMMemoryDescriptorTableSection(self)
         self.sections: list[SDVMModuleSection] = [
             SDVMNullSection(),
             self.constantSection, self.dataSection, self.textSection,
             self.stringSection,
-            self.importModuleTable, self.importModuleValueTable, self.objectTable, 
+            self.memoryDescriptorTable, self.objectTable,
+            self.importModuleTable, self.importModuleValueTable,
             self.functionTable, self.exportModuleValueTable
         ]
         self.entryPoint = 0
@@ -98,6 +102,9 @@ class SDVMModule:
 
     def addEncodedString(self, value: bytes) -> SDVMString:
         return self.stringSection.addEncoded(value)
+    
+    def addMemoryDescriptor(self, descriptor: MemoryDescriptor):
+        return self.memoryDescriptorTable.addDescriptor(descriptor)
 
     def setName(self, name: str) -> SDVMString:
         self.name = self.addString(name)
@@ -290,6 +297,23 @@ class SDVMExportModuleValueTableSection(SDVMModuleSection):
         self.contents += exportedEntry.encode()
         self.entries.append(exportedEntry)
 
+class SDVMMemoryDescriptorTableSection(SDVMModuleSection):
+    def __init__(self, module: SDVMModule) -> None:
+        super().__init__(SdvmModuleSectionTypeMemoryDescriptorTable)
+        self.entries = []
+        self.encodedDescriptors = dict()
+
+    def addDescriptor(self, descriptor: MemoryDescriptor):
+        if descriptor in self.encodedDescriptors:
+            return self.encodedDescriptors[descriptor]
+        
+        sdvmDescriptor = SDVMMemoryDescriptor(descriptor)
+        self.entries.append(sdvmDescriptor)
+        self.contents += sdvmDescriptor.encode()
+        sdvmDescriptor.index = len(self.entries)
+        self.encodedDescriptors[descriptor] = sdvmDescriptor
+        return sdvmDescriptor
+
 class SDVMOperand:
     def __init__(self) -> None:
         self.index = None
@@ -297,6 +321,17 @@ class SDVMOperand:
     def __str__(self) -> str:
         return '$%d' % self.index
 
+class SDVMMemoryDescriptor(SDVMOperand):
+    def __init__(self, descriptor: MemoryDescriptor) -> None:
+        super().__init__()
+        self.descriptor = descriptor
+
+    def __str__(self) -> str:
+        return 'memd:%d %s' % (self.index, str(self.descriptor))
+
+    def encode(self) -> bytes:
+        return struct.pack('<QQII', self.descriptor.size, self.descriptor.alignment, 0, 0)
+    
 class SDVMConstant(SDVMOperand):
     def __init__(self, definition: SdvmConstantDef, value = None, payload: int = 0) -> None:
         super().__init__()

@@ -78,6 +78,10 @@ static bool sdvm_module_fetchAndValidateDataStructures(sdvm_module_t *module)
             module->exportValueTableSize = header->size / sizeof(sdvm_moduleExportValueTableEntry_t);
             module->exportValueTable = (sdvm_moduleExportValueTableEntry_t*)(module->moduleData + header->offset);
             break;
+        case SdvmModuleSectionTypeMemoryDescriptorTable:
+            module->memoryDescriptorTableSize = header->size / sizeof(sdvm_moduleMemoryDescriptorTableEntry_t);
+            module->memoryDescriptorTable = (sdvm_moduleMemoryDescriptorTableEntry_t*)(module->moduleData + header->offset);
+            break;
         default:
             // Ignored by default
         }

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from .ghir import *
+from .memoryDescriptor import *
 
 class HIRContext:
     def __init__(self, pointerSize: int = 8) -> None:
@@ -144,6 +145,7 @@ class HIRValue(ABC):
 class HIRTypeValue(HIRValue):
     def  __init__(self, context: HIRContext) -> None:
         super().__init__(context)
+        self.memoryDescriptor: MemoryDescriptor = None
 
     def isType(self):
         return True
@@ -153,6 +155,9 @@ class HIRTypeValue(HIRValue):
     
     def canonicalizeResult(self, resultValue: HIRValue) -> HIRValue:
         return resultValue
+    
+    def buildMemoryDescriptor(self):
+        return MemoryDescriptor(self.getSize(), self.getAlignment())
 
     @abstractmethod
     def getSize(self) -> int:
@@ -161,6 +166,11 @@ class HIRTypeValue(HIRValue):
     @abstractmethod
     def getAlignment(self) -> int:
         pass
+
+    def getMemoryDescriptor(self) -> MemoryDescriptor:
+        if self.memoryDescriptor is None:
+            self.memoryDescriptor = self.buildMemoryDescriptor()
+        return self.memoryDescriptor
 
 class HIRTypeUniverse(HIRTypeValue):
     def  __init__(self, context: HIRContext, index) -> None:
@@ -820,7 +830,7 @@ class HIRStoreInstruction(HIRInstruction):
         self.isVolatile = False
 
     def accept(self, visitor: HIRValueVisitor):
-        return visitor.visitLoadInstruction(self)
+        return visitor.visitStoreInstruction(self)
 
     def fullPrintString(self) -> str:
         if self.isVolatile:

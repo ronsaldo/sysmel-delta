@@ -679,6 +679,19 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stack(uint32_t size, uint
     return location;
 }
 
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackAddress(uint32_t size, uint32_t alignment)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationStackAddress,
+        .firstStackLocation = {
+            .size = size,
+            .alignment = alignment
+        }
+    };
+
+    return location;
+}
+
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackPair(uint32_t firstSize, uint32_t firstAlignment, uint32_t secondSize, uint32_t secondAlignment)
 {
     sdvm_compilerLocation_t location = {
@@ -777,9 +790,9 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_spillForOperandType(sdvm_
     }
 }
 
-SDVM_API bool sdvm_compilerLocation_isStackOrPair(const sdvm_compilerLocation_t *location)
+SDVM_API bool sdvm_compilerLocation_isOnStack(const sdvm_compilerLocation_t *location)
 {
-    return location->kind == SdvmCompLocationStack || location->kind == SdvmCompLocationStackPair;
+    return location->kind == SdvmCompLocationStack || location->kind == SdvmCompLocationStackAddress || location->kind == SdvmCompLocationStackPair;
 }
 
 void sdvm_compilerCallingConventionState_reset(sdvm_compilerCallingConventionState_t *state, const sdvm_compilerCallingConvention_t *convention, uint32_t argumentCount, bool isCallout)
@@ -1015,6 +1028,15 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         return;
     case SdvmInstBeginCall:
         sdvm_compilerCallingConventionState_reset(&state->currentCallCallingConventionState, state->currentCallCallingConvention, instruction->decoding.instruction.arg0, true);
+        return;
+
+    case SdvmInstAllocateLocal:
+    case SdvmInstAllocateGCNoEscape:
+        {
+            SDVM_ASSERT(0 < instruction->decoding.instruction.arg0 && (size_t)instruction->decoding.instruction.arg0 <= state->module->memoryDescriptorTableSize);
+            sdvm_moduleMemoryDescriptorTableEntry_t *descriptor = state->module->memoryDescriptorTable + instruction->decoding.instruction.arg0;
+            instruction->destinationLocation = sdvm_compilerLocation_stackAddress(descriptor->size, descriptor->alignment);        
+        }
         return;
 
 #pragma region ArgumentConstraints
@@ -1609,7 +1631,7 @@ void sdvm_compiler_allocateNewStackLocationIfNeeded(sdvm_functionCompilationStat
     if(location->isValid)
         return;
 
-    location->segment = isGC ? SdvmFunctionStackSegmentGCSpilling : SdvmFunctionStackSegmentSpilling;
+    location->segment = SdvmFunctionStackSegmentTemporary;
     
     sdvm_functionCompilationStackSegment_t *segment = state->stackSegments + location->segment;
     if(location->alignment > segment->alignment)
@@ -1635,18 +1657,18 @@ void sdvm_compiler_allocateNewStackLocationsIfNeeded(sdvm_functionCompilationSta
 
 void sdvm_compiler_allocateInstructionSpillLocations(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
-    if(!sdvm_compilerLocation_isStackOrPair(&instruction->location) && !sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+    if(!sdvm_compilerLocation_isOnStack(&instruction->location) && !sdvm_compilerLocation_isOnStack(&instruction->stackLocation))
         return;
 
-    if(sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+    if(sdvm_compilerLocation_isOnStack(&instruction->stackLocation))
     {
         sdvm_compiler_allocateNewStackLocationsIfNeeded(state, &instruction->stackLocation, instruction->decoding.destType);
         instruction->location = instruction->stackLocation;
     }
-    else if(sdvm_compilerLocation_isStackOrPair(&instruction->location))
+    else if(sdvm_compilerLocation_isOnStack(&instruction->location))
     {
         sdvm_compiler_allocateNewStackLocationsIfNeeded(state, &instruction->location, instruction->decoding.destType);
-        if(!sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+        if(!sdvm_compilerLocation_isOnStack(&instruction->stackLocation))
             instruction->stackLocation = instruction->location;
     }
 }
@@ -1698,7 +1720,7 @@ void sdvm_compiler_computeStackFrameLocation(sdvm_functionCompilationState_t *st
 
 void sdvm_compiler_computeStackFrameLocations(sdvm_functionCompilationState_t *state, sdvm_compilerLocation_t *location)
 {
-    if(location->kind == SdvmCompLocationStack)
+    if(location->kind == SdvmCompLocationStack || location->kind == SdvmCompLocationStackAddress)
     {
         sdvm_compiler_computeStackFrameLocation(state, &location->firstStackLocation);
     }
@@ -1711,10 +1733,10 @@ void sdvm_compiler_computeStackFrameLocations(sdvm_functionCompilationState_t *s
 
 void sdvm_compiler_computeInstructionStackFrameOffsets(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
-    if(sdvm_compilerLocation_isStackOrPair(&instruction->location))
+    if(sdvm_compilerLocation_isOnStack(&instruction->location))
         sdvm_compiler_computeStackFrameLocations(state, &instruction->location);
 
-    if(sdvm_compilerLocation_isStackOrPair(&instruction->stackLocation))
+    if(sdvm_compilerLocation_isOnStack(&instruction->stackLocation))
         sdvm_compiler_computeStackFrameLocations(state, &instruction->stackLocation);
 }
 

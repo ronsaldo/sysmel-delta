@@ -1,4 +1,5 @@
 from .hir import *
+from .memoryDescriptor import *
 from .sdvmInstructions import *
 from abc import ABC, abstractmethod
 
@@ -493,10 +494,23 @@ class MIRInstruction(MIRFunctionLocalValue):
     def successorBlocks(self) -> list[MIRBasicBlock]:
         return []
 
+class MIRAllocaInstruction(MIRInstruction):
+    def __init__(self, context: MIRContext, type: MIRValue, memoryDescriptor: MemoryDescriptor, name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.memoryDescriptor = memoryDescriptor
+        self.hasNoEscape = False
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitAllocaInstruction(self)
+
+    def fullPrintString(self) -> str:
+        return '%s := alloca %s' % (str(self), str(self.memoryDescriptor))
+    
 class MIRLoadInstruction(MIRInstruction):
     def __init__(self, context: MIRContext, type: MIRValue, pointer: MIRValue, name: str = None) -> None:
         super().__init__(context, type, name)
         self.pointer = pointer
+        self.isVolatile = False
 
     def accept(self, visitor: MIRValueVisitor):
         return visitor.visitLoadInstruction(self)
@@ -509,12 +523,13 @@ class MIRStoreInstruction(MIRInstruction):
         super().__init__(context, context.voidType, name)
         self.pointer = pointer
         self.value = value
+        self.isVolatile = False
 
     def accept(self, visitor: MIRValueVisitor):
         return visitor.visitStoreInstruction(self)
 
     def fullPrintString(self) -> str:
-        return 'store %s value %s(' % (str(self.pointer), str(self.value))
+        return 'store %s value %s' % (str(self.pointer), str(self.value))
 
 class MIRCallInstruction(MIRInstruction):
     def __init__(self, context: MIRContext, type: MIRValue, functional: MIRValue, arguments: list[MIRValue], name: str = None) -> None:
@@ -656,6 +671,9 @@ class MIRBuilder:
 
     def returnValue(self, value: MIRValue) -> MIRInstruction:
         return self.addInstruction(MIRReturnInstruction(self.context, value))
+
+    def alloca(self, type: MIRType, memoryDescriptor: MemoryDescriptor) -> MIRLoadInstruction:
+        return self.addInstruction(MIRAllocaInstruction(self.context, type, memoryDescriptor))
 
     def load(self, type: MIRType, pointer: MIRValue) -> MIRLoadInstruction:
         return self.addInstruction(MIRLoadInstruction(self.context, type, pointer))
@@ -958,13 +976,23 @@ class MIRFunctionFrontend:
         return self.builder.branch(destination)
     
     def visitAllocaInstruction(self, hirInstruction: HIRAllocaInstruction):
-        assert False
+        pointerType = self.translateType(hirInstruction.getType())
+        memoryDescriptor = hirInstruction.valueType.getMemoryDescriptor()
+        return self.builder.alloca(pointerType, memoryDescriptor)
 
     def visitLoadInstruction(self, hirInstruction: HIRLoadInstruction):
-        assert False
+        valueType = self.translateType(hirInstruction.getType())
+        pointer = self.translateValue(hirInstruction.pointer)
+        load = self.builder.load(valueType, pointer)
+        load.isVolatile = hirInstruction.isVolatile
+        return load
 
     def visitStoreInstruction(self, hirInstruction: HIRStoreInstruction):
-        assert False
+        pointer = self.translateValue(hirInstruction.pointer)
+        value = self.translateValue(hirInstruction.value)
+        store = self.builder.store(pointer, value)
+        store.isVolatile = hirInstruction.isVolatile
+        return store
 
     def visitCallInstruction(self, hirInstruction: HIRCallInstruction):
         hirFunctional = hirInstruction.functional

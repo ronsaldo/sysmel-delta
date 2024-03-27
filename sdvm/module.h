@@ -15,6 +15,7 @@ typedef enum sdvm_moduleSectionType_e
     SdvmModuleSectionTypeString = SDVM_IM_FOUR_CC('s', 't', 'r', 'n'),
     SdvmModuleSectionTypeFunctionTable = SDVM_IM_FOUR_CC('f', 'u', 'n', 't'),
     SdvmModuleSectionTypeObjectTable = SDVM_IM_FOUR_CC('o', 'b', 'j', 't'),
+    SdvmModuleSectionTypeMemoryDescriptorTable = SDVM_IM_FOUR_CC('m', 'e', 'm', 'd'),
     SdvmModuleSectionTypeImportModuleTable = SDVM_IM_FOUR_CC('i', 'm', 'p', 'm'),
     SdvmModuleSectionTypeImportModuleValueTable = SDVM_IM_FOUR_CC('i', 'm', 'p', 'v'),
     SdvmModuleSectionTypeExportValueTable = SDVM_IM_FOUR_CC('e', 'x', 'p', 'v'),
@@ -100,6 +101,14 @@ typedef struct sdvm_moduleExportValueTableEntry_s
     sdvm_moduleString_t typeDescriptor;
 } sdvm_moduleExportValueTableEntry_t;
 
+typedef struct sdvm_moduleMemoryDescriptorTableEntry_s
+{
+    uint64_t alignment;
+    uint64_t size;
+    uint32_t gcDescriptorOffset;
+    uint32_t gcDescriptorSize;
+} sdvm_moduleMemoryDescriptorTableEntry_t;
+
 typedef struct sdvm_module_s
 {
     sdvm_moduleHeader_t *header;
@@ -133,6 +142,9 @@ typedef struct sdvm_module_s
 
     size_t exportValueTableSize;
     sdvm_moduleExportValueTableEntry_t *exportValueTable;
+
+    size_t memoryDescriptorTableSize;
+    sdvm_moduleMemoryDescriptorTableEntry_t *memoryDescriptorTable;
 
     size_t moduleDataSize;
     uint8_t *moduleData;

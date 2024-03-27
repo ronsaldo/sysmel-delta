@@ -67,6 +67,7 @@ typedef enum sdvm_compilerLocationKind_e
     SdvmCompLocationRegisterPair,
     SdvmCompLocationStack,
     SdvmCompLocationStackPair,
+    SdvmCompLocationStackAddress,
     SdvmCompLocationLocalSymbolValue,
     SdvmCompLocationGlobalSymbolValue,
 } sdvm_compilerLocationKind_t;
@@ -94,8 +95,6 @@ typedef enum sdvm_functionStackSegmentName_e
     SdvmFunctionStackSegmentPrologue,
     SdvmFunctionStackSegmentFloatCallPreservedRegister,
     SdvmFunctionStackSegmentVectorCallPreservedRegister,
-    SdvmFunctionStackSegmentGCSpilling,
-    SdvmFunctionStackSegmentSpilling,
     SdvmFunctionStackSegmentTemporary,
     SdvmFunctionStackSegmentCallout,
     
@@ -430,8 +429,6 @@ struct sdvm_functionCompilationState_s
             sdvm_functionCompilationStackSegment_t prologueStackSegment;
             sdvm_functionCompilationStackSegment_t floatCallPreservedRegisterStackSegment;
             sdvm_functionCompilationStackSegment_t vectorCallPreservedRegisterStackSegment;
-            sdvm_functionCompilationStackSegment_t gcSpillingStackSegment;
-            sdvm_functionCompilationStackSegment_t spillingStackSegment;
             sdvm_functionCompilationStackSegment_t temporarySegment;
             sdvm_functionCompilationStackSegment_t calloutStackSegment;
         };
@@ -548,13 +545,14 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificSignedRegister(sd
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stack(uint32_t size, uint32_t alignment);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackAddress(uint32_t size, uint32_t alignment);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackSignedInteger(uint32_t size);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackPair(uint32_t firstSize, uint32_t firstAlignment, uint32_t secondSize, uint32_t secondAlignment);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compiler_t *compiler, sdvm_compilerInstruction_t *argument, sdvm_type_t type);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_spillForOperandType(sdvm_compiler_t *compiler, sdvm_type_t type);
 
-SDVM_API bool sdvm_compilerLocation_isStackOrPair(const sdvm_compilerLocation_t *location);
+SDVM_API bool sdvm_compilerLocation_isOnStack(const sdvm_compilerLocation_t *location);
 
 SDVM_API void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilationState_t *state);
 SDVM_API void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state);

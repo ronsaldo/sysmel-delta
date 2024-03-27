@@ -107,6 +107,11 @@ SDVM_OPCODE_DEF(FloatExtend, 46, "Floating point extension.")
 SDVM_OPCODE_DEF(FloatToInteger, 47, "Floating point to signed integer.")
 SDVM_OPCODE_DEF(IntegerToFloat, 48, "Signed integer to floating point.")
 
+SDVM_OPCODE_DEF(AllocateLocal,  49, "Allocates local only memory.")
+SDVM_OPCODE_DEF(AllocateGC,     50, "Allocates Garbage Collected memory")
+SDVM_OPCODE_DEF(AllocateManual, 51, "Allocates Manual memory")
+SDVM_OPCODE_DEF(FreeManual,     52, "Frees Manual memory")
+
 // Common instructions
 SDVM_INSTRUCTION_DEF(Nop, Nop, Void, Void, Void, "No operation")
 SDVM_INSTRUCTION_DEF(BeginArguments, BeginArguments, Void, Info, Info, "Begin fetching arguments. Argument count. Calling convention.")
@@ -168,6 +173,13 @@ SDVM_INSTRUCTION_DEF(ReturnVoid, Return, Void, Void, Void, "Return void")
 SDVM_INSTRUCTION_DEF(Jump, Jump, Void, Label, Void, "Unconditional jump")
 SDVM_INSTRUCTION_DEF(JumpIfTrue, JumpIfTrue, Void, Boolean, Label, "Jump if true")
 SDVM_INSTRUCTION_DEF(JumpIfFalse, JumpIfFalse, Void, Boolean, Label, "Jump if false")
+
+// Memory instructions
+SDVM_INSTRUCTION_DEF(AllocateLocal, AllocateLocal, Pointer, Info, Void, "Allocates local only memory.")
+SDVM_INSTRUCTION_DEF(AllocateGCNoEscape, AllocateLocal, GCPointer, Info, Void, "Allocates no escape GC memory.")
+SDVM_INSTRUCTION_DEF(AllocateGC, AllocateGC, GCPointer, Info, Void, "Allocates no escape GC memory.")
+SDVM_INSTRUCTION_DEF(AllocateManual, AllocateManual, Pointer, Info, Void, "Allocates manual memory.")
+SDVM_INSTRUCTION_DEF(FreeManual, FreeManual, Pointer, Info, Void, "Frees memory.")
 
 // Arithmetic instructions.
 #define IntegerType Int8

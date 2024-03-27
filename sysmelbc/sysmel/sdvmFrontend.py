@@ -207,6 +207,18 @@ class SDVMFunctionFrontEnd:
         left = self.translateValue(instruction.left)
         right = self.translateValue(instruction.right)
         return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, left, right))
+    
+    def visitAllocaInstruction(self, instruction: MIRAllocaInstruction) -> SDVMOperand:
+        if instruction.isGCPointer():
+            if instruction.hasNoEscape:
+                allocaInstruction = SdvmInstAllocateGCNoEscape
+            else:
+                allocaInstruction = SdvmInstAllocateGC
+        else:
+            allocaInstruction = SdvmInstAllocateLocal
+
+        memoryDescriptor = self.moduleFrontend.module.addMemoryDescriptor(instruction.memoryDescriptor)
+        return self.function.addInstruction(SDVMInstruction(allocaInstruction, memoryDescriptor))
 
     def visitLoadInstruction(self, instruction: MIRLoadInstruction) -> SDVMOperand:
         pointer = self.translateValue(instruction.pointer)
@@ -216,13 +228,13 @@ class SDVMFunctionFrontEnd:
             loadInstruction = self.moduleFrontend.loadInstructionDictionary[instruction.getType()]
         return self.function.addInstruction(SDVMInstruction(loadInstruction, pointer))
 
-    def visiStoreInstruction(self, instruction: MIRStoreInstruction) -> SDVMOperand:
+    def visitStoreInstruction(self, instruction: MIRStoreInstruction) -> SDVMOperand:
         pointer = self.translateValue(instruction.pointer)
         value = self.translateValue(instruction.value)
         if instruction.pointer.isGCPointer():
-            storeInstruction = self.moduleFrontend.storeInstructionDictionary[instruction.value.getType()]
-        else:
             storeInstruction = self.moduleFrontend.storeGCInstructionDictionary[instruction.value.getType()]
+        else:
+            storeInstruction = self.moduleFrontend.storeInstructionDictionary[instruction.value.getType()]
         return self.function.addInstruction(SDVMInstruction(storeInstruction, pointer, value))
 
     def visitCallInstruction(self, instruction: MIRCallInstruction) -> SDVMOperand:
