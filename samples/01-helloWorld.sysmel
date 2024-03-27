@@ -5,9 +5,9 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
     puts("Hello World" elements).
 
     let: #i mutableWith: 1i32.
-    while: (i __refLoad__ < argc) do: {
+    while: (i < argc) do: {
         puts("Loop body" elements)
-    } continueWith: (i := i __refLoad__ + 1i32).
+    } continueWith: (i := i + 1i32).
 
     0i32
 }.

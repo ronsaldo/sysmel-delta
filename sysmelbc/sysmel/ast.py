@@ -658,6 +658,9 @@ class ASTLiteralNode(ASTNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitLiteralNode(self)
+    
+    def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
+        return self.value.attemptToUnpackTupleExpressionsAt(sourcePosition)
 
     def toJson(self) -> dict:
         return {'kind': 'Literal', 'value': self.value.toJson()}
@@ -722,6 +725,9 @@ class ASTTupleNode(ASTNode):
     
     def isTupleNode(self) -> bool:
         return True
+
+    def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
+        return self.elements
 
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}
@@ -847,6 +853,12 @@ class ASTProductTypeNode(ASTTypeNode):
     
     def accept(self, visitor):
         return visitor.visitProductTypeNode(self)
+    
+    def asUnpackedTupleTypeExpressionsAt(self, sourcePosition: SourcePosition):
+        return self
+
+    def isProductTypeNodeOrLiteral(self) -> bool:
+        return True
 
     def isProductTypeNode(self) -> bool:
         return True
@@ -1029,11 +1041,11 @@ class ASTTypedApplicationNode(ASTTypedNode):
         return {'kind': 'TypedApplication', 'type': self.type.toJson(), 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
 
 class ASTTypedOverloadedApplicationNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, overloads: ASTTypedNode, alternativeImplicitValueSubstitutions: list[tuple[SymbolImplicitValueBinding, ASTNode]], argument: ASTTypedNode, alternativeIndices: list[int]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, overloads: ASTTypedNode, alternativeImplicitValueSubstitutions: list[tuple[SymbolImplicitValueBinding, ASTNode]], alternativeArguments: list[ASTTypedNode], alternativeIndices: list[int]) -> None:
         super().__init__(sourcePosition, type)
         self.overloads = overloads
         self.alternativeImplicitValueSubstitutions = alternativeImplicitValueSubstitutions
-        self.argument = argument
+        self.alternativeArguments = alternativeArguments
         self.alternativeIndices = alternativeIndices
 
     def accept(self, visitor: ASTVisitor):
@@ -1257,6 +1269,9 @@ class ASTTypedTupleNode(ASTTypedNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedTupleNode(self)
+
+    def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
+        return self.elements
 
     def isTypedTupleNode(self) -> bool:
         return True

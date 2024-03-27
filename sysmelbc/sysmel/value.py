@@ -199,9 +199,15 @@ class TypedValue(ABC):
     def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
         return False
     
+    def isProductTypeNodeOrLiteral(self) -> bool:
+        return False
+    
     def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
         return typechecker.makeSemanticError(sourcePosition, "Failed to convert value into function type node %s." % self.prettyPrint())
     
+    def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
+        return None
+
     def interpretAsBoolean(self) -> bool:
         raise Exception("Not a boolean value.")
 
@@ -427,7 +433,7 @@ class IntegerValue(TypedValue):
     def toJson(self):
         return self.value
 
-    def __neg__(self, other):
+    def __neg__(self):
         return self.__class__(-self.value)
 
     def __invert__(self):
@@ -523,10 +529,10 @@ class PrimitiveIntegerValue(TypedValue):
     def isEquivalentTo(self, other: TypedValue) -> bool:
         return isinstance(other, self.__class__) and self.type == other.type and self.value == other.value
 
-    def __neg__(self, other):
+    def __neg__(self):
         return self.__class__(self.type, -self.value)
 
-    def __invert__(self, other):
+    def __invert__(self):
         return self.__class__(self.type, -1 - self.value)
 
     def __add__(self, other):
@@ -633,7 +639,7 @@ class PrimitiveFloatValue(TypedValue):
     def toJson(self):
         return self.value
 
-    def __neg__(self, other):
+    def __neg__(self):
         return self.__class__(-self.value)
     
     def __add__(self, other):
@@ -827,6 +833,9 @@ class ProductTypeValue(TypedValue):
 
         return True
     
+    def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
+        return list(map(lambda v: ASTTypedLiteralNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, v.getType()), v), self.elements))
+
     def __getitem__(self, index):
         return self.elements[index]
 
@@ -931,6 +940,9 @@ class SumTypeValue(TypedValue):
     
     def interpretAsBoolean(self) -> bool:
         return self.variantIndex != 0
+    
+    def prettyPrint(self) -> str:
+        return self.value.prettyPrint()
 
 class SumType(BaseType):
     SumTypeCache = dict()
@@ -1476,6 +1488,12 @@ class ASTLiteralTypeNode(ASTTypeNode):
     def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
         return self.value.isReferenceType() or self.value.isTemporaryReferenceType()
     
+    def isProductTypeNodeOrLiteral(self) -> bool:
+        return self.value.isProductType()
+    
+    def asUnpackedTupleTypeExpressionsAt(self, sourcePosition: SourcePosition):
+        return list(map(lambda t: ASTLiteralTypeNode(sourcePosition, t), self.value.elementTypes))
+    
     def accept(self, visitor):
         return visitor.visitLiteralTypeNode(self)
     
@@ -1526,6 +1544,9 @@ class ASTTypedLiteralNode(ASTTypedNode):
         else:
             return False
         
+    def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
+        return self.value.attemptToUnpackTupleExpressionsAt(sourcePosition)
+
     def accept(self, visitor):
         return visitor.visitTypedLiteralNode(self)
 

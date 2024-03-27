@@ -47,6 +47,30 @@ class Typechecker(ASTVisitor):
             return leftTypeExpression
 
         return self.makeSemanticError(sourcePosition, "Type checking failure. Branch has mismatching types. '%s' vs '%s'" % (leftTypeExpression.prettyPrint(), rightTypeExpression.prettyPrint()))
+    
+    def applyCoercionsToNodeFor(self, node: ASTNode, targetTypeExpression: ASTTypeNode):
+        nodeType = getTypeOfAnalyzedNode(node, node.sourcePosition)
+        if targetTypeExpression.isProductTypeNodeOrLiteral():
+            unpackedArgument = node.attemptToUnpackTupleExpressionsAt(node.sourcePosition)
+            if unpackedArgument is not None:
+                unpackedTupleTypeElements = targetTypeExpression.asUnpackedTupleTypeExpressionsAt(node.sourcePosition)
+                if len(unpackedArgument) == len(unpackedTupleTypeElements):
+                    coercedTupleElements = []
+                    hasDoneCoercion = False
+                    for i in range(len(unpackedArgument)):
+                        coercedElement = self.applyCoercionsToNodeFor(unpackedArgument[i], unpackedTupleTypeElements[i])
+                        hasDoneCoercion = hasDoneCoercion or (coercedElement is not unpackedArgument[i])
+                        coercedTupleElements.append(coercedElement)
+
+                    if hasDoneCoercion:
+                       coercedNode = self.visitNode(ASTTupleNode(node.sourcePosition, coercedTupleElements))
+                       return self.applyCoercionsToNodeFor(coercedNode, targetTypeExpression)
+
+        if not targetTypeExpression.isReferenceLikeTypeNodeOrLiteral() and nodeType.isReferenceLikeTypeNodeOrLiteral():
+            coercedNode = self.visitNode(ASTPointerLikeLoadNode(node.sourcePosition, node))
+            return self.applyCoercionsToNodeFor(coercedNode, targetTypeExpression)
+
+        return node
 
     def attemptToVisitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode, startingImplicitValueSubstitutions = []) -> tuple[tuple[SymbolImplicitValueBinding, ASTNode], ASTTypedNode | ASTTypeNode, str | None]:
         typedNode = self.visitNode(node)
@@ -55,13 +79,14 @@ class Typechecker(ASTVisitor):
             return [], typedNode, None
 
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
+        coercedTypedNode = self.applyCoercionsToNodeFor(typedNode, expectedTypeNode)
         startingEnvironment = self.lexicalEnvironment
-        doesTypeCheck, newEnvironment = self.withEnvironment(self.lexicalEnvironment.withImplicitValueBindingSubstitutions(startingImplicitValueSubstitutions)).doesTypedNodeConformToTypeExpression(typedNode, expectedTypeNode)
+        doesTypeCheck, newEnvironment = self.withEnvironment(self.lexicalEnvironment.withImplicitValueBindingSubstitutions(startingImplicitValueSubstitutions)).doesTypedNodeConformToTypeExpression(coercedTypedNode, expectedTypeNode)
         implicitValueSubstitutions = newEnvironment.getImplicitValueSubstitutionsUpTo(startingEnvironment)
         if not doesTypeCheck:
-            return implicitValueSubstitutions, typedNode, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition).prettyPrint(), expectedTypeNode.prettyPrint())
+            return implicitValueSubstitutions, coercedTypedNode, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition).prettyPrint(), expectedTypeNode.prettyPrint())
         
-        return implicitValueSubstitutions, typedNode, None
+        return implicitValueSubstitutions, coercedTypedNode, None
     
     def attemptToVisitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> tuple[ASTTypedNode | ASTTypeNode, str | None]:
         return self.attemptToVisitNodeWithExpectedTypeExpression(node, ASTLiteralTypeNode(node.sourcePosition, expectedType))
@@ -313,6 +338,7 @@ class Typechecker(ASTVisitor):
         if functionalType.isOverloadsTypeNode():
             acceptedAlternativeTypes = []
             acceptedAlternativeIndices = []
+            acceptedAlternativeTypedArguments = []
             acceptedAlternativeImplicitValueSubstitutions = []
             index = 0
             typedArgument = self.visitNode(node.argument)
@@ -323,6 +349,7 @@ class Typechecker(ASTVisitor):
                     acceptedAlternativeImplicitValueSubstitutions.append(implicitValueSubstitutions)
 
                     acceptedAlternativeTypes.append(resultType)
+                    acceptedAlternativeTypedArguments.append(alternativeTypedArgument)
                     acceptedAlternativeIndices.append(index)
                 index += 1
 
@@ -330,7 +357,7 @@ class Typechecker(ASTVisitor):
                 return self.makeSemanticError(functional.sourcePosition, "No matching alternative for overloading function application.", functional, typedArgument)
 
             overloadedApplicationType = ASTOverloadsTypeNode(node.sourcePosition, acceptedAlternativeTypes)
-            return reduceTypedOverloadedApplicationNode(ASTTypedOverloadedApplicationNode(node.sourcePosition, overloadedApplicationType, functional, acceptedAlternativeImplicitValueSubstitutions, typedArgument, acceptedAlternativeIndices))
+            return reduceTypedOverloadedApplicationNode(ASTTypedOverloadedApplicationNode(node.sourcePosition, overloadedApplicationType, functional, acceptedAlternativeImplicitValueSubstitutions, acceptedAlternativeTypedArguments, acceptedAlternativeIndices))
 
         if not functionalType.isAnyFunctionTypeNode():
             functional = self.makeSemanticError(functional.sourcePosition, "Application functional must be a pi node, or it must have a forall or overloads type.", functional)
@@ -1370,9 +1397,10 @@ def reduceTypedOverloadedApplicationNode(node: ASTTypedOverloadedApplicationNode
         alternativesWithApplication = []
         for i in range(len(resultOverloadsType.alternativeTypes)):
             alternative = overloadsNode.alternatives[node.alternativeIndices[i]]
+            alternativeArgument = node.alternativeArguments[i]
             implicitValueSubstitutions = node.alternativeImplicitValueSubstitutions[i]
             resultType = resultOverloadsType.alternativeTypes[i]
-            alternativesWithApplication.append(reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, alternative, node.argument, implicitValueSubstitutions)))
+            alternativesWithApplication.append(reduceTypedApplicationNode(ASTTypedApplicationNode(node.sourcePosition, resultType, alternative, alternativeArgument, implicitValueSubstitutions)))
         return reduceTypedOverloadsNode(ASTTypedOverloadsNode(node.sourcePosition, node.type, alternativesWithApplication))
     return node
 
