@@ -6,7 +6,8 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 
     let: #i mutableWith: 1i32.
     while: (i < argc) do: {
-        puts("Loop body" elements)
+        puts("Loop body" elements).
+        puts(argv at: i asSize)
     } continueWith: (i := i + 1i32).
 
     0i32

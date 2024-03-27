@@ -193,6 +193,12 @@ class TypedValue(ABC):
     def getBaseTypeExpressionAt(self, sourcePosition):
         assert False
 
+    def getElementTypeExpressionAt(self, sourcePosition):
+        assert False
+
+    def isArrayTypeNodeOrLiteral(self) -> bool:
+        return False
+    
     def isPointerTypeNodeOrLiteral(self) -> bool:
         return False
 
@@ -1094,7 +1100,7 @@ class ArrayType(DerivedType):
         return visitor.visitArrayType(self)
 
     def prettyPrint(self) -> str:
-        return self.baseType.prettyPrint() + ' array: ' + str(self.size)
+        return self.baseType.prettyPrint() + ('[%d]' % self.size)
 
     @classmethod
     def makeWithElementTypeAndSize(cls, elementType: TypedValue, size: IntegerValue):
@@ -1102,6 +1108,9 @@ class ArrayType(DerivedType):
 
     def isArrayType(self) -> bool:
         return True
+
+    def getElementTypeExpressionAt(self, sourcePosition):
+        return ASTLiteralTypeNode(sourcePosition, self.baseType)
 
     def toJson(self):
         return {'arrayType': self.baseType.toJson(), 'size': self.size}
@@ -1174,6 +1183,9 @@ class PointerType(DerivedType):
     def isPointerType(self) -> bool:
         return True
 
+    def getElementTypeExpressionAt(self, sourcePosition):
+        return ASTLiteralTypeNode(sourcePosition, self.baseType)
+
     def toJson(self):
         return {'pointerType': self.baseType.toJson()}
 
@@ -1194,6 +1206,9 @@ class ReferenceType(DerivedType):
     def isReferenceType(self) -> bool:
         return True
 
+    def getElementTypeExpressionAt(self, sourcePosition):
+        return self.baseType.getElementTypeExpressionAt(sourcePosition)
+    
     def toJson(self):
         return {'refType': self.baseType.toJson()}
 
@@ -1214,6 +1229,9 @@ class TemporaryReferenceType(DerivedType):
     def isTemporaryReferenceType(self) -> bool:
         return True
     
+    def getElementTypeExpressionAt(self, sourcePosition):
+        return self.baseType.getElementTypeExpressionAt(sourcePosition)
+
     def toJson(self):
         return {'tempRefType': self.baseType.toJson()}
 
@@ -1232,6 +1250,9 @@ class Symbol(TypedValue):
         return '#' + repr(self.value)
     
     def __str__(self) -> str:
+        return '#' + repr(self.value)
+    
+    def prettyPrint(self) -> str:
         return '#' + repr(self.value)
     
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
@@ -1482,6 +1503,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
     def isTypedLiteralReducibleFunctionalValue(self) -> bool:
         return self.value.isReducibleFunctionalValue()
     
+    def isArrayTypeNodeOrLiteral(self) -> bool:
+        return self.value.isArrayType()
+    
     def isPointerTypeNodeOrLiteral(self) -> bool:
         return self.value.isPointerType()
 
@@ -1520,7 +1544,7 @@ class ASTTypedLiteralNode(ASTTypedNode):
         self.value = value
 
     def prettyPrint(self) -> str:
-        return str(self.value)
+        return self.value.prettyPrint()
 
     def isTypedLiteralNode(self) -> bool:
         return True
@@ -1562,6 +1586,9 @@ class SymbolBinding(ABC):
     def isSymbolBinding(self):
         return True
     
+    def prettyPrint(self) -> str:
+        return self.name.prettyPrint()
+    
     def evaluateInActivationEnvironmentAt(self, activationEnvironment, sourcePosition: SourcePosition) -> TypedValue:
         return activationEnvironment.lookBindingValueAt(self, sourcePosition)
 
@@ -1598,6 +1625,9 @@ class ASTTypedIdentifierReferenceNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolBinding) -> None:
         super().__init__(sourcePosition, type)
         self.binding = binding
+
+    def prettyPrint(self) -> str:
+        return self.binding.prettyPrint()
 
     def isEquivalentTo(self, other) -> bool:
         if self == other: return True

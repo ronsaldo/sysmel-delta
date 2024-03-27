@@ -139,6 +139,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitArraySubscriptAtNode(self, node):
+        pass
+
+    @abstractmethod
     def visitPointerLikeLoadNode(self, node):
         pass
 
@@ -267,6 +271,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedArraySubscriptAtNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedPointerLikeLoadNode(self, node):
         pass
 
@@ -276,6 +284,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedPointerLikeReinterpretToNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedPointerLikeSubscriptAtNode(self, node):
         pass
 
     @abstractmethod
@@ -776,9 +788,23 @@ class ASTDecoratedTypeNode(ASTDerivedTypeNode):
     def accept(self, visitor):
         return visitor.visitDecoratedTypeNode(self)
     
+    def prettyPrint(self) -> str:
+        result = self.baseType.prettyPrint()
+        if self.isMutable():
+            result += ' mutable'
+        if self.isVolatile():
+            result += ' volatile'
+        return result
+
     def isDecoratedTypeNode(self) -> bool:
         return True
 
+    def isMutable(self) -> bool:
+        return (self.decorations & DecoratedType.Mutable) != 0
+
+    def isVolatile(self) -> bool:
+        return (self.decorations & DecoratedType.Volatile) != 0
+    
     def toJson(self) -> dict:
         return {'kind': 'DecoratedType', 'baseType': self.baseType.toJson(), 'decorations': self.decorations}
 
@@ -786,6 +812,9 @@ class ASTPointerTypeNode(ASTDerivedTypeNode):
     def accept(self, visitor):
         return visitor.visitPointerTypeNode(self)
 
+    def prettyPrint(self) -> str:
+        return self.baseType.prettyPrint() + ' pointer'
+    
     def isPointerTypeNode(self) -> bool:
         return True
 
@@ -799,11 +828,17 @@ class ASTReferenceTypeNode(ASTDerivedTypeNode):
     def accept(self, visitor):
         return visitor.visitReferenceType(self)
 
+    def prettyPrint(self) -> str:
+        return self.baseType.prettyPrint() + ' ref'
+
     def isReferenceTypeNode(self) -> bool:
         return True
     
     def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
         return True
+
+    def getElementTypeExpressionAt(self, sourcePosition: SourcePosition) -> ASTTypeNode:
+        return self.baseType.getElementTypeExpressionAt(sourcePosition)
 
     def toJson(self) -> dict:
         return {'kind': 'ReferenceType', 'baseType': self.baseType.toJson()}
@@ -812,12 +847,18 @@ class ASTTemporaryReferenceTypeNode(ASTDerivedTypeNode):
     def accept(self, visitor):
         return visitor.visitTemporaryReferenceType(self)
 
+    def prettyPrint(self) -> str:
+        return self.baseType.prettyPrint() + ' tempRef'
+
     def isTemporaryReferenceTypeNode(self) -> bool:
         return True
 
     def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
         return True
     
+    def getElementTypeExpressionAt(self, sourcePosition: SourcePosition) -> ASTTypeNode:
+        return self.baseType.getElementTypeExpressionAt(sourcePosition)
+
     def toJson(self) -> dict:
         return {'kind': 'TemporaryReferenceType', 'baseType': self.baseType.toJson()}
 
@@ -833,9 +874,18 @@ class ASTArrayTypeNode(ASTTypeNode):
     def accept(self, visitor):
         return visitor.visitArrayTypeNode(self)
 
+    def getElementTypeExpressionAt(self, sourcePosition: SourcePosition) -> ASTTypeNode:
+        return self.elementType
+    
+    def prettyPrint(self) -> str:
+        return self.elementType.prettyPrint() + '[' + self.size.prettyPrint() + ']'
+    
     def isArrayTypeNode(self) -> bool:
         return True
 
+    def isArrayTypeNodeOrLiteral(self) -> bool:
+        return True
+    
     def toJson(self) -> dict:
         return {'kind': 'ArrayType', 'elementType': self.elementType.toJson(), 'size' : self.size.toJson()}
     
@@ -952,6 +1002,19 @@ class ASTModuleEntryPointNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'ModuleEntryPoint', 'entryPoint': self.entryPoint.toJson()}
 
+class ASTArraySubscriptAtNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, array: ASTNode, index: ASTNode, resultAsReference: bool) -> None:
+        super().__init__(sourcePosition)
+        self.array = array
+        self.index = index
+        self.resultAsReference = resultAsReference
+    
+    def accept(self, visitor):
+        return visitor.visitArraySubscriptAtNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'ArraySubscriptAt', 'array': self.array.toJson(), 'index': self.index.toJson(), 'resultAsReference': self.resultAsReference}
+
 class ASTPointerLikeLoadNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, pointer: ASTNode) -> None:
         super().__init__(sourcePosition)
@@ -999,7 +1062,7 @@ class ASTPointerLikeSubscriptAtNode(ASTNode):
         return visitor.visitPointerLikeSubscriptAtNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'PointerLikeSubscriptAt', 'pointer': self.pointer.toJson(), 'index': self.index.toJson(), 'resultAsReference': resultAsReference}
+        return {'kind': 'PointerLikeSubscriptAt', 'pointer': self.pointer.toJson(), 'index': self.index.toJson(), 'resultAsReference': self.resultAsReference}
 
 class ASTTypedAllocaMutableWithValueNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, valueType: ASTNode, initialValue: ASTNode) -> None:
@@ -1039,6 +1102,9 @@ class ASTTypedApplicationNode(ASTTypedNode):
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedApplicationNode(self)
 
+    def prettyPrint(self) -> str:
+        return self.functional.prettyPrint() + '(' + self.argument.prettyPrint() + ')'
+    
     def toJson(self) -> dict:
         return {'kind': 'TypedApplication', 'type': self.type.toJson(), 'functional': self.functional.toJson(), 'argument': self.argument.toJson()}
 
@@ -1213,6 +1279,19 @@ class ASTTypedOverloadsNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedOverloads', 'type': self.type.toJson(), 'alternatives': list(map(optionalASTNodeToJson, self.alternatives))}
 
+class ASTTypedArraySubscriptAtNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, array: ASTTypedNode, index: ASTTypedNode, loadResult: bool) -> None:
+        super().__init__(sourcePosition, type)
+        self.array = array
+        self.index = index
+        self.loadResult = loadResult
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedArraySubscriptAtNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedArraySubscriptAt', 'type': self.type.toJson(), 'array': self.array.toJson(), 'index': self.index.toJson(), 'loadResult': self.loadResult}
+
 class ASTTypedPointerLikeLoadNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, pointer: ASTTypedNode, isVolatile = False) -> None:
         super().__init__(sourcePosition, type)
@@ -1253,6 +1332,18 @@ class ASTTypedPointerLikeReinterpretToNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedPointerLikeReinterpretTo', 'type': self.type.toJson(), 'pointer': self.pointer.toJson()}
     
+class ASTTypedPointerLikeSubscriptAtNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, pointer: ASTTypedNode, index: ASTTypedNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.pointer = pointer
+        self.index = index
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedPointerLikeSubscriptAtNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedPointerSubscriptAt', 'type': self.type.toJson(), 'pointer': self.pointer.toJson(), 'index': self.index.toJson()}
+
 class ASTTypedSequenceNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTTypedNode]) -> None:
         super().__init__(sourcePosition, type)
@@ -1492,6 +1583,10 @@ class ASTSequentialVisitor(ASTVisitor):
         for alternative in node.alternatives:
             self.visitNode(alternative)
 
+    def visitArraySubscriptAtNode(self, node: ASTArraySubscriptAtNode):
+        self.visitNode(node.pointer)
+        self.visitNode(node.index)
+
     def visitPointerLikeLoadNode(self, node: ASTPointerLikeLoadNode):
         self.visitNode(node.pointer)
 
@@ -1650,6 +1745,11 @@ class ASTSequentialVisitor(ASTVisitor):
         for alternatives in node.alternatives:
             self.visitNode(alternatives)
 
+    def visitTypedArraySubscriptAtNode(self, node: ASTTypedArraySubscriptAtNode):
+        self.visitNode(node.type)
+        self.visitNode(node.array)
+        self.visitNode(node.index)
+
     def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
         self.visitNode(node.type)
         self.visitNode(node.pointer)
@@ -1662,6 +1762,11 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitTypedPointerLikeReinterpretToNode(self, node: ASTTypedPointerLikeReinterpretToNode):
         self.visitNode(node.type)
         self.visitNode(node.pointer)
+
+    def visitTypedPointerLikeSubscriptAtNode(self, node: ASTTypedPointerLikeSubscriptAtNode):
+        self.visitNode(node.type)
+        self.visitNode(node.pointer)
+        self.visitNode(node.index)
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
         self.visitNode(node.type)
@@ -1817,6 +1922,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitSequenceNode(self, node):
+        assert False
+
+    def visitArraySubscriptAtNode(self, node: ASTArraySubscriptAtNode):
         assert False
 
     def visitPointerLikeLoadNode(self, node: ASTPointerLikeLoadNode):

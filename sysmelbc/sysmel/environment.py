@@ -398,6 +398,9 @@ class PrimitiveFunction(TypedValue):
 
     def isMacroValue(self) -> bool:
         return self.isMacro
+    
+    def prettyPrint(self) -> str:
+        return self.primitiveName.prettyPrint()
 
     def expectsMacroEvaluationContext(self) -> bool:
         argumentType = self.type.argumentType
@@ -656,13 +659,31 @@ def pointerLikeSubscriptAtMacro(macroContext: MacroContext, pointer: ASTTypedNod
 def referenceLikeAssignmentMacro(macroContext: MacroContext, reference: ASTTypedNode, value: ASTNode):
     return ASTPointerLikeStoreNode(macroContext.sourcePosition, reference, value, True)
 
+def arrayAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
+    return ASTArraySubscriptAtNode(macroContext.sourcePosition, pointer, index, False)
+
+def arraySubscriptAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
+    return ASTArraySubscriptAtNode(macroContext.sourcePosition, pointer, index, True)
+
+def arrayAtPutMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
+    return ASTPointerLikeStoreNode(macroContext.sourcePosition, pointer, index, True)
+
+
+ArrayTypeMacros = {}
+for name, expander in [
+    ('at:', arrayAtMacro),
+    ('at:put:', arrayAtPutMacro),
+    ('[]:', arraySubscriptAtMacro),
+]:
+    ArrayTypeMacros[Symbol.intern(name)] = expander
+
 PointerTypeMacros = {}
 for name, expander in [
     ('load', pointerLikeLoadMacro),
     ('store:', pointerLikeStoreMacro),
     ('at:', pointerLikeAtMacro),
     ('at:put:', pointerLikeAtPutMacro),
-    (':[]', pointerLikeSubscriptAtMacro),
+    ('[]:', pointerLikeSubscriptAtMacro),
     ('_', pointerLikeAsRefMacro),
 ]:
     PointerTypeMacros[Symbol.intern(name)] = expander

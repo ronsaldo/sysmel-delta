@@ -738,6 +738,9 @@ class Typechecker(ASTVisitor):
                 
             if analyzedReceiver is not None and not analyzedReceiver.isLiteralTypeNode():
                 analyzedReceiverType = getTypeOfAnalyzedNode(analyzedReceiver, node.sourcePosition)
+                if analyzedReceiverType.isArrayTypeNodeOrLiteral():
+                    if selector in ArrayTypeMacros:
+                        return self.expandMessageSendWithMacro(node, analyzedReceiver, ArrayTypeMacros[selector])
                 if analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral():
                     if selector in ReferenceLikeTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, ReferenceLikeTypeMacros[selector])
@@ -782,6 +785,17 @@ class Typechecker(ASTVisitor):
             return typedElements[0]
         return ASTTypedSequenceNode(node.sourcePosition, resultType, typedElements)
 
+    def visitArraySubscriptAtNode(self, node: ASTArraySubscriptAtNode):
+        array = self.visitNode(node.array)
+        index = self.visitNodeWithExpectedType(node.index, SizeType)
+        arrayType = decayTypeExpression(getTypeOfAnalyzedNode(array, node.sourcePosition))
+        elementType = arrayType.getElementTypeExpressionAt(node.sourcePosition)
+        if node.resultAsReference:
+            resultType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, elementType))
+        else:
+            resultType = decayTypeExpression(elementType)
+        return reduceArraySubscriptAtNode(ASTTypedArraySubscriptAtNode(node.sourcePosition, resultType, array, index, not node.resultAsReference))
+
     def visitPointerLikeLoadNode(self, node: ASTPointerLikeLoadNode):
         pointer = self.visitNode(node.pointer)
         pointerType = getTypeOfAnalyzedNode(pointer, node.sourcePosition)
@@ -812,7 +826,13 @@ class Typechecker(ASTVisitor):
 
     def visitPointerLikeSubscriptAtNode(self, node: ASTPointerLikeSubscriptAtNode):
         pointer = self.visitNode(node.pointer)
-        assert False
+        index = self.visitNodeWithExpectedTypeAlternative(node.index, [SizeType, UIntPointerType, IntPointerType])
+        pointerType = getTypeOfAnalyzedNode(pointer, node.sourcePosition)
+        resultType = pointerType
+        if node.resultAsReference:
+            baseType = pointerType.getBaseTypeExpressionAt(node.sourcePosition)
+            resultType = self.vistNode(ASTFormReferenceTypeNode(node.sourcePosition, baseType))
+        return ASTTypedPointerLikeSubscriptAtNode(node.sourcePosition, resultType, pointer, index)
 
     def visitOverloadsNode(self, node: ASTOverloadsNode):
         if len(node.alternatives) == 0:
@@ -930,6 +950,9 @@ class Typechecker(ASTVisitor):
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode):
         return node
 
+    def visitTypedArraySubscriptAtNode(self, node: ASTTypedArraySubscriptAtNode):
+        return node
+
     def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
         return node
 
@@ -937,6 +960,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedPointerLikeReinterpretToNode(self, node: ASTTypedPointerLikeReinterpretToNode):
+        return node
+
+    def visitTypedPointerLikeSubscriptAtNode(self, node: ASTTypedPointerLikeSubscriptAtNode):
         return node
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
@@ -1379,6 +1405,19 @@ def decayDecorationsOfTypeExpression(node: ASTTypeNode):
         return node.baseType
     return node
 
+def decayTypeExpression(node: ASTTypeNode):
+    undecoratedNode = decayDecorationsOfTypeExpression(node)
+    if undecoratedNode.isLiteralTypeNode():
+        undecoratedType: TypedValue = undecoratedNode.value
+        if undecoratedType.isReferenceType() or undecoratedType.isTemporaryReferenceType():
+            baseType = undecoratedType.baseType
+            if baseType.isDecoratedType():
+                baseType = baseType.baseType
+            return ASTLiteralTypeNode(undecoratedNode.sourcePosition, baseType)
+    elif undecoratedNode.isReferenceTypeNode() or undecoratedNode.isTemporaryReferenceTypeNode():
+        return decayDecorationsOfTypeExpression(undecoratedNode.baseType)
+    return undecoratedNode
+
 def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
     if len(node.implicitValueSubstitutions) != 0:
         return ASTBetaReducer(SubstitutionContext()).visitNode(node)
@@ -1569,6 +1608,9 @@ def reduceDoWhileNode(node: ASTTypedDoWhileNode):
         if not node.condition.value.interpretAsBoolean():
             resultValue = ASTTypedLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
             sequence = ASTTypedSequenceNode(node.sourcePosition, node.type, [node.bodyExpression, resultValue])
+    return node
+
+def reduceArraySubscriptAtNode(node: ASTTypedArraySubscriptAtNode):
     return node
 
 def reducePointerLikeReinterpretToNode(node: ASTTypedPointerLikeReinterpretToNode):

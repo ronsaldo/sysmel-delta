@@ -153,6 +153,9 @@ class HIRTypeValue(HIRValue):
     def isType(self):
         return True
     
+    def isPointerLikeType(self):
+        return False
+
     def isVoidType(self):
         return False
     
@@ -365,6 +368,9 @@ class HIRDecoratedType(HIRDerivedType):
 class HIRPointerLikeType(HIRDerivedType):
     def  __init__(self, context: HIRContext, baseType: HIRTypeValue) -> None:
         super().__init__(context, baseType)
+
+    def isPointerLikeType(self):
+        return True
 
     def getAlignment(self) -> int:
         return self.context.pointerAlignment
@@ -883,6 +889,91 @@ class HIRCallInstruction(HIRInstruction):
             result += str(arg)
         result += ')'
         return result
+
+class HIRGetElementPointerInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, type: HIRValue, pointer: HIRValue, indices: list[HIRValue], name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.pointer = pointer
+        self.indices = indices
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitGetElementPointerInstruction(self)
+
+    def fullPrintString(self) -> str:
+        result = '%s : %s := getElementPointer %s (' % (str(self), str(self.type), str(self.pointer))
+        isFirst = True
+        for arg in self.indices:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += str(arg)
+        result += ')'
+        return result
+        
+class HIRExtractValueInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, type: HIRValue, aggregate: HIRValue, indices: list[HIRValue], name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.aggregate = aggregate
+        self.indices = indices
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitExtractValueInstruction(self)
+
+    def fullPrintString(self) -> str:
+        result = '%s : %s := extractValue %s at (' % (str(self), str(self.type), str(self.aggregate))
+        isFirst = True
+        for arg in self.indices:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += str(arg)
+        result += ')'
+        return result
+    
+class HIRExtractValueReferenceInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, type: HIRValue, aggregate: HIRValue, indices: list[HIRValue], name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.aggregate = aggregate
+        self.indices = indices
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitExtractValueReferenceInstruction(self)
+
+    def fullPrintString(self) -> str:
+        result = '%s : %s := extractValueReference %s at (' % (str(self), str(self.type), str(self.aggregate))
+        isFirst = True
+        for arg in self.indices:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += str(arg)
+        result += ')'
+        return result
+    
+class HIRInsertValueInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, type: HIRValue, aggregate: HIRValue, indices: list[HIRValue], value: HIRValue, name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.aggregate = aggregate
+        self.indices = indices
+        self.value = value
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitInsertValueInstruction(self)
+
+    def fullPrintString(self) -> str:
+        result = '%s : %s := insertValue %s in %s at (' % (str(self), str(self.type), str(self.value), str(self.aggregate))
+        isFirst = True
+        for arg in self.indices:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += str(arg)
+        result += ')'
+        return result
     
 class HIRTerminatorInstruction(HIRInstruction):
     def __init__(self, context: HIRContext, name: str = None) -> None:
@@ -988,6 +1079,18 @@ class HIRBuilder:
 
     def load(self, resultType: HIRValue, pointer: HIRValue) -> HIRInstruction:
         return self.addInstruction(HIRLoadInstruction(self.context, resultType, pointer))
+
+    def getElementPointer(self, resultType: HIRValue, pointer: HIRValue, indices: list[HIRValue]) -> HIRInstruction:
+        return self.addInstruction(HIRGetElementPointerInstruction(self.context, resultType, pointer, indices))
+
+    def extractValue(self, resultType: HIRValue, aggregate: HIRValue, indices: list[HIRValue]) -> HIRInstruction:
+        return self.addInstruction(HIRExtractValueInstruction(self.context, resultType, aggregate, indices))
+
+    def extractValueReference(self, resultType: HIRValue, aggregate: HIRValue, indices: list[HIRValue]) -> HIRInstruction:
+        return self.addInstruction(HIRExtractValueReferenceInstruction(self.context, resultType, aggregate, indices))
+
+    def insertValue(self, resultType: HIRValue, aggregate: HIRValue, indices: list[HIRValue], value: HIRValue) -> HIRInstruction:
+        return self.addInstruction(HIRInsertValueInstruction(self.context, resultType, aggregate, indices, value))
 
     def store(self, value: HIRValue, pointer: HIRValue) -> HIRInstruction:
         return self.addInstruction(HIRStoreInstruction(self.context, value, pointer))
@@ -1406,7 +1509,23 @@ class HIRFunctionalDefinitionFrontend:
         # Merge
         self.builder.beginBasicBlock(mergeBlock)
         return resultType.getSingleton()
-    
+
+    def visitArraySubscriptAtExpression(self, subscriptExpression: GHIRArraySubscriptAtExpression) -> HIRValue:
+        resultType = self.translateGraphValue(subscriptExpression.getType())
+        array = self.translateGraphValue(subscriptExpression.array)
+        index = self.translateGraphValue(subscriptExpression.index)
+        if array.getType().isPointerLikeType():
+            gepIndices = [HIRConstantPrimitiveInteger(self.context, self.context.uintPointerType, 0), index]
+            if subscriptExpression.loadResult:
+                assert False
+            else:
+                return self.builder.getElementPointer(resultType, array, gepIndices)
+        else:
+            if subscriptExpression.loadResult:
+                return self.builder.extractValue(resultType, array, [index])
+            else:
+                return self.builder.extractValueReference(resultType, array, [index])
+
     def visitPointerLikeLoadExpression(self, loadExpression: GHIRPointerLikeLoadExpression) -> HIRValue:
         resultType = self.translateGraphValue(loadExpression.getType())
         pointer = self.translateGraphValue(loadExpression.pointer)
@@ -1426,3 +1545,6 @@ class HIRFunctionalDefinitionFrontend:
         for element in sequence.expressions:
             result = self.translateGraphValue(element)
         return result
+
+    def visitPointerLikeSubscriptAtExpression(self, subscriptExpression: GHIRPointerLikeSubscriptAtExpression) -> HIRValue:
+        assert False

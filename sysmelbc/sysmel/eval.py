@@ -167,6 +167,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         overloadFunctionType = self.visitNode(node.type)
         return overloadFunctionType.makeWithAlternatives(tuple(alternatives))
 
+    def visitTypedArraySubscriptAtNode(self, node: ASTTypedArraySubscriptAtNode):
+        assert False
+
     def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
         pointer = self.visitNode(node.pointer)
         return pointer.loadValue()
@@ -185,6 +188,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         pointer = self.visitNode(node.pointer)
         return pointer.reinterpretTo(type)
     
+    def visitTypedPointerLikeSubscriptAtNode(self, node: ASTTypedArraySubscriptAtNode):
+        assert False
+
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
         result = VoidType.getSingleton()
         for expression in node.elements:
