@@ -169,12 +169,21 @@ def parseArgument(state: ParserState) -> tuple[ParserState, ASTNode]:
 
     isImplicit = False
     isExistential = False
-    while state.peekKind() in [TokenKind.STAR, TokenKind.QUESTION]:
-        isImplicit = isImplicit or state.peekKind() == TokenKind.STAR
+    if state.peekKind() == TokenKind.QUESTION:
         isExistential = isExistential or state.peekKind() == TokenKind.QUESTION
         state.advance()
 
-    state, typeExpression = parseOptionalParenthesis(state)
+    typeExpression = None
+    if state.peekKind() == TokenKind.LEFT_BRACKET:
+        state.advance()
+        isImplicit = True
+        state, typeExpression  = parseExpression(state)
+        typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_BRACKET, typeExpression)
+    elif state.peekKind() == TokenKind.LEFT_PARENT:
+        state.advance()
+        state, typeExpression  = parseExpression(state)
+        typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, typeExpression)
+
     state, nameExpression = parseOptionalNameExpression(state)
 
     return state, ASTArgumentNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential)    

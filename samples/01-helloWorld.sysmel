@@ -29,9 +29,9 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer pointer)argv :: 
 }.
 *#
 
-##(:*(Type)T :(T)x :: T)[Int32]
-##((:*(Type)T :(T)x :: T) :=> x) [Int32]
+##(:[Type]T :(T)x :: T)[Int32]
+##((:[Type]T :(T)x :: T) :=> x) [Int32]
 ##(:(Int32)x :: Int32) :=> x
 
-((:*(Type)T :(T)x :: T) :=> x) (0i32)
+##((:[Type]T :(T)x :: T) :=> x) (0i32)
 ##0i32
