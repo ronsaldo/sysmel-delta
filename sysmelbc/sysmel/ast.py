@@ -43,6 +43,26 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitFormDecoratedTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitFormArrayTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitFormPointerTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitFormReferenceTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitFormTemporaryReferenceTypeNode(self, node):
+        pass
+
+    @abstractmethod
     def visitFunctionalDependentTypeNode(self, node):
         pass
 
@@ -120,6 +140,26 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitOverloadsTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitDecoratedTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitPointerTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitReferenceTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTemporaryReferenceTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitArrayTypeNode(self, node):
         pass
 
     @abstractmethod
@@ -411,6 +451,89 @@ class ASTWhileNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'While', 'condition': optionalASTNodeToJson(self.condition.toJson()), 'bodyExpression' : optionalASTNodeToJson(self.bodyExpression), 'continueExpression' : optionalASTNodeToJson(self.continueExpression)}
 
+class ASTFormDerivedTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, baseType: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.baseType = baseType
+
+class ASTFormDecoratedTypeNode(ASTFormDerivedTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, baseType: ASTNode, decorations: int):
+        super().__init__(sourcePosition, baseType)
+        self.decorations = decorations
+        
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormDecoratedTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'FormDecoratedType', 'baseType': self.baseType.toJson(), 'decorations' : self.decorations}
+
+class ASTFormArrayTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, elementType: ASTNode, size: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.elementType = elementType
+        self.size = elementType
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormArrayTypeNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'FormArrayTypeNode', 'elementType': self.elementType.toJson(), 'size': self.size.toJson()}
+    
+class ASTFormPointerTypeNode(ASTFormDerivedTypeNode):
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormPointerTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'FormPointerType', 'baseType': self.baseType.toJson()}
+
+class ASTFormReferenceTypeNode(ASTFormDerivedTypeNode):
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormReferenceTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'FormReferenceType', 'baseType': self.baseType.toJson()}
+
+class ASTFormTemporaryReferenceTypeNode(ASTFormDerivedTypeNode):
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormTemporaryReferenceTypeNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'FormTemporaryReferenceType', 'baseType': self.baseType.toJson()}
+    
+class ASTFormProductTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.elements = elements
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormProductTypeNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'FormProductType', 'elements': list(map(lambda n: n.toJson(), self.elements))}
+
+class ASTFormRecordTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode], fieldNames: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.elements = elements
+        self.fieldNames = fieldNames
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitForRecordTypeTypeNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'FormRecordType', 'elements': list(map(lambda n: n.toJson(), self.elements))}
+    
+class ASTFormSumTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.elements = elements
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormSumTypeNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'FormSumType', 'elements': list(map(lambda n: n.toJson(), self.elements))}
+
 class ASTPiNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], body: ASTNode, callingConvention: Symbol = None) -> None:
         super().__init__(sourcePosition)
@@ -597,6 +720,77 @@ class ASTOverloadsTypeNode(ASTTypeNode):
 
     def toJson(self) -> dict:
         return {'kind': 'OverloadsType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
+
+class ASTDerivedTypeNode(ASTTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, baseType: ASTTypeNode) -> None:
+        super().__init__(sourcePosition)
+        self.baseType = baseType
+
+    def computeTypeUniverseIndex(self) -> int:
+        return self.baseType
+
+class ASTDecoratedTypeNode(ASTDerivedTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, baseType: ASTTypeNode, decorations: int) -> None:
+        super().__init__(sourcePosition)
+        self.baseType = baseType
+        self.decorations = decorations
+
+    def accept(self, visitor):
+        return visitor.visitDecoratedTypeNode(self)
+    
+    def isDecoratedTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'DecoratedType', 'baseType': self.baseType.toJson(), 'decorations': self.decorations}
+
+class ASTPointerTypeNode(ASTDerivedTypeNode):
+    def accept(self, visitor):
+        return visitor.visitPointerTypeNode(self)
+
+    def isPointerTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'PointerType', 'baseType': self.baseType.toJson()}
+
+class ASTReferenceTypeNode(ASTDerivedTypeNode):
+    def accept(self, visitor):
+        return visitor.visitReferenceType(self)
+
+    def isReferenceTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'ReferenceType', 'baseType': self.baseType.toJson()}
+
+class ASTTemporaryReferenceTypeNode(ASTDerivedTypeNode):
+    def accept(self, visitor):
+        return visitor.visitTemporaryReferenceType(self)
+
+    def isTemporaryReferenceTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'TemporaryReferenceType', 'baseType': self.baseType.toJson()}
+
+class ASTArrayTypeNode(ASTTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, elementType: ASTTypeNode, size: ASTTypedNode) -> None:
+        super().__init__(sourcePosition)
+        self.elementType = elementType
+        self.size = size
+
+    def computeTypeUniverseIndex(self) -> int:
+        return self.elementType.computeTypeUniverseIndex()
+    
+    def accept(self, visitor):
+        return visitor.visitArrayTypeNode(self)
+
+    def isArrayTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'ArrayType', 'elementType': self.elementType.toJson(), 'size' : self.size.toJson()}
     
 class ASTProductTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, elementTypes: list[ASTTypeNode]) -> None:
@@ -614,6 +808,9 @@ class ASTProductTypeNode(ASTTypeNode):
     
     def accept(self, visitor):
         return visitor.visitProductTypeNode(self)
+
+    def isProductTypeNode(self) -> bool:
+        return True
 
     def toJson(self) -> dict:
         return {'kind': 'ProductType', 'elementTypes': list(map(optionalASTNodeToJson, self.elementTypes))}
@@ -634,6 +831,9 @@ class ASTSumTypeNode(ASTTypeNode):
     
     def accept(self, visitor):
         return visitor.visitSumTypeNode(self)
+
+    def isSumTypeNode(self) -> bool:
+        return True
 
     def toJson(self) -> dict:
         return {'kind': 'SumType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
@@ -1092,6 +1292,30 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitOptionalNode(node.argumentName)
         self.visitNode(node.body)
 
+    def visitFormDecoratedTypeNode(self, node: ASTFormDecoratedTypeNode):
+        self.visitNode(node.baseType)
+
+    def visitFormArrayTypeNode(self, node: ASTFormArrayTypeNode):
+        self.visitNode(node.elementType)
+        self.visitNode(node.size)
+
+    def visitFormPointerTypeNode(self, node: ASTFormPointerTypeNode):
+        self.visitNode(node.baseType)
+
+    def visitFormReferenceTypeNode(self, node: ASTFormReferenceTypeNode):
+        self.visitNode(node.baseType)
+
+    def visitFormTemporaryReferenceTypeNode(self, node: ASTFormTemporaryReferenceTypeNode):
+        self.visitNode(node.baseType)
+
+    def visitFormProductTypeNode(self, node: ASTFormProductTypeNode):
+        for element in node.elements:
+            self.visitNode(element)
+
+    def visitFormSumTypeNode(self, node: ASTFormSumTypeNode):
+        for element in node.elements:
+            self.visitNode(element)
+
     def visitFunctionNode(self, node: ASTFunctionNode):
         self.visitNode(node.functionalType)
         self.visitNode(node.body)
@@ -1134,6 +1358,22 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.alternativeTypes:
             self.visitNode(expression)
 
+    def visitDecoratedTypeNode(self, node: ASTDecoratedTypeNode):
+        self.visitNode(node.baseType)
+
+    def visitArrayTypeNode(self, node: ASTArrayTypeNode):
+        self.visitNode(node.elementType)
+        self.visitNode(node.size)
+
+    def visitPointerTypeNode(self, node: ASTPointerTypeNode):
+        self.visitNode(node.baseType)
+
+    def visitReferenceTypeNode(self, node: ASTReferenceTypeNode):
+        self.visitNode(node.baseType)
+
+    def visitTemporaryReferenceTypeNode(self, node: ASTTemporaryReferenceTypeNode):
+        self.visitNode(node.baseType)
+            
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         for expression in node.elementTypes:
             self.visitNode(expression)
@@ -1315,6 +1555,30 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitSigmaNode(self, node):
+        assert False
+
+    def visitFormDecoratedTypeNode(self, node):
+        assert False
+
+    def visitFormPointerTypeNode(self, node):
+        assert False
+
+    def visitFormReferenceTypeNode(self, node):
+        assert False
+
+    def visitFormTemporaryReferenceTypeNode(self, node):
+        assert False
+
+    def visitFormArrayTypeNode(self, node):
+        assert False
+
+    def visitFormProductTypeNode(self, node):
+        assert False
+
+    def visitFormRecordTypeNode(self, node):
+        assert False
+
+    def visitFormSumTypeNode(self, node):
         assert False
 
     def visitFunctionNode(self, node):

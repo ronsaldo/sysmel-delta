@@ -1434,6 +1434,32 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
         assert False
 
+    def visitDecoratedTypeNode(self, node: ASTDecoratedTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        baseType = self.translateExpression(node.baseType)
+        return GHIRDecoratedType(self.context, node.sourcePosition, type, baseType, node.decorations).simplify()
+
+    def visitPointerTypeNode(self, node: ASTPointerTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        baseType = self.translateExpression(node.baseType)
+        return GHIRPointerType(self.context, node.sourcePosition, type, baseType).simplify()
+
+    def visitReferenceTypeNode(self, node: ASTReferenceTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        baseType = self.translateExpression(node.baseType)
+        return GHIRReferenceType(self.context, node.sourcePosition, type, baseType).simplify()
+
+    def visitTemporaryReferenceTypeNode(self, node: ASTTemporaryReferenceTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        baseType = self.translateExpression(node.baseType)
+        return GHIRTemporaryReferenceType(self.context, node.sourcePosition, type, baseType).simplify()
+
+    def visitArrayTypeNode(self, node: ASTArrayTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        elementType = self.translateExpression(node.elementType)
+        size = self.translateExpression(node.size)
+        return GHIRArrayType(self.context, node.sourcePosition, type, elementType, size).simplify()
+
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())
         elements = list(map(self.translateExpression, node.elementTypes))

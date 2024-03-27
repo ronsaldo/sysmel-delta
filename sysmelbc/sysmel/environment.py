@@ -610,6 +610,24 @@ def loadSourceNamedMacro(macroContext: MacroContext, sourceName: ASTNode) -> AST
     except FileNotFoundError:
         return ASTErrorNode(macroContext.sourcePosition, 'Failed to find source file "%s".' % sourceNameString)
 
+def formMutableTypeMacro(macroContext: MacroContext, baseType: ASTNode):
+    return ASTFormDecoratedTypeNode(macroContext.sourcePosition, baseType, DecoratedType.Mutable)
+
+def formVolatileTypeMacro(macroContext: MacroContext, baseType: ASTNode):
+    return ASTFormDecoratedTypeNode(macroContext.sourcePosition, baseType, DecoratedType.Volatile)
+
+def formArrayTypeMacro(macroContext: MacroContext, elementType: ASTNode, size: ASTNode):
+    return ASTFormArrayTypeNode(macroContext.sourcePosition, elementType, size)
+
+def formPointerTypeMacro(macroContext: MacroContext, baseType: ASTNode):
+    return ASTFormPointerTypeNode(macroContext.sourcePosition, baseType)
+
+def formReferenceTypeMacro(macroContext: MacroContext, baseType: ASTNode):
+    return ASTFormReferenceTypeNode(macroContext.sourcePosition, baseType)
+
+def formTemporaryReferenceTypeMacro(macroContext: MacroContext, baseType: ASTNode):
+    return ASTFormTemporaryReferenceTypeNode(macroContext.sourcePosition, baseType)
+
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
         AbortType, VoidType,
@@ -659,12 +677,12 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['__thiscall', 'Type::__thiscall', [(MacroContextType, ASTNodeType), ASTNodeType], thiscallMacro, ['macro']],
     ['__vectorcall', 'Type::__vectorcall', [(MacroContextType, ASTNodeType), ASTNodeType], vectorcallMacro, ['macro']],
 
-    ['mutable', 'Type::mutable', [TypeType, TypeType], DecoratedType.makeMutable, []],
-    ['volatile', 'Type::volatile', [TypeType, TypeType], DecoratedType.makeVolatile, []],
-    ['array:', 'Type::array:', [(TypeType, IntegerType), TypeType], ArrayType.makeWithElementTypeAndSize, []],
-    ['pointer', 'Type::pointer', [TypeType, TypeType], PointerType.makeWithBaseType, []],
-    ['ref', 'Type::ref', [TypeType, TypeType], ReferenceType.makeWithBaseType, []],
-    ['tempRef', 'Type::tempRef', [TypeType, TypeType], TemporaryReferenceType.makeWithBaseType, []],
+    ['mutable', 'Type::mutable', [(MacroContextType, TypeType), TypeType], formMutableTypeMacro, ['macro']],
+    ['volatile', 'Type::volatile', [(MacroContextType, TypeType), TypeType], formVolatileTypeMacro, ['macro']],
+    ['array:', 'Type::array:', [(MacroContextType, TypeType, IntegerType), TypeType], formArrayTypeMacro, ['macro']],
+    ['pointer', 'Type::pointer', [(MacroContextType, TypeType), TypeType], formPointerTypeMacro, ['macro']],
+    ['ref', 'Type::ref', [(MacroContextType, TypeType), TypeType], formReferenceTypeMacro, ['macro']],
+    ['tempRef', 'Type::tempRef', [(MacroContextType, TypeType), TypeType], formTemporaryReferenceTypeMacro, ['macro']],
 ], TopLevelEnvironment)
 
 for primitiveNumberType in NumberTypes:

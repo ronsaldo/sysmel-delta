@@ -263,7 +263,7 @@ class Typechecker(ASTVisitor):
     def unpackArgumentsForMacro(self, macroValue: TypedValue, node: ASTNode, sourcePosition: SourcePosition):
         macroType = macroValue.getType()
         if not macroType.argumentType.isProductType():
-            return node, None
+            return [node], None
         
         requiredArity = len(macroType.argumentType.elementTypes)
         if macroValue.expectsMacroEvaluationContext():
@@ -407,7 +407,8 @@ class Typechecker(ASTVisitor):
     def visitAllocaMutableWithValueNode(self, node: ASTAllocaMutableWithValueNode):
         initialValue = self.visitNode(node.initialValue)
         initialValueType = getTypeOfAnalyzedNode(initialValue, node.sourcePosition)
-        assert False
+        referenceType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, initialValueType))
+        return ASTTypedAllocaMutableWithValueNode(node.sourcePosition, referenceType, initialValue)
 
     def visitArgumentNode(self, node: ASTArgumentNode):
         assert False
@@ -473,6 +474,33 @@ class Typechecker(ASTVisitor):
                 return ASTLiteralTypeNode(node.sourcePosition, binding.value)
             return ASTTypedLiteralNode(node.sourcePosition, binding.getTypeExpression(), binding.value)
         return ASTTypedIdentifierReferenceNode(node.sourcePosition, binding.getTypeExpression(), binding)
+    
+    def visitFormDecoratedTypeNode(self, node: ASTFormDecoratedTypeNode):
+        baseType = self.visitTypeExpression(node.baseType)
+        return reduceDecoratedTypeNode(ASTDecoratedTypeNode(node.sourcePosition, baseType, node.decorations))
+
+    def visitFormPointerTypeNode(self, node: ASTFormPointerTypeNode):
+        baseType = self.visitTypeExpression(node.baseType)
+        return reducePointerTypeNode(ASTPointerTypeNode(node.sourcePosition, baseType))
+
+    def visitFormReferenceTypeNode(self, node: ASTFormReferenceTypeNode):
+        baseType = self.visitTypeExpression(node.baseType)
+        return reduceReferenceTypeNode(ASTPointerTypeNode(node.sourcePosition, baseType))
+
+    def visitFormTemporaryReferenceTypeNode(self, node: ASTFormTemporaryReferenceTypeNode):
+        baseType = self.visitTypeExpression(node.baseType)
+        return reduceTemporaryReferenceTypeNode(ASTPointerTypeNode(node.sourcePosition, baseType))
+
+    def visitFormArrayTypeNode(self, node: ASTFormArrayTypeNode):
+        elementType = self.visitTypeExpression(node.elementType)
+        size = self.visitNodeWithExpectedType(node.size, SizeType)
+        return reduceArrayType(ASTArrayTypeNode(node.sourcePosition, elementType, size))
+
+    def visitFormProductTypeNode(self, node: ASTFormProductTypeNode):
+        assert False
+
+    def visitFormSumTypeNode(self, node: ASTFormSumTypeNode):
+        assert False
 
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
         bindingList = self.lexicalEnvironment.lookSymbolBindingListRecursively(node.value)
@@ -742,6 +770,21 @@ class Typechecker(ASTVisitor):
         return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements))
 
     def visitOverloadsTypeNode(self, node: ASTProductTypeNode):
+        return node
+
+    def visitDecoratedTypeNode(self, node: ASTDecoratedTypeNode):
+        return node
+
+    def visitPointerTypeNode(self, node: ASTPointerTypeNode):
+        return node
+
+    def visitReferenceTypeNode(self, node: ASTReferenceTypeNode):
+        return node
+
+    def visitTemporaryReferenceTypeNode(self, node: ASTTemporaryReferenceTypeNode):
+        return node
+
+    def visitArrayTypeNode(self, node: ASTArrayTypeNode):
         return node
 
     def visitProductTypeNode(self, node: ASTProductTypeNode):
@@ -1084,7 +1127,28 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         overloads = self.visitNode(node.overloads)
         argument = self.visitNode(node.argument)
         applicationType = self.visitNode(node.type)
-        return ASTTypedOverloadedApplicationNode(node.sourcePosition, applicationType, overloads, argument, node.alternativeIndices)
+        return reduceTypedOverloadedApplicationNode(ASTTypedOverloadedApplicationNode(node.sourcePosition, applicationType, overloads, argument, node.alternativeIndices))
+
+    def visitDecoratedTypeNode(self, node: ASTDecoratedTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return reduceDecoratedTypeNode(ASTDecoratedTypeNode(baseType, baseType))
+
+    def visitPointerTypeNode(self, node: ASTPointerTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return reduceDecoratedTypeNode(ASTPointerTypeNode(baseType, baseType))
+
+    def visitReferenceTypeNode(self, node: ASTReferenceTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return reduceDecoratedTypeNode(ASTReferenceTypeNode(baseType, baseType))
+
+    def visitTemporaryReferenceTypeNode(self, node: ASTTemporaryReferenceTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return reduceDecoratedTypeNode(ASTTemporaryReferenceTypeNode(baseType, baseType))
+
+    def visitArrayTypeNode(self, node: ASTArrayTypeNode):
+        elementType = self.visitNode(node.elementType)
+        size = self.visitNode(node.size)
+        return reduceArrayType(ASTArrayTypeNode(node.sourcePosition, elementType, size))
     
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         reducedElementTypes = []
@@ -1267,6 +1331,45 @@ def reduceOverloadsTypeNode(node: ASTOverloadsTypeNode):
 def reduceTypedOverloadsNode(node: ASTTypedOverloadsNode):
     if len(node.alternatives) == 1:
         return node.alternatives[0]
+    return node
+
+def reduceDecoratedTypeNode(node: ASTDecoratedTypeNode):
+    if node.decorations == 0:
+        return node.baseType
+    if node.baseType.isLiteralTypeNode():
+        return ASTLiteralTypeNode(node.sourcePosition, DecoratedType.makeWithDecorations(node.baseType.value, node.decorations))
+    if node.baseType.isDecoratedTypeNode():
+        return ASTDecoratedTypeNode(node.sourcePosition, node.baseType.baseType, node.decorations | node.baseType.decorations)
+    return node
+
+def reducePointerTypeNode(node: ASTPointerTypeNode):
+    if node.baseType.isLiteralTypeNode():
+        return ASTLiteralTypeNode(node.sourcePosition, PointerType.makeWithBaseType(node.baseType.value))
+    return node
+
+def reduceReferenceTypeNode(node: ASTPointerTypeNode):
+    if node.baseType.isReferenceTypeNode():
+        return node.baseType
+    elif node.baseType.isTemporaryReferenceTypeNode():
+        return reduceReferenceTypeNode(ASTReferenceTypeNode(node.sourcePosition, node.baseType.baseType))
+
+    if node.baseType.isLiteralTypeNode():
+        return ASTLiteralTypeNode(node.sourcePosition, ReferenceType.makeWithBaseType(node.baseType.value))
+    return node
+
+def reduceTemporaryReferenceTypeNode(node: ASTTemporaryReferenceTypeNode):
+    if node.baseType.isTemporaryReferenceTypeNode():
+        return node.baseType
+    elif node.baseType.isReferenceTypeNode():
+        return node.baseType
+
+    if node.baseType.isLiteralTypeNode():
+        return ASTLiteralTypeNode(node.sourcePosition, TemporaryReferenceType.makeWithBaseType(node.baseType.value))
+    return node
+
+def reduceArrayType(node: ASTArrayTypeNode):
+    if node.elementType.isLiteralTypeNode() and node.size.isTypedLiteralNode():
+        return ASTLiteralTypeNode(node.sourcePosition, ArrayType.makeWithElementTypeAndSize(node.elementType.value, node.size.value))
     return node
 
 def reduceProductTypeNode(node: ASTProductTypeNode):

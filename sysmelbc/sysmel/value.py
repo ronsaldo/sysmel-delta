@@ -1079,6 +1079,39 @@ class ArrayType(DerivedType):
     def toJson(self):
         return {'arrayType': self.baseType.toJson(), 'size': self.size}
 
+class ValueBox(TypedValue):
+    def __init__(self, initialValue = None):
+        self.value = initialValue
+
+    def getType(self):
+        return None
+
+    def toJson(self):
+        return {'valueBox': optionalToJson(self.value)}
+
+class PointerLikeValue(TypedValue):
+    def __init__(self, type: TypedValue, storage, offset: int = 0) -> None:
+        super().__init__()
+        self.storage = storage
+        self.offset = offset
+        self.type = type
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitPointerLikeValue(self)
+
+    def getType(self):
+        return self.type
+
+    def isPointerLikeValue(self) -> bool:
+        return True
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not self.type.isEquivalentTo(other.getType()): return False
+        return self.storage is other.storage and self.offset == other.offset
+    
+    def toJson(self):
+        return {'pointerLikeValue': self.type.toJson(), 'storage' : optionalToJson(self.storage)}
+    
 class PointerType(DerivedType):
     def __init__(self, baseType) -> None:
         super().__init__(baseType)
@@ -1268,6 +1301,18 @@ class ASTNode(TypedValue):
         return False
     
     def isOverloadsTypeNode(self) -> bool:
+        return False
+
+    def isDecoratedTypeNode(self) -> bool:
+        return False
+
+    def isPointerTypeNode(self) -> bool:
+        return False
+
+    def isReferenceTypeNode(self) -> bool:
+        return False
+
+    def isTemporaryReferenceTypeNode(self) -> bool:
         return False
 
     def isLiteralTypeNode(self) -> bool:

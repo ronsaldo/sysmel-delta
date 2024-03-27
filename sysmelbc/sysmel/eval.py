@@ -26,6 +26,27 @@ class ASTEvaluator(ASTTypecheckedVisitor):
             alternativeTypes.append(self.visitNode(alternativeType))
         return OverloadsType.makeWithAlternativeTypes(alternativeTypes)
 
+    def visitDecoratedTypeNode(self, node: ASTDecoratedTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return DecoratedType.makeWithDecorations(baseType, node.decorations)
+
+    def visitPointerTypeNode(self, node: ASTPointerTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return PointerType.makeWithBaseType(baseType)
+
+    def visitReferenceTypeNode(self, node: ASTReferenceTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return ReferenceType.makeWithBaseType(baseType)
+
+    def visitTemporaryReferenceTypeNode(self, node: ASTReferenceTypeNode):
+        baseType = self.visitNode(node.baseType)
+        return TemporaryReferenceType.makeWithBaseType(baseType)
+
+    def visitArrayTypeNode(self, node: ASTArrayTypeNode):
+        elementType = self.visitNode(node.elementType)
+        size = self.visitNode(node.size)
+        return ArrayType.makeWithElementTypeAndSize(elementType, size)
+    
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         elementTypes = []
         for elementType in node.elementTypes:
@@ -51,8 +72,10 @@ class ASTEvaluator(ASTTypecheckedVisitor):
             return functional(argument)
         
     def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
-        # TODO: Implement this
-        assert False
+        initialValue = self.visitNode(node.initialValue)
+        box = ValueBox(initialValue)
+        referenceType = self.visitNode(node.type)
+        return PointerLikeValue(referenceType, box, 0)
     
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
         assert False
