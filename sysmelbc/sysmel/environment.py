@@ -628,6 +628,54 @@ def formReferenceTypeMacro(macroContext: MacroContext, baseType: ASTNode):
 def formTemporaryReferenceTypeMacro(macroContext: MacroContext, baseType: ASTNode):
     return ASTFormTemporaryReferenceTypeNode(macroContext.sourcePosition, baseType)
 
+def pointerLikeLoadMacro(macroContext: MacroContext, pointer: ASTTypedNode):
+    return ASTPointerLikeLoadNode(macroContext.sourcePosition, pointer)
+
+def pointerLikeStoreMacro(macroContext: MacroContext, pointer: ASTTypedNode, value: ASTNode):
+    return ASTPointerLikeStoreNode(macroContext.sourcePosition, pointer, value, False)
+
+def pointerLikeAsPointerMacro(macroContext: MacroContext, pointer: ASTTypedNode):
+    baseType = pointer.type.getBaseTypeExpressionAt(macroContext.sourcePosition)
+    pointerType = ASTFormPointerTypeNode(macroContext.sourcePosition, baseType)
+    return ASTPointerLikeReinterpretToNode(macroContext.sourcePosition, pointer, pointerType)
+
+def pointerLikeAsRefMacro(macroContext: MacroContext, pointer: ASTTypedNode):
+    baseType = pointer.type.getBaseTypeExpressionAt(macroContext.sourcePosition)
+    referenceType = ASTFormReferenceTypeNode(macroContext.sourcePosition, baseType)
+    return ASTPointerLikeReinterpretToNode(macroContext.sourcePosition, pointer, referenceType)
+
+def pointerLikeAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
+    return ASTPointerLikeLoadNode(macroContext.sourcePosition, ASTPointerLikeSubscriptAtNode(macroContext.sourcePosition, pointer, False))
+
+def pointerLikeAtPutMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode, value: ASTNode):
+    return ASTPointerLikeStoreNode(macroContext.sourcePosition, ASTPointerLikeSubscriptAtNode(macroContext.sourcePosition, pointer, index, False), value, False)
+
+def pointerLikeSubscriptAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
+    return ASTPointerLikeSubscriptAtNode(macroContext.sourcePosition, pointer, index, True)
+
+def referenceLikeAssignmentMacro(macroContext: MacroContext, reference: ASTTypedNode, value: ASTNode):
+    return ASTPointerLikeStoreNode(macroContext.sourcePosition, reference, value, True)
+
+PointerTypeMacros = {}
+for name, expander in [
+    ('load', pointerLikeLoadMacro),
+    ('store:', pointerLikeStoreMacro),
+    ('at:', pointerLikeAtMacro),
+    ('at:put:', pointerLikeAtPutMacro),
+    (':[]', pointerLikeSubscriptAtMacro),
+    ('_', pointerLikeAsRefMacro),
+]:
+    PointerTypeMacros[Symbol.intern(name)] = expander
+
+ReferenceLikeTypeMacros = {}
+for name, expander in [
+    ('__refLoad__', pointerLikeLoadMacro),
+    ('__refStore__:', pointerLikeStoreMacro),
+    ('address', pointerLikeAsPointerMacro),
+    (':=', referenceLikeAssignmentMacro),
+]:
+    ReferenceLikeTypeMacros[Symbol.intern(name)] = expander
+
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
         AbortType, VoidType,

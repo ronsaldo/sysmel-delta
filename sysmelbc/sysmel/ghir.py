@@ -96,6 +96,10 @@ class GHIRContext:
     
 class GHIRVisitor(ABC):
     @abstractmethod
+    def visitAllocaMutableWithValueExpression(self, value):
+        pass
+
+    @abstractmethod
     def visitConstantValue(self, value):
         pass
 
@@ -148,7 +152,19 @@ class GHIRVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitSequence(self, value):
+    def visitSequenceExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitPointerLikeLoadExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitPointerLikeStoreExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitPointerLikeReinterpretExpression(self, value):
         pass
 
     @abstractmethod
@@ -808,7 +824,7 @@ class GHIRSequence(GHIRValue):
         self.expressions = expressions
 
     def accept(self, visitor: GHIRVisitor):
-        return visitor.visitSequence(self)
+        return visitor.visitSequenceExpression(self)
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -1016,6 +1032,154 @@ class GHIRWhileExpression(GHIRValue):
             replacement.registerUserValue(self)
         if self.continueExpression is usedValue:
             self.continueExpression = replacement
+            replacement.registerUserValue(self)
+
+class GHIRAllocaMutableWithValueExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, valueType: GHIRValue, initialValue: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.valueType = valueType
+        self.initialValue = initialValue
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitAllocaMutableWithValueExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isAllocaMutableWithValueExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        valueType = graphPrinter.printValue(self.valueType)
+        initialValue = graphPrinter.printValue(self.initialValue)
+        graphPrinter.printLine('%s := alloca %s with %s : %s' % (valueName, valueType, initialValue, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.valueType
+        yield self.initialValue
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.valueType is usedValue:
+            self.valueType = replacement
+            replacement.registerUserValue(self)
+        if self.initialValue is usedValue:
+            self.initialValue = replacement
+            replacement.registerUserValue(self)
+
+class GHIRPointerLikeLoadExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, pointer: GHIRValue, isVolatile: bool = False) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.pointer = pointer
+        self.isVolatile = isVolatile
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitPointerLikeLoadExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isPointerLikeLoadExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        pointer = graphPrinter.printValue(self.pointer)
+        if self.isVolatile:
+            graphPrinter.printLine('%s := volatile load %s : %s' % (valueName, pointer, type))
+        else:
+            graphPrinter.printLine('%s := load %s : %s' % (valueName, pointer, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.pointer
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.pointer is usedValue:
+            self.pointer = replacement
+            replacement.registerUserValue(self)
+
+class GHIRPointerLikeStoreExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, pointer: GHIRValue, value: GHIRValue, isVolatile: bool = False) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.pointer = pointer
+        self.value = value
+        self.isVolatile = isVolatile
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitPointerLikeStoreExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isPointerLikeStoreExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        pointer = graphPrinter.printValue(self.pointer)
+        value = graphPrinter.printValue(self.value)
+        if self.isVolatile:
+            graphPrinter.printLine('%s := volatile store %s in %s : %s' % (valueName, value, pointer, type))
+        else:
+            graphPrinter.printLine('%s := store %s in %s : %s' % (valueName, value, pointer, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.pointer
+        yield self.value
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.pointer is usedValue:
+            self.pointer = replacement
+            replacement.registerUserValue(self)
+        if self.value is usedValue:
+            self.value = replacement
+            replacement.registerUserValue(self)
+
+class GHIRPointerLikeReinterpretExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, pointer: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.pointer = pointer
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitPointerLikeReinterpretExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isPointerLikeReinterpretExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        pointer = graphPrinter.printValue(self.pointer)
+        graphPrinter.printLine('%s := pointerLikeReinterpret %s : %s' % (valueName, pointer, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.pointer
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.pointer is usedValue:
+            self.pointer = replacement
             replacement.registerUserValue(self)
 
 class GHIRMakeTupleExpression(GHIRValue):
@@ -1480,8 +1644,11 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         return GHIRApplicationValue(self.context, node.sourcePosition, type, functional, [argument]).simplify()
 
     def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
-        # TODO: Implement this
-        assert False
+        type = self.translateExpression(node.type)
+        valueType = self.translateExpression(node.valueType)
+        initialValue = self.translateExpression(node.initialValue)
+
+        return GHIRAllocaMutableWithValueExpression(self.context, node.sourcePosition, type, valueType, initialValue).simplify()
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         assert False
@@ -1570,6 +1737,26 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         expressions = list(map(self.translateExpression, node.elements))
         return GHIRSequence(self.context, node.sourcePosition, type, expressions).simplify()
 
+    def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
+        type = self.translateExpression(node.type)
+        pointer = self.translateExpression(node.pointer)
+        return GHIRPointerLikeLoadExpression(self.context, node.sourcePosition, type, pointer, isVolatile = node.isVolatile).simplify()
+
+    def visitTypedPointerLikeStoreNode(self, node: ASTTypedPointerLikeStoreNode):
+        type = self.translateExpression(node.type)
+        pointer = self.translateExpression(node.pointer)
+        value = self.translateExpression(node.value)
+        store = GHIRPointerLikeStoreExpression(self.context, node.sourcePosition, self.translateValue(VoidType), pointer, value, isVolatile = node.isVolatile).simplify()
+        if node.returnPointer:
+            return GHIRSequence(self.context, node.sourcePosition, type, [store, pointer]).simplify()
+        else:
+            return GHIRSequence(self.context, node.sourcePosition, type, [store, value]).simplify()
+
+    def visitTypedPointerLikeReinterpretToNode(self, node: ASTTypedPointerLikeReinterpretToNode):
+        type = self.translateExpression(node.type)
+        pointer = self.translateExpression(node.pointer)
+        return GHIRPointerLikeReinterpretExpression(self.context, node.sourcePosition, type, pointer)
+    
     def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
         type = self.translateExpression(node.type)
         elements = list(map(self.translateExpression, node.elements))
@@ -1609,6 +1796,9 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
         result = value.accept(self)
         self.dfsState[value] = result
         return result
+    
+    def visitAllocaMutableWithValueExpression(self, value: GHIRAllocaMutableWithValueExpression):
+        return True
 
     def visitConstantValue(self, value: GHIRConstantValue):
         return False
@@ -1685,8 +1875,17 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
 
     def visitTemporaryReferenceType(self, value: GHIRTemporaryReferenceType):
         return self.visitDerivedType(value)
+    
+    def visitPointerLikeLoadExpression(self, value: GHIRPointerLikeLoadExpression):
+        return self.checkValue(value.pointer)
 
-    def visitSequence(self, value: GHIRSequence):
+    def visitPointerLikeStoreExpression(self, value: GHIRPointerLikeStoreExpression):
+        return self.checkValue(value.pointer) or self.checkValue(value.value)
+
+    def visitPointerLikeReinterpretExpression(self, value: GHIRPointerLikeReinterpretExpression):
+        return self.checkValue(value.pointer)
+
+    def visitSequenceExpression(self, value: GHIRSequence):
         for expression in value.expressions:
             if self.checkValue(expression):
                 return True

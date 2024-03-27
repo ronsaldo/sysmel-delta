@@ -385,7 +385,6 @@ def parseAssignmentExpression(state: ParserState) -> tuple[ParserState, ASTNode]
     if state.peekKind() == TokenKind.ASSIGNMENT:
         operatorToken = state.next()
         selector = ASTLiteralNode(operatorToken.sourcePosition, Symbol.intern(operatorToken.getStringValue()))
-        state.advance()
         state, assignedValue = parseAssignmentExpression(state)
         return state, ASTMessageSendNode(state.sourcePositionFrom(startPosition), assignedStore, selector, [assignedValue])
     else:

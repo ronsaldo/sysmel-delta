@@ -406,9 +406,9 @@ class Typechecker(ASTVisitor):
     
     def visitAllocaMutableWithValueNode(self, node: ASTAllocaMutableWithValueNode):
         initialValue = self.visitNode(node.initialValue)
-        initialValueType = getTypeOfAnalyzedNode(initialValue, node.sourcePosition)
-        referenceType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, initialValueType))
-        return ASTTypedAllocaMutableWithValueNode(node.sourcePosition, referenceType, initialValue)
+        valueType = decayDecorationsOfTypeExpression(getTypeOfAnalyzedNode(initialValue, node.sourcePosition))
+        referenceType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, ASTFormDecoratedTypeNode(node.sourcePosition, valueType, DecoratedType.Mutable)))
+        return ASTTypedAllocaMutableWithValueNode(node.sourcePosition, referenceType, valueType, initialValue)
 
     def visitArgumentNode(self, node: ASTArgumentNode):
         assert False
@@ -689,6 +689,10 @@ class Typechecker(ASTVisitor):
             return arguments
         return [ASTTupleNode(sourcePosition, arguments)]
     
+    def expandMessageSendWithMacro(self, node: ASTMessageSendNode, receiver: ASTNode, macro):
+        arguments = [MacroContext(node.sourcePosition, self.lexicalEnvironment, self), receiver] + node.arguments
+        return self.visitNode(macro(*arguments))
+
     def visitMessageSendNode(self, node: ASTMessageSendNode):
         analyzedReceiver = None
         if node.receiver is not None:
@@ -697,6 +701,13 @@ class Typechecker(ASTVisitor):
         selector, errorNode = self.evaluateSymbol(node.selector)
         if selector is not None:
             if analyzedReceiver is not None and not analyzedReceiver.isLiteralTypeNode():
+                if analyzedReceiver.type.isReferenceLikeTypeNodeOrLiteral():
+                    if selector in ReferenceLikeTypeMacros:
+                        return self.expandMessageSendWithMacro(node, analyzedReceiver, ReferenceLikeTypeMacros[selector])
+                if analyzedReceiver.type.isPointerTypeNodeOrLiteral():
+                    if selector in PointerTypeMacros:
+                        return self.expandMessageSendWithMacro(node, analyzedReceiver, PointerTypeMacros[selector])
+
                 ## Getter.
                 if len(node.arguments) == 0:
                     fieldIndex, fieldType = analyzedReceiver.type.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
@@ -733,6 +744,38 @@ class Typechecker(ASTVisitor):
         if len(typedElements) == 1:
             return typedElements[0]
         return ASTTypedSequenceNode(node.sourcePosition, resultType, typedElements)
+
+    def visitPointerLikeLoadNode(self, node: ASTPointerLikeLoadNode):
+        pointer = self.visitNode(node.pointer)
+        pointerType = getTypeOfAnalyzedNode(pointer, node.sourcePosition)
+        baseType = pointerType.getBaseTypeExpressionAt(node.sourcePosition)
+        isVolatile = isVolatileDecoratedTypeExpression(baseType)
+        baseType = decayDecorationsOfTypeExpression(baseType)
+        return ASTTypedPointerLikeLoadNode(node.sourcePosition, baseType, pointer, isVolatile = isVolatile)
+
+    def visitPointerLikeStoreNode(self, node: ASTPointerLikeStoreNode):
+        pointer = self.visitNode(node.pointer)
+        pointerType = getTypeOfAnalyzedNode(pointer, node.sourcePosition)
+        baseType = pointerType.getBaseTypeExpressionAt(node.sourcePosition)
+        isVolatile = isVolatileDecoratedTypeExpression(baseType)
+        if not isMutableDecoratedTypeExpression(baseType):
+            pointer = self.makeSemanticError(node.sourcePosition, 'Cannot perform store into non-mutable pointer or reference.', baseType)
+
+        baseType = decayDecorationsOfTypeExpression(baseType)
+        value = self.visitNodeWithExpectedTypeExpression(node.value, baseType)
+        resultType = value
+        if node.returnPointer:
+            resultType = pointerType
+        return ASTTypedPointerLikeStoreNode(node.sourcePosition, resultType, pointer, value, node.returnPointer, isVolatile = isVolatile)
+
+    def visitPointerLikeReinterpretToNode(self, node: ASTPointerLikeReinterpretToNode):
+        pointer = self.visitNode(node.pointer)
+        targetType = self.visitTypeExpression(node.targetType)
+        return reducePointerLikeReinterpretToNode(ASTTypedPointerLikeReinterpretToNode(node.sourcePosition, targetType, pointer))
+
+    def visitPointerLikeSubscriptAtNode(self, node: ASTPointerLikeSubscriptAtNode):
+        pointer = self.visitNode(node.pointer)
+        assert False
 
     def visitOverloadsNode(self, node: ASTOverloadsNode):
         if len(node.alternatives) == 0:
@@ -848,6 +891,15 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedOverloadsNode(self, node: ASTTypedOverloadsNode):
+        return node
+
+    def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
+        return node
+
+    def visitTypedPointerLikeStoreNode(self, node: ASTTypedPointerLikeStoreNode):
+        return node
+
+    def visitTypedPointerLikeReinterpretToNode(self, node: ASTTypedPointerLikeReinterpretToNode):
         return node
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
@@ -999,8 +1051,9 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
     
     def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
         type = self.visitNode(node.type)
+        valueType = self.visitNode(node.valueType)
         initialValue = self.visitNode(node.initialValue)
-        return ASTTypedAllocaMutableWithValueNode(node.sourcePosition, type, initialValue)
+        return ASTTypedAllocaMutableWithValueNode(node.sourcePosition, type, valueType, initialValue)
     
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         for binding, substitution in node.implicitValueSubstitutions:
@@ -1098,6 +1151,22 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
 
     def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode):
         assert False
+
+    def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
+        type = self.visitNode(node.type)
+        pointer = self.visitNode(node.pointer)
+        return ASTTypedPointerLikeLoadNode(node.sourcePosition, type, pointer, isVolatile = node.isVolatile)
+
+    def visitTypedPointerLikeStoreNode(self, node: ASTTypedPointerLikeStoreNode):
+        type = self.visitNode(node.type)
+        pointer = self.visitNode(node.pointer)
+        value = self.visitNode(node.value)
+        return ASTTypedPointerLikeStoreNode(node.sourcePosition, type, pointer, value, node.returnPointer, isVolatile = node.isVolatile)
+
+    def visitTypedPointerLikeReinterpretToNode(self, node: ASTTypedPointerLikeReinterpretToNode):
+        type = self.visitNode(node.type)
+        pointer = self.visitNode(node.pointer)
+        return reducePointerLikeReinterpretToNode(ASTTypedPointerLikeReinterpretToNode(node.sourcePosition, type, pointer))
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
         reducedType = self.visitNode(node.type)
@@ -1252,6 +1321,26 @@ LambdaValue.betaReduceApplicationWithArgumentWithArgumentNode = betaReduceFuncti
 CurriedFunctionalValue.betaReduceApplicationWithArgumentWithArgumentNode = reducePrimitiveFunctionalValueApplicationWithArgumentNode
 CurryingFunctionalValue.betaReduceApplicationWithArgumentWithArgumentNode = reducePrimitiveFunctionalValueApplicationWithArgumentNode
 PrimitiveFunction.betaReduceApplicationWithArgumentWithArgumentNode = reducePrimitiveFunctionalValueApplicationWithArgumentNode
+
+def decorationsOfTypeExpression(node: ASTTypeNode) -> int:
+    if node.isLiteralTypeNode() and node.value.isDecoratedType():
+        return node.value.decorations
+    elif node.isDecoratedTypeNode():
+        return node.decorations
+    return 0
+
+def isMutableDecoratedTypeExpression(node: ASTTypeNode):
+    return (decorationsOfTypeExpression(node) & DecoratedType.Mutable) != 0
+
+def isVolatileDecoratedTypeExpression(node: ASTTypeNode):
+    return (decorationsOfTypeExpression(node) & DecoratedType.Volatile) != 0
+    
+def decayDecorationsOfTypeExpression(node: ASTTypeNode):
+    if node.isLiteralTypeNode() and node.value.isDecoratedType():
+        return ASTLiteralTypeNode(node.sourcePosition, node.value.baseType)
+    elif node.isDecoratedTypeNode():
+        return node.baseType
+    return node
 
 def reduceTypedApplicationNode(node: ASTTypedApplicationNode):
     if len(node.implicitValueSubstitutions) != 0:
@@ -1442,6 +1531,11 @@ def reduceDoWhileNode(node: ASTTypedDoWhileNode):
         if not node.condition.value.interpretAsBoolean():
             resultValue = ASTTypedLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
             sequence = ASTTypedSequenceNode(node.sourcePosition, node.type, [node.bodyExpression, resultValue])
+    return node
+
+def reducePointerLikeReinterpretToNode(node: ASTTypedPointerLikeReinterpretToNode):
+    if node.pointer.isTypedPointerLikeReinterpretToNode():
+        return ASTTypedPointerLikeReinterpretToNode(node.sourcePosition, node.type, node.pointer.pointer)
     return node
 
 def mergeTypeUniversesOfTypeNodePair(leftNode: ASTTypedNode, rightNode: ASTTypedNode, sourcePosition: SourcePosition) -> ASTLiteralTypeNode:

@@ -139,6 +139,22 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitPointerLikeLoadNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitPointerLikeStoreNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitPointerLikeReinterpretToNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitPointerLikeSubscriptAtNode(self, node):
+        pass
+
+    @abstractmethod
     def visitOverloadsTypeNode(self, node):
         pass
 
@@ -248,6 +264,18 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedOverloadsNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedPointerLikeLoadNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedPointerLikeStoreNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedPointerLikeReinterpretToNode(self, node):
         pass
 
     @abstractmethod
@@ -726,13 +754,15 @@ class ASTDerivedTypeNode(ASTTypeNode):
         super().__init__(sourcePosition)
         self.baseType = baseType
 
+    def getBaseTypeExpressionAt(self, sourcePosition: SourcePosition) -> ASTTypeNode:
+        return self.baseType
+
     def computeTypeUniverseIndex(self) -> int:
         return self.baseType
 
 class ASTDecoratedTypeNode(ASTDerivedTypeNode):
     def __init__(self, sourcePosition: SourcePosition, baseType: ASTTypeNode, decorations: int) -> None:
-        super().__init__(sourcePosition)
-        self.baseType = baseType
+        super().__init__(sourcePosition, baseType)
         self.decorations = decorations
 
     def accept(self, visitor):
@@ -751,6 +781,9 @@ class ASTPointerTypeNode(ASTDerivedTypeNode):
     def isPointerTypeNode(self) -> bool:
         return True
 
+    def isPointerTypeNodeOrLiteral(self) -> bool:
+        return True
+
     def toJson(self) -> dict:
         return {'kind': 'PointerType', 'baseType': self.baseType.toJson()}
 
@@ -759,6 +792,9 @@ class ASTReferenceTypeNode(ASTDerivedTypeNode):
         return visitor.visitReferenceType(self)
 
     def isReferenceTypeNode(self) -> bool:
+        return True
+    
+    def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
         return True
 
     def toJson(self) -> dict:
@@ -771,6 +807,9 @@ class ASTTemporaryReferenceTypeNode(ASTDerivedTypeNode):
     def isTemporaryReferenceTypeNode(self) -> bool:
         return True
 
+    def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
+        return True
+    
     def toJson(self) -> dict:
         return {'kind': 'TemporaryReferenceType', 'baseType': self.baseType.toJson()}
 
@@ -899,16 +938,66 @@ class ASTModuleEntryPointNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'ModuleEntryPoint', 'entryPoint': self.entryPoint.toJson()}
 
+class ASTPointerLikeLoadNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, pointer: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.pointer = pointer
+    
+    def accept(self, visitor):
+        return visitor.visitPointerLikeLoadNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'PointerLikeLoad', 'pointer': self.pointer.toJson()}
+
+class ASTPointerLikeStoreNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, pointer: ASTNode, value: ASTNode, returnPointer: bool) -> None:
+        super().__init__(sourcePosition)
+        self.pointer = pointer
+        self.value = value
+        self.returnPointer = returnPointer
+    
+    def accept(self, visitor):
+        return visitor.visitPointerLikeStoreNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'PointerLikeStore', 'pointer': self.pointer.toJson(), 'returnPointer': self.returnPointer}
+
+class ASTPointerLikeReinterpretToNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, pointer: ASTNode, targetType: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.pointer = pointer
+        self.targetType = targetType
+    
+    def accept(self, visitor):
+        return visitor.visitPointerLikeReinterpretToNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'PointerLikeAsPointer', 'pointer': self.pointer.toJson(), 'targetType' : self.targetType.toJson()}
+
+class ASTPointerLikeSubscriptAtNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, pointer: ASTNode, index: ASTNode, resultAsReference: bool) -> None:
+        super().__init__(sourcePosition)
+        self.pointer = pointer
+        self.index = index
+        self.resultAsReference = resultAsReference
+    
+    def accept(self, visitor):
+        return visitor.visitPointerLikeSubscriptAtNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'PointerLikeSubscriptAt', 'pointer': self.pointer.toJson(), 'index': self.index.toJson(), 'resultAsReference': resultAsReference}
+
 class ASTTypedAllocaMutableWithValueNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, initialValue: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, valueType: ASTNode, initialValue: ASTNode) -> None:
         super().__init__(sourcePosition, type)
         self.initialValue = initialValue
+        self.valueType = valueType
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedAllocaMutableWithValueNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'AllocaMutableWithValue', 'type' : self.type.toJson(), 'initialValue': self.initialValue.toJson()}
+        return {'kind': 'AllocaMutableWithValue', 'type' : self.type.toJson(), 'valueType': self.valueType.toJson(), 'initialValue': self.initialValue.toJson()}
     
 class ASTTypedArgumentNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, binding: SymbolArgumentBinding, isImplicit: bool = False, isExistential: bool = False) -> None:
@@ -1109,6 +1198,46 @@ class ASTTypedOverloadsNode(ASTTypedNode):
 
     def toJson(self) -> dict:
         return {'kind': 'TypedOverloads', 'type': self.type.toJson(), 'alternatives': list(map(optionalASTNodeToJson, self.alternatives))}
+
+class ASTTypedPointerLikeLoadNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, pointer: ASTTypedNode, isVolatile = False) -> None:
+        super().__init__(sourcePosition, type)
+        self.pointer = pointer
+        self.isVolatile = isVolatile
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedPointerLikeLoadNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedPointerLikeLoad', 'type': self.type.toJson(), 'pointer': self.pointer.toJson()}
+
+class ASTTypedPointerLikeStoreNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, pointer: ASTTypedNode, value: ASTTypedNode, returnPointer, isVolatile = False) -> None:
+        super().__init__(sourcePosition, type)
+        self.pointer = pointer
+        self.value = value
+        self.returnPointer = returnPointer
+        self.isVolatile = isVolatile
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedPointerLikeStoreNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedPointerLikeStore', 'type': self.type.toJson(), 'pointer': self.pointer.toJson()}
+    
+class ASTTypedPointerLikeReinterpretToNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, pointer: ASTTypedNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.pointer = pointer
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedPointerLikeReinterpretToNode(self)
+    
+    def isTypedPointerLikeReinterpretToNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedPointerLikeReinterpretTo', 'type': self.type.toJson(), 'pointer': self.pointer.toJson()}
     
 class ASTTypedSequenceNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTTypedNode]) -> None:
@@ -1346,6 +1475,21 @@ class ASTSequentialVisitor(ASTVisitor):
         for alternative in node.alternatives:
             self.visitNode(alternative)
 
+    def visitPointerLikeLoadNode(self, node: ASTPointerLikeLoadNode):
+        self.visitNode(node.pointer)
+
+    def visitPointerLikeStoreNode(self, node: ASTPointerLikeStoreNode):
+        self.visitNode(node.pointer)
+        self.visitNode(node.value)
+
+    def visitPointerLikeReinterpretToNode(self, node: ASTPointerLikeReinterpretToNode):
+        self.visitNode(node.pointer)
+        self.visitNode(node.targetType)
+
+    def visitPointerLikeSubscriptAtNode(self, node: ASTPointerLikeSubscriptAtNode):
+        self.visitNode(node.pointer)
+        self.visitNode(node.index)
+
     def visitSequenceNode(self, node: ASTSequenceNode):
         for expression in node.elements:
             self.visitNode(expression)
@@ -1404,6 +1548,7 @@ class ASTSequentialVisitor(ASTVisitor):
 
     def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
         self.visitNode(node.type)
+        self.visitNode(node.valueType)
         self.visitNode(node.initialValue)
 
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):
@@ -1488,7 +1633,20 @@ class ASTSequentialVisitor(ASTVisitor):
         for alternatives in node.alternatives:
             self.visitNode(alternatives)
 
-    def visitTypedSequenceNode(self, node: ASTSequenceNode):
+    def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
+        self.visitNode(node.type)
+        self.visitNode(node.pointer)
+
+    def visitTypedPointerLikeStoreNode(self, node: ASTTypedPointerLikeStoreNode):
+        self.visitNode(node.type)
+        self.visitNode(node.pointer)
+        self.visitNode(node.value)
+
+    def visitTypedPointerLikeReinterpretToNode(self, node: ASTTypedPointerLikeReinterpretToNode):
+        self.visitNode(node.type)
+        self.visitNode(node.pointer)
+
+    def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
         self.visitNode(node.type)
         for expression in node.elements:
             self.visitNode(expression)
@@ -1642,6 +1800,18 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitSequenceNode(self, node):
+        assert False
+
+    def visitPointerLikeLoadNode(self, node: ASTPointerLikeLoadNode):
+        assert False
+
+    def visitPointerLikeStoreNode(self, node: ASTPointerLikeStoreNode):
+        assert False
+
+    def visitPointerLikeReinterpretToNode(self, node: ASTPointerLikeReinterpretToNode):
+        assert False
+
+    def visitPointerLikeSubscriptAtNode(self, node: ASTPointerLikeSubscriptAtNode):
         assert False
 
     def visitTupleNode(self, node):

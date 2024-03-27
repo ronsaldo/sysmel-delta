@@ -15,7 +15,7 @@ class HIRContext:
         self.functionTypeAlignment = self.gcPointerAlignment
         self.anyType = HIRAnyType(self, 'Any', self.anySize, self.anyAlignment)
         self.booleanType = HIRPrimitiveBooleanType(self, 'Boolean', 1, 1)
-        self.unitType = HIRVoidType(self, 'Void', 0, 1)
+        self.voidType = HIRVoidType(self, 'Void', 0, 1)
 
         self.int8Type   = HIRPrimitiveIntegerType(self, 'Int8',   True, 1, 1)
         self.int16Type  = HIRPrimitiveIntegerType(self, 'Int16',  True, 2, 2)
@@ -787,6 +787,46 @@ class HIRInstruction(HIRFunctionalLocalValue):
     def successorBlocks(self) -> list[HIRBasicBlock]:
         return []
 
+class HIRAllocaInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, type: HIRValue, valueType: HIRValue, name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.valueType = valueType
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitAllocaInstruction(self)
+
+    def fullPrintString(self) -> str:
+        return '%s : %s := alloca %s (' % (str(self), str(self.type), str(self.valueType))
+    
+class HIRLoadInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, type: HIRValue, pointer: HIRValue, name: str = None) -> None:
+        super().__init__(context, type, name)
+        self.pointer = pointer
+        self.isVolatile = False
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitLoadInstruction(self)
+
+    def fullPrintString(self) -> str:
+        if self.isVolatile:
+            return '%s : %s := volatile load %s' % (str(self), str(self.type), str(self.pointer))
+        return '%s : %s := load %s' % (str(self), str(self.type), str(self.pointer))
+
+class HIRStoreInstruction(HIRInstruction):
+    def __init__(self, context: HIRContext, value: HIRValue, pointer: HIRValue, name: str = None) -> None:
+        super().__init__(context, context.voidType, name)
+        self.value = value
+        self.pointer = pointer
+        self.isVolatile = False
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitLoadInstruction(self)
+
+    def fullPrintString(self) -> str:
+        if self.isVolatile:
+            return '%s : %s := volatile store %s in %s' % (str(self), str(self.type), str(self.value), str(self.pointer))
+        return '%s : %s := store %s in %s' % (str(self), str(self.type), str(self.value), str(self.pointer))
+    
 class HIRCallInstruction(HIRInstruction):
     def __init__(self, context: HIRContext, type: HIRValue, functional: HIRValue, arguments: list[HIRValue], name: str = None) -> None:
         super().__init__(context, type, name)
@@ -810,7 +850,7 @@ class HIRCallInstruction(HIRInstruction):
     
 class HIRTerminatorInstruction(HIRInstruction):
     def __init__(self, context: HIRContext, name: str = None) -> None:
-        super().__init__(context, context.unitType, name)
+        super().__init__(context, context.voidType, name)
     
     def isTerminatorInstruction(self) -> bool:
         return True
@@ -906,7 +946,16 @@ class HIRBuilder:
     def addInstruction(self, instruction: HIRInstruction) -> HIRValue:
         self.basicBlock.addInstruction(instruction)
         return instruction
-    
+
+    def alloca(self, resultType: HIRValue, valueType: HIRValue) -> HIRInstruction:
+        return self.addInstruction(HIRAllocaInstruction(self.context, resultType, valueType))
+
+    def load(self, resultType: HIRValue, pointer: HIRValue) -> HIRInstruction:
+        return self.addInstruction(HIRLoadInstruction(self.context, resultType, pointer))
+
+    def store(self, value: HIRValue, pointer: HIRValue) -> HIRInstruction:
+        return self.addInstruction(HIRStoreInstruction(self.context, value, pointer))
+
     def call(self, resultType: HIRValue, functional: HIRValue, arguments: list[HIRValue]) -> HIRInstruction:
         return self.addInstruction(HIRCallInstruction(self.context, resultType, functional, arguments))
 
@@ -992,7 +1041,7 @@ class HIRModuleFrontend:
         self.runtimeDependencyChecker = GHIRRuntimeDependencyChecker()
 
         for baseType, targetType in [
-            (VoidType, self.context.unitType),
+            (VoidType, self.context.voidType),
 
             (Int8Type,  self.context.int8Type),
             (Int16Type, self.context.int16Type),
@@ -1016,8 +1065,8 @@ class HIRModuleFrontend:
             (Float32Type, self.context.float32Type),
             (Float64Type, self.context.float64Type),
 
-            (FalseType, self.context.unitType),
-            (TrueType, self.context.unitType),
+            (FalseType, self.context.voidType),
+            (TrueType, self.context.voidType),
         ]:
             self.translatedConstantValueDictionary[baseType] = targetType
 
@@ -1066,6 +1115,14 @@ class HIRModuleFrontend:
     def visitPointerType(self, value: GHIRPointerType) -> HIRValue:
         baseType = self.translateGraphValue(value.baseType)
         return HIRPointerType(self.context, baseType)
+
+    def visitReferenceType(self, value: GHIRReferenceType) -> HIRValue:
+        baseType = self.translateGraphValue(value.baseType)
+        return HIRReferenceType(self.context, baseType)
+
+    def visitTemporaryReferenceType(self, value: GHIRTemporaryReferenceType) -> HIRValue:
+        baseType = self.translateGraphValue(value.baseType)
+        return HIRTemporaryReferenceType(self.context, baseType)
 
     def visitLambdaValue(self, graphValue: GHIRLambdaValue) -> HIRValue:
         lambdaType = self.translateGraphValue(graphValue.type)
@@ -1134,6 +1191,7 @@ class HIRFunctionalDefinitionFrontend:
         self.moduleFrontend = moduleFrontend
         self.functionalDefinition: HIRFunctionalDefinition = None
         self.localBindings = dict()
+        self.translatedLocalValues = dict()
         self.builder: HIRBuilder = None
         self.currentBreak: HIRBasicBlock = None
         self.currentContinue: HIRBasicBlock = None
@@ -1163,8 +1221,20 @@ class HIRFunctionalDefinitionFrontend:
         
         if not self.moduleFrontend.runtimeDependencyChecker.checkValue(graphValue):
             return self.moduleFrontend.translateGraphValue(graphValue)
+        
+        if graphValue in self.translatedLocalValues:
+            return self.translatedLocalValues[graphValue]
 
-        return graphValue.accept(self)
+        translatedValue = graphValue.accept(self)
+        self.translatedLocalValues[graphValue] = translatedValue
+        return translatedValue
+    
+    def translateLocalGraphValue(self, graphValue: GHIRValue) -> HIRValue:
+        oldTranslatedLocalValues = self.translatedLocalValues
+        self.translatedLocalValues = dict(self.translatedLocalValues)
+        result = self.translateGraphValue(graphValue)
+        self.translatedLocalValues = oldTranslatedLocalValues
+        return result
     
     def withBreakAndContinueDo(self, breakBlock: HIRBasicBlock, continueBlock: HIRBasicBlock, action):
         oldBreak = self.currentBreak
@@ -1176,6 +1246,14 @@ class HIRFunctionalDefinitionFrontend:
         finally:
             self.currentBreak = oldBreak
             self.currentContinue = oldContinue
+
+    def visitAllocaMutableWithValueExpression(self, allocaExpression: GHIRAllocaMutableWithValueExpression):
+        pointerType = self.translateGraphValue(allocaExpression.type)
+        valueType = self.translateGraphValue(allocaExpression.valueType)
+        initialValue = self.translateGraphValue(allocaExpression.initialValue)
+        alloca = self.builder.alloca(pointerType, valueType)
+        self.builder.store(initialValue, alloca)
+        return alloca
 
     def visitApplicationValue(self, application: GHIRApplicationValue) -> HIRValue:
         functional = self.translateGraphValue(application.functional)
@@ -1194,7 +1272,7 @@ class HIRFunctionalDefinitionFrontend:
 
         ## True expression
         self.builder.beginBasicBlock(trueBlock)
-        trueResult = self.translateGraphValue(ifExpression.trueExpression)
+        trueResult = self.translateLocalGraphValue(ifExpression.trueExpression)
         trueResultIncomingBlock = self.builder.basicBlock
         trueBlockTerminates = self.builder.isLastTerminator()
         if not trueBlockTerminates:
@@ -1202,7 +1280,7 @@ class HIRFunctionalDefinitionFrontend:
 
         ## False expression
         self.builder.beginBasicBlock(falseBlock)
-        falseResult = self.translateGraphValue(ifExpression.falseExpression)
+        falseResult = self.translateLocalGraphValue(ifExpression.falseExpression)
         falseResultIncomingBlock = self.builder.basicBlock
         falseBlockTerminates = self.builder.isLastTerminator()
         if not falseBlockTerminates:
@@ -1238,13 +1316,13 @@ class HIRFunctionalDefinitionFrontend:
 
         # Continue.
         self.builder.beginBasicBlock(continueBlock)
-        self.translateGraphValue(doWhileExpression.continueExpression)
+        self.translateLocalGraphValue(doWhileExpression.continueExpression)
         if not self.builder.isLastTerminator():
             self.builder.branch(conditionBlock)
         
         # Condition
         self.builder.beginBasicBlock(conditionBlock)
-        condition = self.translateGraphValue(doWhileExpression.condition)
+        condition = self.translateLocalGraphValue(doWhileExpression.condition)
         self.builder.condBranch(condition, bodyBlock, mergeBlock)
 
         # Merge
@@ -1270,13 +1348,13 @@ class HIRFunctionalDefinitionFrontend:
 
         # Loop body.
         self.builder.beginBasicBlock(bodyBlock)
-        self.withBreakAndContinueDo(mergeBlock, continueBlock, lambda: self.translateGraphValue(whileExpression.bodyExpression))
+        self.withBreakAndContinueDo(mergeBlock, continueBlock, lambda: self.translateLocalGraphValue(whileExpression.bodyExpression))
         if not self.builder.isLastTerminator():
             self.builder.branch(continueBlock)
 
         # Continue.
         self.builder.beginBasicBlock(continueBlock)
-        self.translateGraphValue(whileExpression.continueExpression)
+        self.translateLocalGraphValue(whileExpression.continueExpression)
         if not self.builder.isLastTerminator():
             self.builder.branch(headerBlock)
         
@@ -1284,7 +1362,21 @@ class HIRFunctionalDefinitionFrontend:
         self.builder.beginBasicBlock(mergeBlock)
         return resultType.getSingleton()
     
-    def visitSequence(self, sequence: GHIRSequence) -> HIRValue:
+    def visitPointerLikeLoadExpression(self, loadExpression: GHIRPointerLikeLoadExpression) -> HIRValue:
+        resultType = self.translateGraphValue(loadExpression.getType())
+        pointer = self.translateGraphValue(loadExpression.pointer)
+        load = self.builder.load(resultType, pointer)
+        load.isVolatile = loadExpression.isVolatile
+        return load
+
+    def visitPointerLikeStoreExpression(self, storeExpression: GHIRPointerLikeStoreExpression) -> HIRValue:
+        pointer = self.translateGraphValue(storeExpression.pointer)
+        value = self.translateGraphValue(storeExpression.value)
+        store = self.builder.store(value, pointer)
+        store.isVolatile = storeExpression.isVolatile
+        return store
+
+    def visitSequenceExpression(self, sequence: GHIRSequence) -> HIRValue:
         result = self.moduleFrontend.translateConstantTypedValue(VoidType.getSingleton())
         for element in sequence.expressions:
             result = self.translateGraphValue(element)

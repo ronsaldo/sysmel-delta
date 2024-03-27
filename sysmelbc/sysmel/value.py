@@ -189,6 +189,15 @@ class TypedValue(ABC):
     
     def findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition) -> int | None:
         return None, None
+
+    def getBaseTypeExpressionAt(self, sourcePosition):
+        assert False
+
+    def isPointerTypeNodeOrLiteral(self) -> bool:
+        return False
+
+    def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
+        return False
     
     def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
         return typechecker.makeSemanticError(sourcePosition, "Failed to convert value into function type node %s." % self.prettyPrint())
@@ -991,6 +1000,9 @@ class DerivedType(BaseType):
         if not isinstance(other, self.__class__): return False
         return self.baseType.isEquivalentTo(other.baseType)
     
+    def getBaseTypeExpressionAt(self, sourcePosition):
+        return ASTLiteralTypeNode(sourcePosition, self.baseType)
+
     def getType(self):
         return self.baseType.getType()
 
@@ -1006,6 +1018,9 @@ class DecoratedType(DerivedType):
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitDecoratedType(self)
+
+    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition) -> int | None:
+        return self.baseType.findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition)
     
     def prettyPrint(self) -> str:
         result = self.baseType.prettyPrint()
@@ -1080,12 +1095,21 @@ class ArrayType(DerivedType):
         return {'arrayType': self.baseType.toJson(), 'size': self.size}
 
 class ValueBox(TypedValue):
-    def __init__(self, initialValue = None):
+    def __init__(self, valueType: TypedValue, initialValue = None):
+        self.valueType = valueType
         self.value = initialValue
 
     def getType(self):
         return None
 
+    def loadAtOffset(self, offset: int):
+        assert offset == 0
+        return self.value
+
+    def storeAtOffset(self, offset: int, value):
+        assert offset == 0
+        self.value = value
+    
     def toJson(self):
         return {'valueBox': optionalToJson(self.value)}
 
@@ -1101,6 +1125,15 @@ class PointerLikeValue(TypedValue):
 
     def getType(self):
         return self.type
+
+    def loadValue(self):
+        return self.storage.loadAtOffset(self.offset)
+
+    def storeValue(self, value):
+        return self.storage.storeAtOffset(self.offset, value)
+    
+    def reinterpretTo(self, targetType):
+        return PointerLikeValue(targetType, self.storage, self.offset)
 
     def isPointerLikeValue(self) -> bool:
         return True
@@ -1368,6 +1401,9 @@ class ASTNode(TypedValue):
 
     def isTypedOverloadsNode(self) -> bool:
         return False
+    
+    def isTypedPointerLikeReinterpretToNode(self) -> bool:
+        return False
 
     def isTupleNode(self) -> bool:
         return False
@@ -1400,6 +1436,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
     def prettyPrint(self) -> str:
         return self.value.prettyPrint()
 
+    def getBaseTypeExpressionAt(self, sourcePosition):
+        return self.value.getBaseTypeExpressionAt(sourcePosition)
+
     def getTypeUniverse(self) -> TypedValue:
         return self.value.getType()
 
@@ -1430,6 +1469,12 @@ class ASTLiteralTypeNode(ASTTypeNode):
     
     def isTypedLiteralReducibleFunctionalValue(self) -> bool:
         return self.value.isReducibleFunctionalValue()
+    
+    def isPointerTypeNodeOrLiteral(self) -> bool:
+        return self.value.isPointerType()
+
+    def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
+        return self.value.isReferenceType() or self.value.isTemporaryReferenceType()
     
     def accept(self, visitor):
         return visitor.visitLiteralTypeNode(self)

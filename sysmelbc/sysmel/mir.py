@@ -735,7 +735,7 @@ class MIRModuleFrontend:
         self.module.name = hirModule.name
 
         for hirType, mirType in [
-            (hirContext.unitType,  mirContext.voidType),
+            (hirContext.voidType,  mirContext.voidType),
             (hirContext.booleanType,  mirContext.booleanType),
             (hirContext.int8Type,  mirContext.int8Type),
             (hirContext.int16Type, mirContext.int16Type),
@@ -956,6 +956,15 @@ class MIRFunctionFrontend:
     def visitBranchInstruction(self, hirInstruction: HIRBranchInstruction):
         destination = self.translateValue(hirInstruction.destination)
         return self.builder.branch(destination)
+    
+    def visitAllocaInstruction(self, hirInstruction: HIRAllocaInstruction):
+        assert False
+
+    def visitLoadInstruction(self, hirInstruction: HIRLoadInstruction):
+        assert False
+
+    def visitStoreInstruction(self, hirInstruction: HIRStoreInstruction):
+        assert False
 
     def visitCallInstruction(self, hirInstruction: HIRCallInstruction):
         hirFunctional = hirInstruction.functional

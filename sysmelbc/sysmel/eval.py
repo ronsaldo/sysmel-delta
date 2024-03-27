@@ -72,8 +72,9 @@ class ASTEvaluator(ASTTypecheckedVisitor):
             return functional(argument)
         
     def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
+        valueType = self.visitNode(node.valueType)
         initialValue = self.visitNode(node.initialValue)
-        box = ValueBox(initialValue)
+        box = ValueBox(valueType, initialValue)
         referenceType = self.visitNode(node.type)
         return PointerLikeValue(referenceType, box, 0)
     
@@ -166,6 +167,24 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         overloadFunctionType = self.visitNode(node.type)
         return overloadFunctionType.makeWithAlternatives(tuple(alternatives))
 
+    def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
+        pointer = self.visitNode(node.pointer)
+        return pointer.loadValue()
+
+    def visitTypedPointerLikeStoreNode(self, node: ASTTypedPointerLikeStoreNode):
+        pointer = self.visitNode(node.pointer)
+        value = self.visitNode(node.value)
+        pointer.storeValue(value)
+        if node.returnPointer:
+            return pointer
+        else:
+            return value
+
+    def visitTypedPointerLikeReinterpretToNode(self, node: ASTTypedPointerLikeReinterpretToNode):
+        type = self.visitNode(node.type)
+        pointer = self.visitNode(node.pointer)
+        return pointer.reinterpretTo(type)
+    
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
         result = VoidType.getSingleton()
         for expression in node.elements:
