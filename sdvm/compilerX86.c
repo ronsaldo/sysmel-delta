@@ -1933,11 +1933,211 @@ void sdvm_compiler_x64_computeFunctionLocationConstraints(sdvm_functionCompilati
 
     sdvm_functionCompilationState_computeLabelLocations(state);
 
-    for(uint32_t i = 0; i < state->instructionCount; ++i)
-        sdvm_compiler_x64_computeInstructionLocationConstraints(state, state->instructions + i);
+    uint32_t i = 0;
+    while(i < state->instructionCount)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        if(instruction->pattern)
+        {
+            instruction->pattern->constraints(state, instruction->pattern->size, instruction);
+            i += instruction->pattern->size;
+        }
+        else
+        {
+            sdvm_compiler_x64_computeInstructionLocationConstraints(state, instruction);
+            ++i;
+        }
+    }
 }
 
 #pragma endregion X86_RegisterConstraints
+
+#pragma region X86_InstructionPatterns
+
+static bool sdvm_compiler_x86_comparisonAndBranchPredicate(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+    return (uint32_t)branch->decoding.instruction.arg0 == comparison->index;
+}
+
+static void sdvm_compiler_x86_int16ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+    sdvm_compilerInstruction_t *arg0 = state->instructions + comparison->decoding.instruction.arg0;
+    sdvm_compilerInstruction_t *arg1 = state->instructions + comparison->decoding.instruction.arg1;
+    sdvm_compilerInstruction_t *branchDestination = state->instructions + branch->decoding.instruction.arg1;
+
+    comparison->arg0Location = sdvm_compilerLocation_integerRegister(2);
+    comparison->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg1);
+    branch->arg1Location = branchDestination->location;
+}
+
+static bool sdvm_compiler_x86_int16ComparisonAndJumpIfTrueCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp16RegImm16(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp16RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt16, comparison->decoding.baseOpcode);
+    return true;
+}
+
+static bool sdvm_compiler_x86_int16ComparisonAndJumpIfFalseCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp16RegImm16(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp16RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt16, comparison->decoding.baseOpcode);
+    return true;
+}
+
+static void sdvm_compiler_x86_int32ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+    sdvm_compilerInstruction_t *arg0 = state->instructions + comparison->decoding.instruction.arg0;
+    sdvm_compilerInstruction_t *arg1 = state->instructions + comparison->decoding.instruction.arg1;
+    sdvm_compilerInstruction_t *branchDestination = state->instructions + branch->decoding.instruction.arg1;
+
+    comparison->arg0Location = sdvm_compilerLocation_integerRegister(4);
+    comparison->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(4, arg1);
+    branch->arg1Location = branchDestination->location;
+}
+
+static bool sdvm_compiler_x86_int32ComparisonAndJumpIfTrueCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp32RegImm32(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp32RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    return true;
+}
+
+static bool sdvm_compiler_x86_int32ComparisonAndJumpIfFalseCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp32RegImm32(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp32RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    return true;
+}
+
+static void sdvm_compiler_x86_int64ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+    sdvm_compilerInstruction_t *arg0 = state->instructions + comparison->decoding.instruction.arg0;
+    sdvm_compilerInstruction_t *arg1 = state->instructions + comparison->decoding.instruction.arg1;
+    sdvm_compilerInstruction_t *branchDestination = state->instructions + branch->decoding.instruction.arg1;
+
+    comparison->arg0Location = sdvm_compilerLocation_integerRegister(8);
+    comparison->arg1Location = sdvm_compilerLocation_x64_intRegOrImmS32(8, arg1);
+    branch->arg1Location = branchDestination->location;
+}
+
+static bool sdvm_compiler_x86_int64ComparisonAndJumpIfTrueCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp64RegImmS32(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp64RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    return true;
+}
+
+static bool sdvm_compiler_x86_int64ComparisonAndJumpIfFalseCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp64RegImmS32(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp64RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    return true;
+}
+
+static const sdvm_compilerInstructionPattern_t sdvm_x64_instructionPatterns[] = {
+#define COMPARISON_BRANCH_PATTERN(typePrefix, op) \
+    {.size = 2, .opcodes = {op, SdvmInstJumpIfTrue}, .predicate = sdvm_compiler_x86_comparisonAndBranchPredicate, .constraints = sdvm_compiler_x86_ ## typePrefix ## ComparisonAndBranchConstraints, .generator = sdvm_compiler_x86_## typePrefix ##ComparisonAndJumpIfTrueCodegen },\
+    {.size = 2, .opcodes = {op, SdvmInstJumpIfFalse}, .predicate = sdvm_compiler_x86_comparisonAndBranchPredicate, .constraints = sdvm_compiler_x86_ ## typePrefix ## ComparisonAndBranchConstraints, .generator = sdvm_compiler_x86_## typePrefix ##ComparisonAndJumpIfFalseCodegen }
+
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16Equals),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16NotEquals),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16LessThan),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16GreaterOrEquals),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstUInt16Equals),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstUInt16NotEquals),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstUInt16LessThan),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstUInt16LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstUInt16GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int16, SdvmInstUInt16GreaterOrEquals),
+
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstInt32Equals),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstInt32NotEquals),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstInt32LessThan),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstInt32LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstInt32GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstInt32GreaterOrEquals),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstUInt32Equals),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstUInt32NotEquals),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstUInt32LessThan),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstUInt32LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstUInt32GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int32, SdvmInstUInt32GreaterOrEquals),
+
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstInt64Equals),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstInt64NotEquals),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstInt64LessThan),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstInt64LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstInt64GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstInt64GreaterOrEquals),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstUInt64Equals),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstUInt64NotEquals),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstUInt64LessThan),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstUInt64LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstUInt64GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int64, SdvmInstUInt64GreaterOrEquals),
+};
+
+static const uint32_t sdvm_x64_instructionPatternCount = sizeof(sdvm_x64_instructionPatterns) / sizeof(sdvm_x64_instructionPatterns[0]);
+
+#pragma endregion
 
 #pragma region X86_CodeGeneration
 
@@ -2838,31 +3038,52 @@ void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *
         return;
     }
 
+    sdvm_compilerInstruction_t *startInstruction = instruction;
+    sdvm_compilerInstruction_t *endInstruction = instruction;
+    if(instruction->pattern)
+        endInstruction = instruction + instruction->pattern->size - 1;
+
     // Emit the argument moves.
-    if(instruction->decoding.arg0IsInstruction)
+    if(startInstruction->decoding.arg0IsInstruction)
     {
-        sdvm_compilerInstruction_t *arg0 = state->instructions + instruction->decoding.instruction.arg0;
+        sdvm_compilerInstruction_t *arg0 = state->instructions + startInstruction->decoding.instruction.arg0;
         sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &arg0->location, &instruction->arg0Location);
     }
 
-    if(instruction->decoding.arg1IsInstruction)
+    if(startInstruction->decoding.arg1IsInstruction)
     {
-        sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
+        sdvm_compilerInstruction_t *arg1 = state->instructions + startInstruction->decoding.instruction.arg1;
         sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &arg1->location, &instruction->arg1Location);
     }
 
     // Emit the actual instruction operation
-    if(!sdvm_compiler_x64_emitFunctionInstructionOperation(state, instruction))
-        return;
+    if(instruction->pattern)
+    {
+        if(!instruction->pattern->generator(state, instruction->pattern->size, instruction))
+            return;
+    }
+    else
+    {
+        if(!sdvm_compiler_x64_emitFunctionInstructionOperation(state, instruction))
+            return;
+    }
 
     // Emit the result moves.
-    sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &instruction->destinationLocation, &instruction->location);
+    sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &endInstruction->destinationLocation, &endInstruction->location);
 }
 
 void sdvm_compiler_x64_emitFunctionInstructions(sdvm_functionCompilationState_t *state)
 {
-    for(uint32_t i = 0; i < state->instructionCount; ++i)
-        sdvm_compiler_x64_emitFunctionInstruction(state, state->instructions + i);
+    uint32_t i = 0;
+    while(i < state->instructionCount)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        sdvm_compiler_x64_emitFunctionInstruction(state, instruction);
+        if(instruction->pattern)
+            i += instruction->pattern->size;
+        else
+            ++i;
+    }
 }
 
 #pragma endregion X86_CodeGeneration
@@ -2994,6 +3215,9 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
 
     .compileModuleFunction = sdvm_compiler_x64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_x64_mapElfRelocation,
+
+    .instructionPatternCount = sdvm_x64_instructionPatternCount,
+    .instructionPatterns = sdvm_x64_instructionPatterns
 };
 
 const sdvm_compilerTarget_t *sdvm_compilerTarget_x64_linux()

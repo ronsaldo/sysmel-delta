@@ -105,6 +105,8 @@ typedef enum sdvm_functionStackSegmentName_e
 typedef struct sdvm_compilerTarget_s sdvm_compilerTarget_t;
 typedef struct sdvm_functionCompilationState_s sdvm_functionCompilationState_t;
 typedef struct sdvm_compilerCallingConvention_s sdvm_compilerCallingConvention_t;
+typedef struct sdvm_compilerInstruction_s sdvm_compilerInstruction_t;
+typedef struct sdvm_compilerInstructionPattern_s sdvm_compilerInstructionPattern_t;
 
 typedef struct sdvm_compilerSymbol_s
 {
@@ -202,6 +204,9 @@ struct sdvm_compilerTarget_s
 
     bool (*compileModuleFunction) (sdvm_functionCompilationState_t *state);
     uint32_t (*mapElfRelocation) (sdvm_compilerRelocationKind_t kind);
+
+    uint32_t instructionPatternCount;
+    const sdvm_compilerInstructionPattern_t *instructionPatterns;
 };
 
 typedef struct sdvm_compilerObjectFile_s
@@ -289,6 +294,21 @@ typedef struct sdvm_registerSet_s
     uint32_t masks[SDVM_REGISTER_SET_WORD_COUNT];
 } sdvm_registerSet_t;
 
+typedef bool (*sdvm_compiler_instructionPatternPredicate_t)(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions);
+typedef void (*sdvm_compiler_instructionPatternConstraints_t)(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions);
+typedef bool (*sdvm_compiler_instructionPatternGenerator_t)(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions);
+
+#define SDVM_INSTRUCTION_PATTERN_MAX_SIZE 8
+
+typedef struct sdvm_compilerInstructionPattern_s
+{
+    uint32_t size;
+    sdvm_opcode_t opcodes[SDVM_INSTRUCTION_PATTERN_MAX_SIZE];
+    sdvm_compiler_instructionPatternPredicate_t predicate;
+    sdvm_compiler_instructionPatternConstraints_t constraints; 
+    sdvm_compiler_instructionPatternGenerator_t generator;
+} sdvm_compilerInstructionPattern_t;
+
 typedef struct sdvm_compilerInstructionClobberSets_s
 {
     sdvm_registerSet_t integerSet;
@@ -296,11 +316,12 @@ typedef struct sdvm_compilerInstructionClobberSets_s
     sdvm_registerSet_t vectorSet;
 } sdvm_compilerInstructionClobberSets_t;
 
-typedef struct sdvm_compilerInstruction_s
+struct sdvm_compilerInstruction_s
 {
-    int32_t index;
+    uint32_t index;
     sdvm_decodedConstOrInstruction_t decoding;
     sdvm_compilerLiveInterval_t liveInterval;
+    const sdvm_compilerInstructionPattern_t *pattern;
 
     sdvm_compilerLocation_t location;
     sdvm_compilerLocation_t stackLocation;
@@ -310,7 +331,7 @@ typedef struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t scratchLocation0;
     sdvm_compilerLocation_t scratchLocation1;
     sdvm_compilerInstructionClobberSets_t clobberSets;
-} sdvm_compilerInstruction_t;
+};
 
 struct sdvm_compilerCallingConvention_s
 {

@@ -223,6 +223,59 @@ void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilation
     }
 }
 
+bool sdvm_functionCompilationState_checkPatternMatching(sdvm_functionCompilationState_t *state, const sdvm_compilerInstructionPattern_t *pattern, sdvm_compilerInstruction_t *instructions)
+{
+    // Check the opcodes.
+    for(uint32_t i = 0; i < pattern->size; ++i)
+    {
+        if(instructions[i].decoding.opcode != pattern->opcodes[i])
+            return false;
+    }
+
+    // Check the liveness intervals.
+    uint32_t minLiveInterval = instructions[0].index;
+    uint32_t maxLiveInterval = instructions[pattern->size - 1].index;
+
+    for(uint32_t i = 0; i < pattern->size - 1; ++i)
+    {
+        if(instructions[i].liveInterval.start < minLiveInterval || instructions[i].liveInterval.end > maxLiveInterval)
+            return false;
+    }
+
+    return pattern->predicate(state, pattern->size, instructions);
+}
+
+const sdvm_compilerInstructionPattern_t *sdvm_functionCompilationState_findMatchingPatternFor(sdvm_functionCompilationState_t *state, uint32_t nextInstructionCount, sdvm_compilerInstruction_t *instruction)
+{
+    sdvm_compilerTarget_t *target = state->compiler->target;
+    for(uint32_t i = 0; i < target->instructionPatternCount; ++i)
+    {
+        const sdvm_compilerInstructionPattern_t *pattern = target->instructionPatterns + i;
+        if(nextInstructionCount < pattern->size)
+            continue;
+
+        if(sdvm_functionCompilationState_checkPatternMatching(state, pattern, instruction))
+            return pattern;
+
+    }
+    return NULL;
+}
+
+void sdvm_functionCompilationState_findInstructionPatterns(sdvm_functionCompilationState_t *state)
+{
+    uint32_t i = 0;
+    while(i < state->instructionCount)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        uint32_t nextInstructionCount = state->instructionCount - i;
+        instruction->pattern = sdvm_functionCompilationState_findMatchingPatternFor(state, nextInstructionCount, instruction);
+        if(instruction->pattern)
+            i += instruction->pattern->size;
+        else
+            ++i;
+    }
+}
+
 const char *sdvm_compiler_symbolHandleNameCString(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t handle)
 {
     if(handle > 0 && handle <= compiler->symbolTable.symbols.size)
@@ -1555,43 +1608,79 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
     if(instruction->decoding.isConstant)
         return;
 
-    sdvm_linearScanRegisterAllocator_beginInstruction(registerAllocator, instruction);
+    sdvm_compilerInstruction_t *startInstruction = instruction;
+    sdvm_compilerInstruction_t *endInstruction = instruction;
+    if(instruction->pattern)
+        endInstruction = instruction + instruction->pattern->size - 1;
+
+    sdvm_linearScanRegisterAllocator_beginInstruction(registerAllocator, startInstruction);
 
     // Allocate the specific registers.
-    if(instruction->decoding.arg0IsInstruction)
+    if(startInstruction->decoding.arg0IsInstruction)
     {
-        sdvm_compilerInstruction_t *arg0 = state->instructions + instruction->decoding.instruction.arg0;
-        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->arg0Location, arg0);
+        sdvm_compilerInstruction_t *arg0 = state->instructions + startInstruction->decoding.instruction.arg0;
+        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg0Location, arg0);
     }
 
-    if(instruction->decoding.arg1IsInstruction)
+    if(startInstruction->decoding.arg1IsInstruction)
     {
-        sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
-        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->arg1Location, arg1);
+        sdvm_compilerInstruction_t *arg1 = state->instructions + startInstruction->decoding.instruction.arg1;
+        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg1Location, arg1);
     }
-    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->destinationLocation, instruction);
-    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation0, NULL);
-    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation1, NULL);
+    if(startInstruction != endInstruction)
+    {
+        if(endInstruction->decoding.instruction.arg0Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg0 = state->instructions + endInstruction->decoding.instruction.arg0;
+            sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg0Location, arg0);
+        }
+
+        if(endInstruction->decoding.instruction.arg1Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg1 = state->instructions + endInstruction->decoding.instruction.arg1;
+            sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg1Location, arg1);
+        }
+    }
+
+    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, endInstruction, &endInstruction->destinationLocation, instruction);
+    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation0, NULL);
+    sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation1, NULL);
 
     // Allocate the non-specific registers.
-    if(instruction->decoding.arg0IsInstruction)
+    if(startInstruction->decoding.arg0IsInstruction)
     {
-        sdvm_compilerInstruction_t *arg0 = state->instructions + instruction->decoding.instruction.arg0;
-        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->arg0Location, arg0);
+        sdvm_compilerInstruction_t *arg0 = state->instructions + startInstruction->decoding.instruction.arg0;
+        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg0Location, arg0);
     }
 
-    if(instruction->decoding.arg1IsInstruction)
+    if(startInstruction->decoding.arg1IsInstruction)
     {
-        sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
-        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->arg1Location, arg1);
+        sdvm_compilerInstruction_t *arg1 = state->instructions + startInstruction->decoding.instruction.arg1;
+        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg1Location, arg1);
     }
-    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->destinationLocation, instruction);
-    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation0, NULL);
-    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, instruction, &instruction->scratchLocation1, NULL);
 
-    sdvm_linearScanRegisterAllocator_spillClobberSets(registerAllocator, &instruction->clobberSets);
+    if(startInstruction != endInstruction)
+    {
+        if(endInstruction->decoding.instruction.arg0Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg0 = state->instructions + endInstruction->decoding.instruction.arg0;
+            sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg0Location, arg0);
+        }
 
-    sdvm_linearScanRegisterAllocator_endInstruction(registerAllocator, instruction);
+        if(endInstruction->decoding.instruction.arg1Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg1 = state->instructions + endInstruction->decoding.instruction.arg1;
+            sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg1Location, arg1);
+        }
+    }
+
+    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction);
+    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation0, NULL);
+    sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation1, NULL);
+
+    sdvm_linearScanRegisterAllocator_spillClobberSets(registerAllocator, &startInstruction->clobberSets);
+
+    sdvm_linearScanRegisterAllocator_endInstruction(registerAllocator, endInstruction);
 }
 
 void sdvm_compiler_allocateFunctionRegisters(sdvm_functionCompilationState_t *state, sdvm_linearScanRegisterAllocator_t *registerAllocator)
@@ -1678,10 +1767,20 @@ void sdvm_compiler_allocateInstructionSpillLocations(sdvm_functionCompilationSta
 
 void sdvm_compiler_allocateFunctionSpillLocations(sdvm_functionCompilationState_t *state)
 {
-    for(uint32_t i = 0; i < state->instructionCount; ++i)
+    uint32_t i = 0;
+    while(i < state->instructionCount)
     {
         sdvm_compilerInstruction_t *instruction = state->instructions + i;
-        sdvm_compiler_allocateInstructionSpillLocations(state, instruction);
+        if(instruction->pattern)
+        {
+            sdvm_compiler_allocateInstructionSpillLocations(state, instruction + instruction->pattern->size - 1);
+            i += instruction->pattern->size;
+        }
+        else
+        {
+            sdvm_compiler_allocateInstructionSpillLocations(state, instruction);
+            ++i;
+        }
     }
 }
 
@@ -1777,6 +1876,9 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
 
     // Compute the live intervals.
     sdvm_functionCompilationState_computeLiveIntervals(&functionState);
+
+    // Find the instruction patterns.
+    sdvm_functionCompilationState_findInstructionPatterns(&functionState);
 
     // Ask the backend to compile the function.
     bool result = moduleState->compiler->target->compileModuleFunction(&functionState);
