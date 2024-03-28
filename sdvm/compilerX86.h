@@ -40,8 +40,22 @@ SDVM_API void sdvm_compiler_x86_callRmo(sdvm_compiler_t *compiler, sdvm_x86_regi
 SDVM_API void sdvm_compiler_x86_jmpReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
 SDVM_API void sdvm_compiler_x86_jmpRmo(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset);
 SDVM_API void sdvm_compiler_x86_jmpLabel(sdvm_compiler_t *compiler, uint32_t label);
+
 SDVM_API void sdvm_compiler_x86_jnzLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jneLabel(sdvm_compiler_t *compiler, uint32_t label);
 SDVM_API void sdvm_compiler_x86_jzLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jeLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jaLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jaeLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jbLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jbeLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jgLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jgeLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jlLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jleLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jleLabel(sdvm_compiler_t *compiler, uint32_t label);
+SDVM_API void sdvm_compiler_x86_jumpOnCondition(sdvm_compiler_t *compiler, uint32_t label, bool isSigned, sdvm_baseOpcode_t condition);
+SDVM_API void sdvm_compiler_x86_jumpOnInverseCondition(sdvm_compiler_t *compiler, uint32_t label, bool isSigned, sdvm_baseOpcode_t condition);
 
 SDVM_API void sdvm_compiler_x86_push(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
 SDVM_API void sdvm_compiler_x86_pop(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
@@ -52,6 +66,19 @@ SDVM_API void sdvm_compiler_x86_cqo(sdvm_compiler_t *compiler);
 
 SDVM_API void sdvm_compiler_x86_endbr32(sdvm_compiler_t *compiler);
 SDVM_API void sdvm_compiler_x86_endbr64(sdvm_compiler_t *compiler);
+
+SDVM_API void sdvm_compiler_x86_sete(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setne(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setb(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setbe(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_seta(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setae(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setl(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setle(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setge(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t reg);
+SDVM_API void sdvm_compiler_x86_setByteOnCondition(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, bool isSigned, sdvm_baseOpcode_t condition);
+SDVM_API void sdvm_compiler_x86_setByteOnInverseCondition(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, bool isSigned, sdvm_baseOpcode_t condition);
 
 SDVM_API void sdvm_compiler_x86_xchg64RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source);
 SDVM_API void sdvm_compiler_x86_cmove64RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source);

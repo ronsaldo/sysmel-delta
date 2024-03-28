@@ -405,6 +405,126 @@ void sdvm_compiler_x86_jzLabel(sdvm_compiler_t *compiler, uint32_t label)
     sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
 }
 
+void sdvm_compiler_x86_jeLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F84);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jneLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F85);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jaLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F87);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jaeLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F83);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jbLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F82);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jbeLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F86);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jgLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F8F);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jgeLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F8D);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jlLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F8C);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jleLabel(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_x86_opcode2(compiler, 0x0F8E);
+    sdvm_compiler_addInstructionLabelValueRelative32(compiler, label, -4);
+}
+
+void sdvm_compiler_x86_jumpOnCondition(sdvm_compiler_t *compiler, uint32_t label, bool isSigned, sdvm_baseOpcode_t condition)
+{
+    switch(condition)
+    {
+    case SdvmOpEquals: return sdvm_compiler_x86_jeLabel(compiler, label);
+    case SdvmOpNotEquals: return sdvm_compiler_x86_jneLabel(compiler, label);
+    case SdvmOpLessThan:
+        if(isSigned)
+            return sdvm_compiler_x86_jlLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jbLabel(compiler, label);
+    case SdvmOpLessOrEquals:
+        if(isSigned)
+            return sdvm_compiler_x86_jleLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jbeLabel(compiler, label);
+    case SdvmOpGreaterThan:
+        if(isSigned)
+            return sdvm_compiler_x86_jgLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jaLabel(compiler, label);
+    case SdvmOpGreaterOrEquals:
+        if(isSigned)
+            return sdvm_compiler_x86_jgeLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jaeLabel(compiler, label);
+    default: abort();
+    }
+}
+
+void sdvm_compiler_x86_jumpOnInverseCondition(sdvm_compiler_t *compiler, uint32_t label, bool isSigned, sdvm_baseOpcode_t condition)
+{
+    switch(condition)
+    {
+    case SdvmOpEquals: return sdvm_compiler_x86_jneLabel(compiler, label);
+    case SdvmOpNotEquals: return sdvm_compiler_x86_jeLabel(compiler, label);
+    case SdvmOpLessThan:
+        if(isSigned)
+            return sdvm_compiler_x86_jgeLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jaeLabel(compiler, label);
+    case SdvmOpLessOrEquals:
+        if(isSigned)
+            return sdvm_compiler_x86_jgLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jaLabel(compiler, label);
+    case SdvmOpGreaterThan:
+        if(isSigned)
+            return sdvm_compiler_x86_jleLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jbeLabel(compiler, label);
+    case SdvmOpGreaterOrEquals:
+        if(isSigned)
+            return sdvm_compiler_x86_jlLabel(compiler, label);
+        else
+            return sdvm_compiler_x86_jbLabel(compiler, label);
+    default: abort();
+    }
+}
+
 void sdvm_compiler_x86_ret(sdvm_compiler_t *compiler)
 {
     sdvm_compiler_x86_opcode(compiler, 0xC3);
@@ -532,7 +652,7 @@ void sdvm_compiler_x86_setByteOnCondition(sdvm_compiler_t *compiler, sdvm_x86_re
     switch(condition)
     {
     case SdvmOpEquals: return sdvm_compiler_x86_sete(compiler, destination);
-    case SdvmOpNotEquals: return sdvm_compiler_x86_sete(compiler, destination);
+    case SdvmOpNotEquals: return sdvm_compiler_x86_setne(compiler, destination);
     case SdvmOpLessThan:
         if(isSigned)
             return sdvm_compiler_x86_setl(compiler, destination);
@@ -553,6 +673,36 @@ void sdvm_compiler_x86_setByteOnCondition(sdvm_compiler_t *compiler, sdvm_x86_re
             return sdvm_compiler_x86_setge(compiler, destination);
         else
             return sdvm_compiler_x86_setae(compiler, destination);
+    default: abort();
+    }
+}
+
+void sdvm_compiler_x86_setByteOnInverseCondition(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, bool isSigned, sdvm_baseOpcode_t condition)
+{
+    switch(condition)
+    {
+    case SdvmOpEquals: return sdvm_compiler_x86_setne(compiler, destination);
+    case SdvmOpNotEquals: return sdvm_compiler_x86_sete(compiler, destination);
+    case SdvmOpLessThan:
+        if(isSigned)
+            return sdvm_compiler_x86_setge(compiler, destination);
+        else
+            return sdvm_compiler_x86_setae(compiler, destination);
+    case SdvmOpLessOrEquals:
+        if(isSigned)
+            return sdvm_compiler_x86_setg(compiler, destination);
+        else
+            return sdvm_compiler_x86_seta(compiler, destination);
+    case SdvmOpGreaterThan:
+        if(isSigned)
+            return sdvm_compiler_x86_setle(compiler, destination);
+        else
+            return sdvm_compiler_x86_setbe(compiler, destination);
+    case SdvmOpGreaterOrEquals:
+        if(isSigned)
+            return sdvm_compiler_x86_setl(compiler, destination);
+        else
+            return sdvm_compiler_x86_setb(compiler, destination);
     default: abort();
     }
 }
