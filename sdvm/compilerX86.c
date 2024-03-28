@@ -1956,6 +1956,7 @@ void sdvm_compiler_x64_computeFunctionLocationConstraints(sdvm_functionCompilati
 
 static bool sdvm_compiler_x86_comparisonAndBranchPredicate(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
     return (uint32_t)branch->decoding.instruction.arg0 == comparison->index;
@@ -1963,9 +1964,9 @@ static bool sdvm_compiler_x86_comparisonAndBranchPredicate(sdvm_functionCompilat
 
 static void sdvm_compiler_x86_int16ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
-    sdvm_compilerInstruction_t *arg0 = state->instructions + comparison->decoding.instruction.arg0;
     sdvm_compilerInstruction_t *arg1 = state->instructions + comparison->decoding.instruction.arg1;
     sdvm_compilerInstruction_t *branchDestination = state->instructions + branch->decoding.instruction.arg1;
 
@@ -1976,6 +1977,7 @@ static void sdvm_compiler_x86_int16ComparisonAndBranchConstraints(sdvm_functionC
 
 static bool sdvm_compiler_x86_int16ComparisonAndJumpIfTrueCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
@@ -1991,6 +1993,7 @@ static bool sdvm_compiler_x86_int16ComparisonAndJumpIfTrueCodegen(sdvm_functionC
 
 static bool sdvm_compiler_x86_int16ComparisonAndJumpIfFalseCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
@@ -2006,9 +2009,9 @@ static bool sdvm_compiler_x86_int16ComparisonAndJumpIfFalseCodegen(sdvm_function
 
 static void sdvm_compiler_x86_int32ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
-    sdvm_compilerInstruction_t *arg0 = state->instructions + comparison->decoding.instruction.arg0;
     sdvm_compilerInstruction_t *arg1 = state->instructions + comparison->decoding.instruction.arg1;
     sdvm_compilerInstruction_t *branchDestination = state->instructions + branch->decoding.instruction.arg1;
 
@@ -2019,6 +2022,7 @@ static void sdvm_compiler_x86_int32ComparisonAndBranchConstraints(sdvm_functionC
 
 static bool sdvm_compiler_x86_int32ComparisonAndJumpIfTrueCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
@@ -2034,6 +2038,7 @@ static bool sdvm_compiler_x86_int32ComparisonAndJumpIfTrueCodegen(sdvm_functionC
 
 static bool sdvm_compiler_x86_int32ComparisonAndJumpIfFalseCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
@@ -2049,9 +2054,9 @@ static bool sdvm_compiler_x86_int32ComparisonAndJumpIfFalseCodegen(sdvm_function
 
 static void sdvm_compiler_x86_int64ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
-    sdvm_compilerInstruction_t *arg0 = state->instructions + comparison->decoding.instruction.arg0;
     sdvm_compilerInstruction_t *arg1 = state->instructions + comparison->decoding.instruction.arg1;
     sdvm_compilerInstruction_t *branchDestination = state->instructions + branch->decoding.instruction.arg1;
 
@@ -2062,6 +2067,7 @@ static void sdvm_compiler_x86_int64ComparisonAndBranchConstraints(sdvm_functionC
 
 static bool sdvm_compiler_x86_int64ComparisonAndJumpIfTrueCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
@@ -2077,6 +2083,7 @@ static bool sdvm_compiler_x86_int64ComparisonAndJumpIfTrueCodegen(sdvm_functionC
 
 static bool sdvm_compiler_x86_int64ComparisonAndJumpIfFalseCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)count;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
@@ -3179,8 +3186,21 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
     sdvm_compiler_x64_computeFunctionStackLayout(state);
 
     sdvm_functionCompilationState_dump(state);
+
+    // Set the function symbol
+    size_t startOffset = state->compiler->textSection.contents.size;
+    sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&state->compiler->symbolTable, state->symbol, state->compiler->textSection.symbolIndex, startOffset);
+
+    // Emit the prologue.
     sdvm_compiler_x64_emitFunctionPrologue(state);
+
+    // Emit the instructions.
     sdvm_compiler_x64_emitFunctionInstructions(state);
+
+    // Set the symbol size.
+    size_t endOffset = state->compiler->textSection.contents.size;
+    sdvm_compilerSymbolTable_setSymbolSize(&state->compiler->symbolTable, state->symbol, endOffset - startOffset);
+
     return true;
 }
 

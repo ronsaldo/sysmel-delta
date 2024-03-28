@@ -247,7 +247,7 @@ bool sdvm_functionCompilationState_checkPatternMatching(sdvm_functionCompilation
 
 const sdvm_compilerInstructionPattern_t *sdvm_functionCompilationState_findMatchingPatternFor(sdvm_functionCompilationState_t *state, uint32_t nextInstructionCount, sdvm_compilerInstruction_t *instruction)
 {
-    sdvm_compilerTarget_t *target = state->compiler->target;
+    const sdvm_compilerTarget_t *target = state->compiler->target;
     for(uint32_t i = 0; i < target->instructionPatternCount; ++i)
     {
         const sdvm_compilerInstructionPattern_t *pattern = target->instructionPatterns + i;
@@ -325,6 +325,9 @@ void sdvm_compilerLocation_print(sdvm_compiler_t *compiler, sdvm_compilerLocatio
         return;
     case SdvmCompLocationStack:
         printf("stack %d", location->firstStackLocation.framePointerOffset);
+        return;
+    case SdvmCompLocationStackAddress:
+        printf("stackAddress %d", location->firstStackLocation.framePointerOffset);
         return;
     case SdvmCompLocationStackPair:
         printf("stack %d:%d", location->firstStackLocation.framePointerOffset, location->secondStackLocation.framePointerOffset);
@@ -1851,12 +1854,13 @@ void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *sta
     }
 }
 
-static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry)
+static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry, sdvm_compilerSymbolHandle_t symbol)
 {
     sdvm_functionCompilationState_t functionState = {
         .compiler = moduleState->compiler,
         .module = moduleState->module,
         .moduleState = moduleState,
+        .symbol = symbol,
         .sourceInstructions = (sdvm_constOrInstruction_t*)(moduleState->module->textSectionData + functionTableEntry->textSectionOffset),
         .instructionCount = functionTableEntry->textSectionSize / sizeof(sdvm_constOrInstruction_t)
     };
@@ -2071,13 +2075,8 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
         sdvm_moduleFunctionTableEntry_t *functionTableEntry = module->functionTable + i;
-        size_t startOffset = compiler->textSection.contents.size;
-        sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&compiler->symbolTable, state.functionTableSymbols[i], compiler->textSection.symbolIndex, startOffset);
-        if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry))
+        if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry, state.functionTableSymbols[i]))
             hasSucceeded = false;
-
-        size_t endOffset = compiler->textSection.contents.size;
-        sdvm_compilerSymbolTable_setSymbolSize(&compiler->symbolTable, state.functionTableSymbols[i], endOffset - startOffset);
     }
 
     sdvm_moduleCompilationState_destroy(&state);

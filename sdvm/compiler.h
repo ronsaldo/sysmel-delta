@@ -422,6 +422,7 @@ struct sdvm_functionCompilationState_s
     sdvm_compiler_t *compiler;
     sdvm_module_t *module;
     sdvm_moduleCompilationState_t *moduleState;
+    sdvm_compilerSymbolHandle_t symbol;
 
     const sdvm_compilerCallingConvention_t *callingConvention;
     sdvm_compilerCallingConventionState_t callingConventionState;
