@@ -922,12 +922,15 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             instruction->location = sdvm_compilerLocation_constSectionS32(compiler, instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64SExt:
+        case SdvmConstUInt64SExt:
             instruction->location = sdvm_compilerLocation_constSectionS64(compiler, instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64ZExt:
+        case SdvmConstUInt64ZExt:
             instruction->location = sdvm_compilerLocation_constSectionU64(compiler, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstInt64ConstSection:
+        case SdvmConstUInt64ConstSection:
             instruction->location = sdvm_compilerLocation_constSectionWithModuleData(compiler, state->module, 8, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstPointerSExt:

@@ -165,6 +165,13 @@ class HIRTypeValue(HIRValue):
     def buildMemoryDescriptor(self):
         return MemoryDescriptor(self.getSize(), self.getAlignment())
 
+    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int] | None]:
+        raise Exception("Not an aggregate or pointer type.")
+
+    def getAlignedSize(self) -> int:
+        alignment = self.getAlignment()
+        return (self.getSize() + alignment - 1) & (-alignment)
+
     @abstractmethod
     def getSize(self) -> int:
         pass
@@ -331,6 +338,12 @@ class HIRArrayType(HIRDerivedType):
     
     def getSize(self) -> int:
         return self.baseType.getAlignedSize() * self.size
+    
+    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int] | None]:
+        if index.isConstantPrimitiveInteger():
+            return self.baseType, self.baseType.getAlignedSize() * index.value, None
+        else:
+            return self.baseType, 0, (index, self.baseType.getAlignedSize())
 
     def __str__(self) -> str:
         if self.hasDependentSize:
@@ -344,6 +357,12 @@ class HIRDecoratedType(HIRDerivedType):
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitDecoratedType(self)
+    
+    def computeIndexedElementAccess(self, index: HIRValue):
+        return self.baseType.computeIndexedElementAccess(index)
+    
+    def getAlignedSize(self) -> int:
+        return self.baseType.getAlignedSize()
 
     def getAlignment(self) -> int:
         return self.baseType.getAlignment()
@@ -371,6 +390,12 @@ class HIRPointerLikeType(HIRDerivedType):
 
     def isPointerLikeType(self):
         return True
+
+    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int] | None]:
+        if index.isConstantPrimitiveInteger():
+            return self.baseType, self.baseType.getAlignedSize() * index.value, None
+        else:
+            return self.baseType, 0, (index, self.baseType.getAlignedSize())
 
     def getAlignment(self) -> int:
         return self.context.pointerAlignment
@@ -1517,7 +1542,9 @@ class HIRFunctionalDefinitionFrontend:
         if array.getType().isPointerLikeType():
             gepIndices = [HIRConstantPrimitiveInteger(self.context, self.context.uintPointerType, 0), index]
             if subscriptExpression.loadResult:
-                assert False
+                elementPointerType = HIRPointerType(self.context, resultType)
+                elementPointer = self.builder.getElementPointer(elementPointerType, array, gepIndices)
+                return self.builder.load(resultType, elementPointer)
             else:
                 return self.builder.getElementPointer(resultType, array, gepIndices)
         else:
@@ -1547,4 +1574,8 @@ class HIRFunctionalDefinitionFrontend:
         return result
 
     def visitPointerLikeSubscriptAtExpression(self, subscriptExpression: GHIRPointerLikeSubscriptAtExpression) -> HIRValue:
+        resultType = self.translateGraphValue(subscriptExpression.getType())
+        pointer = self.translateGraphValue(subscriptExpression.pointer)
+        index = self.translateGraphValue(subscriptExpression.index)
+
         assert False

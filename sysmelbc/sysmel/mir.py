@@ -33,6 +33,28 @@ class MIRContext:
         self.float32Type = MIRFloatingPointType(self, 'Float32', 4, 4)
         self.float64Type = MIRFloatingPointType(self, 'Float64', 8, 8)
 
+        self.primitiveMulTable = {
+            self.int8Type   : SdvmInstInt8Mul,
+            self.int16Type  : SdvmInstInt16Mul,
+            self.int32Type  : SdvmInstInt32Mul,
+            self.int64Type  : SdvmInstInt64Mul,
+            self.uint8Type  : SdvmInstUInt8Mul,
+            self.uint16Type : SdvmInstUInt16Mul,
+            self.uint32Type : SdvmInstUInt32Mul,
+            self.uint64Type : SdvmInstUInt64Mul,
+        }
+
+        self.pointerAddOffsetTable = {
+            (self.pointerType, self.int32Type)  : SdvmInstPointerAddOffsetInt32,
+            (self.pointerType, self.int64Type)  : SdvmInstPointerAddOffsetInt64,
+            (self.pointerType, self.uint32Type) : SdvmInstPointerAddOffsetUInt32,
+            (self.pointerType, self.uint64Type) : SdvmInstPointerAddOffsetUInt64,
+            (self.gcPointerType, self.int32Type)  : SdvmInstGCPointerAddOffsetInt32,
+            (self.gcPointerType, self.int64Type)  : SdvmInstGCPointerAddOffsetInt64,
+            (self.gcPointerType, self.uint32Type) : SdvmInstGCPointerAddOffsetUInt32,
+            (self.gcPointerType, self.uint64Type) : SdvmInstGCPointerAddOffsetUInt64,
+        }
+
         self.callingConventionFunctionTypeMap = {
             'cdecl': self.cdeclFunctionType,
             'stdcall': self.stdcallFunctionType,
@@ -681,6 +703,28 @@ class MIRBuilder:
     def store(self, pointer: MIRValue, value: MIRValue) -> MIRLoadInstruction:
         return self.addInstruction(MIRStoreInstruction(self.context, pointer, value))
 
+    def pointerAddOffset(self, pointerType: MIRType, pointer: MIRValue, offset: MIRValue):
+        return self.addInstruction(MIRBinaryPrimitiveInstruction(self.context, pointerType, self.context.pointerAddOffsetTable[pointerType, offset.getType()], pointer, offset))
+
+    def mulPrimitiveInteger(self, a: MIRValue, b: MIRValue):
+        assert a.getType() == b.getType()
+        return self.addInstruction(MIRBinaryPrimitiveInstruction(self.context, a.getType(), self.context.primitiveMulTable[a.getType()], a, b))
+
+    def offsetConstant(self, offset: int):
+        return MIRConstantInteger(self.context.intPointerType, offset)
+
+    def scalePointerIndex(self, index: MIRValue, stride: int):
+        strideConstant = MIRConstantInteger(index.getType(), stride)
+        return self.mulPrimitiveInteger(index, strideConstant)
+
+    def pointerAddScaledIndex(self, pointerType: MIRType, pointer: MIRValue, index: MIRValue, stride: int):
+        if stride == 0:
+            return pointer
+        return self.pointerAddOffset(pointerType, pointer, self.scalePointerIndex(index, stride))
+
+    def pointerAddConstantOffset(self, pointerType: MIRType, pointer: MIRValue, offset: int):
+        return self.pointerAddOffset(pointerType, pointer, self.offsetConstant(offset))
+
 class MIRModule:
     def __init__(self, context: MIRContext) -> None:
         self.context = context
@@ -898,6 +942,15 @@ def sdvmBinaryPrimitiveFor(sdvmInstructionDef: SdvmInstructionDef):
 def yourselfTranslator(self, hirInstruction: HIRCallInstruction, resultType: MIRType, arguments: list[MIRValue]):
     return arguments[0]
 
+def pointerSizeTranslatorFor(pointer32Translator, pointer64Translator):
+    def translator(self: MIRFunctionFrontend, *args):
+        if self.context.pointerSize == 4:
+            return pointer32Translator(self, *args)
+        elif self.context.pointerSize == 8:
+            return pointer64Translator(self, *args)
+        assert False
+    return translator
+
 PrimitiveFunctionTranslators = {}
 
 class MIRFunctionFrontend:
@@ -974,6 +1027,39 @@ class MIRFunctionFrontend:
 
         return self.moduleFrontend.translateValue(value)
     
+    def translateGetElementPointerAccesses(self, resultPointerType: MIRType, pointer: MIRValue, pointerType: HIRTypeValue, indices: list[HIRValue]):
+        currentType = pointerType
+        totalOffset = 0
+        stridedAccesses: list[tuple[HIRValue, int]] = []
+        for index in indices:
+            currentType, offset, stridedAccess = currentType.computeIndexedElementAccess(index)
+            totalOffset += offset
+            if stridedAccess is not None:
+                stridedAccesses.append(stridedAccess)
+
+        result = pointer
+        for index, stride in stridedAccesses:
+            result = self.builder.pointerAddScaledIndex(resultPointerType, result, self.translateValue(index), stride)
+        if totalOffset != 0:
+            result = self.builder.pointerAddConstantOffset(resultPointerType, result, totalOffset)
+        return result
+
+    def visitGetElementPointerInstruction(self, hirInstruction: HIRGetElementPointerInstruction):
+        pointer = self.translateValue(hirInstruction.pointer)
+        resultType = self.translateType(hirInstruction.getType())
+        return self.translateGetElementPointerAccesses(resultType, pointer, hirInstruction.pointer.getType(), hirInstruction.indices)
+
+    def visitExtractValueInstruction(self, hirInstruction: HIRExtractValueInstruction):
+        valueType = self.translateType(hirInstruction.getType())
+        aggregate = self.translateValue(hirInstruction.aggregate)
+        elementPointer = self.translateGetElementPointerAccesses(self.context.pointerType, aggregate, hirInstruction.aggregate.getType(), hirInstruction.indices)
+        return self.builder.load(valueType, elementPointer)
+
+    def visitExtractValueReferenceInstruction(self, hirInstruction: HIRExtractValueReferenceInstruction):
+        aggregate = self.translateValue(hirInstruction.aggregate)
+        resultType = self.translateType(hirInstruction.getType())
+        return self.translateGetElementPointerAccesses(resultType, aggregate, hirInstruction.aggregate.getType(), hirInstruction.indices)
+
     def visitBranchInstruction(self, hirInstruction: HIRBranchInstruction):
         destination = self.translateValue(hirInstruction.destination)
         return self.builder.branch(destination)
@@ -1452,6 +1538,10 @@ for primitiveDef in [
     ('Float64::asChar32',  sdvmUnaryPrimitiveFor(SdvmInstFloat64_FloatToInteger_UInt32)),
     ('Float64::asFloat32', sdvmUnaryPrimitiveFor(SdvmInstFloat64_Truncate_Float32)),
     ('Float64::asFloat64', yourselfTranslator),
+
+    ('Int32::asSize',        pointerSizeTranslatorFor(yourselfTranslator, sdvmUnaryPrimitiveFor(SdvmInstInt32_ZeroExtend_UInt64))),
+    ('Int32::asUIntPointer', pointerSizeTranslatorFor(yourselfTranslator, sdvmUnaryPrimitiveFor(SdvmInstInt32_ZeroExtend_UInt64))),
+    ('Int32::asIntPointer',  pointerSizeTranslatorFor(yourselfTranslator, sdvmUnaryPrimitiveFor(SdvmInstInt32_SignExtend_Int64))),
 ]:
     name, translator = primitiveDef
     PrimitiveFunctionTranslators[name] = translator

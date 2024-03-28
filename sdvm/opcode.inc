@@ -174,6 +174,17 @@ SDVM_INSTRUCTION_DEF(Jump, Jump, Void, Label, Void, "Unconditional jump")
 SDVM_INSTRUCTION_DEF(JumpIfTrue, JumpIfTrue, Void, Boolean, Label, "Jump if true")
 SDVM_INSTRUCTION_DEF(JumpIfFalse, JumpIfFalse, Void, Boolean, Label, "Jump if false")
 
+// Pointer instructions
+SDVM_INSTRUCTION_DEF(PointerAddOffsetInt32,  Add, Pointer, Pointer, Int32, "Add int32 offset to pointer.")
+SDVM_INSTRUCTION_DEF(PointerAddOffsetInt64,  Add, Pointer, Pointer, Int64, "Add int64 offset to pointer.")
+SDVM_INSTRUCTION_DEF(PointerAddOffsetUInt32, Add, Pointer, Pointer, UInt32, "Add uint64 offset to pointer.")
+SDVM_INSTRUCTION_DEF(PointerAddOffsetUInt64, Add, Pointer, Pointer, UInt64, "Add int64 offset to pointer.")
+
+SDVM_INSTRUCTION_DEF(GCPointerAddOffsetInt32,  Add, GCPointer, GCPointer, Int32, "Add int32 offset to gc pointer.")
+SDVM_INSTRUCTION_DEF(GCPointerAddOffsetInt64,  Add, GCPointer, GCPointer, Int64, "Add int64 offset to gc pointer.")
+SDVM_INSTRUCTION_DEF(GCPointerAddOffsetUInt32, Add, GCPointer, GCPointer, UInt32, "Add uint64 offset to gc pointer.")
+SDVM_INSTRUCTION_DEF(GCPointerAddOffsetUInt64, Add, GCPointer, GCPointer, UInt64, "Add int64 offset to gc pointer.")
+
 // Memory instructions
 SDVM_INSTRUCTION_DEF(AllocateLocal, AllocateLocal, Pointer, Info, Void, "Allocates local only memory.")
 SDVM_INSTRUCTION_DEF(AllocateGCNoEscape, AllocateLocal, GCPointer, Info, Void, "Allocates no escape GC memory.")

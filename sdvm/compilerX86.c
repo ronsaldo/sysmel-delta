@@ -1552,14 +1552,17 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
             instruction->location = sdvm_compilerLocation_immediateU32(instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64SExt:
+        case SdvmConstUInt64SExt:
         case SdvmConstPointerSExt:
             instruction->location = sdvm_compilerLocation_x64_immediateS64(state->compiler, instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64ZExt:
+        case SdvmConstUInt64ZExt:
         case SdvmConstPointerZExt:
             instruction->location = sdvm_compilerLocation_x64_immediateU64(state->compiler, instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstInt64ConstSection:
+        case SdvmConstUInt64ConstSection:
         case SdvmConstPointerConstSection:
             {
                 int64_t value;
@@ -2259,6 +2262,16 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
         return true;
 
+    case SdvmInstPointerAddOffsetUInt32:
+    case SdvmInstPointerAddOffsetInt64:
+    case SdvmInstPointerAddOffsetUInt64:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_add64RegImmS32(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_add64RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+
     case SdvmInstInt16Add:
     case SdvmInstUInt16Add:
         sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
@@ -2650,6 +2663,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
     case SdvmInstUInt16_ZeroExtend_UInt64:
         sdvm_compiler_x86_movzxReg32Reg16(compiler, dest->firstRegister.value, arg0->firstRegister.value);
         return true;
+    case SdvmInstInt32_ZeroExtend_UInt64:
     case SdvmInstUInt32_ZeroExtend_Int64:
     case SdvmInstUInt32_ZeroExtend_UInt64:
         sdvm_compiler_x86_mov32RegReg_noOpt(compiler, dest->firstRegister.value, arg0->firstRegister.value);
