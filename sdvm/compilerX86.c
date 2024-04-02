@@ -1729,6 +1729,7 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
 
     sdvm_compilerInstruction_t *arg0 = instruction->decoding.arg0IsInstruction ? state->instructions + instruction->decoding.instruction.arg0 : NULL;
     sdvm_compilerInstruction_t *arg1 = instruction->decoding.arg1IsInstruction ? state->instructions + instruction->decoding.instruction.arg1 : NULL;
+    uint32_t pointerSize = state->compiler->target->pointerSize;
 
     switch (instruction->decoding.opcode)
     {
@@ -1743,12 +1744,14 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(2);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt16Mul:
     case SdvmInstUInt16Mul:
         instruction->arg0Location = sdvm_compilerLocation_integerRegister(2);
         instruction->arg1Location = sdvm_compilerLocation_integerRegister(2);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(2);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt16Div:
     case SdvmInstInt16UDiv:
@@ -1777,6 +1780,7 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_CX, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(2);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt16Equals:
     case SdvmInstInt16NotEquals:
@@ -1806,12 +1810,14 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(4, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(4, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(4);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt32Mul:
     case SdvmInstUInt32Mul:
         instruction->arg0Location = sdvm_compilerLocation_integerRegister(4);
         instruction->arg1Location = sdvm_compilerLocation_integerRegister(4);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(4);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt32Div:
     case SdvmInstInt32UDiv:
@@ -1840,6 +1846,7 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(4, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_ECX, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(4);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt32Equals:
     case SdvmInstInt32NotEquals:
@@ -1858,6 +1865,15 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         return;
 
+    case SdvmInstPointerAddOffsetUInt32:
+    case SdvmInstPointerAddOffsetInt64:
+    case SdvmInstPointerAddOffsetUInt64:
+        instruction->arg0Location = sdvm_compilerLocation_x64_intRegOrImmS32(pointerSize, arg0);
+        instruction->arg1Location = sdvm_compilerLocation_x64_intRegOrImmS32(pointerSize, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(pointerSize);
+        instruction->allowArg0DestinationShare = true;
+        return;
+
     case SdvmInstInt64Add:
     case SdvmInstInt64Sub:
     case SdvmInstInt64And:
@@ -1869,12 +1885,14 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg0Location = sdvm_compilerLocation_x64_intRegOrImmS32(8, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x64_intRegOrImmS32(8, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(8);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt64Mul:
     case SdvmInstUInt64Mul:
         instruction->arg0Location = sdvm_compilerLocation_integerRegister(8);
         instruction->arg1Location = sdvm_compilerLocation_integerRegister(8);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(8);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt64Div:
     case SdvmInstInt64UDiv:
@@ -1903,6 +1921,7 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(8, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_RCX, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(8);
+        instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstInt64Equals:
     case SdvmInstInt64NotEquals:
@@ -1920,6 +1939,72 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->arg1Location = sdvm_compilerLocation_x64_intRegOrImmS32(8, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         return;
+
+    case SdvmInstInt8_Bitcast_UInt8:
+    case SdvmInstInt16_Bitcast_UInt16:
+    case SdvmInstInt32_Bitcast_UInt32:
+    case SdvmInstInt64_Bitcast_UInt64:
+    case SdvmInstUInt8_Bitcast_Int8:
+    case SdvmInstUInt16_Bitcast_Int16:
+    case SdvmInstUInt32_Bitcast_Int32:
+    case SdvmInstUInt64_Bitcast_Int64:
+
+    case SdvmInstInt64_Truncate_Int32:
+    case SdvmInstInt64_Truncate_Int16:
+    case SdvmInstInt64_Truncate_Int8:
+    case SdvmInstInt64_Truncate_UInt32:
+    case SdvmInstInt64_Truncate_UInt16:
+    case SdvmInstInt64_Truncate_UInt8:
+    case SdvmInstUInt64_Truncate_Int32:
+    case SdvmInstUInt64_Truncate_Int16:
+    case SdvmInstUInt64_Truncate_Int8:
+    case SdvmInstUInt64_Truncate_UInt32:
+    case SdvmInstUInt64_Truncate_UInt16:
+    case SdvmInstUInt64_Truncate_UInt8:
+
+    case SdvmInstInt32_Truncate_Int16:
+    case SdvmInstInt32_Truncate_Int8:
+    case SdvmInstInt32_Truncate_UInt16:
+    case SdvmInstInt32_Truncate_UInt8:
+    case SdvmInstUInt32_Truncate_Int16:
+    case SdvmInstUInt32_Truncate_Int8:
+    case SdvmInstUInt32_Truncate_UInt16:
+    case SdvmInstUInt32_Truncate_UInt8:
+
+    case SdvmInstInt16_Truncate_Int8:
+    case SdvmInstInt16_Truncate_UInt8:
+    case SdvmInstUInt16_Truncate_Int8:
+    case SdvmInstUInt16_Truncate_UInt8:
+
+    case SdvmInstInt8_SignExtend_Int16:
+    case SdvmInstInt8_SignExtend_Int32:
+    case SdvmInstInt8_SignExtend_Int64:
+    case SdvmInstInt16_SignExtend_Int32:
+    case SdvmInstInt16_SignExtend_Int64:
+    case SdvmInstInt32_SignExtend_Int64:
+
+    case SdvmInstInt8_ZeroExtend_UInt16:
+    case SdvmInstInt8_ZeroExtend_UInt32:
+    case SdvmInstUInt8_ZeroExtend_Int16:
+    case SdvmInstUInt8_ZeroExtend_Int32:
+    case SdvmInstUInt8_ZeroExtend_UInt16:
+    case SdvmInstUInt8_ZeroExtend_UInt32:
+    case SdvmInstInt8_ZeroExtend_UInt64:
+    case SdvmInstUInt8_ZeroExtend_Int64:
+    case SdvmInstUInt8_ZeroExtend_UInt64:
+    case SdvmInstInt16_ZeroExtend_UInt32:
+    case SdvmInstUInt16_ZeroExtend_Int32:
+    case SdvmInstUInt16_ZeroExtend_UInt32:
+    case SdvmInstInt16_ZeroExtend_UInt64:
+    case SdvmInstUInt16_ZeroExtend_Int64:
+    case SdvmInstUInt16_ZeroExtend_UInt64:
+    case SdvmInstInt32_ZeroExtend_UInt64:
+    case SdvmInstUInt32_ZeroExtend_Int64:
+    case SdvmInstUInt32_ZeroExtend_UInt64:
+        sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
+        instruction->allowArg0DestinationShare = true;
+        return true;
+
     default:
         sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
     }

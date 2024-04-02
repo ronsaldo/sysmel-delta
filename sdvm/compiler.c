@@ -1393,6 +1393,21 @@ void sdvm_linearScanRegisterAllocatorFile_expireIntervalsUntil(sdvm_linearScanRe
     registerFile->activeIntervalCount = destIndex;
 }
 
+void sdvm_linearScanRegisterAllocatorFile_expireIntervalsForInstruction(sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_compilerInstruction_t *instruction)
+{
+    uint32_t destIndex = 0;
+    for(uint32_t i = 0; i < registerFile->activeIntervalCount; ++i)
+    {
+        sdvm_linearScanActiveInterval_t *interval = registerFile->activeIntervals + i;
+        if(interval->instruction == instruction)
+            sdvm_registerSet_unset(&registerFile->allocatedRegisterSet, interval->registerValue);
+        else
+            registerFile->activeIntervals[destIndex++] = *interval;
+    }
+
+    registerFile->activeIntervalCount = destIndex;
+}
+
 void sdvm_linearScanRegisterAllocatorFile_beginInstruction(sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_compilerInstruction_t *instruction)
 {
     if(!registerFile)
@@ -1591,6 +1606,36 @@ void sdvm_linearScanRegisterAllocator_allocateRegisterLocation(sdvm_linearScanRe
     }
 }
 
+bool sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction, sdvm_compilerLocation_t *location, sdvm_compilerInstruction_t *sourceInstruction, sdvm_compilerLocation_t *sharingLocation, sdvm_compilerInstruction_t *sharingSourceInstruction)
+{
+    if(!sdvm_compilerLocationKind_isRegister(sharingLocation->kind) ||
+        location->kind != sharingLocation->kind ||
+        (sharingSourceInstruction->liveInterval.end > instruction->index))
+        return false;
+
+    if(location->firstRegister.isPending)
+    {
+        sdvm_linearScanRegisterAllocatorFile_expireIntervalsForInstruction(registerAllocator->registerFiles[location->firstRegister.kind], sharingSourceInstruction);
+
+        location->firstRegister.value = sharingLocation->firstRegister.value;
+        location->firstRegister.isPending = false;
+
+        sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->firstRegister.kind], sourceInstruction->location.firstRegister.value);
+    }
+
+    if(location->kind == SdvmCompLocationRegisterPair && location->secondRegister.isPending)
+    {
+        sdvm_linearScanRegisterAllocatorFile_expireIntervalsForInstruction(registerAllocator->registerFiles[location->secondRegister.kind], sharingSourceInstruction);
+
+        location->secondRegister.value = sharingLocation->firstRegister.value;
+        location->secondRegister.isPending = false;
+
+        sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->secondRegister.kind], sourceInstruction->location.secondRegister.value);
+    }
+
+    return true;
+}
+
 void sdvm_linearScanRegisterAllocator_spillClobberSets(sdvm_linearScanRegisterAllocator_t *registerAllocator, const sdvm_compilerInstructionClobberSets_t *clobberSet)
 {
     if(!sdvm_registerSet_isEmpty(&clobberSet->integerSet))
@@ -1677,6 +1722,12 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
         }
     }
 
+    if(endInstruction->allowArg0DestinationShare &&
+        startInstruction->decoding.arg0IsInstruction)
+        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg0Location, state->instructions + startInstruction->decoding.instruction.arg0);
+    if(endInstruction->allowArg1DestinationShare &&
+        startInstruction->decoding.arg1IsInstruction)
+        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg1Location, state->instructions + startInstruction->decoding.instruction.arg1);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation0, NULL);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation1, NULL);

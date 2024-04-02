@@ -331,6 +331,9 @@ struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t scratchLocation0;
     sdvm_compilerLocation_t scratchLocation1;
     sdvm_compilerInstructionClobberSets_t clobberSets;
+
+    uint8_t allowArg0DestinationShare : 1;
+    uint8_t allowArg1DestinationShare : 1;
 };
 
 struct sdvm_compilerCallingConvention_s
