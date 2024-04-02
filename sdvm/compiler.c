@@ -1093,9 +1093,43 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
     case SdvmInstAllocateGCNoEscape:
         {
             SDVM_ASSERT(0 < instruction->decoding.instruction.arg0 && (size_t)instruction->decoding.instruction.arg0 <= state->module->memoryDescriptorTableSize);
-            sdvm_moduleMemoryDescriptorTableEntry_t *descriptor = state->module->memoryDescriptorTable + instruction->decoding.instruction.arg0;
+            sdvm_moduleMemoryDescriptorTableEntry_t *descriptor = state->module->memoryDescriptorTable + instruction->decoding.instruction.arg0 - 1;
             instruction->destinationLocation = sdvm_compilerLocation_stackAddress(descriptor->size, descriptor->alignment);        
         }
+        return;
+
+    case SdvmInstLoadInt8:
+    case SdvmInstLoadUInt8:
+    case SdvmInstLoadInt16:
+    case SdvmInstLoadUInt16:
+    case SdvmInstLoadInt32:
+    case SdvmInstLoadUInt32:
+    case SdvmInstLoadInt64:
+    case SdvmInstLoadUInt64:
+    case SdvmInstLoadPointer:
+    case SdvmInstLoadGCPointer:
+        if (arg0->destinationLocation.kind == SdvmCompLocationStackAddress)
+            instruction->arg0Location = arg0->destinationLocation;
+        else
+            instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, arg0, instruction->decoding.instruction.arg0Type);
+        instruction->destinationLocation = sdvm_compilerLocation_forOperandType(compiler, NULL, instruction->decoding.destType);
+        return;
+
+    case SdvmInstStoreInt8:
+    case SdvmInstStoreUInt8:
+    case SdvmInstStoreInt16:
+    case SdvmInstStoreUInt16:
+    case SdvmInstStoreInt32:
+    case SdvmInstStoreUInt32:
+    case SdvmInstStoreInt64:
+    case SdvmInstStoreUInt64:
+    case SdvmInstStorePointer:
+    case SdvmInstStoreGCPointer:
+        if (arg0->destinationLocation.kind == SdvmCompLocationStackAddress)
+            instruction->arg0Location = arg0->destinationLocation;
+        else
+            instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, arg0, instruction->decoding.instruction.arg0Type);
+        instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, arg1, instruction->decoding.instruction.arg0Type);
         return;
 
 #pragma region ArgumentConstraints
@@ -1902,6 +1936,25 @@ void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *sta
     {
         sdvm_compilerInstruction_t *instruction = state->instructions + i;
         sdvm_compiler_computeInstructionStackFrameOffsets(state, instruction);
+    }
+
+    // Copy the locations from the stack arguments.
+    for(uint32_t i = 0; i < state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        if(instruction->decoding.arg0IsInstruction && sdvm_compilerLocation_isOnStack(&instruction->arg0Location))
+        {
+            sdvm_compilerInstruction_t *arg0 = state->instructions + instruction->decoding.instruction.arg0;
+            instruction->arg0Location = arg0->location;
+            SDVM_ASSERT(sdvm_compilerLocation_isOnStack(&instruction->arg0Location));
+        }
+
+        if(instruction->decoding.arg1IsInstruction && sdvm_compilerLocation_isOnStack(&instruction->arg1Location))
+        {
+            sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
+            instruction->arg1Location = arg1->location;
+            SDVM_ASSERT(sdvm_compilerLocation_isOnStack(&instruction->arg1Location));
+        }
     }
 }
 

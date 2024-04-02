@@ -2003,7 +2003,7 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstUInt32_ZeroExtend_UInt64:
         sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
         instruction->allowArg0DestinationShare = true;
-        return true;
+        return;
 
     default:
         sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
@@ -2661,47 +2661,99 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         return true;
 
     case SdvmInstLoadInt8:
-        sdvm_compiler_x86_movsxReg32Rmo8(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_movsxReg32Rmo8(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_x86_movsxReg32Rmo8(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadUInt8:
-        sdvm_compiler_x86_movzxReg32Rmo8(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_movzxReg32Rmo8(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_x86_movzxReg32Rmo8(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadInt16:
-        sdvm_compiler_x86_movsxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_movsxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_x86_movsxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadUInt16:
-        sdvm_compiler_x86_movzxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_movzxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_x86_movzxReg32Rmo16(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadInt32:
     case SdvmInstLoadUInt32:
-        sdvm_compiler_x86_mov32RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_mov32RegRmo(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_x86_mov32RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadInt64:
     case SdvmInstLoadUInt64:
     case SdvmInstLoadPointer:
-        sdvm_compiler_x86_mov64RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_mov64RegRmo(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_x86_mov64RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
 
     case SdvmInstLoadGCPointer:
-        sdvm_compiler_x86_mov64RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
-        sdvm_compiler_x86_mov64RegRmo(compiler, dest->secondRegister.value, arg0->firstRegister.value, 8);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+        {
+            sdvm_compiler_x86_mov64RegRmo(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_x86_mov64RegRmo(compiler, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8);
+        }
+        else
+        {
+            sdvm_compiler_x86_mov64RegRmo(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+            sdvm_compiler_x86_mov64RegRmo(compiler, dest->secondRegister.value, arg0->firstRegister.value, 8);
+        }
         return true;
 
     case SdvmInstStoreInt8:
     case SdvmInstStoreUInt8:
-        sdvm_compiler_x86_mov8RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_mov8RmoReg(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
+        else
+            sdvm_compiler_x86_mov8RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
         return true;
     case SdvmInstStoreInt16:
     case SdvmInstStoreUInt16:
-        sdvm_compiler_x86_mov16RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_mov16RmoReg(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
+        else
+            sdvm_compiler_x86_mov16RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
         return true;
     case SdvmInstStoreInt32:
     case SdvmInstStoreUInt32:
-        sdvm_compiler_x86_mov32RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_mov32RmoReg(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
+        else
+            sdvm_compiler_x86_mov32RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
         return true;
     case SdvmInstStoreInt64:
     case SdvmInstStoreUInt64:
-        sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+    case SdvmInstStorePointer:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
+        else
+            sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstStoreGCPointer:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+        {
+            sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
+            sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8, arg1->secondRegister.value);
+        }
+        else
+        {
+            sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+            sdvm_compiler_x86_mov64RmoReg(compiler, arg0->firstRegister.value, 8, arg1->secondRegister.value);
+        }
         return true;
 
     case SdvmInstPointerAddOffsetUInt32:
