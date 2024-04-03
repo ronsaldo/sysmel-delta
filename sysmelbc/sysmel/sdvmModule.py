@@ -458,6 +458,42 @@ class SDVMFunction:
     def constFloat64(self, value: float) -> SDVMConstant:
         assert False
 
+    def constFloat32x2(self, value: tuple[float, float]) -> SDVMConstant:
+        assert False
+
+    def constFloat32x3(self, value: tuple[float, float, float]) -> SDVMConstant:
+        assert False
+
+    def constFloat32x4(self, value: tuple[float, float, float, float]) -> SDVMConstant:
+        assert False
+
+    def constFloat64x2(self, value: tuple[float, float]) -> SDVMConstant:
+        assert False
+
+    def constFloat64x3(self, value: tuple[float, float, float]) -> SDVMConstant:
+        assert False
+
+    def constFloat64x4(self, value: tuple[float, float, float, float]) -> SDVMConstant:
+        assert False
+
+    def constInt32x2(self, value: tuple[int, int]) -> SDVMConstant:
+        assert False
+
+    def constInt32x3(self, value: tuple[int, int, int]) -> SDVMConstant:
+        assert False
+
+    def constInt32x4(self, value: tuple[int, int, int, int]) -> SDVMConstant:
+        assert False
+
+    def constUInt32x2(self, value: tuple[int, int]) -> SDVMConstant:
+        assert False
+
+    def constUInt32x3(self, value: tuple[int, int, int]) -> SDVMConstant:
+        assert False
+
+    def constUInt32x4(self, value: tuple[int, int, int, int]) -> SDVMConstant:
+        assert False
+
     def constCString(self, value: bytes) -> SDVMConstant:
         stringValue = self.module.addEncodedString(value)
         return self.const(SdvmConstPointerCString, stringValue, stringValue.encodeForConstant())

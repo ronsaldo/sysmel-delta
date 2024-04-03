@@ -33,6 +33,20 @@ class MIRContext:
         self.float32Type = MIRFloatingPointType(self, 'Float32', 4, 4)
         self.float64Type = MIRFloatingPointType(self, 'Float64', 8, 8)
 
+        self.float32x2Type = MIRPrimitiveVectorType(self, 'Float32x2', self.float32Type, 2, 8)
+        self.float32x3Type = MIRPrimitiveVectorType(self, 'Float32x3', self.float32Type, 3, 16)
+        self.float32x4Type = MIRPrimitiveVectorType(self, 'Float32x4', self.float32Type, 4, 16)
+        self.float64x2Type = MIRPrimitiveVectorType(self, 'Float64x2', self.float64Type, 2, 16)
+        self.float64x3Type = MIRPrimitiveVectorType(self, 'Float64x3', self.float64Type, 3, 32)
+        self.float64x4Type = MIRPrimitiveVectorType(self, 'Float64x4', self.float64Type, 4, 32)
+
+        self.int32x2Type = MIRPrimitiveVectorType(self, 'Int32x2', self.int32Type, 2, 8)
+        self.int32x3Type = MIRPrimitiveVectorType(self, 'Int32x3', self.int32Type, 3, 16)
+        self.int32x4Type = MIRPrimitiveVectorType(self, 'Int32x4', self.int32Type, 4, 16)
+        self.uint32x2Type = MIRPrimitiveVectorType(self, 'UInt32x2', self.uint32Type, 2, 8)
+        self.uint32x3Type = MIRPrimitiveVectorType(self, 'UInt32x3', self.uint32Type, 3, 16)
+        self.uint32x4Type = MIRPrimitiveVectorType(self, 'UInt32x4', self.uint32Type, 4, 16)
+
         self.primitiveMulTable = {
             self.int8Type   : SdvmInstInt8Mul,
             self.int16Type  : SdvmInstInt16Mul,
@@ -100,6 +114,12 @@ class MIRSignedIntegerType(MIRType):
 
 class MIRFloatingPointType(MIRType):
     pass
+
+class MIRPrimitiveVectorType(MIRType):
+    def __init__(self, context: MIRContext, name: str, elementType: MIRType, elements: int, alignment: int) -> None:
+        super().__init__(context, name, elementType.size*elements, alignment)
+        self.elements = elements
+        self.alignment = alignment
 
 class MIRGCPointerType(MIRType):
     def isGCPointerType(self) -> bool:
@@ -809,6 +829,18 @@ class MIRModuleFrontend:
             (hirContext.uint64Type, mirContext.uint64Type),
             (hirContext.float32Type, mirContext.float32Type),
             (hirContext.float64Type, mirContext.float64Type),
+            (hirContext.float32x2Type, mirContext.float32x2Type),
+            (hirContext.float32x3Type, mirContext.float32x3Type),
+            (hirContext.float32x4Type, mirContext.float32x4Type),
+            (hirContext.float64x2Type, mirContext.float64x2Type),
+            (hirContext.float64x3Type, mirContext.float64x3Type),
+            (hirContext.float64x4Type, mirContext.float64x4Type),
+            (hirContext.int32x2Type, mirContext.int32x2Type),
+            (hirContext.int32x3Type, mirContext.int32x3Type),
+            (hirContext.int32x4Type, mirContext.int32x4Type),
+            (hirContext.uint32x2Type, mirContext.uint32x2Type),
+            (hirContext.uint32x3Type, mirContext.uint32x3Type),
+            (hirContext.uint32x4Type, mirContext.uint32x4Type),
             (hirContext.basicBlockType, mirContext.basicBlockType),
             (hirContext.functionalDefinitionType, mirContext.functionType),
         ]:
@@ -1355,6 +1387,116 @@ for primitiveDef in [
     ('Float64::floor',     sdvmUnaryPrimitiveFor(SdvmInstFloat64Floor)),
     ('Float64::ceil',      sdvmUnaryPrimitiveFor(SdvmInstFloat64Ceil)),
     ('Float64::truncated', sdvmUnaryPrimitiveFor(SdvmInstFloat64Truncate)),
+
+    ## Primitive vector float instructions.
+    ('Float32x2::+',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x2Add)),
+    ('Float32x2::-',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x2Sub)),
+    ('Float32x2::*',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x2Mul)),
+    ('Float32x2::/',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x2Div)),
+    ('Float32x2::sqrt',       sdvmUnaryPrimitiveFor(SdvmInstFloat32x2Sqrt)),
+    ('Float32x2::min:',      sdvmBinaryPrimitiveFor(SdvmInstFloat32x2Min)),
+    ('Float32x2::max:',      sdvmBinaryPrimitiveFor(SdvmInstFloat32x2Max)),
+    ('Float32x2::rounded',    sdvmUnaryPrimitiveFor(SdvmInstFloat32x2Round)),
+    ('Float32x2::floor',      sdvmUnaryPrimitiveFor(SdvmInstFloat32x2Floor)),
+    ('Float32x2::ceil',       sdvmUnaryPrimitiveFor(SdvmInstFloat32x2Ceil)),
+    ('Float32x2::truncated',  sdvmUnaryPrimitiveFor(SdvmInstFloat32x2Truncate)),
+
+    ('Float32x3::+',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Add)),
+    ('Float32x3::-',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Sub)),
+    ('Float32x3::*',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Mul)),
+    ('Float32x3::/',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Div)),
+    ('Float32x3::sqrt',       sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Sqrt)),
+    ('Float32x3::min:',      sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Min)),
+    ('Float32x3::max:',      sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Max)),
+    ('Float32x3::rounded',    sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Round)),
+    ('Float32x3::floor',      sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Floor)),
+    ('Float32x3::ceil',       sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Ceil)),
+    ('Float32x3::truncated',  sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Truncate)),
+
+    ('Float32x4::+',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Add)),
+    ('Float32x4::-',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Sub)),
+    ('Float32x4::*',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Mul)),
+    ('Float32x4::/',         sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Div)),
+    ('Float32x4::sqrt',       sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Sqrt)),
+    ('Float32x4::min:',      sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Min)),
+    ('Float32x4::max:',      sdvmBinaryPrimitiveFor(SdvmInstFloat32x4Max)),
+    ('Float32x4::rounded',    sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Round)),
+    ('Float32x4::floor',      sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Floor)),
+    ('Float32x4::ceil',       sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Ceil)),
+    ('Float32x4::truncated',  sdvmUnaryPrimitiveFor(SdvmInstFloat32x4Truncate)),
+
+    ('Float64x2::+',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x2Add)),
+    ('Float64x2::-',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x2Sub)),
+    ('Float64x2::*',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x2Mul)),
+    ('Float64x2::/',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x2Div)),
+    ('Float64x2::sqrt',       sdvmUnaryPrimitiveFor(SdvmInstFloat64x2Sqrt)),
+    ('Float64x2::min:',      sdvmBinaryPrimitiveFor(SdvmInstFloat64x2Min)),
+    ('Float64x2::max:',      sdvmBinaryPrimitiveFor(SdvmInstFloat64x2Max)),
+    ('Float64x2::rounded',    sdvmUnaryPrimitiveFor(SdvmInstFloat64x2Round)),
+    ('Float64x2::floor',      sdvmUnaryPrimitiveFor(SdvmInstFloat64x2Floor)),
+    ('Float64x2::ceil',       sdvmUnaryPrimitiveFor(SdvmInstFloat64x2Ceil)),
+    ('Float64x2::truncated',  sdvmUnaryPrimitiveFor(SdvmInstFloat64x2Truncate)),
+
+    ('Float64x3::+',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Add)),
+    ('Float64x3::-',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Sub)),
+    ('Float64x3::*',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Mul)),
+    ('Float64x3::/',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Div)),
+    ('Float64x3::sqrt',       sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Sqrt)),
+    ('Float64x3::min:',      sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Min)),
+    ('Float64x3::max:',      sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Max)),
+    ('Float64x3::rounded',    sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Round)),
+    ('Float64x3::floor',      sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Floor)),
+    ('Float64x3::ceil',       sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Ceil)),
+    ('Float64x3::truncated',  sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Truncate)),
+
+    ('Float64x4::+',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Add)),
+    ('Float64x4::-',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Sub)),
+    ('Float64x4::*',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Mul)),
+    ('Float64x4::/',         sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Div)),
+    ('Float64x4::sqrt',       sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Sqrt)),
+    ('Float64x4::min:',      sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Min)),
+    ('Float64x4::max:',      sdvmBinaryPrimitiveFor(SdvmInstFloat64x4Max)),
+    ('Float64x4::rounded',    sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Round)),
+    ('Float64x4::floor',      sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Floor)),
+    ('Float64x4::ceil',       sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Ceil)),
+    ('Float64x4::truncated',  sdvmUnaryPrimitiveFor(SdvmInstFloat64x4Truncate)),
+
+    ## Primitive vector integer instructions.
+    ('Int32x2::+',    sdvmBinaryPrimitiveFor(SdvmInstInt32x2Add)),
+    ('Int32x2::-',    sdvmBinaryPrimitiveFor(SdvmInstInt32x2Sub)),
+    ('Int32x2::*',    sdvmBinaryPrimitiveFor(SdvmInstInt32x2Mul)),
+    ('Int32x2::min:', sdvmBinaryPrimitiveFor(SdvmInstInt32x2Min)),
+    ('Int32x2::max:', sdvmBinaryPrimitiveFor(SdvmInstInt32x2Max)),
+
+    ('Int32x3::+',    sdvmBinaryPrimitiveFor(SdvmInstInt32x4Add)),
+    ('Int32x3::-',    sdvmBinaryPrimitiveFor(SdvmInstInt32x4Sub)),
+    ('Int32x3::*',    sdvmBinaryPrimitiveFor(SdvmInstInt32x4Mul)),
+    ('Int32x3::min:', sdvmBinaryPrimitiveFor(SdvmInstInt32x4Min)),
+    ('Int32x3::max:', sdvmBinaryPrimitiveFor(SdvmInstInt32x4Max)),
+
+    ('Int32x4::+',    sdvmBinaryPrimitiveFor(SdvmInstInt32x4Add)),
+    ('Int32x4::-',    sdvmBinaryPrimitiveFor(SdvmInstInt32x4Sub)),
+    ('Int32x4::*',    sdvmBinaryPrimitiveFor(SdvmInstInt32x4Mul)),
+    ('Int32x4::min:', sdvmBinaryPrimitiveFor(SdvmInstInt32x4Min)),
+    ('Int32x4::max:', sdvmBinaryPrimitiveFor(SdvmInstInt32x4Max)),
+
+    ('UInt32x2::+',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x2Add)),
+    ('UInt32x2::-',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x2Sub)),
+    ('UInt32x2::*',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x2Mul)),
+    ('UInt32x2::min:', sdvmBinaryPrimitiveFor(SdvmInstUInt32x2Min)),
+    ('UInt32x2::max:', sdvmBinaryPrimitiveFor(SdvmInstUInt32x2Max)),
+
+    ('UInt32x3::+',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Add)),
+    ('UInt32x3::-',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Sub)),
+    ('UInt32x3::*',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Mul)),
+    ('UInt32x3::min:', sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Min)),
+    ('UInt32x3::max:', sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Max)),
+
+    ('UInt32x4::+',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Add)),
+    ('UInt32x4::-',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Sub)),
+    ('UInt32x4::*',    sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Mul)),
+    ('UInt32x4::min:', sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Min)),
+    ('UInt32x4::max:', sdvmBinaryPrimitiveFor(SdvmInstUInt32x4Max)),
 
     ## Casting instruction table.
     ('Int8::asInt8',    yourselfTranslator),

@@ -16,6 +16,8 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 export: #addFloat64 with: (:(Float64)x, :(Float64)y :: Float64) __cdecl :=> x + y.
 export: #addFloat32 with: (:(Float32)x, :(Float32)y :: Float32) __cdecl :=> x + y.
 
+export: #addFloat32x4 with: (:(Float32x4)x, :(Float32x4)y :: Float32x4) __cdecl :=> x + y.
+
 ##(:[Type]T :(T)x :: T) #[Int32].
 ##((:[Type]T :(T)x :: T) :=> x) #[Int32].
 ##(:(Int32)x :: Int32) :=> x

@@ -719,6 +719,12 @@ for baseType in [
         SizeType, SignedSizeType, UIntPointerType, IntPointerType,
         Char8Type, Char16Type, Char32Type,
         Float32Type, Float64Type,
+
+        Float32x2Type, Float32x3Type, Float32x4Type,
+        Float64x2Type, Float64x3Type, Float64x4Type,
+        Int32x2Type, Int32x3Type, Int32x4Type,
+        UInt32x2Type, UInt32x3Type, UInt32x4Type,
+
         ASTNodeType, 
     ]:
     TopLevelEnvironment = TopLevelEnvironment.withBaseType(baseType)
@@ -819,8 +825,12 @@ for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
 for primitiveNumberType in PrimitiveFloatTypes:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['/', prefix + '/',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, []],
-        ['sqrt', prefix + 'sqrt',  [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
+        ['/',         prefix + '/',         [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, []],
+        ['sqrt',      prefix + 'sqrt',      [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
+        ['rounded',   prefix + 'rounded',   [primitiveNumberType, primitiveNumberType], lambda x: x.rounded(), []],
+        ['floor',     prefix + 'floor',     [primitiveNumberType, primitiveNumberType], lambda x: x.floor(), []],
+        ['ceil',      prefix + 'ceil',      [primitiveNumberType, primitiveNumberType], lambda x: x.ceil(), []],
+        ['truncated', prefix + 'truncated', [primitiveNumberType, primitiveNumberType], lambda x: x.truncated(), []],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
@@ -847,6 +857,30 @@ for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
 
         ['f32', prefix + 'asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
         ['f64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
+    ], TopLevelEnvironment)
+
+for primitiveVectorType in PrimitiveVectorTypes:
+    prefix = primitiveVectorType.name + "::"
+    TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['negated', prefix + 'negated', [primitiveVectorType, primitiveVectorType], lambda x: -x, []],
+
+        ['+', prefix + '+',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x + y, []],
+        ['-', prefix + '-',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x - y, []],
+        ['*', prefix + '*',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x * y, []],
+
+        ['min:', prefix + 'min:',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x.minWith(y), []],
+        ['max:', prefix + 'max:',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x.maxWith(y), []],
+    ], TopLevelEnvironment)
+
+for primitiveVectorType in PrimitiveFloatVectorTypes:
+    prefix = primitiveVectorType.name + "::"
+    TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
+        ['/',         prefix + '/',         [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, []],
+        ['sqrt',      prefix + 'sqrt',      [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
+        ['rounded',   prefix + 'rounded',   [primitiveNumberType, primitiveNumberType], lambda x: x.rounded(), []],
+        ['floor',     prefix + 'floor',     [primitiveNumberType, primitiveNumberType], lambda x: x.floor(), []],
+        ['ceil',      prefix + 'ceil',      [primitiveNumberType, primitiveNumberType], lambda x: x.ceil(), []],
+        ['truncated', prefix + 'truncated', [primitiveNumberType, primitiveNumberType], lambda x: x.truncated(), []],
     ], TopLevelEnvironment)
 
 TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(FalseType.getSingleton())

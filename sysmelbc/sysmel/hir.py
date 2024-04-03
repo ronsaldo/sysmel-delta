@@ -46,6 +46,20 @@ class HIRContext:
         self.float32Type = HIRPrimitiveFloatType(self, 'Float32', 4, 4)
         self.float64Type = HIRPrimitiveFloatType(self, 'Float64', 8, 8)
 
+        self.float32x2Type = HIRPrimitiveVectorType(self, 'Float32x2', self.float32Type, 2, 8)
+        self.float32x3Type = HIRPrimitiveVectorType(self, 'Float32x3', self.float32Type, 3, 16)
+        self.float32x4Type = HIRPrimitiveVectorType(self, 'Float32x4', self.float32Type, 4, 16)
+        self.float64x2Type = HIRPrimitiveVectorType(self, 'Float64x2', self.float64Type, 2, 16)
+        self.float64x3Type = HIRPrimitiveVectorType(self, 'Float64x3', self.float64Type, 3, 32)
+        self.float64x4Type = HIRPrimitiveVectorType(self, 'Float64x4', self.float64Type, 4, 32)
+
+        self.int32x2Type = HIRPrimitiveVectorType(self, 'Int32x2', self.int32Type, 2, 8)
+        self.int32x3Type = HIRPrimitiveVectorType(self, 'Int32x3', self.int32Type, 3, 16)
+        self.int32x4Type = HIRPrimitiveVectorType(self, 'Int32x4', self.int32Type, 4, 16)
+        self.uint32x2Type = HIRPrimitiveVectorType(self, 'UInt32x2', self.uint32Type, 2, 8)
+        self.uint32x3Type = HIRPrimitiveVectorType(self, 'UInt32x3', self.uint32Type, 3, 16)
+        self.uint32x4Type = HIRPrimitiveVectorType(self, 'UInt32x4', self.uint32Type, 4, 16)
+
         self.basicBlockType = HIRBasicBlockType(self, 'BasicBlock', self.pointerSize, self.pointerAlignment)
         self.functionalDefinitionType = HIRFunctionalDefinitionType(self, 'FunctionalDefinition', pointerSize, pointerSize)
         self.moduleType = HIRModuleType(self, 'Module', self.gcPointerSize, self.gcPointerAlignment)
@@ -487,6 +501,12 @@ class HIRPrimitiveIntegerType(HIRPrimitiveType):
 
 class HIRPrimitiveFloatType(HIRPrimitiveType):
     pass
+
+class HIRPrimitiveVectorType(HIRPrimitiveType):
+    def __init__(self, context: HIRContext, name: str, elementType: HIRPrimitiveType, elements: int, alignment: int) -> None:
+        super().__init__(context, name, elementType.size*elements, alignment)
+        self.elementType = elementType
+        self.elements = elements
 
 class HIRFunctionType(HIRTypeValue):
     def __init__(self, context: HIRContext) -> None:
@@ -1207,6 +1227,10 @@ class HIRModuleFrontend:
         for baseType, targetType in [
             (VoidType, self.context.voidType),
 
+            (BooleanType, self.context.booleanType),
+            (FalseType, self.context.voidType),
+            (TrueType, self.context.voidType),
+
             (Int8Type,  self.context.int8Type),
             (Int16Type, self.context.int16Type),
             (Int32Type, self.context.int32Type),
@@ -1229,8 +1253,19 @@ class HIRModuleFrontend:
             (Float32Type, self.context.float32Type),
             (Float64Type, self.context.float64Type),
 
-            (FalseType, self.context.voidType),
-            (TrueType, self.context.voidType),
+            (Float32x2Type, self.context.float32x2Type),
+            (Float32x3Type, self.context.float32x3Type),
+            (Float32x4Type, self.context.float32x4Type),
+            (Float64x2Type, self.context.float64x2Type),
+            (Float64x3Type, self.context.float64x3Type),
+            (Float64x4Type, self.context.float64x4Type),
+
+            (Int32x2Type, self.context.int32x2Type),
+            (Int32x3Type, self.context.int32x3Type),
+            (Int32x4Type, self.context.int32x4Type),
+            (UInt32x2Type, self.context.uint32x2Type),
+            (UInt32x3Type, self.context.uint32x3Type),
+            (UInt32x4Type, self.context.uint32x4Type),
         ]:
             self.translatedConstantValueDictionary[baseType] = targetType
 

@@ -233,6 +233,40 @@ SDVM_INSTRUCTION_DEF(FreeManual, FreeManual, Pointer, Info, Void, "Frees memory.
 #include "floatOpcodes.inc"
 #undef FloatType
 
+// Primitive float vector arithmetic
+#define VectorType Float32x2
+#include "floatVectorOpcodes.inc"
+#undef VectorType
+
+#define VectorType Float32x4
+#include "floatVectorOpcodes.inc"
+#undef VectorType
+
+#define VectorType Float64x2
+#include "floatVectorOpcodes.inc"
+#undef VectorType
+
+#define VectorType Float64x4
+#include "floatVectorOpcodes.inc"
+#undef VectorType
+
+// Primitive integer vector arithmetic
+#define VectorType Int32x2
+#include "integerVectorOpcodes.inc"
+#undef VectorType
+
+#define VectorType Int32x4
+#include "integerVectorOpcodes.inc"
+#undef VectorType
+
+#define VectorType UInt32x2
+#include "integerVectorOpcodes.inc"
+#undef VectorType
+
+#define VectorType UInt32x4
+#include "integerVectorOpcodes.inc"
+#undef VectorType
+
 // Casting instructions
 SDVM_CAST_INSTRUCTION_DEF( Int8, Bitcast, UInt8)
 SDVM_CAST_INSTRUCTION_DEF(UInt8, Bitcast,  Int8)

@@ -366,6 +366,12 @@ class PrimitiveFloat32TypeClass(PrimitiveFloatTypeClass):
 class PrimitiveFloat64TypeClass(PrimitiveFloatTypeClass):
     pass
 
+class PrimitiveVectorTypeClass(PrimitiveTypeClass):
+    def __init__(self, name: str, elementType: TypedValue, elements: int, literalSuffix='') -> None:
+        super().__init__(name, elementType.valueSize * elements, literalSuffix)
+        self.elementType = elementType
+        self.elements = elements
+
 class StringTypeClass(BaseType):
     pass
 
@@ -418,6 +424,34 @@ PrimitiveIntegerTypes = [
 ]
 PrimitiveFloatTypes = [Float32Type, Float64Type]
 NumberTypes = [IntegerType] + PrimitiveIntegerTypes + PrimitiveFloatTypes
+
+Float32x2Type = PrimitiveVectorTypeClass('Float32x2', Float32Type, 2, 'f32x2')
+Float32x3Type = PrimitiveVectorTypeClass('Float32x3', Float32Type, 3, 'f32x3')
+Float32x4Type = PrimitiveVectorTypeClass('Float32x4', Float32Type, 4, 'f32x4')
+
+Float64x2Type = PrimitiveVectorTypeClass('Float64x2', Float64Type, 2, 'f64x2')
+Float64x3Type = PrimitiveVectorTypeClass('Float64x3', Float64Type, 3, 'f64x3')
+Float64x4Type = PrimitiveVectorTypeClass('Float64x4', Float64Type, 4, 'f64x4')
+
+Int32x2Type = PrimitiveVectorTypeClass('Int32x2', Int32Type, 2, 'i32x2')
+Int32x3Type = PrimitiveVectorTypeClass('Int32x3', Int32Type, 3, 'i32x3')
+Int32x4Type = PrimitiveVectorTypeClass('Int32x4', Int32Type, 4, 'i32x4')
+
+UInt32x2Type = PrimitiveVectorTypeClass('UInt32x2', UInt32Type, 2, 'u32x2')
+UInt32x3Type = PrimitiveVectorTypeClass('UInt32x3', UInt32Type, 3, 'u32x3')
+UInt32x4Type = PrimitiveVectorTypeClass('UInt32x4', UInt32Type, 4, 'u32x4')
+
+PrimitiveFloatVectorTypes = [
+    Float32x2Type, Float32x3Type, Float32x4Type,
+    Float64x2Type, Float64x3Type, Float64x4Type,
+]
+
+PrimitiveIntegerVectorTypes = [
+    Int32x2Type, Int32x3Type, Int32x4Type,
+    UInt32x2Type, UInt32x3Type, UInt32x4Type,
+]
+
+PrimitiveVectorTypes = PrimitiveFloatVectorTypes + PrimitiveIntegerVectorTypes
 
 class IntegerValue(TypedValue):
     def __init__(self, value: int) -> None:
