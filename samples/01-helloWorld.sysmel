@@ -1,4 +1,4 @@
-let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer pointer)format, :(CVarArg)... :: Int32) __cdecl).
+let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
 let: #puts with: (fromExternal: #C import: #puts withType: (Char8 pointer => Void) __cdecl).
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
@@ -12,6 +12,9 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 
     0i32
 }.
+
+export: #addFloat64 with: (:(Float64)x, :(Float64)y :: Float64) __cdecl :=> x + y.
+export: #addFloat32 with: (:(Float32)x, :(Float32)y :: Float32) __cdecl :=> x + y.
 
 ##(:[Type]T :(T)x :: T) #[Int32].
 ##((:[Type]T :(T)x :: T) :=> x) #[Int32].

@@ -657,6 +657,20 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_signedIntegerRegister(uin
     return location;
 }
 
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_floatRegister(uint8_t size)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationRegister,
+        .firstRegister = {
+            .kind = SdvmCompRegisterKindFloat,
+            .isPending = true,
+            .size = size
+        }
+    };
+
+    return location;
+}
+
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_integerRegisterPair(uint8_t firstSize, uint8_t secondSize)
 {
     sdvm_compilerLocation_t location = {
@@ -791,6 +805,11 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
         return sdvm_compilerLocation_integerRegister(4);
     case SdvmTypeUInt64:
         return sdvm_compilerLocation_integerRegister(8);
+
+    case SdvmTypeFloat32:
+        return sdvm_compilerLocation_floatRegister(4);
+    case SdvmTypeFloat64:
+        return sdvm_compilerLocation_floatRegister(8);
 
     case SdvmTypePointer:
     case SdvmTypeProcedureHandle:
