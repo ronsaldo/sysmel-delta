@@ -3121,10 +3121,14 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
     case SdvmInstReturnGCPointer:
     case SdvmInstReturnFloat32:
     case SdvmInstReturnFloat64:
-    case SdvmInstReturnFloatVector128:
-    case SdvmInstReturnIntegerVector128:
-    case SdvmInstReturnFloatVector256:
-    case SdvmInstReturnIntegerVector256:
+    case SdvmInstReturnFloat32x2:
+    case SdvmInstReturnFloat32x4:
+    case SdvmInstReturnFloat64x2:
+    case SdvmInstReturnFloat64x4:
+    case SdvmInstReturnInt32x2:
+    case SdvmInstReturnInt32x4:
+    case SdvmInstReturnUInt32x2:
+    case SdvmInstReturnUInt32x4:
         sdvm_compiler_x64_emitFunctionEpilogue(state);
         sdvm_compiler_x86_ret(compiler);
         return false;
@@ -3140,10 +3144,14 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
     case SdvmInstCallGCPointer:
     case SdvmInstCallFloat32:
     case SdvmInstCallFloat64:
-    case SdvmInstCallFloatVector128:
-    case SdvmInstCallIntegerVector128:
-    case SdvmInstCallFloatVector256:
-    case SdvmInstCallIntegerVector256:
+    case SdvmInstCallFloat32x2:
+    case SdvmInstCallFloat32x4:
+    case SdvmInstCallFloat64x2:
+    case SdvmInstCallFloat64x4:
+    case SdvmInstCallInt32x2:
+    case SdvmInstCallInt32x4:
+    case SdvmInstCallUInt32x2:
+    case SdvmInstCallUInt32x4:
         if(arg0->kind == SdvmCompLocationGlobalSymbolValue)
             sdvm_compiler_x86_callGsv(compiler, arg0->symbolHandle, 0);
         else if(arg0->kind == SdvmCompLocationLocalSymbolValue)
@@ -3163,10 +3171,14 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
     case SdvmInstCallClosureGCPointer:
     case SdvmInstCallClosureFloat32:
     case SdvmInstCallClosureFloat64:
-    case SdvmInstCallClosureFloatVector128:
-    case SdvmInstCallClosureIntegerVector128:
-    case SdvmInstCallClosureFloatVector256:
-    case SdvmInstCallClosureIntegerVector256:
+    case SdvmInstCallClosureFloat32x2:
+    case SdvmInstCallClosureFloat32x4:
+    case SdvmInstCallClosureFloat64x2:
+    case SdvmInstCallClosureFloat64x4:
+    case SdvmInstCallClosureInt32x2:
+    case SdvmInstCallClosureInt32x4:
+    case SdvmInstCallClosureUInt32x2:
+    case SdvmInstCallClosureUInt32x4:
         sdvm_compiler_x86_callRmo(compiler, arg0->firstRegister.value, 0);
         return true;
 
