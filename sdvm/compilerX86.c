@@ -205,6 +205,11 @@ void sdvm_compiler_x86_rexRm(sdvm_compiler_t *compiler, bool W, sdvm_x86_registe
     sdvm_compiler_x86_rex(compiler, W, false, false, rm > SDVM_X86_REG_HALF_MASK);
 }
 
+void sdvm_compiler_x86_rexByteRm(sdvm_compiler_t *compiler, bool W, sdvm_x86_registerIndex_t rm)
+{
+    sdvm_compiler_x86_rexByte(compiler, W, false, false, rm > SDVM_X86_REG_HALF_MASK);
+}
+
 void sdvm_compiler_x86_prefix(sdvm_compiler_t *compiler, uint8_t prefix)
 {
     sdvm_compiler_addInstructionByte(compiler, prefix);
@@ -1631,6 +1636,106 @@ void sdvm_compiler_x86_movsxReg64Rmo8(sdvm_compiler_t *compiler, sdvm_x86_regist
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
 
+void sdvm_compiler_x86_alu8RmReg(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_rexByteRmReg(compiler, false, destination, source);
+    sdvm_compiler_x86_opcode(compiler, opcode);
+    sdvm_compiler_x86_modRmReg(compiler, destination, source);
+}
+
+void sdvm_compiler_x86_alu8RmImm8(sdvm_compiler_t *compiler, uint8_t opcode, sdvm_x86_registerIndex_t destination, uint8_t regOpcode, uint16_t value)
+{
+    sdvm_compiler_x86_rexByteRm(compiler, false, destination);
+    sdvm_compiler_x86_opcode(compiler, opcode);
+    sdvm_compiler_x86_modRmOp(compiler, destination, regOpcode);
+    sdvm_compiler_x86_imm8(compiler, value);
+}
+
+void sdvm_compiler_x86_add8RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu8RmReg(compiler, 0x00, destination, source);
+}
+
+void sdvm_compiler_x86_sub8RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu8RmReg(compiler, 0x28, destination, source);
+}
+
+void sdvm_compiler_x86_cmp8RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu8RmReg(compiler, 0x38, destination, source);
+}
+
+void sdvm_compiler_x86_test8RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu8RmReg(compiler, 0x84, destination, source);
+}
+
+void sdvm_compiler_x86_and8RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu8RmReg(compiler, 0x20, destination, source);
+}
+
+void sdvm_compiler_x86_or8RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu8RmReg(compiler, 0x08, destination, source);
+}
+
+void sdvm_compiler_x86_xor8RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_alu8RmReg(compiler, 0x30, destination, source);
+}
+
+void sdvm_compiler_x86_add8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu8RmImm8(compiler, 0x80, destination, 0, value);
+}
+
+void sdvm_compiler_x86_sub8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu8RmImm8(compiler, 0x80, destination, 5, value);
+}
+
+void sdvm_compiler_x86_cmp8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value)
+{
+    sdvm_compiler_x86_alu8RmImm8(compiler, 0x80, destination, 7, value);
+}
+
+void sdvm_compiler_x86_test8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value)
+{
+    sdvm_compiler_x86_alu8RmImm8(compiler, 0xF6, destination, 0, value);
+}
+
+void sdvm_compiler_x86_and8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value)
+{
+    if(value == -1)
+        return;
+
+    sdvm_compiler_x86_alu8RmImm8(compiler, 0x80, destination, 4, value);
+}
+
+void sdvm_compiler_x86_or8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu8RmImm8(compiler, 0x80, destination, 1, value);
+}
+
+void sdvm_compiler_x86_xor8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value)
+{
+    if(value == 0)
+        return;
+
+    sdvm_compiler_x86_alu8RmImm8(compiler, 0x80, destination, 6, value);
+}
+
 #pragma endregion X86_Instructions_8
 
 #pragma region X86_RegisterConstraints
@@ -1733,6 +1838,69 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
 
     switch (instruction->decoding.opcode)
     {
+    case SdvmInstInt8Add:
+    case SdvmInstInt8Sub:
+    case SdvmInstInt8And:
+    case SdvmInstInt8Or:
+    case SdvmInstUInt8Add:
+    case SdvmInstUInt8Sub:
+    case SdvmInstUInt8And:
+    case SdvmInstUInt8Xor:
+        instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(1, arg0);
+        instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(1, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
+        instruction->allowArg0DestinationShare = true;
+        return;
+    case SdvmInstInt8Mul:
+    case SdvmInstUInt8Mul:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        instruction->arg1Location = sdvm_compilerLocation_integerRegister(1);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        return;
+    case SdvmInstInt8Div:
+    case SdvmInstInt8UDiv:
+    case SdvmInstUInt8Div:
+    case SdvmInstUInt8UDiv:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        instruction->arg1Location = sdvm_compilerLocation_integerRegister(1);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        return;
+    case SdvmInstInt8Rem:
+    case SdvmInstInt8URem:
+    case SdvmInstUInt8Rem:
+    case SdvmInstUInt8URem:
+        instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        instruction->arg1Location = sdvm_compilerLocation_integerRegister(1);
+        instruction->destinationLocation = sdvm_compilerLocation_specificRegister(sdvm_x86_AX);
+        return;
+    case SdvmInstInt8Lsl:
+    case SdvmInstInt8Lsr:
+    case SdvmInstInt8Asr:
+    case SdvmInstUInt8Lsl:
+    case SdvmInstUInt8Lsr:
+    case SdvmInstUInt8Asr:
+        instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(1, arg0);
+        instruction->arg1Location = sdvm_compilerLocation_x86_specificRegOrImm32(sdvm_x86_CX, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
+        instruction->allowArg0DestinationShare = true;
+        return;
+    case SdvmInstInt8Equals:
+    case SdvmInstInt8NotEquals:
+    case SdvmInstInt8LessThan:
+    case SdvmInstInt8LessOrEquals:
+    case SdvmInstInt8GreaterThan:
+    case SdvmInstInt8GreaterOrEquals:
+    case SdvmInstUInt8Equals:
+    case SdvmInstUInt8NotEquals:
+    case SdvmInstUInt8LessThan:
+    case SdvmInstUInt8LessOrEquals:
+    case SdvmInstUInt8GreaterThan:
+    case SdvmInstUInt8GreaterOrEquals:
+        instruction->arg0Location = sdvm_compilerLocation_integerRegister(1);
+        instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(1, arg1);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
+        return;
+
     case SdvmInstInt16Add:
     case SdvmInstInt16Sub:
     case SdvmInstInt16And:
@@ -2047,6 +2215,51 @@ static bool sdvm_compiler_x86_comparisonAndBranchPredicate(sdvm_functionCompilat
     return (uint32_t)branch->decoding.instruction.arg0 == comparison->index;
 }
 
+static void sdvm_compiler_x86_int8ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    (void)count;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+    sdvm_compilerInstruction_t *arg1 = state->instructions + comparison->decoding.instruction.arg1;
+    sdvm_compilerInstruction_t *branchDestination = state->instructions + branch->decoding.instruction.arg1;
+
+    comparison->arg0Location = sdvm_compilerLocation_integerRegister(1);
+    comparison->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(1, arg1);
+    branch->arg1Location = branchDestination->location;
+}
+
+static bool sdvm_compiler_x86_int8ComparisonAndJumpIfTrueCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    (void)count;
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp8RegImm8(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp8RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt8, comparison->decoding.baseOpcode);
+    return true;
+}
+
+static bool sdvm_compiler_x86_int8ComparisonAndJumpIfFalseCodegen(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
+{
+    (void)count;
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_compilerInstruction_t *comparison = instructions;
+    sdvm_compilerInstruction_t *branch = instructions + 1;
+
+    if(sdvm_compilerLocationKind_isImmediate(comparison->arg1Location.kind))
+        sdvm_compiler_x86_cmp8RegImm8(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.immediateS32);
+    else
+        sdvm_compiler_x86_cmp8RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
+
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt8, comparison->decoding.baseOpcode);
+    return true;
+}
+
 static void sdvm_compiler_x86_int16ComparisonAndBranchConstraints(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
     (void)count;
@@ -2186,6 +2399,19 @@ static const sdvm_compilerInstructionPattern_t sdvm_x64_instructionPatterns[] = 
 #define COMPARISON_BRANCH_PATTERN(typePrefix, op) \
     {.size = 2, .opcodes = {op, SdvmInstJumpIfTrue}, .predicate = sdvm_compiler_x86_comparisonAndBranchPredicate, .constraints = sdvm_compiler_x86_ ## typePrefix ## ComparisonAndBranchConstraints, .generator = sdvm_compiler_x86_## typePrefix ##ComparisonAndJumpIfTrueCodegen },\
     {.size = 2, .opcodes = {op, SdvmInstJumpIfFalse}, .predicate = sdvm_compiler_x86_comparisonAndBranchPredicate, .constraints = sdvm_compiler_x86_ ## typePrefix ## ComparisonAndBranchConstraints, .generator = sdvm_compiler_x86_## typePrefix ##ComparisonAndJumpIfFalseCodegen }
+
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstInt8Equals),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstInt8NotEquals),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstInt8LessThan),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstInt8LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstInt8GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstInt8GreaterOrEquals),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstUInt8Equals),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstUInt8NotEquals),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstUInt8LessThan),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstUInt8LessOrEquals),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstUInt8GreaterThan),
+    COMPARISON_BRANCH_PATTERN(int8, SdvmInstUInt8GreaterOrEquals),
 
     COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16Equals),
     COMPARISON_BRANCH_PATTERN(int16, SdvmInstInt16NotEquals),
@@ -2764,6 +2990,88 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
             sdvm_compiler_x86_add64RegImmS32(compiler, dest->firstRegister.value, arg1->immediateS32);
         else
             sdvm_compiler_x86_add64RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstInt8Add:
+    case SdvmInstUInt8Add:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_add8RegImm8(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_add8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt8Sub:
+    case SdvmInstUInt8Sub:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_sub8RegImm8(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_sub8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt8And:
+    case SdvmInstUInt8And:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_and8RegImm8(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_and8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt8Or:
+    case SdvmInstUInt8Or:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_or8RegImm8(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_or8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt8Xor:
+    case SdvmInstUInt8Xor:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_xor8RegImm8(compiler, dest->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_xor8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt8Min:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_cmp8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_cmovg32RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstUInt8Min:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_cmp8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_cmova32RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstInt8Max:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_cmp8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_cmovl32RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+    case SdvmInstUInt8Max:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_cmp8RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_cmovb32RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstInt8Equals:
+    case SdvmInstInt8NotEquals:
+    case SdvmInstInt8LessThan:
+    case SdvmInstInt8LessOrEquals:
+    case SdvmInstInt8GreaterThan:
+    case SdvmInstInt8GreaterOrEquals:
+    case SdvmInstUInt8Equals:
+    case SdvmInstUInt8NotEquals:
+    case SdvmInstUInt8LessThan:
+    case SdvmInstUInt8LessOrEquals:
+    case SdvmInstUInt8GreaterThan:
+    case SdvmInstUInt8GreaterOrEquals:
+        sdvm_compiler_x86_xor32RegReg(compiler, dest->firstRegister.value, dest->firstRegister.value);
+        if(sdvm_compilerLocationKind_isImmediate(arg1->kind))
+            sdvm_compiler_x86_cmp8RegImm8(compiler, arg0->firstRegister.value, arg1->immediateS32);
+        else
+            sdvm_compiler_x86_cmp8RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
+
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt8, instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstInt16Add:
