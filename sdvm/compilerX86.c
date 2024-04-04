@@ -2445,9 +2445,9 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat32Div:
     case SdvmInstFloat32Min:
     case SdvmInstFloat32Max:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(4);
-        instruction->arg1Location = sdvm_compilerLocation_floatRegister(4);
-        instruction->destinationLocation = sdvm_compilerLocation_floatRegister(4);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->arg1Location = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(4);
         instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstFloat32Sqrt:
@@ -2455,8 +2455,8 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat32Ceil:
     case SdvmInstFloat32Truncate:
     case SdvmInstFloat32Round:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(4);
-        instruction->destinationLocation = sdvm_compilerLocation_floatRegister(4);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(4);
         instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstFloat32Equals:
@@ -2465,8 +2465,8 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat32LessOrEquals:
     case SdvmInstFloat32GreaterThan:
     case SdvmInstFloat32GreaterOrEquals:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(4);
-        instruction->arg1Location = sdvm_compilerLocation_floatRegister(4);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->arg1Location = sdvm_compilerLocation_vectorFloatRegister(4);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         return;
 
@@ -2486,8 +2486,8 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat32x2Ceil:
     case SdvmInstFloat32x2Truncate:
     case SdvmInstFloat32x2Round:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(8);
-        instruction->destinationLocation = sdvm_compilerLocation_floatRegister(8);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(8);
         instruction->allowArg0DestinationShare = true;
         return;
 
@@ -2518,8 +2518,8 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat64x2Ceil:
     case SdvmInstFloat64x2Truncate:
     case SdvmInstFloat64x2Round:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(16);
-        instruction->destinationLocation = sdvm_compilerLocation_floatRegister(16);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(16);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(16);
         instruction->allowArg0DestinationShare = true;
         return;
 
@@ -2529,9 +2529,9 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat64Div:
     case SdvmInstFloat64Min:
     case SdvmInstFloat64Max:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(8);
-        instruction->arg1Location = sdvm_compilerLocation_floatRegister(8);
-        instruction->destinationLocation = sdvm_compilerLocation_floatRegister(8);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->arg1Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(8);
         instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstFloat64Sqrt:
@@ -2539,8 +2539,8 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat64Ceil:
     case SdvmInstFloat64Truncate:
     case SdvmInstFloat64Round:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(8);
-        instruction->destinationLocation = sdvm_compilerLocation_floatRegister(8);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(8);
         instruction->allowArg0DestinationShare = true;
         return;
     case SdvmInstFloat64Equals:
@@ -2549,8 +2549,8 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstFloat64LessOrEquals:
     case SdvmInstFloat64GreaterThan:
     case SdvmInstFloat64GreaterOrEquals:
-        instruction->arg0Location = sdvm_compilerLocation_floatRegister(8);
-        instruction->arg1Location = sdvm_compilerLocation_floatRegister(8);
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->arg1Location = sdvm_compilerLocation_vectorFloatRegister(8);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         return;
     default:

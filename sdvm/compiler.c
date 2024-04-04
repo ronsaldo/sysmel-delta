@@ -884,10 +884,13 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
         return sdvm_compilerLocation_integerRegister(8);
 
     case SdvmTypeFloat32:
-        return sdvm_compilerLocation_floatRegister(4);
+        if (compiler->target->hasSeparateFloatFromVectorRegisters)
+            return sdvm_compilerLocation_floatRegister(4);
+        return sdvm_compilerLocation_vectorFloatRegister(4);
     case SdvmTypeFloat64:
-        return sdvm_compilerLocation_floatRegister(8);
-
+        if (compiler->target->hasSeparateFloatFromVectorRegisters)
+            return sdvm_compilerLocation_floatRegister(8);
+        return sdvm_compilerLocation_vectorFloatRegister(8);
     case SdvmTypeFloat32x2:
         return sdvm_compilerLocation_vectorFloatRegister(8);
     case SdvmTypeFloat32x4:

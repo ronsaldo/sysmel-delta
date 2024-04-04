@@ -194,6 +194,7 @@ struct sdvm_compilerTarget_s
     sdvm_compilerObjectFileType_t objectFileType;
     uint32_t elfMachine;
     bool usesUnderscorePrefix;
+    bool hasSeparateFloatFromVectorRegisters;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
     const sdvm_compilerCallingConvention_t *cdecl;
