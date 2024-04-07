@@ -616,8 +616,9 @@ class HIRConstantPrimitiveFloat(HIRConstantPrimitive):
         return '%s(%f)' % (str(self.type), self.value)
     
 class HIRGlobalValue(HIRConstant):
-    def __init__(self, context: HIRContext, type: HIRValue) -> None:
+    def __init__(self, context: HIRContext, type: HIRValue, sourcePosition: SourcePosition) -> None:
         super().__init__(context, type)
+        self.sourcePosition = sourcePosition
         self.name = None
         self.globalValueIndex = 0
 
@@ -630,8 +631,8 @@ class HIRGlobalValue(HIRConstant):
         return str(self)
 
 class HIRImportedModule(HIRGlobalValue):
-    def __init__(self, context: HIRContext, parentModule, moduleName: str) -> None:
-        super().__init__(context, context.importedModuleType)
+    def __init__(self, context: HIRContext, parentModule, moduleName: str, sourcePosition: SourcePosition) -> None:
+        super().__init__(context, context.importedModuleType, sourcePosition)
         self.parentModule: HIRModule = parentModule
         self.moduleName = moduleName
         self.name = moduleName
@@ -657,8 +658,8 @@ class HIRImportedValue(HIRGlobalValue):
         return True
 
 class HIRImportedModuleValue(HIRImportedValue):
-    def __init__(self, context: HIRContext, type: HIRValue, module: HIRImportedModule, valueName: str) -> None:
-        super().__init__(context, type)
+    def __init__(self, context: HIRContext, type: HIRValue, module: HIRImportedModule, valueName: str, sourcePosition: SourcePosition) -> None:
+        super().__init__(context, type, sourcePosition)
         self.module = module
         self.valueName = valueName
         self.name = valueName
@@ -673,8 +674,8 @@ class HIRImportedModuleValue(HIRImportedValue):
         return '%s := from %s import "%s" : %s' % (str(self), str(self.module), self.valueName, str(self.type))
 
 class HIRImportedExternalValue(HIRImportedValue):
-    def __init__(self, context: HIRContext, type: HIRValue, externalName: str, valueName: str) -> None:
-        super().__init__(context, type)
+    def __init__(self, context: HIRContext, type: HIRValue, externalName: str, valueName: str, sourcePosition: SourcePosition) -> None:
+        super().__init__(context, type, sourcePosition)
         self.externalName = externalName
         self.valueName = valueName
         self.name = valueName
@@ -689,8 +690,8 @@ class HIRImportedExternalValue(HIRImportedValue):
         return '%s := from external %s import "%s" : %s' % (str(self), str(self.externalName), self.valueName, str(self.type))
 
 class HIRFunctionalDefinition(HIRGlobalValue):
-    def __init__(self, context: HIRContext) -> None:
-        super().__init__(context, context.functionalDefinitionType)
+    def __init__(self, context: HIRContext, sourcePosition: SourcePosition) -> None:
+        super().__init__(context, context.functionalDefinitionType, sourcePosition)
         self.captures = []
         self.arguments = []
         self.firstBasicBlock: HIRBasicBlock = None
@@ -795,9 +796,10 @@ class HIRFunctionalDefinition(HIRGlobalValue):
         return result
 
 class HIRFunctionalLocalValue(HIRValue):
-    def __init__(self, context: HIRContext, type: HIRValue, name: str = None) -> None:
+    def __init__(self, context: HIRContext, type: HIRValue, name: str = None, sourcePosition: SourcePosition = None) -> None:
         super().__init__(context)
         self.name: str = name
+        self.sourcePosition = sourcePosition
         self.type = type
         self.localValueIndex = 0
 
@@ -827,8 +829,8 @@ class HIRFunctionalArgumentValue(HIRFunctionalLocalValue):
         return '%s : %s' % (str(self), str(self.type)) 
 
 class HIRBasicBlock(HIRFunctionalLocalValue):
-    def __init__(self, context: HIRContext, name: str = None) -> None:
-        super().__init__(context, context.basicBlockType, name)
+    def __init__(self, context: HIRContext, name: str = None, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(context, context.basicBlockType, name, sourcePosition)
         self.previousBasicBlock: HIRBasicBlock = None
         self.nextBasicBlock: HIRBasicBlock = None
         self.firstInstruction: HIRInstruction = None
@@ -1100,9 +1102,18 @@ class HIRBuilder:
         self.context = context
         self.functional = functional
         self.basicBlock = None
+        self.sourcePosition: SourcePosition = None
     
     def newBasicBlock(self, name: str):
-        return HIRBasicBlock(self.context, name)
+        return HIRBasicBlock(self.context, name, self.sourcePosition)
+
+    def withSourcePositionDo(self, sourcePosition, aBlock):
+        oldSourcePosition = self.sourcePosition
+        self.sourcePosition = sourcePosition
+        try:
+            return aBlock()
+        finally:
+            self.sourcePosition = oldSourcePosition
 
     def beginBasicBlock(self, basicBlock: HIRBasicBlock) -> HIRBasicBlock:
         self.functional.addBasicBlock(basicBlock)
@@ -1116,6 +1127,7 @@ class HIRBuilder:
         return self.basicBlock is not None and self.basicBlock.lastInstruction is not None and self.basicBlock.lastInstruction.isTerminatorInstruction()
     
     def addInstruction(self, instruction: HIRInstruction) -> HIRValue:
+        instruction.sourcePosition = self.sourcePosition
         self.basicBlock.addInstruction(instruction)
         return instruction
 
@@ -1339,7 +1351,7 @@ class HIRModuleFrontend:
         return HIRConstantLambda(self.context, lambdaType, captures, definition)
 
     def visitFunctionalDefinitionValue(self, graphValue: GHIRFunctionalDefinitionValue) -> HIRValue:
-        hirDefinition = HIRFunctionalDefinition(self.context)
+        hirDefinition = HIRFunctionalDefinition(self.context, graphValue.sourcePosition)
         self.translatedValueDictionary[graphValue] = hirDefinition
         self.module.addGlobalValue(hirDefinition)
         HIRFunctionalDefinitionFrontend(self).translateFunctionDefinitionInto(graphValue, hirDefinition)
@@ -1364,7 +1376,7 @@ class HIRModuleFrontend:
     
     def visitImportedExternalValue(self, graphValue: GHIRImportedExternalValue) -> HIRValue:
         type: HIRValue = self.translateGraphValue(graphValue.type)
-        importedExternal = HIRImportedExternalValue(self.context, type, graphValue.externalName, graphValue.name);
+        importedExternal = HIRImportedExternalValue(self.context, type, graphValue.externalName, graphValue.name, graphValue.sourcePosition);
         self.module.addGlobalValue(importedExternal)
         return importedExternal
 
@@ -1407,12 +1419,12 @@ class HIRFunctionalDefinitionFrontend:
     def translateFunctionDefinitionInto(self, graphFunctionalDefinition: GHIRFunctionalDefinitionValue, hirDefinition: HIRFunctionalDefinition):
         self.functionalDefinition = hirDefinition
         for graphCapture in graphFunctionalDefinition.captures:
-            capture = HIRFunctionalCaptureValue(self.context, self.moduleFrontend.translateGraphValue(graphCapture.type))
+            capture = HIRFunctionalCaptureValue(self.context, self.moduleFrontend.translateGraphValue(graphCapture.type), graphCapture.name, graphCapture.sourcePosition)
             self.localBindings[graphCapture] = capture
             self.functionalDefinition.captures.append(capture)
 
         for graphArgument in graphFunctionalDefinition.arguments:
-            argument = HIRFunctionalArgumentValue(self.context, self.moduleFrontend.translateGraphValue(graphArgument.type), graphArgument.name)
+            argument = HIRFunctionalArgumentValue(self.context, self.moduleFrontend.translateGraphValue(graphArgument.type), graphArgument.name, graphArgument.sourcePosition)
             self.localBindings[graphArgument] = argument
             self.functionalDefinition.arguments.append(argument)
 
@@ -1432,8 +1444,8 @@ class HIRFunctionalDefinitionFrontend:
         
         if graphValue in self.translatedLocalValues:
             return self.translatedLocalValues[graphValue]
-
-        translatedValue = graphValue.accept(self)
+        
+        translatedValue = self.builder.withSourcePositionDo(graphValue.sourcePosition, lambda: graphValue.accept(self))
         self.translatedLocalValues[graphValue] = translatedValue
         return translatedValue
     

@@ -177,8 +177,9 @@ class MIRValueVisitor(ABC):
         pass
 
 class MIRValue(ABC):
-    def __init__(self, context: MIRContext) -> None:
+    def __init__(self, context: MIRContext, sourcePosition: SourcePosition = None) -> None:
         self.context = context
+        self.sourcePosition = sourcePosition
 
     @abstractmethod
     def getType(self) -> MIRType:
@@ -463,8 +464,8 @@ class MIRFunction(MIRGlobalValue):
         return result
 
 class MIRFunctionLocalValue(MIRValue):
-    def __init__(self, context: MIRContext, type: MIRType, name: str = None) -> None:
-        super().__init__(context)
+    def __init__(self, context: MIRContext, type: MIRType, name: str = None, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(context, sourcePosition)
         self.name = name
         self.type = type
         self.localValueIndex = 0
@@ -489,8 +490,8 @@ class MIRCapture(MIRFunctionLocalValue):
         return '%s %s' % (str(self.type), str(self))
 
 class MIRBasicBlock(MIRFunctionLocalValue):
-    def __init__(self, context: MIRContext, name: str = None) -> None:
-        super().__init__(context, context.basicBlockType, name)
+    def __init__(self, context: MIRContext, name: str = None, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(context, context.basicBlockType, name, sourcePosition)
         self.previousBasicBlock: MIRBasicBlock = None
         self.nextBasicBlock: MIRBasicBlock = None
         self.firstInstruction: MIRInstruction = None
@@ -682,10 +683,19 @@ class MIRBuilder:
     def __init__(self, context: MIRContext, function: MIRFunction) -> None:
         self.context = context
         self.function = function
+        self.sourcePosition: SourcePosition = None
         self.basicBlock = None
 
+    def withSourcePositionDo(self, sourcePosition: SourcePosition, aBlock):
+        oldSourcePosition = self.sourcePosition
+        self.sourcePosition = sourcePosition
+        try:
+            return aBlock()
+        finally:
+            self.sourcePosition = oldSourcePosition
+
     def newBasicBlock(self, name: str):
-        return MIRBasicBlock(self.context, name)
+        return MIRBasicBlock(self.context, name, self.sourcePosition)
 
     def beginBasicBlock(self, basicBlock: HIRBasicBlock) -> HIRBasicBlock:
         self.function.addBasicBlock(basicBlock)
@@ -1009,7 +1019,7 @@ class MIRFunctionFrontend:
         return self.moduleFrontend.translateType(type)
 
     def translateArgument(self, hirArgument: HIRFunctionalArgumentValue):
-        mirArgument = MIRArgument(self.context, self.translateType(hirArgument.getType()), hirArgument.name)
+        mirArgument = MIRArgument(self.context, self.translateType(hirArgument.getType()), hirArgument.name, hirArgument.sourcePosition)
         if mirArgument.hasAbortType():
             self.translatedValueDictionary[mirArgument] = self.context.void
             return
@@ -1018,7 +1028,7 @@ class MIRFunctionFrontend:
         self.function.arguments.append(mirArgument)
 
     def translateCapture(self, hirCapture: HIRFunctionalCaptureValue):
-        mirCapture = MIRCapture(self.context, self.translateType(hirCapture.getType()), hirCapture.name)
+        mirCapture = MIRCapture(self.context, self.translateType(hirCapture.getType()), hirCapture.name, hirCapture.sourcePosition)
         if mirCapture.hasAbortType():
             self.translatedValueDictionary[hirCapture] = self.context.void
             return
@@ -1027,9 +1037,9 @@ class MIRFunctionFrontend:
         self.function.captures.append(mirCapture)
 
     def translateBasicBlocksOf(self, functional: HIRFunctionalDefinition):
-        hirBasicBlocks = functional.reachableBasicBlocksInReversePostOrder()
+        hirBasicBlocks: list[HIRBasicBlock] = functional.reachableBasicBlocksInReversePostOrder()
         for hirBasicBlock in hirBasicBlocks:
-            mirBasicBlock = MIRBasicBlock(self.context, hirBasicBlock.name)
+            mirBasicBlock = MIRBasicBlock(self.context, hirBasicBlock.name, hirBasicBlock.sourcePosition)
             self.translatedValueDictionary[hirBasicBlock] = mirBasicBlock
 
         for hirBasicBlock in hirBasicBlocks:
@@ -1043,7 +1053,7 @@ class MIRFunctionFrontend:
 
     def translateInstruction(self, hirInstruction: HIRInstruction):
         assert hirInstruction not in self.translatedValueDictionary
-        translatedValue = hirInstruction.accept(self)
+        translatedValue = self.builder.withSourcePositionDo(hirInstruction.sourcePosition, lambda: hirInstruction.accept(self))
         self.translatedValueDictionary[hirInstruction] = translatedValue
 
     def translateValue(self, value: HIRValue):

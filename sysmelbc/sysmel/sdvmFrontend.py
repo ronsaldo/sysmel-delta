@@ -146,15 +146,21 @@ class SDVMFunctionFrontEnd:
         pass
 
     def translateBasicBlocksOf(self, mirFunction: MIRFunction):
-        basicBlocks = mirFunction.reachableBasicBlocksInReversePostOrder()
+        basicBlocks = list(mirFunction.reachableBasicBlocksInReversePostOrder())
         for basicBlock in basicBlocks:
             basicBlockLabel = SDVMInstruction(SdvmConstLabel)
             self.translatedValueDictionary[basicBlock] = basicBlockLabel
 
-        for basicBlock in basicBlocks:
-            self.translateBasicBlock(basicBlock)
+        for i in range(len(basicBlocks)):
+            basicBlock = basicBlocks[i]
+            nextBasicBlock = None
+            if i + 1 < len(basicBlocks):
+                nextBasicBlock = basicBlocks[i + 1]
+            self.translateBasicBlock(basicBlock, nextBasicBlock)
 
-    def translateBasicBlock(self, basicBlock: MIRBasicBlock) -> SDVMOperand:
+    def translateBasicBlock(self, basicBlock: MIRBasicBlock, nextBasicBlock: MIRBasicBlock) -> SDVMOperand:
+        self.currentBasicBlock = basicBlock
+        self.nextBasicBlock = nextBasicBlock
         basicBlockLabel = self.translatedValueDictionary[basicBlock]
         self.function.addInstruction(basicBlockLabel)
         for instruction in basicBlock.instructions():
@@ -268,6 +274,9 @@ class SDVMFunctionFrontEnd:
         return self.function.addInstruction(SDVMInstruction(callInstruction, calledFunctional))
 
     def visitBranchInstruction(self, instruction: MIRBranchInstruction) -> SDVMOperand:
+        if instruction.destination is self.nextBasicBlock:
+            return None
+
         destination = self.translateValue(instruction.destination)
         self.function.inst(SdvmInstJump, destination)
         return None
@@ -276,8 +285,14 @@ class SDVMFunctionFrontEnd:
         condition = self.translateValue(instruction.condition)
         trueDestination = self.translateValue(instruction.trueDestination)
         falseDestination = self.translateValue(instruction.falseDestination)
-        self.function.inst(SdvmInstJumpIfTrue, condition, trueDestination)
-        self.function.inst(SdvmInstJump, falseDestination)
+
+        if instruction.trueDestination is self.nextBasicBlock:
+            self.function.inst(SdvmInstJumpIfFalse, condition, falseDestination)
+        elif instruction.falseDestination is self.nextBasicBlock:
+            self.function.inst(SdvmInstJumpIfTrue, condition, trueDestination)
+        else:
+            self.function.inst(SdvmInstJumpIfTrue, condition, trueDestination)
+            self.function.inst(SdvmInstJump, falseDestination)
         return None
 
     def visitReturnInstruction(self, instruction: MIRReturnInstruction) -> SDVMOperand:
