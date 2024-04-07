@@ -1296,7 +1296,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         case SdvmConstGCPointerCString:
         case SdvmConstGCPointerString:
             {
-                bool nullTerminated = instruction->decoding.baseOpcode == SdvmConstOpConstCString;
+                bool nullTerminated = instruction->decoding.constBaseOpcode == SdvmConstOpConstCString;
                 uint32_t stringOffset = instruction->decoding.constant.unsignedPayload & SDVM_CONSTANT_PAYLOAD_HALF_BITS_MASK;
                 uint32_t stringSize = (instruction->decoding.constant.unsignedPayload >> SDVM_CONSTANT_PAYLOAD_HALF_BITS) & SDVM_CONSTANT_PAYLOAD_HALF_BITS_MASK;
                 if(stringSize > 0 || nullTerminated)

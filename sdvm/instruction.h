@@ -102,7 +102,12 @@ typedef struct sdvm_decodedConstOrInstruction_s
     uint8_t arg1IsInstruction : 1;
 
     sdvm_opcode_t opcode;
-    sdvm_baseOpcode_t baseOpcode;
+    union
+    {
+        sdvm_baseOpcode_t baseOpcode;
+        sdvm_constBaseOpcode_t constBaseOpcode;
+    };
+
     sdvm_type_t destType;
     union
     {
