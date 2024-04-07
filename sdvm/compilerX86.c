@@ -4600,7 +4600,8 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
     sdvm_compiler_x64_allocateFunctionSpillLocations(state);
     sdvm_compiler_x64_computeFunctionStackLayout(state);
 
-    sdvm_functionCompilationState_dump(state);
+    if(state->compiler->verbose)
+        sdvm_functionCompilationState_dump(state);
 
     // Set the function symbol
     size_t startOffset = state->compiler->textSection.contents.size;

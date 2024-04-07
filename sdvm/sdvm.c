@@ -16,6 +16,7 @@ void printVersion(void)
 
 int main(int argc, const char *argv[])
 {
+    bool verbose = false;
     const char *moduleFileName = NULL;
     const char *outputFileName = NULL;
 
@@ -32,6 +33,10 @@ int main(int argc, const char *argv[])
             {
                 printVersion();
                 return 0;
+            }
+            else if(!strcmp(argv[i], "-v"))
+            {
+                verbose = true;
             }
             else if(!strcmp(argv[i], "-o"))
             {
@@ -60,6 +65,7 @@ int main(int argc, const char *argv[])
     //sdvm_module_dump(module);
 
     sdvm_compiler_t *compiler = sdvm_compiler_create(sdvm_compilerTarget_getDefault());
+    compiler->verbose = verbose;
     bool compilationSucceeded = sdvm_compiler_compileModule(compiler, module);
     sdvm_module_destroy(module);
 

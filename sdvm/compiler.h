@@ -175,6 +175,7 @@ typedef struct sdvm_compiler_s
     const sdvm_compilerTarget_t *target;
     sdvm_compilerSymbolTable_t symbolTable;
     sdvm_dynarray_t labels;
+    bool verbose;
 
     union {
         struct {

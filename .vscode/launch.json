@@ -17,7 +17,7 @@
             "request": "launch",
             "name": "Launch",
             "program": "${workspaceFolder}/build/bin/sdvm",
-            "args": ["-o", "test.o", "test.sdvm"],
+            "args": ["-v", "-o", "test.o", "test.sdvm"],
             "cwd": "${workspaceFolder}"
         }
     ]
