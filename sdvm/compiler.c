@@ -245,14 +245,78 @@ bool sdvm_functionCompilationState_checkPatternMatching(sdvm_functionCompilation
     return pattern->predicate(state, pattern->size, instructions);
 }
 
+static int sdvm_compilerInstructionPatternTable_compare(const void *a, const void *b)
+{
+    sdvm_compilerInstructionPattern_t *firstPattern = (sdvm_compilerInstructionPattern_t*)a;
+    sdvm_compilerInstructionPattern_t *secondPattern = (sdvm_compilerInstructionPattern_t*)b;
+
+    uint32_t minSize = firstPattern->size;
+    if(secondPattern->size < minSize)
+        minSize = secondPattern->size;
+
+    for(uint32_t i = 0; i < minSize; ++i)
+    {
+        if(firstPattern->opcodes[i] != secondPattern->opcodes[i])
+            return (int)firstPattern->opcodes[i] - (int)secondPattern->opcodes[i];
+    }
+
+    return (int)secondPattern->size - (int)firstPattern->size;
+}
+
+static void sdvm_compilerInstructionPatternTable_sort(sdvm_compilerInstructionPatternTable_t *patternTable)
+{
+    if(patternTable->isSorted)
+        return;
+
+    qsort(patternTable->patterns, patternTable->patternCount, sizeof(sdvm_compilerInstructionPattern_t), sdvm_compilerInstructionPatternTable_compare);
+    patternTable->isSorted = true;
+}
+
+static int32_t sdvm_compilerInstructionPatternTable_findFirstPatternIndexWithOpcode(sdvm_compilerInstructionPatternTable_t *patternTable, sdvm_opcode_t opcode)
+{
+    // Lower bound binary search.
+    uint32_t left = 0;
+    uint32_t right = patternTable->patternCount;
+    int32_t bestFound = -1;
+    while(left < right)
+    {
+        uint32_t middle = left + (right - left) / 2;
+        sdvm_opcode_t middleOpcode = patternTable->patterns[middle].opcodes[0];
+        if(middleOpcode == opcode)
+        {
+            bestFound = middle;
+            right = middle;
+        }
+        else if(middleOpcode < opcode)
+        {
+            left = middle + 1;
+        }
+        else //if(middleOpcode > opcode)
+        {
+            right = middle;
+        }
+    }
+
+    return bestFound;
+}
+
 const sdvm_compilerInstructionPattern_t *sdvm_functionCompilationState_findMatchingPatternFor(sdvm_functionCompilationState_t *state, uint32_t nextInstructionCount, sdvm_compilerInstruction_t *instruction)
 {
-    const sdvm_compilerTarget_t *target = state->compiler->target;
-    for(uint32_t i = 0; i < target->instructionPatternCount; ++i)
+    sdvm_compilerInstructionPatternTable_t *patternTable = state->compiler->target->instructionPatterns;
+    sdvm_compilerInstructionPatternTable_sort(patternTable);
+
+    int32_t firstPattern = sdvm_compilerInstructionPatternTable_findFirstPatternIndexWithOpcode(patternTable, instruction->decoding.opcode);
+    if(firstPattern < 0)
+        return NULL;
+ 
+    for(uint32_t i = firstPattern; i < patternTable->patternCount; ++i)
     {
-        const sdvm_compilerInstructionPattern_t *pattern = target->instructionPatterns + i;
+        const sdvm_compilerInstructionPattern_t *pattern = patternTable->patterns + i;
         if(nextInstructionCount < pattern->size)
             continue;
+
+        if(pattern->opcodes[0] != instruction->decoding.opcode)
+            break;
 
         if(sdvm_functionCompilationState_checkPatternMatching(state, pattern, instruction))
             return pattern;

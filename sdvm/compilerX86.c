@@ -3131,7 +3131,7 @@ static bool sdvm_compiler_x86_int64ComparisonAndJumpIfFalseCodegen(sdvm_function
     return true;
 }
 
-static const sdvm_compilerInstructionPattern_t sdvm_x64_instructionPatterns[] = {
+static sdvm_compilerInstructionPattern_t sdvm_x64_instructionPatterns[] = {
 #define COMPARISON_BRANCH_PATTERN(typePrefix, op) \
     {.size = 2, .opcodes = {op, SdvmInstJumpIfTrue}, .predicate = sdvm_compiler_x86_comparisonAndBranchPredicate, .constraints = sdvm_compiler_x86_ ## typePrefix ## ComparisonAndBranchConstraints, .generator = sdvm_compiler_x86_## typePrefix ##ComparisonAndJumpIfTrueCodegen },\
     {.size = 2, .opcodes = {op, SdvmInstJumpIfFalse}, .predicate = sdvm_compiler_x86_comparisonAndBranchPredicate, .constraints = sdvm_compiler_x86_ ## typePrefix ## ComparisonAndBranchConstraints, .generator = sdvm_compiler_x86_## typePrefix ##ComparisonAndJumpIfFalseCodegen }
@@ -3190,6 +3190,11 @@ static const sdvm_compilerInstructionPattern_t sdvm_x64_instructionPatterns[] = 
 };
 
 static const uint32_t sdvm_x64_instructionPatternCount = sizeof(sdvm_x64_instructionPatterns) / sizeof(sdvm_x64_instructionPatterns[0]);
+
+static sdvm_compilerInstructionPatternTable_t sdvm_x64_instructionPatternTable = {
+    .patternCount = sdvm_x64_instructionPatternCount,
+    .patterns = sdvm_x64_instructionPatterns
+};
 
 #pragma endregion
 
@@ -4646,8 +4651,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
     .compileModuleFunction = sdvm_compiler_x64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_x64_mapElfRelocation,
 
-    .instructionPatternCount = sdvm_x64_instructionPatternCount,
-    .instructionPatterns = sdvm_x64_instructionPatterns
+    .instructionPatterns = &sdvm_x64_instructionPatternTable,
 };
 
 const sdvm_compilerTarget_t *sdvm_compilerTarget_x64_linux()

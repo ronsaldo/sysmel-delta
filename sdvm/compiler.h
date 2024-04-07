@@ -188,6 +188,14 @@ typedef struct sdvm_compiler_s
     };
 } sdvm_compiler_t;
 
+typedef struct sdvm_compilerInstructionPatternTable_s
+{
+    bool isSorted;
+
+    uint32_t patternCount;
+    sdvm_compilerInstructionPattern_t *patterns;
+} sdvm_compilerInstructionPatternTable_t;
+
 struct sdvm_compilerTarget_s
 {
     uint32_t pointerSize;
@@ -206,8 +214,7 @@ struct sdvm_compilerTarget_s
     bool (*compileModuleFunction) (sdvm_functionCompilationState_t *state);
     uint32_t (*mapElfRelocation) (sdvm_compilerRelocationKind_t kind);
 
-    uint32_t instructionPatternCount;
-    const sdvm_compilerInstructionPattern_t *instructionPatterns;
+    sdvm_compilerInstructionPatternTable_t *instructionPatterns;
 };
 
 typedef struct sdvm_compilerObjectFile_s
