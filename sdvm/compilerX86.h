@@ -118,6 +118,12 @@ SDVM_API void sdvm_compiler_x86_test64RegImmS32(sdvm_compiler_t *compiler, sdvm_
 SDVM_API void sdvm_compiler_x86_and64RegImmS32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value);
 SDVM_API void sdvm_compiler_x86_or64RegImmS32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value);
 SDVM_API void sdvm_compiler_x86_xor64RegImmS32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value);
+SDVM_API void sdvm_compiler_x86_sar64RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_sar64RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shl64RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shl64RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shr64RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shr64RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
 
 SDVM_API void sdvm_compiler_x86_cmove32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source);
 SDVM_API void sdvm_compiler_x86_cmovne32RegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source);
@@ -157,6 +163,12 @@ SDVM_API void sdvm_compiler_x86_test32RegImm32(sdvm_compiler_t *compiler, sdvm_x
 SDVM_API void sdvm_compiler_x86_and32RegImm32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value);
 SDVM_API void sdvm_compiler_x86_or32RegImm32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value);
 SDVM_API void sdvm_compiler_x86_xor32RegImm32(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int32_t value);
+SDVM_API void sdvm_compiler_x86_sar32RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_sar32RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shl32RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shl32RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shr32RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shr32RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
 
 SDVM_API void sdvm_compiler_x86_mov16RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t source);
 SDVM_API void sdvm_compiler_x86_movzxReg32Reg16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source);
@@ -184,6 +196,12 @@ SDVM_API void sdvm_compiler_x86_test16RegImm16(sdvm_compiler_t *compiler, sdvm_x
 SDVM_API void sdvm_compiler_x86_and16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value);
 SDVM_API void sdvm_compiler_x86_or16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value);
 SDVM_API void sdvm_compiler_x86_xor16RegImm16(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int16_t value);
+SDVM_API void sdvm_compiler_x86_sar16RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_sar16RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shl16RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shl16RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shr16RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shr16RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
 
 SDVM_API void sdvm_compiler_x86_mov8RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t source);
 SDVM_API void sdvm_compiler_x86_movzxReg32Reg8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source);
@@ -208,6 +226,12 @@ SDVM_API void sdvm_compiler_x86_test8RegImm8(sdvm_compiler_t *compiler, sdvm_x86
 SDVM_API void sdvm_compiler_x86_and8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
 SDVM_API void sdvm_compiler_x86_or8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
 SDVM_API void sdvm_compiler_x86_xor8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_sar8RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_sar8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shl8RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shl8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
+SDVM_API void sdvm_compiler_x86_shr8RegCL(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination);
+SDVM_API void sdvm_compiler_x86_shr8RegImm8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, int8_t value);
 
 SDVM_API void sdvm_compiler_x86_movapsRegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source);
 SDVM_API void sdvm_compiler_x86_movapsRegRmo(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset);
