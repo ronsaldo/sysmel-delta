@@ -20,24 +20,28 @@ typedef enum sdvm_moduleSectionType_e
     SdvmModuleSectionTypeImportModuleValueTable = SDVM_IM_FOUR_CC('i', 'm', 'p', 'v'),
     SdvmModuleSectionTypeExportValueTable = SDVM_IM_FOUR_CC('e', 'x', 'p', 'v'),
 
+    SdvmModuleSectionTypeDebugSource = SDVM_IM_FOUR_CC('d', 's', 'r', 'c'),
     SdvmModuleSectionTypeDebugLineStart = SDVM_IM_FOUR_CC('d', 'l', 'n', 's'),
     SdvmModuleSectionTypeDebugLineEnd = SDVM_IM_FOUR_CC('d', 'l', 'n', 'e'),
+    SdvmModuleSectionTypeDebugColumnStart = SDVM_IM_FOUR_CC('d', 'c', 'l', 's'),
+    SdvmModuleSectionTypeDebugColumnEnd = SDVM_IM_FOUR_CC('d', 'c', 'l', 'e'),
 } sdvm_moduleSectionType_t;
 
-typedef enum sdvm_t_moduleValueKind_e
+typedef enum sdvm_moduleValueKind_e
 {
     SdvmModuleValueKindNull = 0,
     SdvmModuleValueKindFunctionHandle = SDVM_IM_FOUR_CC('f', 'u', 'n', 'h'),
     SdvmModuleValueKindDataSectionValue = SDVM_IM_FOUR_CC('d', 'a', 't', 'a'),
     SdvmModuleValueKindConstantSectionValue = SDVM_IM_FOUR_CC('c', 'o', 'n', 't'),
     SdvmModuleValueKindObjectHandle = SDVM_IM_FOUR_CC('o', 'b', 'j', 'h'),
-} sdvm_t_moduleValueKind_t;
+} sdvm_moduleValueKind_t;
 
-typedef enum sdvm_t_moduleExternalType_e
+typedef enum sdvm_moduleExternalType_e
 {
     SdvmModuleExternalTypeNone = 0,
     SdvmModuleExternalTypeC = SDVM_IM_FOUR_CC('C', ' ', ' ', ' '),
-} sdvm_t_moduleExternalType_t;
+} sdvm_moduleExternalType_t;
+
 
 typedef struct sdvm_moduleString_s
 {
@@ -109,6 +113,14 @@ typedef struct sdvm_moduleMemoryDescriptorTableEntry_s
     uint32_t gcDescriptorSize;
 } sdvm_moduleMemoryDescriptorTableEntry_t;
 
+typedef struct sdvm_debugSourceTableEntry_s
+{
+    uint32_t kind;
+    sdvm_moduleString_t language;
+    sdvm_moduleString_t name;
+    sdvm_moduleString_t sourceCode;
+} sdvm_debugSourceTableEntry_t;
+
 typedef struct sdvm_module_s
 {
     sdvm_moduleHeader_t *header;
@@ -148,6 +160,9 @@ typedef struct sdvm_module_s
 
     size_t moduleDataSize;
     uint8_t *moduleData;
+
+    size_t debugSourceTableSize;
+    sdvm_debugSourceTableEntry_t *debugSourceTable;
 } sdvm_module_t;
 
 sdvm_module_t *sdvm_module_loadFromMemory(size_t dataSize, uint8_t *data);

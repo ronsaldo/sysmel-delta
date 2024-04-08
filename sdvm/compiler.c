@@ -2475,7 +2475,7 @@ void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler,
     sdvm_compiler_addInstructionBytes(compiler, 4, &addressValue);
 }
 
-char *sdvm_compile_makeModuleSymbolInterface(sdvm_compiler_t *compiler, sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_t_moduleExternalType_t externalType, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
+char *sdvm_compile_makeModuleSymbolInterface(sdvm_compiler_t *compiler, sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_moduleExternalType_t externalType, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
 {
     size_t symbolSize = 0;
 
