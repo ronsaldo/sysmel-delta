@@ -1022,9 +1022,13 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_spillForOperandType(sdvm_
         return sdvm_compilerLocation_stack(8, 8);
 
     case SdvmTypeFloat32x4:
+    case SdvmTypeFloat64x2:
     case SdvmTypeInt32x4:
     case SdvmTypeUInt32x4:
         return sdvm_compilerLocation_stack(16, 16);
+
+    case SdvmTypeFloat64x4:
+        return sdvm_compilerLocation_stack(32, 16);
 
     case SdvmTypePointer:
     case SdvmTypeProcedureHandle:

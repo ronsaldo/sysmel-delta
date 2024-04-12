@@ -2195,6 +2195,13 @@ void sdvm_compiler_x86_minpsRegReg(sdvm_compiler_t *compiler, sdvm_x86_registerI
     sdvm_compiler_x86_modRmReg(compiler, source, destination);
 }
 
+void sdvm_compiler_x86_xorpsRegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
+{
+    sdvm_compiler_x86_rexRmReg(compiler, false, source, destination);
+    sdvm_compiler_x86_opcode2(compiler, 0x0F57);
+    sdvm_compiler_x86_modRmReg(compiler, source, destination);
+}
+
 void sdvm_compiler_x86_movsdRegReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
 {
     if(destination == source)
@@ -3491,7 +3498,58 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegisterPair(sdvm_compiler
 
 void sdvm_compiler_x64_emitMoveFromLocationIntoVectorFloatRegisterPair(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *firstRegister, const sdvm_compilerRegister_t *secondRegister)
 {
-    abort();
+    switch(sourceLocation->kind)
+    {
+    case SdvmCompLocationNull:
+    case SdvmCompLocationImmediateS32:
+    case SdvmCompLocationImmediateF32:
+    case SdvmCompLocationImmediateU32:
+    case SdvmCompLocationImmediateS64:
+    case SdvmCompLocationImmediateF64:
+    case SdvmCompLocationImmediateU64:
+    case SdvmCompLocationRegister:
+        sdvm_compiler_x64_emitMoveFromLocationIntoVectorFloatRegister(compiler, sourceLocation, firstRegister);
+        return sdvm_compiler_x86_xorpsRegReg(compiler, secondRegister->value, secondRegister->value);
+
+    case SdvmCompLocationRegisterPair:
+        {
+            sdvm_compilerRegisterValue_t sourceFirstRegisterValue = sourceLocation->firstRegister.value;
+            sdvm_compilerRegisterValue_t sourceSecondRegisterValue = sourceLocation->secondRegister.value;
+            sdvm_compilerRegisterValue_t destFirstRegisterValue = firstRegister->value;
+            sdvm_compilerRegisterValue_t destSecondRegisterValue = secondRegister->value;
+
+            bool isFirstInSecond = destSecondRegisterValue == sourceFirstRegisterValue;
+            bool isSecondInFirst = destFirstRegisterValue == sourceSecondRegisterValue;
+
+            if(isFirstInSecond && isSecondInFirst)
+            {
+                // XOR Swap: See https://en.wikipedia.org/wiki/XOR_swap_algorithm [April 2024]
+                sdvm_compiler_x86_xorpsRegReg(compiler, destFirstRegisterValue, destSecondRegisterValue);
+                sdvm_compiler_x86_xorpsRegReg(compiler, destSecondRegisterValue, destFirstRegisterValue);
+                return sdvm_compiler_x86_xorpsRegReg(compiler, destFirstRegisterValue, destSecondRegisterValue);
+            }
+            else if(isSecondInFirst)
+            {
+                sdvm_compiler_x86_movapsRegReg(compiler, destSecondRegisterValue, sourceSecondRegisterValue);
+                return sdvm_compiler_x86_movapsRegReg(compiler, destFirstRegisterValue, sourceFirstRegisterValue);
+            }
+            else
+            {
+                sdvm_compiler_x86_movapsRegReg(compiler, destFirstRegisterValue, sourceFirstRegisterValue);
+                return sdvm_compiler_x86_movapsRegReg(compiler, destSecondRegisterValue, sourceSecondRegisterValue);
+            }
+        }
+    case SdvmCompLocationStack:
+        switch(sourceLocation->firstStackLocation.size)
+        {
+        case 32:
+            sdvm_compiler_x86_movapsRegRmo(compiler, firstRegister->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+            return sdvm_compiler_x86_movapsRegRmo(compiler, secondRegister->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset + 16);
+        default: return abort();
+        }
+
+    default: abort();
+    }
 }
 
 void sdvm_compiler_x64_emitMoveFromLocationIntoVectorIntegerRegisterPair(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *firstRegister, const sdvm_compilerRegister_t *secondRegister)
@@ -3527,6 +3585,19 @@ void sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t *co
         default:
             return abort();
         }
+    case SdvmCompRegisterKindFloat:
+    case SdvmCompRegisterKindVectorFloat:
+        switch(sourceRegister->size)
+        {
+        case 4: return sdvm_compiler_x86_movssRmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
+        case 8: return sdvm_compiler_x86_movsdRmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
+        case 16: return sdvm_compiler_x86_movapsRmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
+        default:
+            return abort();
+        }
+    case SdvmCompRegisterKindVectorInteger:
+        // TODO: Implement this
+        return abort();
     default:
         return abort();
     }
@@ -4403,6 +4474,41 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         return true;
     case SdvmInstFloat64x2Sqrt:
         sdvm_compiler_x86_sqrtpdRegReg(compiler, dest->firstRegister.value, arg0->firstRegister.value);
+        return true;
+
+    case SdvmInstFloat64x4Add:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_addpdRegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_addpdRegReg(compiler, dest->secondRegister.value, arg1->secondRegister.value);
+        return true;
+    case SdvmInstFloat64x4Sub:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_subpdRegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_subpdRegReg(compiler, dest->secondRegister.value, arg1->secondRegister.value);
+        return true;
+    case SdvmInstFloat64x4Mul:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_mulpdRegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_mulpdRegReg(compiler, dest->secondRegister.value, arg1->secondRegister.value);
+        return true;
+    case SdvmInstFloat64x4Div:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_divpdRegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_divpdRegReg(compiler, dest->secondRegister.value, arg1->secondRegister.value);
+        return true;
+    case SdvmInstFloat64x4Max:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_maxpdRegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_maxpdRegReg(compiler, dest->secondRegister.value, arg1->secondRegister.value);
+        return true;
+    case SdvmInstFloat64x4Min:
+        sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
+        sdvm_compiler_x86_minpdRegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
+        sdvm_compiler_x86_minpdRegReg(compiler, dest->secondRegister.value, arg1->secondRegister.value);
+        return true;
+    case SdvmInstFloat64x4Sqrt:
+        sdvm_compiler_x86_sqrtpdRegReg(compiler, dest->firstRegister.value, arg0->firstRegister.value);
+        sdvm_compiler_x86_sqrtpdRegReg(compiler, dest->secondRegister.value, arg0->secondRegister.value);
         return true;
 
     case SdvmInstFloat64Add:
