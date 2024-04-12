@@ -3232,6 +3232,7 @@ void sdvm_compiler_x64_computeFunctionLocationConstraints(sdvm_functionCompilati
 
 static bool sdvm_compiler_x86_comparisonAndBranchPredicate(sdvm_functionCompilationState_t *state, uint32_t count, sdvm_compilerInstruction_t *instructions)
 {
+    (void)state;
     (void)count;
     sdvm_compilerInstruction_t *comparison = instructions;
     sdvm_compilerInstruction_t *branch = instructions + 1;
@@ -3784,7 +3785,58 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoVectorFloatRegisterPair(sdvm_comp
 
 void sdvm_compiler_x64_emitMoveFromLocationIntoVectorIntegerRegisterPair(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *firstRegister, const sdvm_compilerRegister_t *secondRegister)
 {
-    abort();
+    switch(sourceLocation->kind)
+    {
+    case SdvmCompLocationNull:
+    case SdvmCompLocationImmediateS32:
+    case SdvmCompLocationImmediateF32:
+    case SdvmCompLocationImmediateU32:
+    case SdvmCompLocationImmediateS64:
+    case SdvmCompLocationImmediateF64:
+    case SdvmCompLocationImmediateU64:
+    case SdvmCompLocationRegister:
+        sdvm_compiler_x64_emitMoveFromLocationIntoVectorIntegerRegister(compiler, sourceLocation, firstRegister);
+        return sdvm_compiler_x86_pxorRegReg(compiler, secondRegister->value, secondRegister->value);
+
+    case SdvmCompLocationRegisterPair:
+        {
+            sdvm_compilerRegisterValue_t sourceFirstRegisterValue = sourceLocation->firstRegister.value;
+            sdvm_compilerRegisterValue_t sourceSecondRegisterValue = sourceLocation->secondRegister.value;
+            sdvm_compilerRegisterValue_t destFirstRegisterValue = firstRegister->value;
+            sdvm_compilerRegisterValue_t destSecondRegisterValue = secondRegister->value;
+
+            bool isFirstInSecond = destSecondRegisterValue == sourceFirstRegisterValue;
+            bool isSecondInFirst = destFirstRegisterValue == sourceSecondRegisterValue;
+
+            if(isFirstInSecond && isSecondInFirst)
+            {
+                // XOR Swap: See https://en.wikipedia.org/wiki/XOR_swap_algorithm [April 2024]
+                sdvm_compiler_x86_pxorRegReg(compiler, destFirstRegisterValue, destSecondRegisterValue);
+                sdvm_compiler_x86_pxorRegReg(compiler, destSecondRegisterValue, destFirstRegisterValue);
+                return sdvm_compiler_x86_pxorRegReg(compiler, destFirstRegisterValue, destSecondRegisterValue);
+            }
+            else if(isSecondInFirst)
+            {
+                sdvm_compiler_x86_movdqaRegReg(compiler, destSecondRegisterValue, sourceSecondRegisterValue);
+                return sdvm_compiler_x86_movdqaRegReg(compiler, destFirstRegisterValue, sourceFirstRegisterValue);
+            }
+            else
+            {
+                sdvm_compiler_x86_movdqaRegReg(compiler, destFirstRegisterValue, sourceFirstRegisterValue);
+                return sdvm_compiler_x86_movdqaRegReg(compiler, destSecondRegisterValue, sourceSecondRegisterValue);
+            }
+        }
+    case SdvmCompLocationStack:
+        switch(sourceLocation->firstStackLocation.size)
+        {
+        case 32:
+            sdvm_compiler_x86_movdqaRegRmo(compiler, firstRegister->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+            return sdvm_compiler_x86_movdqaRegRmo(compiler, secondRegister->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset + 16);
+        default: return abort();
+        }
+
+    default: abort();
+    }
 }
 
 void sdvm_compiler_x64_emitMoveFromLocationIntoRegisterPair(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *firstRegister, const sdvm_compilerRegister_t *secondRegister)
