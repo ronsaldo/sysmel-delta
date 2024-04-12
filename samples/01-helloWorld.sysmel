@@ -21,6 +21,14 @@ export: #addFloat32x4 with: (:(Float32x4)x, :(Float32x4)y :: Float32x4) __cdecl 
 export: #addFloat64x2 with: (:(Float64x2)x, :(Float64x2)y :: Float64x2) __cdecl :=> x + y.
 export: #addFloat64x4 with: (:(Float64x4)x, :(Float64x4)y :: Float64x4) __cdecl :=> x + y.
 
+export: #addInt32x4 with: (:(Int32x4)x, :(Int32x4)y :: Int32x4) __cdecl :=> x + y.
+export: #addUInt32x4 with: (:(UInt32x4)x, :(UInt32x4)y :: UInt32x4) __cdecl :=> x + y.
+
+export: #maxInt32x4 with: (:(Int32x4)x, :(Int32x4)y :: Int32x4) __cdecl :=> (x max: y).
+export: #maxUInt32x4 with: (:(UInt32x4)x, :(UInt32x4)y :: UInt32x4) __cdecl :=> (x max: y).
+export: #minInt32x4 with: (:(Int32x4)x, :(Int32x4)y :: Int32x4) __cdecl :=> (x min: y).
+export: #minUInt32x4 with: (:(UInt32x4)x, :(UInt32x4)y :: UInt32x4) __cdecl :=> (x min: y).
+
 ##(:[Type]T :(T)x :: T) #[Int32].
 ##((:[Type]T :(T)x :: T) :=> x) #[Int32].
 ##(:(Int32)x :: Int32) :=> x
