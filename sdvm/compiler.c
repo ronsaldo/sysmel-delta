@@ -1146,7 +1146,7 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_floatVector128x2(sdv
     if(state->usedArgumentVectorRegisterCount + 1 < state->convention->vectorRegisterCount)
     {
         sdvm_compilerLocation_t pairLocation = sdvm_compilerLocation_specificRegisterPair(*state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount], *state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount + 1]);
-        state->usedArgumentIntegerRegisterCount += 2;
+        state->usedArgumentVectorRegisterCount += 2;
         return pairLocation;
     }
 
@@ -2060,7 +2060,7 @@ void sdvm_linearScanRegisterAllocator_allocateRegisterLocation(sdvm_linearScanRe
     {
         if(sourceInstruction
             && sourceInstruction->location.kind == SdvmCompLocationRegisterPair
-            && !location->secondRegister.isPending
+            && !sourceInstruction->location.secondRegister.isPending
             && (!location->secondRegister.isDestroyed || sourceInstruction->liveInterval.lastUsage <= (uint32_t)instruction->index)
             && location->secondRegister.kind == sourceInstruction->location.secondRegister.kind)
         {
@@ -2097,7 +2097,7 @@ bool sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWi
     {
         sdvm_linearScanRegisterAllocatorFile_expireIntervalsForInstruction(registerAllocator->registerFiles[location->secondRegister.kind], sharingSourceInstruction);
 
-        location->secondRegister.value = sharingLocation->firstRegister.value;
+        location->secondRegister.value = sharingLocation->secondRegister.value;
         location->secondRegister.isPending = false;
 
         sdvm_linearScanRegisterAllocatorFile_ensureRegisterIsActive(registerAllocator->registerFiles[location->secondRegister.kind], sourceInstruction->location.secondRegister.value);

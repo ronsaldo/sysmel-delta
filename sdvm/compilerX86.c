@@ -2942,6 +2942,27 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->allowArg0DestinationShare = true;
         return;
 
+    case SdvmInstFloat64x4Add:
+    case SdvmInstFloat64x4Sub:
+    case SdvmInstFloat64x4Mul:
+    case SdvmInstFloat64x4Div:
+    case SdvmInstFloat64x4Min:
+    case SdvmInstFloat64x4Max:
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegisterPair(16, 16);
+        instruction->arg1Location = sdvm_compilerLocation_vectorFloatRegisterPair(16, 16);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegisterPair(16, 16);
+        instruction->allowArg0DestinationShare = true;
+        return;
+    case SdvmInstFloat64x4Sqrt:
+    case SdvmInstFloat64x4Floor:
+    case SdvmInstFloat64x4Ceil:
+    case SdvmInstFloat64x4Truncate:
+    case SdvmInstFloat64x4Round:
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegisterPair(16, 16);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegisterPair(16, 16);
+        instruction->allowArg0DestinationShare = true;
+        return;
+
     case SdvmInstFloat64Add:
     case SdvmInstFloat64Sub:
     case SdvmInstFloat64Mul:
