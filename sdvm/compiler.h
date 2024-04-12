@@ -204,6 +204,7 @@ struct sdvm_compilerTarget_s
     uint32_t elfMachine;
     bool usesUnderscorePrefix;
     bool hasSeparateFloatFromVectorRegisters;
+    bool usesCET;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
     const sdvm_compilerCallingConvention_t *cdecl;
