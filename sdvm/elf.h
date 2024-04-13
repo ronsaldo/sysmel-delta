@@ -91,7 +91,7 @@ enum {
     SDVM_SHT_SHLIB = 10,
     SDVM_SHT_DYNSYM = 11,
 
-    SHT_X86_64_UNWIND = 0x70000001,
+    SDVM_SHT_X86_64_UNWIND = 0x70000001,
 };
 
 enum {

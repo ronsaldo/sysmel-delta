@@ -6,7 +6,7 @@
 #include "instruction.h"
 #include <stdbool.h>
 
-#define SDVM_COMPILER_SECTION_COUNT 5
+#define SDVM_COMPILER_SECTION_COUNT 8
 
 typedef struct sdvm_module_s sdvm_module_t;
 
@@ -17,6 +17,8 @@ typedef enum sdvm_compilerSectionFlags_e
     SdvmCompSectionFlagRead = 1<<1,
     SdvmCompSectionFlagExec = 1<<2,
     SdvmCompSectionFlagNoBits = 1<<3,
+    SdvmCompSectionFlagUnwind = 1<<4,
+    SdvmCompSectionFlagDebug = 1<<5,
 } sdvm_compilerSectionFlags_t;
 
 typedef enum sdvm_compilerSymbolKind_e
@@ -185,6 +187,10 @@ typedef struct sdvm_compiler_s
             sdvm_compilerObjectSection_t rodataSection;
             sdvm_compilerObjectSection_t dataSection;
             sdvm_compilerObjectSection_t bssSection;
+
+            sdvm_compilerObjectSection_t ehFrameSection;
+            sdvm_compilerObjectSection_t debugLineSection;
+            sdvm_compilerObjectSection_t debugInfoSection;
         };
 
         sdvm_compilerObjectSection_t sections[SDVM_COMPILER_SECTION_COUNT];

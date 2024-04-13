@@ -114,11 +114,32 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     compiler->dataSection.relaSectionName = ".data.rela";
 
     sdvm_compilerObjectSection_initialize(&compiler->bssSection);
-    compiler->dataSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 4);
-    compiler->dataSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagWrite | SdvmCompSectionFlagNoBits;
-    compiler->dataSection.name = ".bss";
-    compiler->dataSection.relSectionName = ".bss.rel";
-    compiler->dataSection.relaSectionName = ".bss.rela";
+    compiler->bssSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 4);
+    compiler->bssSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagWrite | SdvmCompSectionFlagNoBits;
+    compiler->bssSection.name = ".bss";
+    compiler->bssSection.relSectionName = ".bss.rel";
+    compiler->bssSection.relaSectionName = ".bss.rela";
+
+    sdvm_compilerObjectSection_initialize(&compiler->ehFrameSection);
+    compiler->ehFrameSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 5);
+    compiler->ehFrameSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagUnwind;
+    compiler->ehFrameSection.name = ".eh_frame";
+    compiler->ehFrameSection.relSectionName = ".eh_frame.rel";
+    compiler->ehFrameSection.relaSectionName = ".eh_frame.rela";
+
+    sdvm_compilerObjectSection_initialize(&compiler->debugLineSection);
+    compiler->debugLineSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 6);
+    compiler->debugLineSection.flags = SdvmCompSectionFlagDebug;
+    compiler->debugLineSection.name = ".debug_line";
+    compiler->debugLineSection.relSectionName = ".debug_line.rel";
+    compiler->debugLineSection.relaSectionName = ".debug_line.rela";
+
+    sdvm_compilerObjectSection_initialize(&compiler->debugInfoSection);
+    compiler->debugInfoSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 6);
+    compiler->debugInfoSection.flags = SdvmCompSectionFlagDebug;
+    compiler->debugInfoSection.name = ".debug_info";
+    compiler->debugInfoSection.relSectionName = ".debug_info.rel";
+    compiler->debugInfoSection.relaSectionName = ".debug_info.rela";
 
     return compiler;
 }
@@ -131,6 +152,10 @@ void sdvm_compiler_destroy(sdvm_compiler_t *compiler)
     sdvm_compilerObjectSection_destroy(&compiler->textSection);
     sdvm_compilerObjectSection_destroy(&compiler->rodataSection);
     sdvm_compilerObjectSection_destroy(&compiler->dataSection);
+    sdvm_compilerObjectSection_destroy(&compiler->bssSection);
+    sdvm_compilerObjectSection_destroy(&compiler->ehFrameSection);
+    sdvm_compilerObjectSection_destroy(&compiler->debugLineSection);
+    sdvm_compilerObjectSection_destroy(&compiler->debugInfoSection);
 
     free(compiler);
 }
