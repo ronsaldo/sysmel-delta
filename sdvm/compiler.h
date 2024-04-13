@@ -218,6 +218,7 @@ struct sdvm_compilerTarget_s
 
     bool (*compileModuleFunction) (sdvm_functionCompilationState_t *state);
     uint32_t (*mapElfRelocation) (sdvm_compilerRelocationKind_t kind);
+    uint16_t (*mapCoffRelocationApplyingAddend) (sdvm_compilerRelocation_t *relocation, uint8_t *target);
 
     sdvm_compilerInstructionPatternTable_t *instructionPatterns;
 };
@@ -429,6 +430,7 @@ typedef struct sdvm_compilerCallingConventionState_s
     uint32_t usedArgumentVectorRegisterCount;
 
     uint32_t usedCalloutSpace;
+    uint32_t usedCalloutSpaceAlignment;
 } sdvm_compilerCallingConventionState_t;
 
 typedef struct sdvm_functionCompilationStackSegment_s

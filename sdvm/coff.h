@@ -37,6 +37,30 @@ enum {
     SDVM_IMAGE_SYM_CLASS_WEAK_EXTERNAL = 105,
 };
 
+enum {
+    SDVM_IMAGE_REL_AMD64_ABSOLUTE = 0x0000,
+    SDVM_IMAGE_REL_AMD64_ADDR64 = 0x0001,
+    SDVM_IMAGE_REL_AMD64_ADDR32 = 0x0002,
+    SDVM_IMAGE_REL_AMD64_ADDR32NB = 0x0003,
+    SDVM_IMAGE_REL_AMD64_REL32 = 0x0004,
+    SDVM_IMAGE_REL_AMD64_REL32_1 = 0x0005,
+    SDVM_IMAGE_REL_AMD64_REL32_2 = 0x0006,
+    SDVM_IMAGE_REL_AMD64_REL32_3 = 0x0007,
+    SDVM_IMAGE_REL_AMD64_REL32_4 = 0x0008,
+    SDVM_IMAGE_REL_AMD64_REL32_5 = 0x0009,
+    SDVM_IMAGE_REL_AMD64_SECTION = 0x000A,
+    SDVM_IMAGE_REL_AMD64_SECREL = 0x000B,
+};
+
+enum {
+    IMAGE_REL_I386_ABSOLUTE = 0x0000,
+    IMAGE_REL_I386_DIR32 = 0x0006,
+    IMAGE_REL_I386_DIR32NB = 0x0007,
+    IMAGE_REL_I386_SECTION = 0x000A,
+    IMAGE_REL_I386_SECREL = 0x000B,
+    IMAGE_REL_I386_REL32 = 0x0014,
+};
+
 typedef struct sdvm_coff_header_s
 {
     uint16_t machine;
@@ -85,6 +109,13 @@ typedef struct sdvm_coff_symbol_s
     uint8_t storageClass;
     uint8_t numberOfAuxSymbols;
 } SDVM_PACKED sdvm_coff_symbol_t;
+
+typedef struct sdvm_coff_relocation_s
+{
+    uint32_t virtualAddress;
+    uint32_t symbolTableIndex;
+    uint16_t type;
+} SDVM_PACKED sdvm_coff_relocation_t;
 
 #ifdef _MSC_VER
 #pragma pack(pop)

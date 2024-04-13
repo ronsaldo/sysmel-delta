@@ -1,5 +1,6 @@
 #include "compiler.h"
 #include "coff.h"
+#include "utils.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -10,6 +11,7 @@ typedef struct sdvm_compilerCoffFileLayout_s
     size_t sectionHeaders;
     size_t sectionHeaderCount;
     size_t sectionContents[SDVM_COMPILER_SECTION_COUNT];
+    size_t sectionRelocations[SDVM_COMPILER_SECTION_COUNT];
     uint16_t sectionIndices[SDVM_COMPILER_SECTION_COUNT];
     bool writtenSections[SDVM_COMPILER_SECTION_COUNT];
     size_t symbolTable;
@@ -96,6 +98,17 @@ static sdvm_compilerCoffFileLayout_t sdvm_compilerCoff_computeObjectFileLayout(s
         layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize(section->name);
     }
 
+    // Section relocations
+    for(size_t i = 1; i < SDVM_COMPILER_SECTION_COUNT; ++i)
+    {
+        sdvm_compilerObjectSection_t *section = compiler->sections + i;
+        if(section->contents.size == 0 || section->relocations.size == 0)
+            continue;
+
+        layout.sectionRelocations[i] = layout.size;
+        layout.size += sizeof(sdvm_coff_relocation_t)*section->relocations.size;
+    }
+
     // Section contents.
     for(size_t i = 1; i < SDVM_COMPILER_SECTION_COUNT; ++i)
     {
@@ -167,8 +180,10 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
     if(!objectFile)
         return NULL;
 
+    const sdvm_compilerTarget_t *target = compiler->target;
+
     sdvm_coff_header_t *header = (sdvm_coff_header_t *)(objectFile->data + layout.header);
-    header->machine = compiler->target->coffMachine;
+    header->machine = target->coffMachine;
     header->numberOfSections = layout.sectionHeaderCount;
     header->numberOfSymbols = layout.symbolCount;
     header->pointerToSymbolTable = layout.symbolTable;
@@ -192,7 +207,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
         sdvm_compilerCoffSectionNameWrite(coffSection, &stringTable, section->name);
         coffSection->pointerToRawData = layout.sectionContents[i];
         coffSection->sizeOfRawData = section->contents.size;
-        coffSection->characteristics |= section->alignment*SDVM_IMAGE_SCN_ALIGN_1BYTES;
+        coffSection->characteristics |= sdvm_uint32_log2(section->alignment)*SDVM_IMAGE_SCN_ALIGN_1BYTES;
 
         if(section->flags & SdvmCompSectionFlagWrite)
             coffSection->characteristics |= SDVM_IMAGE_SCN_MEM_WRITE;
@@ -210,7 +225,30 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
                 coffSection->characteristics |= SDVM_IMAGE_SCN_CNT_INITIALIZED_DATA;
         }
 
-        memcpy(objectFile->data + layout.sectionContents[i], section->contents.data, section->contents.size);
+        uint8_t *objectSectionContents = objectFile->data + layout.sectionContents[i];
+        memcpy(objectSectionContents, section->contents.data, section->contents.size);
+
+        // Relocations
+        if(section->relocations.size != 0)
+        {
+            coffSection->numberOfRelocations = section->relocations.size;
+            coffSection->pointerToRelocations = layout.sectionRelocations[i];
+
+            sdvm_coff_relocation_t *coffRelocations = (sdvm_coff_relocation_t*)(objectFile->data + coffSection->pointerToRelocations);
+            sdvm_compilerRelocation_t *relocationTable = (sdvm_compilerRelocation_t *)section->relocations.data;
+            sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
+            for(size_t i = 0; i < section->relocations.size; ++i)
+            {
+                sdvm_compilerRelocation_t *relocation = relocationTable + i;
+                sdvm_coff_relocation_t *coffRelocation = coffRelocations + i;
+                coffRelocation->virtualAddress = relocation->offset;
+                if(relocation->symbol)
+                    coffRelocation->symbolTableIndex = symbols[relocation->symbol - 1].objectSymbolIndex;
+                
+                uint8_t *relocationTarget = objectSectionContents + relocation->offset;
+                coffRelocation->type = target->mapCoffRelocationApplyingAddend(relocation, relocationTarget);
+            }
+        }
     }
 
     // Symbols

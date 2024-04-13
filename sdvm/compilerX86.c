@@ -292,6 +292,9 @@ static uint8_t sdvm_compiler_x86_nopPatterns[15][16] = {
 
 void sdvm_compiler_x86_alignUnreacheableCode(sdvm_compiler_t *compiler)
 {
+    if(compiler->textSection.alignment < 16)
+        compiler->textSection.alignment = 16;
+
     size_t alignedSize = sdvm_compiler_alignSizeTo(compiler->textSection.contents.size, 16);
     size_t paddingSize = alignedSize - compiler->textSection.contents.size;
     for(size_t i = 0; i < paddingSize; ++i)
@@ -300,6 +303,9 @@ void sdvm_compiler_x86_alignUnreacheableCode(sdvm_compiler_t *compiler)
 
 void sdvm_compiler_x86_alignReacheableCode(sdvm_compiler_t *compiler)
 {
+    if(compiler->textSection.alignment < 16)
+        compiler->textSection.alignment = 16;
+
     size_t alignedSize = sdvm_compiler_alignSizeTo(compiler->textSection.contents.size, 16);
     size_t paddingSize = alignedSize - compiler->textSection.contents.size;
     while(paddingSize > 0)
@@ -5373,6 +5379,25 @@ uint32_t sdvm_compiler_x64_mapElfRelocation(sdvm_compilerRelocationKind_t kind)
     }
 }
 
+uint16_t sdvm_compiler_x64_mapCoffRelocationApplyingAddend(sdvm_compilerRelocation_t *relocation, uint8_t *target)
+{
+    switch(relocation->kind)
+    {
+    case SdvmCompRelocationAbsolute32:
+        *(uint32_t*)target = (uint32_t)relocation->addend;
+        return SDVM_IMAGE_REL_AMD64_ADDR32;
+    case SdvmCompRelocationAbsolute64:
+        *(uint64_t*)target = (uint64_t)relocation->addend;
+        return SDVM_IMAGE_REL_AMD64_ADDR64;
+    case SdvmCompRelocationRelative32:
+    case SdvmCompRelocationRelative32AtGot:
+    case SdvmCompRelocationRelative32AtPlt:
+        *(uint32_t*)target = (uint32_t)(relocation->addend + 4);
+        return SDVM_IMAGE_REL_AMD64_REL32;
+    default: abort();
+    }
+}
+
 static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
     .pointerSize = 8,
     .objectFileType = SdvmObjectFileTypeElf,
@@ -5390,6 +5415,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
 
     .compileModuleFunction = sdvm_compiler_x64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_x64_mapElfRelocation,
+    .mapCoffRelocationApplyingAddend = sdvm_compiler_x64_mapCoffRelocationApplyingAddend,
 
     .instructionPatterns = &sdvm_x64_instructionPatternTable,
 };
@@ -5416,6 +5442,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_windows = {
 
     .compileModuleFunction = sdvm_compiler_x64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_x64_mapElfRelocation,
+    .mapCoffRelocationApplyingAddend = sdvm_compiler_x64_mapCoffRelocationApplyingAddend,
 
     .instructionPatterns = &sdvm_x64_instructionPatternTable,
 };

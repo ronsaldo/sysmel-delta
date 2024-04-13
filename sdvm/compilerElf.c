@@ -86,8 +86,6 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
         if(section->contents.size == 0 || section->relocations.size == 0)
             continue;
 
-        layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(section->name);
-
         ++layout.sectionHeaderCount;
         layout.relocationSectionContents[i] = layout.size;
         if(useRela)
