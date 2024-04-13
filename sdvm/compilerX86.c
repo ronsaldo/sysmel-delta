@@ -1,6 +1,7 @@
 #include "compilerX86.h"
 #include "module.h"
 #include "elf.h"
+#include "coff.h"
 #include "utils.h"
 #include <string.h>
 
@@ -291,7 +292,7 @@ static uint8_t sdvm_compiler_x86_nopPatterns[15][16] = {
 
 void sdvm_compiler_x86_alignUnreacheableCode(sdvm_compiler_t *compiler)
 {
-    size_t alignedSize = (compiler->textSection.contents.size + 15) & (-16);
+    size_t alignedSize = sdvm_compiler_alignSizeTo(compiler->textSection.contents.size, 16);
     size_t paddingSize = alignedSize - compiler->textSection.contents.size;
     for(size_t i = 0; i < paddingSize; ++i)
         sdvm_compiler_addInstructionByte(compiler, 0xCC);
@@ -299,7 +300,7 @@ void sdvm_compiler_x86_alignUnreacheableCode(sdvm_compiler_t *compiler)
 
 void sdvm_compiler_x86_alignReacheableCode(sdvm_compiler_t *compiler)
 {
-    size_t alignedSize = (compiler->textSection.contents.size + 15) & (-16);
+    size_t alignedSize = sdvm_compiler_alignSizeTo(compiler->textSection.contents.size, 16);
     size_t paddingSize = alignedSize - compiler->textSection.contents.size;
     while(paddingSize > 0)
     {
@@ -5376,6 +5377,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
     .pointerSize = 8,
     .objectFileType = SdvmObjectFileTypeElf,
     .elfMachine = SDVM_EM_X86_64,
+    .coffMachine = SDVM_IMAGE_FILE_MACHINE_AMD64,
     .usesUnderscorePrefix = false,
     .usesCET = true,
 
@@ -5401,6 +5403,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_windows = {
     .pointerSize = 8,
     .objectFileType = SdvmObjectFileTypeCoff,
     .elfMachine = SDVM_EM_X86_64,
+    .coffMachine = SDVM_IMAGE_FILE_MACHINE_AMD64,
     .usesUnderscorePrefix = true,
     .usesCET = false,
 

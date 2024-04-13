@@ -1,0 +1,251 @@
+#include "compiler.h"
+#include "coff.h"
+#include <stdio.h>
+#include <string.h>
+
+typedef struct sdvm_compilerCoffFileLayout_s
+{
+    size_t size;
+    size_t header;
+    size_t sectionHeaders;
+    size_t sectionHeaderCount;
+    size_t sectionContents[SDVM_COMPILER_SECTION_COUNT];
+    uint16_t sectionIndices[SDVM_COMPILER_SECTION_COUNT];
+    size_t symbolTable;
+    size_t symbolCount;
+    size_t stringTableSize;
+    size_t stringTable;
+} sdvm_compilerCoffFileLayout_t;
+
+static size_t sdvm_compilerCoff_computeNameStringSize(const char *name)
+{
+    if(!name || !*name)
+        return 0;
+
+    size_t nameSize = strlen(name);
+    if(nameSize <= 8)
+        return 0;
+
+    return nameSize + 1;
+}
+
+typedef struct sdvm_compilerCoffStringTableState_s
+{
+    char *writeBuffer;
+    size_t size;
+} sdvm_compilerCoffStringTableState_t;
+
+static void sdvm_compilerCoffSectionNameWrite(sdvm_coff_sectionHeader_t *sectionHeader, sdvm_compilerCoffStringTableState_t *stringTable, const char *string)
+{
+    if(!string || !*string)
+        return;
+    
+    size_t stringLength = strlen(string);
+    if(stringLength <= 8)
+    {
+        memcpy(sectionHeader->name, string, stringLength);
+        return;
+    }
+
+    snprintf(sectionHeader->name, sizeof(sectionHeader->name), "/07%d", (int)stringTable->size);
+    memcpy(stringTable->writeBuffer + stringTable->size, string, stringLength);
+    stringTable->size += stringLength + 1;
+}
+
+static void sdvm_compilerCoffSymbolNameWrite(sdvm_coff_symbol_t *symbol, sdvm_compilerCoffFileLayout_t *layout, sdvm_compilerCoffStringTableState_t *stringTable, const char *string)
+{
+    if(!string || !*string)
+        return;
+    
+    size_t stringLength = strlen(string);
+    if(stringLength <= 8)
+    {
+        memcpy(symbol->nameString, string, stringLength);
+        return;
+    }
+
+    symbol->nameZero = 0;
+    symbol->nameOffset = (uint32_t)stringTable->size;
+
+    memcpy(stringTable->writeBuffer + stringTable->size, string, stringLength);
+    stringTable->size += stringLength + 1;
+}
+
+static sdvm_compilerCoffFileLayout_t sdvm_compilerCoff_computeObjectFileLayout(sdvm_compiler_t *compiler)
+{
+    sdvm_compilerCoffFileLayout_t layout = {0};
+    layout.header = 0;
+
+    layout.size = sizeof(sdvm_coff_header_t);
+    layout.sectionHeaders = layout.size;
+    layout.sectionHeaderCount = 0;
+    layout.stringTableSize = 0;
+
+    // Section headers.
+    for(size_t i = 1; i < SDVM_COMPILER_SECTION_COUNT; ++i)
+    {
+        sdvm_compilerObjectSection_t *section = compiler->sections + i;
+        if(section->contents.size == 0)
+            continue;
+
+        layout.sectionIndices[i] = ++layout.sectionHeaderCount;
+        layout.size += sizeof(sdvm_coff_sectionHeader_t);
+
+        layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize(section->name);
+    }
+
+    // Section contents.
+    for(size_t i = 1; i < SDVM_COMPILER_SECTION_COUNT; ++i)
+    {
+        sdvm_compilerObjectSection_t *section = compiler->sections + i;
+        if(section->contents.size == 0)
+            continue;
+
+        layout.size = sdvm_compiler_alignSizeTo(layout.size, section->alignment);
+        layout.sectionContents[i] = layout.size;
+        layout.size += section->contents.size;
+    }
+
+    // Symbol table.
+    layout.symbolTable = layout.size;
+
+    // Symbols
+    if(compiler->symbolTable.symbols.size != 0)
+    {
+        // Count the local symbols.
+        size_t compilerSymbolCount = compiler->symbolTable.symbols.size;
+        sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
+        layout.symbolCount = compilerSymbolCount;
+        for(size_t i = 0; i < compilerSymbolCount; ++i)
+        {
+            sdvm_compilerSymbol_t *symbol = symbols + i;
+            if(symbol->name)
+                layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize((char*)compiler->symbolTable.strings.data + symbol->name);
+        }
+
+        layout.size += sizeof(sdvm_coff_symbol_t)*layout.symbolCount;
+    }
+
+    // String table.
+    layout.stringTable = layout.size;
+    layout.size += 4 + layout.stringTableSize;
+
+    return layout;
+}
+
+static uint16_t sdvm_compilerCoff_mapType(sdvm_compilerSymbolKind_t kind)
+{
+    if(kind == SdvmCompSymbolKindFunction)
+        return 0x20;
+
+    return 0;
+}
+
+static uint8_t sdvm_compilerCoff_mapStorageClass(sdvm_compilerSymbolKind_t kind, sdvm_compilerSymbolBinding_t binding)
+{
+    if(kind == SdvmCompSymbolKindFile)
+        return SDVM_IMAGE_SYM_CLASS_FILE;
+
+    switch(binding)
+    {
+    case SdvmCompSymbolBindingLocal: return SDVM_IMAGE_SYM_CLASS_STATIC;
+    case SdvmCompSymbolBindingWeak: return SDVM_IMAGE_SYM_CLASS_WEAK_EXTERNAL;
+    default: return SDVM_IMAGE_SYM_CLASS_EXTERNAL;
+    }
+}
+
+sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
+{
+    sdvm_compilerCoffFileLayout_t layout = sdvm_compilerCoff_computeObjectFileLayout(compiler);
+    sdvm_compilerObjectFile_t *objectFile = sdvm_compileObjectFile_allocate(layout.size);
+    if(!objectFile)
+        return NULL;
+
+    sdvm_coff_header_t *header = (sdvm_coff_header_t *)(objectFile->data + layout.header);
+    header->machine = compiler->target->coffMachine;
+    header->numberOfSections = layout.sectionHeaderCount;
+    header->numberOfSymbols = layout.symbolCount;
+    header->pointerToSymbolTable = layout.symbolTable;
+
+    sdvm_compilerCoffStringTableState_t stringTable = {
+        .size = 4,
+        .writeBuffer = (char*)(objectFile->data + layout.stringTable)
+    };
+
+    // Section contents.
+    sdvm_coff_sectionHeader_t *sectionHeaders = (sdvm_coff_sectionHeader_t*)(objectFile->data + layout.sectionHeaders);
+    size_t writtenSectionHeaderCount = 0;
+
+    for(size_t i = 1; i < SDVM_COMPILER_SECTION_COUNT; ++i)
+    {
+        sdvm_compilerObjectSection_t *section = compiler->sections + i;
+        if(section->contents.size == 0)
+            continue;
+
+        sdvm_coff_sectionHeader_t *coffSection = sectionHeaders + writtenSectionHeaderCount++;
+        sdvm_compilerCoffSectionNameWrite(coffSection, &stringTable, section->name);
+        coffSection->pointerToRawData = layout.sectionContents[i];
+        coffSection->sizeOfRawData = section->contents.size;
+        coffSection->characteristics |= section->alignment*SDVM_IMAGE_SCN_ALIGN_1BYTES;
+
+        if(section->flags & SdvmCompSectionFlagWrite)
+            coffSection->characteristics |= SDVM_IMAGE_SCN_MEM_WRITE;
+        if(section->flags & SdvmCompSectionFlagRead)
+            coffSection->characteristics |= SDVM_IMAGE_SCN_MEM_READ;
+        if(section->flags & SdvmCompSectionFlagExec)
+        {
+            coffSection->characteristics |= SDVM_IMAGE_SCN_MEM_EXECUTE | SDVM_IMAGE_SCN_CNT_CODE;
+        }
+        else
+        {
+            if(section->flags & SdvmCompSectionFlagNoBits)
+                coffSection->characteristics |= SDVM_IMAGE_SCN_CNT_UNINITIALIZED_DATA;
+            else
+                coffSection->characteristics |= SDVM_IMAGE_SCN_CNT_INITIALIZED_DATA;
+        }
+
+        memcpy(objectFile->data + layout.sectionContents[i], section->contents.data, section->contents.size);
+    }
+
+    // Symbols
+    if(compiler->symbolTable.symbols.size != 0)
+    {
+        // Count the local symbols.
+        size_t compilerSymbolCount = compiler->symbolTable.symbols.size;
+        sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
+        sdvm_coff_symbol_t *coffSymbols = (sdvm_coff_symbol_t*)(objectFile->data + layout.symbolTable);
+
+        for(size_t i = 0; i < compilerSymbolCount; ++i)
+        {
+            sdvm_compilerSymbol_t *symbol = symbols + i;
+            sdvm_coff_symbol_t *coffSymbol = coffSymbols + i;
+            if(symbol->name)
+                sdvm_compilerCoffSymbolNameWrite(coffSymbol, &layout, &stringTable, (char*)compiler->symbolTable.strings.data + symbol->name);
+
+            if(symbol->section && symbol->section < SDVM_COMPILER_SECTION_COUNT)
+                coffSymbol->sectionNumber = layout.sectionIndices[symbol->section];
+            coffSymbol->value = (uint32_t)symbol->value;
+            coffSymbol->type = sdvm_compilerCoff_mapType(symbol->kind);
+            coffSymbol->storageClass = sdvm_compilerCoff_mapStorageClass(symbol->kind, symbol->binding);
+        }
+
+        layout.size += sizeof(sdvm_coff_symbol_t)*layout.symbolCount;
+    }
+
+    // String table size
+    uint32_t *stringTableSize = (uint32_t*)(objectFile->data + layout.stringTable);
+    *stringTableSize = (uint32_t)stringTable.size;
+
+    return objectFile;
+}
+
+bool sdvm_compilerCoff_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName)
+{
+    sdvm_compilerObjectFile_t *objectFile = sdvm_compilerCoff_encode(compiler);
+    if(!objectFile)
+        return false;
+
+    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, elfFileName);
+    sdvm_compileObjectFile_destroy(objectFile);
+    return succeeded;
+}

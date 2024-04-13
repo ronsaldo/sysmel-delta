@@ -113,6 +113,13 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     compiler->dataSection.relSectionName = ".data.rel";
     compiler->dataSection.relaSectionName = ".data.rela";
 
+    sdvm_compilerObjectSection_initialize(&compiler->bssSection);
+    compiler->dataSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 4);
+    compiler->dataSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagWrite | SdvmCompSectionFlagNoBits;
+    compiler->dataSection.name = ".bss";
+    compiler->dataSection.relSectionName = ".bss.rel";
+    compiler->dataSection.relaSectionName = ".bss.rela";
+
     return compiler;
 }
 
@@ -2679,6 +2686,8 @@ SDVM_API bool sdvm_compiler_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *comp
 {
     switch(compiler->target->objectFileType)
     {
+    case SdvmObjectFileTypeCoff:
+        return sdvm_compilerCoff_encodeObjectAndSaveToFileNamed(compiler, objectFileName);
     case SdvmObjectFileTypeElf:
     default:
         if(compiler->pointerSize <= 4)

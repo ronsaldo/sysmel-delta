@@ -68,8 +68,11 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
         ++layout.sectionHeaderCount;
 
         layout.size = sdvm_compiler_alignSizeTo(layout.size, section->alignment);
-        layout.sectionContents[i] = layout.size;
-        layout.size += section->contents.size;
+        if((section->flags & SdvmCompSectionFlagNoBits) == 0)
+        {
+            layout.sectionContents[i] = layout.size;
+            layout.size += section->contents.size;
+        }
     }
 
     // Section relocations
@@ -224,8 +227,11 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
             elfSection->flags |= SDVM_SHF_ALLOC;
         if(section->flags & SdvmCompSectionFlagExec)
             elfSection->flags |= SDVM_SHF_EXECINSTR;
+        if(section->flags & SdvmCompSectionFlagNoBits)
+            elfSection->type = SDVM_SHT_NOBITS;
 
-        memcpy(objectFile->data + layout.sectionContents[i], section->contents.data, section->contents.size);
+        if((section->flags & SdvmCompSectionFlagNoBits) == 0)
+            memcpy(objectFile->data + layout.sectionContents[i], section->contents.data, section->contents.size);
     }
 
     // Section relocations.

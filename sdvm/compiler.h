@@ -6,7 +6,7 @@
 #include "instruction.h"
 #include <stdbool.h>
 
-#define SDVM_COMPILER_SECTION_COUNT 4
+#define SDVM_COMPILER_SECTION_COUNT 5
 
 typedef struct sdvm_module_s sdvm_module_t;
 
@@ -16,6 +16,7 @@ typedef enum sdvm_compilerSectionFlags_e
     SdvmCompSectionFlagWrite = 1<<0,
     SdvmCompSectionFlagRead = 1<<1,
     SdvmCompSectionFlagExec = 1<<2,
+    SdvmCompSectionFlagNoBits = 1<<3,
 } sdvm_compilerSectionFlags_t;
 
 typedef enum sdvm_compilerSymbolKind_e
@@ -183,6 +184,7 @@ typedef struct sdvm_compiler_s
             sdvm_compilerObjectSection_t textSection;
             sdvm_compilerObjectSection_t rodataSection;
             sdvm_compilerObjectSection_t dataSection;
+            sdvm_compilerObjectSection_t bssSection;
         };
 
         sdvm_compilerObjectSection_t sections[SDVM_COMPILER_SECTION_COUNT];
@@ -202,6 +204,7 @@ struct sdvm_compilerTarget_s
     uint32_t pointerSize;
     sdvm_compilerObjectFileType_t objectFileType;
     uint32_t elfMachine;
+    uint16_t coffMachine;
     bool usesUnderscorePrefix;
     bool hasSeparateFloatFromVectorRegisters;
     bool usesCET;
@@ -635,6 +638,9 @@ SDVM_API bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t 
 
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf32_encode(sdvm_compiler_t *compiler);
 SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler);
+SDVM_API bool sdvm_compilerCoff_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
 
 SDVM_API void sdvm_registerSet_clear(sdvm_registerSet_t *set);
 SDVM_API bool sdvm_registerSet_includes(const sdvm_registerSet_t *set, uint8_t value);
