@@ -2302,7 +2302,7 @@ void sdvm_compiler_allocateNewStackLocationIfNeeded(sdvm_functionCompilationStat
 
 void sdvm_compiler_allocateNewStackLocationsIfNeeded(sdvm_functionCompilationState_t *state, sdvm_compilerLocation_t *location, sdvm_type_t type)
 {
-    if(location->kind == SdvmCompLocationStack)
+    if(location->kind == SdvmCompLocationStack || location->kind == SdvmCompLocationStackAddress)
     {
         sdvm_compiler_allocateNewStackLocationIfNeeded(state, &location->firstStackLocation, false);
     }
