@@ -142,6 +142,14 @@ const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
     .callTouchedVectorRegisters = sdvm_x64_sysv_callTouchedVectorRegisters
 };
 
+void sdvm_compiler_x86_alignUnreacheableCode(sdvm_compiler_t *compiler)
+{
+    size_t alignedSize = (compiler->textSection.contents.size + 15) & (-16);
+    size_t paddingSize = alignedSize - compiler->textSection.contents.size;
+    for(size_t i = 0; i < paddingSize; ++i)
+        sdvm_compiler_addInstructionByte(compiler, 0xCC);
+}
+
 uint8_t sdvm_compiler_x86_modRmByte(int8_t rm, uint8_t regOpcode, uint8_t mod)
 {
     return (rm & SDVM_X86_REG_HALF_MASK) | ((regOpcode & SDVM_X86_REG_HALF_MASK) << 3) | (mod << 6);
@@ -5162,6 +5170,9 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
     if(state->compiler->verbose)
         sdvm_functionCompilationState_dump(state);
 
+    // Align the function start symbol.
+    sdvm_compiler_x86_alignUnreacheableCode(state->compiler);
+
     // Set the function symbol
     size_t startOffset = state->compiler->textSection.contents.size;
     sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&state->compiler->symbolTable, state->symbol, state->compiler->textSection.symbolIndex, startOffset);
@@ -5175,6 +5186,7 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
     // Set the symbol size.
     size_t endOffset = state->compiler->textSection.contents.size;
     sdvm_compilerSymbolTable_setSymbolSize(&state->compiler->symbolTable, state->symbol, endOffset - startOffset);
+    sdvm_compiler_x86_alignUnreacheableCode(state->compiler);
 
     return true;
 }
