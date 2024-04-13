@@ -18,6 +18,8 @@ typedef struct sdvm_compilerElfFileLayout_s
     size_t sectionHeaders;
     size_t sectionHeaderCount;
     size_t sectionContents[SDVM_COMPILER_SECTION_COUNT];
+    uint16_t sectionIndices[SDVM_COMPILER_SECTION_COUNT];
+    bool writtenSections[SDVM_COMPILER_SECTION_COUNT];
     size_t relocationSectionContents[SDVM_COMPILER_SECTION_COUNT];
     size_t sectionHeaderStringsSize;
     size_t sectionHeaderStrings;
@@ -65,6 +67,8 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
             continue;
 
         layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(section->name);
+        layout.sectionIndices[i] = layout.sectionHeaderCount;
+        layout.writtenSections[i] = true;
         ++layout.sectionHeaderCount;
 
         layout.size = sdvm_compiler_alignSizeTo(layout.size, section->alignment);
@@ -120,7 +124,10 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;
             if(symbol->binding == SdvmCompSymbolBindingLocal)
-                symbol->objectSymbolIndex = layout.localSymbolCount++;
+            {
+                if(symbol->section && layout.writtenSections[symbol->section])
+                    symbol->objectSymbolIndex = layout.localSymbolCount++;
+            }
         }
 
         // Count the non-local symbols.
@@ -304,9 +311,13 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         for(size_t i = 0; i < compilerSymbolCount; ++i)
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;
+            if(symbol->binding == SdvmCompSymbolBindingLocal && symbol->section && !layout.writtenSections[symbol->section])
+                continue;
+
             sdvm_elf64_symbol_t *elfSymbol = elfSymbols + symbol->objectSymbolIndex;
             elfSymbol->info = SDVM_ELF64_SYM_INFO(sdvm_compilerElf64_mapSymbolKind(symbol->kind), sdvm_compilerElf64_mapSymbolBinding(symbol->binding));
-            elfSymbol->sectionHeaderIndex = symbol->section;
+            if(symbol->section && symbol->section < SDVM_COMPILER_SECTION_COUNT)
+                elfSymbol->sectionHeaderIndex = layout.sectionIndices[symbol->section];
             elfSymbol->value = symbol->value;
             elfSymbol->name = symbol->name;
             elfSymbol->size = symbol->size;

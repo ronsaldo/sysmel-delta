@@ -11,6 +11,7 @@ typedef struct sdvm_compilerCoffFileLayout_s
     size_t sectionHeaderCount;
     size_t sectionContents[SDVM_COMPILER_SECTION_COUNT];
     uint16_t sectionIndices[SDVM_COMPILER_SECTION_COUNT];
+    bool writtenSections[SDVM_COMPILER_SECTION_COUNT];
     size_t symbolTable;
     size_t symbolCount;
     size_t stringTableSize;
@@ -89,6 +90,7 @@ static sdvm_compilerCoffFileLayout_t sdvm_compilerCoff_computeObjectFileLayout(s
             continue;
 
         layout.sectionIndices[i] = ++layout.sectionHeaderCount;
+        layout.writtenSections[i] = true;
         layout.size += sizeof(sdvm_coff_sectionHeader_t);
 
         layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize(section->name);
@@ -115,12 +117,16 @@ static sdvm_compilerCoffFileLayout_t sdvm_compilerCoff_computeObjectFileLayout(s
         // Count the local symbols.
         size_t compilerSymbolCount = compiler->symbolTable.symbols.size;
         sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
-        layout.symbolCount = compilerSymbolCount;
+        layout.symbolCount = 0;
         for(size_t i = 0; i < compilerSymbolCount; ++i)
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;
+            if(symbol->binding == SdvmCompSymbolBindingLocal && symbol->section && !layout.writtenSections[symbol->section])
+                continue;
+
             if(symbol->name)
                 layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize((char*)compiler->symbolTable.strings.data + symbol->name);
+            symbol->objectSymbolIndex = layout.symbolCount++;
         }
 
         layout.size += sizeof(sdvm_coff_symbol_t)*layout.symbolCount;
@@ -218,7 +224,10 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
         for(size_t i = 0; i < compilerSymbolCount; ++i)
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;
-            sdvm_coff_symbol_t *coffSymbol = coffSymbols + i;
+            if(symbol->binding == SdvmCompSymbolBindingLocal && symbol->section && !layout.writtenSections[symbol->section])
+                continue;
+
+            sdvm_coff_symbol_t *coffSymbol = coffSymbols + symbol->objectSymbolIndex;
             if(symbol->name)
                 sdvm_compilerCoffSymbolNameWrite(coffSymbol, &layout, &stringTable, (char*)compiler->symbolTable.strings.data + symbol->name);
 
