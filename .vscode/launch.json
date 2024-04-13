@@ -15,9 +15,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Launch",
+            "name": "Launch (Default target)",
             "program": "${workspaceFolder}/build/bin/sdvm",
             "args": ["-v", "-o", "test.o", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch (Win x64 target)",
+            "program": "${workspaceFolder}/build/bin/sdvm",
+            "args": ["-v", "-target", "x86_64-windows-msvc", "-o", "test.obj", "test.sdvm"],
             "cwd": "${workspaceFolder}"
         }
     ]

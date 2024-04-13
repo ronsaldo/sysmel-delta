@@ -19,6 +19,7 @@ int main(int argc, const char *argv[])
     bool verbose = false;
     const char *moduleFileName = NULL;
     const char *outputFileName = NULL;
+    const char *targetName = sdvm_compilerTarget_getDefaultTargetName();
 
     for(int i = 1; i < argc; ++i)
     {
@@ -37,6 +38,10 @@ int main(int argc, const char *argv[])
             else if(!strcmp(argv[i], "-v"))
             {
                 verbose = true;
+            }
+            else if(!strcmp(argv[i], "-target"))
+            {
+                targetName = argv[++i];
             }
             else if(!strcmp(argv[i], "-o"))
             {
@@ -64,7 +69,7 @@ int main(int argc, const char *argv[])
 
     //sdvm_module_dump(module);
 
-    sdvm_compiler_t *compiler = sdvm_compiler_create(sdvm_compilerTarget_getDefault());
+    sdvm_compiler_t *compiler = sdvm_compiler_create(sdvm_compilerTarget_getNamed(targetName));
     compiler->verbose = verbose;
     bool compilationSucceeded = sdvm_compiler_compileModule(compiler, module);
     sdvm_module_destroy(module);

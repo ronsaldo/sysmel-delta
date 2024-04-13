@@ -138,13 +138,19 @@ SDVM_API const char *sdvm_compilerTarget_getDefaultTargetName(void)
 #ifdef SDVM_DEFAULT_TARGET_NAME
     return SDVM_DEFAULT_TARGET_NAME;
 #else
+#ifdef _WIN32
+    return "x86_64-windows-msvc";
+#else
     return "x86_64-linux-gnu";
+#endif
 #endif 
 }
 
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *targetName)
 {
-    return sdvm_compilerTarget_x64_linux();
+    if(strstr(targetName, "windows"))
+        return sdvm_compilerTarget_get_x64_windows();
+    return sdvm_compilerTarget_get_x64_linux();
 }
 
 void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module)

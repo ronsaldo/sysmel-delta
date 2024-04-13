@@ -142,6 +142,135 @@ const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
     .callTouchedVectorRegisters = sdvm_x64_sysv_callTouchedVectorRegisters
 };
 
+
+static const sdvm_compilerRegister_t *sdvm_x64_win64_integerPassingRegisters[] = {
+    &sdvm_x86_RCX,
+    &sdvm_x86_RDX,
+    &sdvm_x86_R8,
+    &sdvm_x86_R9,
+};
+static const uint32_t sdvm_x64_win64_integerPassingRegisterCount = sizeof(sdvm_x64_win64_integerPassingRegisters) / sizeof(sdvm_x64_win64_integerPassingRegisters[0]);
+
+static const sdvm_compilerRegister_t *sdvm_x64_win64_integerPassingDwordRegisters[] = {
+    &sdvm_x86_ECX,
+    &sdvm_x86_EDX,
+    &sdvm_x86_R8D,
+    &sdvm_x86_R9D,
+};
+static const uint32_t sdvm_x64_win64_integerPassingDwordRegisterCount = sizeof(sdvm_x64_win64_integerPassingDwordRegisters) / sizeof(sdvm_x64_win64_integerPassingDwordRegisters[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_win64_allocatableIntegerRegisters[] = {
+    SDVM_X86_RAX,
+
+    SDVM_X86_RCX, // Arg 1
+    SDVM_X86_RDX, // Arg 2
+    SDVM_X86_R8,  // Arg 3
+    SDVM_X86_R9,  // Arg 4
+
+    SDVM_X86_R10, // Closure pointer
+    SDVM_X86_R11, // Closure GC pointer
+
+    SDVM_X86_RDI,
+    SDVM_X86_RSI,
+
+    SDVM_X86_RBX,
+
+    SDVM_X86_R12,
+    SDVM_X86_R13,
+    SDVM_X86_R14,
+    SDVM_X86_R15,
+};
+static const uint32_t sdvm_x64_win64_allocatableIntegerRegisterCount = sizeof(sdvm_x64_win64_allocatableIntegerRegisters) / sizeof(sdvm_x64_win64_allocatableIntegerRegisters[0]);
+
+static const sdvm_compilerRegister_t *sdvm_x64_win64_vectorFloatPassingRegister[] = {
+    &sdvm_x86_XMM0,  &sdvm_x86_XMM1,  &sdvm_x86_XMM2,  &sdvm_x86_XMM3,
+};
+static const uint32_t sdvm_x64_win64_vectorFloatPassingRegisterCount = sizeof(sdvm_x64_win64_vectorFloatPassingRegister) / sizeof(sdvm_x64_win64_vectorFloatPassingRegister[0]);
+
+static const sdvm_compilerRegister_t *sdvm_x64_win64_vectorIntegerPassingRegister[] = {
+    &sdvm_x86_XMM0I,  &sdvm_x86_XMM1I,  &sdvm_x86_XMM2I,  &sdvm_x86_XMM3I,
+};
+static const uint32_t sdvm_x64_win64_vectorIntegerPassingRegisterCount = sizeof(sdvm_x64_win64_vectorIntegerPassingRegister) / sizeof(sdvm_x64_win64_vectorIntegerPassingRegister[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callPreservedIntegerRegisters[] = {
+    SDVM_X86_RBX, SDVM_X86_RBP, SDVM_X86_RDI, SDVM_X86_RSI, SDVM_X86_RSP, SDVM_X86_R12, SDVM_X86_R13, SDVM_X86_R14, SDVM_X86_R15
+};
+static const uint32_t sdvm_x64_win64_callPreservedIntegerRegisterCount = sizeof(sdvm_x64_win64_callPreservedIntegerRegisters) / sizeof(sdvm_x64_win64_callPreservedIntegerRegisters[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callTouchedIntegerRegisters[] = {
+    SDVM_X86_RAX, SDVM_X86_RCX, SDVM_X86_RDX, SDVM_X86_R8, SDVM_X86_R9, SDVM_X86_R10, SDVM_X86_R11
+};
+static const uint32_t sdvm_x64_win64_callTouchedIntegerRegisterCount = sizeof(sdvm_x64_win64_callTouchedIntegerRegisters) / sizeof(sdvm_x64_win64_callTouchedIntegerRegisters[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callTouchedVectorRegisters[] = {
+    SDVM_X86_XMM0,  SDVM_X86_XMM1,  SDVM_X86_XMM2,  SDVM_X86_XMM3,
+    SDVM_X86_XMM4,  SDVM_X86_XMM5,
+};
+static const uint32_t sdvm_x64_win64_callTouchedVectorRegisterCount = sizeof(sdvm_x64_win64_callTouchedVectorRegisters) / sizeof(sdvm_x64_sysv_callTouchedVectorRegisters[0]);
+
+static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callPreservedVectorRegisters[] = {
+    SDVM_X86_XMM6, SDVM_X86_XMM7, SDVM_X86_XMM8, SDVM_X86_XMM9, SDVM_X86_XMM10,
+    SDVM_X86_XMM11, SDVM_X86_XMM12, SDVM_X86_XMM13, SDVM_X86_XMM14, SDVM_X86_XMM15
+};
+static const uint32_t sdvm_x64_win64_callPreservedVectorRegisterCount = sizeof(sdvm_x64_win64_callPreservedVectorRegisters) / sizeof(sdvm_x64_win64_callPreservedVectorRegisters[0]);
+
+const sdvm_compilerCallingConvention_t sdvm_x64_win64_callingConvention = {
+    .supportsLocalSymbolValueCall = true,
+    .supportsGlobalSymbolValueCall = true,
+    .anchorsFramePointerAtBottom = true,
+    .usesSingleRegisterCount = true,
+    .vectorsArePassedByPointers = true,
+
+    .stackAlignment = 16,
+    .stackParameterAlignment = 8,
+    .calloutShadowSpace = 32,
+
+    .integerRegisterSize = 8,
+    .integerRegisterCount = sdvm_x64_win64_integerPassingRegisterCount,
+
+    .integer32Registers = sdvm_x64_win64_integerPassingDwordRegisters,
+    .integer64Registers = sdvm_x64_win64_integerPassingRegisters,
+    .integerRegisters = sdvm_x64_win64_integerPassingRegisters,
+
+    .closureRegister = &sdvm_x86_R10,
+    .closureGCRegister = &sdvm_x86_R11,
+
+    .firstInteger32ResultRegister = &sdvm_x86_EAX,
+    .firstInteger64ResultRegister = &sdvm_x86_RAX,
+    .firstIntegerResultRegister = &sdvm_x86_RAX,
+    .secondInteger32ResultRegister = &sdvm_x86_EDX,
+    .secondInteger64ResultRegister = &sdvm_x86_RDX,
+    .secondIntegerResultRegister = &sdvm_x86_RDX,
+
+    .vectorRegisterSize = 16,
+    .vectorRegisterCount = sdvm_x64_win64_vectorFloatPassingRegisterCount,
+    .vectorFloatRegisters = sdvm_x64_win64_vectorFloatPassingRegister,
+    .vectorIntegerRegisters = sdvm_x64_win64_vectorIntegerPassingRegister,
+
+    .firstVectorFloatResultRegister = &sdvm_x86_XMM0,
+    .firstVectorIntegerResultRegister = &sdvm_x86_XMM0I,
+    .secondVectorFloatResultRegister = &sdvm_x86_XMM1,
+    .secondVectorIntegerResultRegister = &sdvm_x86_XMM1I,
+
+    .allocatableIntegerRegisterCount = sdvm_x64_win64_allocatableIntegerRegisterCount,
+    .allocatableIntegerRegisters = sdvm_x64_win64_allocatableIntegerRegisters,
+    
+    .allocatableVectorRegisterCount = sdvm_x64_allocatableVectorRegisterCount,
+    .allocatableVectorRegisters = sdvm_x64_allocatableVectorRegisters,
+
+    .callPreservedIntegerRegisterCount = sdvm_x64_win64_callPreservedIntegerRegisterCount,
+    .callPreservedIntegerRegisters = sdvm_x64_win64_callPreservedIntegerRegisters,
+    
+    .callTouchedIntegerRegisterCount = sdvm_x64_win64_callTouchedIntegerRegisterCount,
+    .callTouchedIntegerRegisters = sdvm_x64_win64_callTouchedIntegerRegisters,
+
+    .callPreservedVectorRegisterCount = sdvm_x64_win64_callPreservedVectorRegisterCount,
+    .callPreservedVectorRegisters = sdvm_x64_win64_callPreservedVectorRegisters,
+
+    .callTouchedVectorRegisterCount = sdvm_x64_win64_callTouchedVectorRegisterCount,
+    .callTouchedVectorRegisters = sdvm_x64_win64_callTouchedVectorRegisters
+};
+
 static uint8_t sdvm_compiler_x86_nopPatterns[15][16] = {
     {0x90},
     {0x66, 0x90},                                                                               //  2 - xchg ax ax (o16 nop)
@@ -5263,7 +5392,32 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
     .instructionPatterns = &sdvm_x64_instructionPatternTable,
 };
 
-const sdvm_compilerTarget_t *sdvm_compilerTarget_x64_linux()
+const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_linux()
 {
     return &sdvm_compilerTarget_x64_linux_pie;
+}
+
+static sdvm_compilerTarget_t sdvm_compilerTarget_x64_windows = {
+    .pointerSize = 8,
+    .objectFileType = SdvmObjectFileTypeCoff,
+    .elfMachine = SDVM_EM_X86_64,
+    .usesUnderscorePrefix = true,
+    .usesCET = false,
+
+    .defaultCC = &sdvm_x64_win64_callingConvention,
+    .cdecl = &sdvm_x64_win64_callingConvention,
+    .stdcall = &sdvm_x64_win64_callingConvention,
+    .apicall = &sdvm_x64_win64_callingConvention,
+    .thiscall = &sdvm_x64_win64_callingConvention,
+    .vectorcall = &sdvm_x64_win64_callingConvention,
+
+    .compileModuleFunction = sdvm_compiler_x64_compileModuleFunction,
+    .mapElfRelocation = sdvm_compiler_x64_mapElfRelocation,
+
+    .instructionPatterns = &sdvm_x64_instructionPatternTable,
+};
+
+const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_windows()
+{
+    return &sdvm_compilerTarget_x64_windows;
 }

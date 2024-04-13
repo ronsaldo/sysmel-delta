@@ -353,6 +353,9 @@ struct sdvm_compilerCallingConvention_s
 {
     bool supportsLocalSymbolValueCall;
     bool supportsGlobalSymbolValueCall;
+    bool anchorsFramePointerAtBottom;
+    bool usesSingleRegisterCount;
+    bool vectorsArePassedByPointers;
     uint32_t integerRegisterSize;
     uint32_t integerRegisterCount;
 
@@ -545,7 +548,8 @@ SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getDefault(void);
 SDVM_API const char *sdvm_compilerTarget_getDefaultTargetName(void);
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *targetName);
 
-SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_x64_linux(void);
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_linux(void);
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_windows(void);
 
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state);
