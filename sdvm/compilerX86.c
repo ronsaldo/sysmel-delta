@@ -142,12 +142,42 @@ const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
     .callTouchedVectorRegisters = sdvm_x64_sysv_callTouchedVectorRegisters
 };
 
+static uint8_t sdvm_compiler_x86_nopPatterns[15][16] = {
+    {0x90},
+    {0x66, 0x90},                                                                               //  2 - xchg ax ax (o16 nop)
+    {0x0f, 0x1f, 0x00},                                                                         //  3 - nop(3)
+    {0x0f, 0x1f, 0x40, 0x00},                                                                   //  4 - nop(4)
+    {0x0f, 0x1f, 0x44, 0x00, 0x00},                                                             //  5 - nop(5)
+    {0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00},                                                       //  6 - nop(6)
+    {0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00},                                                 //  7 - nop(7)
+    {0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},                                           //  8 - nop(8)
+    {0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},                                     //  9 - nop(9)
+    {0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},                               // 10 - o16 cs nop
+    {0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},                         // 11 - 2x o16 cs nop
+    {0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},                   // 12 - 3x o16 cs nop
+    {0x66, 0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},             // 13 - 4x o16 cs nop
+    {0x66, 0x66, 0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},       // 14 - 5x o16 cs nop
+    {0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}, // 15 - 6x o16 cs nop
+};
+
 void sdvm_compiler_x86_alignUnreacheableCode(sdvm_compiler_t *compiler)
 {
     size_t alignedSize = (compiler->textSection.contents.size + 15) & (-16);
     size_t paddingSize = alignedSize - compiler->textSection.contents.size;
     for(size_t i = 0; i < paddingSize; ++i)
         sdvm_compiler_addInstructionByte(compiler, 0xCC);
+}
+
+void sdvm_compiler_x86_alignReacheableCode(sdvm_compiler_t *compiler)
+{
+    size_t alignedSize = (compiler->textSection.contents.size + 15) & (-16);
+    size_t paddingSize = alignedSize - compiler->textSection.contents.size;
+    while(paddingSize > 0)
+    {
+        size_t patternSize = paddingSize & 15;
+        sdvm_compiler_addInstructionBytes(compiler, patternSize, sdvm_compiler_x86_nopPatterns[patternSize - 1]);
+        paddingSize -= patternSize;
+    }
 }
 
 uint8_t sdvm_compiler_x86_modRmByte(int8_t rm, uint8_t regOpcode, uint8_t mod)
@@ -5016,6 +5046,12 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
 
 void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
+    if(instruction->isBackwardBranchDestination || instruction->isIndirectBranchDestination)
+        sdvm_compiler_x86_alignReacheableCode(state->compiler);
+
+    if(instruction->isIndirectBranchDestination && state->compiler->target->usesCET)
+        sdvm_compiler_x86_endbr64(state->compiler);
+
     if(instruction->decoding.isConstant)
     {
         // Emit the label, if this is a label.

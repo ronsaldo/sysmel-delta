@@ -344,6 +344,9 @@ struct sdvm_compilerInstruction_s
 
     uint8_t allowArg0DestinationShare : 1;
     uint8_t allowArg1DestinationShare : 1;
+    uint8_t isBranchDestination : 1;
+    uint8_t isBackwardBranchDestination : 1;
+    uint8_t isIndirectBranchDestination : 1;
 };
 
 struct sdvm_compilerCallingConvention_s

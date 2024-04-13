@@ -193,6 +193,48 @@ bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval)
     return interval->firstUsage <= interval->lastUsage;
 }
 
+void sdvm_functionCompilationState_computeControlFlow(sdvm_functionCompilationState_t *state)
+{
+    // Compute the live intervals.
+    for(uint32_t i = 0; i < state->instructionCount; ++i)
+    {
+        sdvm_compilerInstruction_t *instruction = state->instructions + i;
+        if(instruction->decoding.isConstant)
+            continue;
+
+        switch(instruction->decoding.opcode)
+        {
+        case SdvmInstJump:
+            {
+                SDVM_ASSERT(instruction->decoding.arg0IsInstruction);
+                sdvm_compilerInstruction_t *destinationInstruction = state->instructions + instruction->decoding.instruction.arg0;
+                destinationInstruction->isBranchDestination = true;
+                if((uint32_t)instruction->decoding.instruction.arg0 <= i)
+                    destinationInstruction->isBackwardBranchDestination = true;
+            }
+            break;
+        case SdvmInstJumpIfTrue:
+        case SdvmInstJumpIfFalse:
+            {
+                SDVM_ASSERT(instruction->decoding.arg1IsInstruction);
+                SDVM_ASSERT(i + 1 < state->instructionCount);
+
+                sdvm_compilerInstruction_t *takenDestination = state->instructions + instruction->decoding.instruction.arg1;
+                takenDestination->isBranchDestination = true;
+                if((uint32_t)instruction->decoding.instruction.arg1 <= i)
+                    takenDestination->isBackwardBranchDestination = true;
+
+                sdvm_compilerInstruction_t *notTakenDestination = state->instructions + i + 1;
+                notTakenDestination->isBranchDestination = true;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+
+}
+
 void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilationState_t *state)
 {
     // Intialize the live intervals
@@ -2417,6 +2459,9 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         instruction->index = i;
         instruction->decoding = sdvm_instruction_decode(functionState.sourceInstructions[i]);
     }
+
+    // Compute the control flow.
+    sdvm_functionCompilationState_computeControlFlow(&functionState);
 
     // Compute the live intervals.
     sdvm_functionCompilationState_computeLiveIntervals(&functionState);
