@@ -2,6 +2,7 @@
 #include "module.h"
 #include "elf.h"
 #include "coff.h"
+#include "dwarf.h"
 #include "utils.h"
 #include <string.h>
 
@@ -290,6 +291,29 @@ static uint8_t sdvm_compiler_x86_nopPatterns[15][16] = {
     {0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}, // 15 - 6x o16 cs nop
 };
 
+static int sdvm_compiler_x64_mapIntegerRegisterToDwarf(sdvm_compilerRegisterValue_t reg)
+{
+    switch(reg)
+    {
+    case SDVM_X86_RAX: return DW_X64_REG_RAX;
+    case SDVM_X86_RCX: return DW_X64_REG_RCX;
+    case SDVM_X86_RDX: return DW_X64_REG_RDX;
+    case SDVM_X86_RBX: return DW_X64_REG_RBX;
+    case SDVM_X86_RSP: return DW_X64_REG_RSP;
+    case SDVM_X86_RBP: return DW_X64_REG_RBP;
+    case SDVM_X86_RSI: return DW_X64_REG_RSI;
+    case SDVM_X86_RDI: return DW_X64_REG_RDI;
+    case SDVM_X86_R8:  return DW_X64_REG_R8;
+    case SDVM_X86_R9:  return DW_X64_REG_R9;
+    case SDVM_X86_R10: return DW_X64_REG_R10;
+    case SDVM_X86_R11: return DW_X64_REG_R11;
+    case SDVM_X86_R12: return DW_X64_REG_R12;
+    case SDVM_X86_R13: return DW_X64_REG_R13;
+    case SDVM_X86_R14: return DW_X64_REG_R14;
+    case SDVM_X86_R15: return DW_X64_REG_R15;
+    default: abort();
+    }
+}
 void sdvm_compiler_x86_alignUnreacheableCode(sdvm_compiler_t *compiler)
 {
     if(compiler->textSection.alignment < 16)
@@ -3662,28 +3686,71 @@ static sdvm_compilerInstructionPatternTable_t sdvm_x64_instructionPatternTable =
 
 #pragma region X86_CodeGeneration
 
+void sdvm_compiler_x64_ensureCIE(sdvm_moduleCompilationState_t *state)
+{
+    if(state->hasEmittedCIE)
+        return;
+
+    sdvm_dwarf_cfi_builder_t *cfi = &state->cfi;
+
+    sdvm_dwarf_cie_t ehCie = {0};
+    ehCie.codeAlignmentFactor = 1;
+    ehCie.dataAlignmentFactor = -8;
+    ehCie.pointerSize = 8;
+    ehCie.returnAddressRegister = DW_X64_REG_RA;
+    cfi->section = &state->compiler->ehFrameSection;
+    cfi->pointerSize = 8;
+    cfi->initialStackFrameSize = 1; // Return address
+    cfi->stackPointerRegister = DW_X64_REG_RSP;
+
+    sdvm_dwarf_cfi_beginCIE(cfi, &ehCie);
+    sdvm_dwarf_cfi_cfaInRegisterWithFactoredOffset(cfi, DW_X64_REG_RSP, 1);
+    sdvm_dwarf_cfi_registerValueAtFactoredOffset(cfi, DW_X64_REG_RA, 1);
+    sdvm_dwarf_cfi_endCIE(cfi);
+
+    state->hasEmittedCIE = true;
+}
+
 void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *state)
 {
     const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
+    sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
+
+    sdvm_compiler_x64_ensureCIE(state->moduleState);
+    sdvm_dwarf_cfi_beginFDE(cfi, &compiler->textSection, sdvm_compiler_getCurrentPC(compiler));
+
     if(compiler->target->usesCET)
         sdvm_compiler_x86_endbr64(compiler);
 
     if(!state->requiresStackFrame)
+    {
+        sdvm_dwarf_cfi_endPrologue(cfi);
         return;
+    }
 
     sdvm_compiler_x86_push(compiler, SDVM_X86_RBP);
+    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+    sdvm_dwarf_cfi_pushRegister(cfi, DW_X64_REG_RBP);
+
     sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RBP, SDVM_X86_RSP);
+    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+    sdvm_dwarf_cfi_saveFramePointerInRegister(cfi, DW_X64_REG_RBP, 0);
 
     // Preserved integer registers.
     for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
     {
         sdvm_compilerRegisterValue_t reg = convention->callPreservedIntegerRegisters[i];
         if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, reg))
+        {
             sdvm_compiler_x86_push(compiler, reg);
+            sdvm_dwarf_cfi_pushRegister(cfi, sdvm_compiler_x64_mapIntegerRegisterToDwarf(reg));
+        }
     }
 
-    sdvm_compiler_x86_sub64RegImmS32(compiler, SDVM_X86_RSP, state->calloutStackSegment.endOffset - state->prologueStackSegment.endOffset);
+    int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset - state->prologueStackSegment.endOffset;
+    sdvm_compiler_x86_sub64RegImmS32(compiler, SDVM_X86_RSP, stackSubtractionAmount);
+    sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
 
     // Preserved vector registers.
     int32_t vectorOffset = state->stackFramePointerAnchorOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
@@ -3697,15 +3764,27 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
             vectorOffset += 16;
         }
     }
+    
+    sdvm_dwarf_cfi_endPrologue(cfi);
+}
+
+void sdvm_compiler_x64_emitFunctionEnding(sdvm_functionCompilationState_t *state)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
+    sdvm_dwarf_cfi_endFDE(cfi, sdvm_compiler_getCurrentPC(compiler));
 }
 
 void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *state)
 {
     const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
+    sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
 
     if(!state->requiresStackFrame)
         return;
+
+    sdvm_dwarf_cfi_beginEpilogue(cfi);
 
     // Preserved vector registers.
     int32_t vectorOffset = state->stackFramePointerAnchorOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
@@ -3723,20 +3802,34 @@ void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *sta
     uint32_t pointerSize = compiler->pointerSize;
     if(state->prologueStackSegment.size > pointerSize * 2)
     {
-        sdvm_compiler_x86_lea64RegRmo(compiler, SDVM_X86_RSP, SDVM_X86_RBP, state->stackFramePointerAnchorOffset - state->prologueStackSegment.endOffset);
+        int32_t restoreOffset = state->stackFramePointerAnchorOffset - state->prologueStackSegment.endOffset;
+        sdvm_compiler_x86_lea64RegRmo(compiler, SDVM_X86_RSP, SDVM_X86_RBP, restoreOffset);
+        sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+        sdvm_dwarf_cfi_restoreFramePointer(cfi, restoreOffset);
+
         for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
         {
             sdvm_compilerRegisterValue_t reg = convention->callPreservedIntegerRegisters[convention->callPreservedIntegerRegisterCount - i - 1];
             if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, reg))
+            {
                 sdvm_compiler_x86_pop(compiler, reg);
+                sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+                sdvm_dwarf_cfi_popRegister(cfi, sdvm_compiler_x64_mapIntegerRegisterToDwarf(reg));
+            }
         }
     }
     else
     {
         sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RSP, SDVM_X86_RBP);
+        sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+        sdvm_dwarf_cfi_restoreFramePointer(cfi, 0);
     }
 
     sdvm_compiler_x86_pop(compiler, SDVM_X86_RBP);
+    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+    sdvm_dwarf_cfi_popRegister(cfi, DW_X64_REG_RBP);
+
+    sdvm_dwarf_cfi_endEpilogue(cfi);
 }
 
 void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
@@ -5355,6 +5448,9 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
     // Emit the instructions.
     sdvm_compiler_x64_emitFunctionInstructions(state);
 
+    // End the function.
+    sdvm_compiler_x64_emitFunctionEnding(state);
+
     // Set the symbol size.
     size_t endOffset = state->compiler->textSection.contents.size;
     sdvm_compilerSymbolTable_setSymbolSize(&state->compiler->symbolTable, state->symbol, endOffset - startOffset);
@@ -5375,6 +5471,7 @@ uint32_t sdvm_compiler_x64_mapElfRelocation(sdvm_compilerRelocationKind_t kind)
     case SdvmCompRelocationRelative32AtGot: return SDVM_R_X86_64_GOTPCREL;
     case SdvmCompRelocationRelative32AtPlt: return SDVM_R_X86_64_PLT32;
     case SdvmCompRelocationRelative64: return SDVM_R_X86_64_PC64;
+    case SdvmCompRelocationSectionRelative32: return SDVM_R_X86_64_32;
     default: abort();
     }
 }
@@ -5394,6 +5491,9 @@ uint16_t sdvm_compiler_x64_mapCoffRelocationApplyingAddend(sdvm_compilerRelocati
     case SdvmCompRelocationRelative32AtPlt:
         *(uint32_t*)target = (uint32_t)(relocation->addend + 4);
         return SDVM_IMAGE_REL_AMD64_REL32;
+    case SdvmCompRelocationSectionRelative32:
+        *(uint32_t*)target = (uint32_t)relocation->addend;
+        return SDVM_IMAGE_REL_AMD64_SECREL;
     default: abort();
     }
 }

@@ -425,15 +425,19 @@ enum dwarf_x64_register_e {
     DW_X64_REG_RA = 16,
 };
 
+typedef struct sdvm_compiler_s sdvm_compiler_t;
+typedef struct sdvm_compilerObjectSection_s sdvm_compilerObjectSection_t;
+
 typedef struct sdvm_dwarf_cie_s {
     uint8_t pointerSize;
-    uintptr_t codeAlignmentFactor;
-    intptr_t dataAlignmentFactor;
-    uintptr_t returnAddressRegister;
+    uint32_t codeAlignmentFactor;
+    int32_t dataAlignmentFactor;
+    uint32_t returnAddressRegister;
 } sdvm_dwarf_cie_t;
 
 typedef struct sdvm_dwarf_cfi_builder_s {
-    sdvm_dynarray_t buffer;
+    sdvm_compilerObjectSection_t *section;
+    size_t pointerSize;
 
     uint8_t version;
     bool isEhFrame;
@@ -456,7 +460,12 @@ typedef struct sdvm_dwarf_cfi_builder_s {
     size_t stackFrameSizeAtFramePointer;
     bool hasFramePointerRegister;
 
+    size_t storedStackFrameSize;
+    size_t storedStackFrameSizeAtFramePointer;
+    bool storedHasFramePointerRegister;
+
     bool isInPrologue;
+    bool isInEpilogue;
 } sdvm_dwarf_cfi_builder_t;
 
 typedef struct sdvm_dwarf_lineProgramHeader_s {
@@ -484,6 +493,7 @@ typedef struct sdvm_dwarf_lineProgramState_s {
 }sdvm_dwarf_lineProgramState_t;
 
 typedef struct sdvm_dwarf_debugInfo_builder_s {
+    size_t pointerSize;
     int version;
     int abbreviationCount;
     sdvm_dwarf_lineProgramHeader_t lineProgramHeader;
@@ -492,13 +502,10 @@ typedef struct sdvm_dwarf_debugInfo_builder_s {
 
     sdvm_dynarray_t locationExpression;
 
-    sdvm_dynarray_t line;
-    sdvm_dynarray_t str;
-    sdvm_dynarray_t abbrev;
-    sdvm_dynarray_t info;
-
-    sdvm_dynarray_t lineTextAddresses;
-    sdvm_dynarray_t infoTextAddresses;
+    sdvm_compilerObjectSection_t *lineSection;
+    sdvm_compilerObjectSection_t *strSection;
+    sdvm_compilerObjectSection_t *abbrevSection;
+    sdvm_compilerObjectSection_t *infoSection;
 } sdvm_dwarf_debugInfo_builder_t;
 
 SDVM_API size_t sdvm_dwarf_encodeByte(sdvm_dynarray_t *buffer, uint8_t value);
@@ -507,35 +514,44 @@ SDVM_API size_t sdvm_dwarf_encodeDWord(sdvm_dynarray_t *buffer, uint32_t value);
 SDVM_API size_t sdvm_dwarf_encodeQWord(sdvm_dynarray_t *buffer, uint64_t value);
 SDVM_API size_t sdvm_dwarf_encodeDwarfPointer(sdvm_dynarray_t *buffer, uint32_t value);
 SDVM_API size_t sdvm_dwarf_encodeDwarfPointerPCRelative(sdvm_dynarray_t *buffer, uint32_t value);
-SDVM_API size_t sdvm_dwarf_encodePointer(sdvm_dynarray_t *buffer, uintptr_t value);
 SDVM_API size_t sdvm_dwarf_encodeCString(sdvm_dynarray_t *buffer, const char *cstring);
-SDVM_API size_t sdvm_dwarf_encodeULEB128(sdvm_dynarray_t *buffer, uintptr_t value);
-SDVM_API size_t sdvm_dwarf_encodeSLEB128(sdvm_dynarray_t *buffer, intptr_t value);
+SDVM_API size_t sdvm_dwarf_encodeULEB128(sdvm_dynarray_t *buffer, uint64_t value);
+SDVM_API size_t sdvm_dwarf_encodeSLEB128(sdvm_dynarray_t *buffer, int64_t value);
 SDVM_API size_t sdvm_dwarf_encodeAlignment(sdvm_dynarray_t *buffer, size_t alignment);
 
-SDVM_API void sdvm_dwarf_cfi_create(sdvm_dwarf_cfi_builder_t *cfi);
+SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer32(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, uint32_t value);
+SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer64(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, uint64_t value);
+SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer(sdvm_compilerObjectSection_t *section, size_t pointerSize, sdvm_compilerObjectSection_t *targetSection, uint64_t value);
+
+SDVM_API size_t sdvm_dwarf_encodeSectionRelative32(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, uint32_t value);
+
+SDVM_API void sdvm_dwarf_cfi_create(sdvm_dwarf_cfi_builder_t *cfi, sdvm_compilerObjectSection_t *section);
 SDVM_API void sdvm_dwarf_cfi_destroy(sdvm_dwarf_cfi_builder_t *cfi);
 
 SDVM_API void sdvm_dwarf_cfi_beginCIE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_dwarf_cie_t *cie);
 SDVM_API void sdvm_dwarf_cfi_endCIE(sdvm_dwarf_cfi_builder_t *cfi);
 
-SDVM_API void sdvm_dwarf_cfi_beginFDE(sdvm_dwarf_cfi_builder_t *cfi, size_t pc);
+SDVM_API void sdvm_dwarf_cfi_beginFDE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_compilerObjectSection_t *section, size_t pc);
 SDVM_API void sdvm_dwarf_cfi_endFDE(sdvm_dwarf_cfi_builder_t *cfi, size_t pc);
 SDVM_API void sdvm_dwarf_cfi_finish(sdvm_dwarf_cfi_builder_t *cfi);
 
 SDVM_API void sdvm_dwarf_cfi_setPC(sdvm_dwarf_cfi_builder_t *cfi, size_t pc);
-SDVM_API void sdvm_dwarf_cfi_cfaInRegisterWithOffset(sdvm_dwarf_cfi_builder_t *cfi, uintptr_t reg, intptr_t offset);
-SDVM_API void sdvm_dwarf_cfi_cfaInRegisterWithFactoredOffset(sdvm_dwarf_cfi_builder_t *cfi, uintptr_t reg, size_t offset);
-SDVM_API void sdvm_dwarf_cfi_registerValueAtFactoredOffset(sdvm_dwarf_cfi_builder_t *cfi, uintptr_t reg, size_t offset);
-SDVM_API void sdvm_dwarf_cfi_pushRegister(sdvm_dwarf_cfi_builder_t *cfi, uintptr_t reg);
-SDVM_API void sdvm_dwarf_cfi_saveFramePointerInRegister(sdvm_dwarf_cfi_builder_t *cfi, uintptr_t reg, intptr_t offset);
+SDVM_API void sdvm_dwarf_cfi_cfaInRegisterWithOffset(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg, uint64_t offset);
+SDVM_API void sdvm_dwarf_cfi_cfaInRegisterWithFactoredOffset(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg, uint64_t offset);
+SDVM_API void sdvm_dwarf_cfi_registerValueAtFactoredOffset(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg, uint64_t offset);
+SDVM_API void sdvm_dwarf_cfi_restoreRegister(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg);
+SDVM_API void sdvm_dwarf_cfi_pushRegister(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg);
+SDVM_API void sdvm_dwarf_cfi_popRegister(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg);
+SDVM_API void sdvm_dwarf_cfi_saveFramePointerInRegister(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg, int64_t offset);
+SDVM_API void sdvm_dwarf_cfi_restoreFramePointer(sdvm_dwarf_cfi_builder_t *cfi, int64_t offset);
 SDVM_API void sdvm_dwarf_cfi_stackSizeAdvance(sdvm_dwarf_cfi_builder_t *cfi, size_t pc, size_t increment);
 SDVM_API void sdvm_dwarf_cfi_endPrologue(sdvm_dwarf_cfi_builder_t *cfi);
+SDVM_API void sdvm_dwarf_cfi_beginEpilogue(sdvm_dwarf_cfi_builder_t *cfi);
+SDVM_API void sdvm_dwarf_cfi_endEpilogue(sdvm_dwarf_cfi_builder_t *cfi);
 
-SDVM_API void sdvm_dwarf_debugInfo_create(sdvm_dwarf_debugInfo_builder_t *builder);
+SDVM_API void sdvm_dwarf_debugInfo_create(sdvm_dwarf_debugInfo_builder_t *builder, sdvm_compiler_t *compiler);
 SDVM_API void sdvm_dwarf_debugInfo_finish(sdvm_dwarf_debugInfo_builder_t *builder);
 SDVM_API void sdvm_dwarf_debugInfo_destroy(sdvm_dwarf_debugInfo_builder_t *builder);
-SDVM_API void sdvm_dwarf_debugInfo_patchTextAddressesRelativeTo(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t baseAddress);
 
 SDVM_API void sdvm_dwarf_debugInfo_beginLineInformation(sdvm_dwarf_debugInfo_builder_t *builder);
 
@@ -545,7 +561,7 @@ SDVM_API void sdvm_dwarf_debugInfo_endFileList(sdvm_dwarf_debugInfo_builder_t *b
 
 SDVM_API void sdvm_dwarf_debugInfo_endLineInformationHeader(sdvm_dwarf_debugInfo_builder_t *builder);
 
-SDVM_API void sdvm_dwarf_debugInfo_line_setAddress(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t value);
+SDVM_API void sdvm_dwarf_debugInfo_line_setAddress(sdvm_dwarf_debugInfo_builder_t *builder, sdvm_compilerObjectSection_t *section, size_t pc);
 SDVM_API void sdvm_dwarf_debugInfo_line_setFile(sdvm_dwarf_debugInfo_builder_t *builder, uint32_t file);
 SDVM_API void sdvm_dwarf_debugInfo_line_setColumn(sdvm_dwarf_debugInfo_builder_t *builder, int column);
 SDVM_API void sdvm_dwarf_debugInfo_line_advanceLine(sdvm_dwarf_debugInfo_builder_t *builder, int deltaLine);
@@ -559,12 +575,12 @@ SDVM_API void sdvm_dwarf_debugInfo_endLineInformation(sdvm_dwarf_debugInfo_build
 SDVM_API size_t sdvm_dwarf_debugInfo_beginDIE(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t tag, bool hasChildren);
 SDVM_API void sdvm_dwarf_debugInfo_endDIE(sdvm_dwarf_debugInfo_builder_t *builder);
 SDVM_API void sdvm_dwarf_debugInfo_endDIEChildren(sdvm_dwarf_debugInfo_builder_t *builder);
-SDVM_API void sdvm_dwarf_debugInfo_attribute_uleb128(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t attribute, uintptr_t value);
-SDVM_API void sdvm_dwarf_debugInfo_attribute_ref1(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t attribute, uint8_t value);
-SDVM_API void sdvm_dwarf_debugInfo_attribute_secOffset(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t attribute, uintptr_t value);
-SDVM_API void sdvm_dwarf_debugInfo_attribute_string(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t attribute, const char *value);
-SDVM_API void sdvm_dwarf_debugInfo_attribute_textAddress(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t attribute, uintptr_t value);
-SDVM_API void sdvm_dwarf_debugInfo_attribute_beginLocationExpression(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t attribute);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_uleb128(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, uint32_t value);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_ref1(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, uint8_t value);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_secOffset(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_compilerObjectSection_t *targetSection, uint32_t value);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_string(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, const char *value);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_address(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_compilerObjectSection_t *targetSection, uint64_t value);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_beginLocationExpression(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute);
 SDVM_API void sdvm_dwarf_debugInfo_attribute_endLocationExpression(sdvm_dwarf_debugInfo_builder_t *builder);
 
 SDVM_API void sdvm_dwarf_debugInfo_location_constUnsigned(sdvm_dwarf_debugInfo_builder_t *builder, uintptr_t constant);

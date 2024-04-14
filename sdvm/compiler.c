@@ -1,6 +1,7 @@
 #include "compiler.h"
 #include "module.h"
 #include "assert.h"
+#include "dwarf.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -127,19 +128,33 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     compiler->ehFrameSection.relSectionName = ".eh_frame.rel";
     compiler->ehFrameSection.relaSectionName = ".eh_frame.rela";
 
+    sdvm_compilerObjectSection_initialize(&compiler->debugAbbrevSection);
+    compiler->debugAbbrevSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 6);
+    compiler->debugAbbrevSection.flags = SdvmCompSectionFlagDebug;
+    compiler->debugAbbrevSection.name = ".debug_abbrev";
+    compiler->debugAbbrevSection.relSectionName = ".debug_abbrev.rel";
+    compiler->debugAbbrevSection.relaSectionName = ".debug_abbrev.rela";
+
+    sdvm_compilerObjectSection_initialize(&compiler->debugInfoSection);
+    compiler->debugInfoSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 7);
+    compiler->debugInfoSection.flags = SdvmCompSectionFlagDebug;
+    compiler->debugInfoSection.name = ".debug_info";
+    compiler->debugInfoSection.relSectionName = ".debug_info.rel";
+    compiler->debugInfoSection.relaSectionName = ".debug_info.rela";
+
     sdvm_compilerObjectSection_initialize(&compiler->debugLineSection);
-    compiler->debugLineSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 6);
+    compiler->debugLineSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 8);
     compiler->debugLineSection.flags = SdvmCompSectionFlagDebug;
     compiler->debugLineSection.name = ".debug_line";
     compiler->debugLineSection.relSectionName = ".debug_line.rel";
     compiler->debugLineSection.relaSectionName = ".debug_line.rela";
 
-    sdvm_compilerObjectSection_initialize(&compiler->debugInfoSection);
-    compiler->debugInfoSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 6);
-    compiler->debugInfoSection.flags = SdvmCompSectionFlagDebug;
-    compiler->debugInfoSection.name = ".debug_info";
-    compiler->debugInfoSection.relSectionName = ".debug_info.rel";
-    compiler->debugInfoSection.relaSectionName = ".debug_info.rela";
+    sdvm_compilerObjectSection_initialize(&compiler->debugStrSection);
+    compiler->debugStrSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 9);
+    compiler->debugStrSection.flags = SdvmCompSectionFlagDebug;
+    compiler->debugStrSection.name = ".debug_str";
+    compiler->debugStrSection.relSectionName = ".debug_str.rel";
+    compiler->debugStrSection.relaSectionName = ".debug_str.rela";
 
     return compiler;
 }
@@ -154,8 +169,10 @@ void sdvm_compiler_destroy(sdvm_compiler_t *compiler)
     sdvm_compilerObjectSection_destroy(&compiler->dataSection);
     sdvm_compilerObjectSection_destroy(&compiler->bssSection);
     sdvm_compilerObjectSection_destroy(&compiler->ehFrameSection);
-    sdvm_compilerObjectSection_destroy(&compiler->debugLineSection);
+    sdvm_compilerObjectSection_destroy(&compiler->debugAbbrevSection);
     sdvm_compilerObjectSection_destroy(&compiler->debugInfoSection);
+    sdvm_compilerObjectSection_destroy(&compiler->debugLineSection);
+    sdvm_compilerObjectSection_destroy(&compiler->debugStrSection);
 
     free(compiler);
 }
@@ -192,10 +209,35 @@ void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state
     state->importedValueTableSymbols = calloc(module->importValueTableSize, sizeof(sdvm_compilerSymbolHandle_t));
     state->functionTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
     state->exportedValueTableSymbols = calloc(module->exportValueTableSize, sizeof(sdvm_compilerSymbolHandle_t));
+    state->startPC = state->endPC = compiler->textSection.contents.size;
+
+    sdvm_dwarf_cfi_create(&state->cfi, &compiler->ehFrameSection);
+    sdvm_dwarf_debugInfo_create(&state->dwarf, compiler);
+}
+
+bool sdvm_moduleCompilationState_finish(sdvm_moduleCompilationState_t *state)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    state->endPC = compiler->textSection.contents.size;
+
+    if(state->hasEmittedCIE)
+        sdvm_dwarf_cfi_finish(&state->cfi);
+
+    sdvm_dwarf_debugInfo_beginDIE(&state->dwarf, DW_TAG_compile_unit, false);
+    sdvm_dwarf_debugInfo_attribute_string(&state->dwarf, DW_AT_producer, "SDVM");
+    sdvm_dwarf_debugInfo_attribute_address(&state->dwarf, DW_AT_low_pc, &compiler->textSection, state->startPC);
+    sdvm_dwarf_debugInfo_attribute_address(&state->dwarf, DW_AT_high_pc, &compiler->textSection, state->endPC);
+
+    sdvm_dwarf_debugInfo_endDIE(&state->dwarf);
+    sdvm_dwarf_debugInfo_finish(&state->dwarf);
+    return true;
 }
 
 void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
 {
+    sdvm_dwarf_cfi_destroy(&state->cfi);
+    sdvm_dwarf_debugInfo_destroy(&state->dwarf);
+
     free(state->importedValueTableSymbols);
     free(state->functionTableSymbols);
     free(state->exportedValueTableSymbols);
@@ -2589,6 +2631,11 @@ void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler,
     sdvm_compiler_addInstructionBytes(compiler, 4, &addressValue);
 }
 
+SDVM_API size_t sdvm_compiler_getCurrentPC(sdvm_compiler_t *compiler)
+{
+    return compiler->textSection.contents.size;
+}
+
 char *sdvm_compile_makeModuleSymbolInterface(sdvm_compiler_t *compiler, sdvm_module_t *module, sdvm_moduleString_t *moduleName, sdvm_moduleExternalType_t externalType, sdvm_moduleString_t *valueName, sdvm_moduleString_t *valueTypeDescriptor)
 {
     size_t symbolSize = 0;
@@ -2728,6 +2775,9 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
         if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry, state.functionTableSymbols[i]))
             hasSucceeded = false;
     }
+
+    if(!sdvm_moduleCompilationState_finish(&state))
+        hasSucceeded = false;
 
     sdvm_moduleCompilationState_destroy(&state);
 

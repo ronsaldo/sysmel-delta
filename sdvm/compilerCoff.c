@@ -55,7 +55,7 @@ static void sdvm_compilerCoffSectionNameWrite(sdvm_coff_sectionHeader_t *section
     stringTable->size += stringLength + 1;
 }
 
-static void sdvm_compilerCoffSymbolNameWrite(sdvm_coff_symbol_t *symbol, sdvm_compilerCoffFileLayout_t *layout, sdvm_compilerCoffStringTableState_t *stringTable, const char *string)
+static void sdvm_compilerCoffSymbolNameWrite(sdvm_coff_symbol_t *symbol, sdvm_compilerCoffStringTableState_t *stringTable, const char *string)
 {
     if(!string || !*string)
         return;
@@ -267,7 +267,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
 
             sdvm_coff_symbol_t *coffSymbol = coffSymbols + symbol->objectSymbolIndex;
             if(symbol->name)
-                sdvm_compilerCoffSymbolNameWrite(coffSymbol, &layout, &stringTable, (char*)compiler->symbolTable.strings.data + symbol->name);
+                sdvm_compilerCoffSymbolNameWrite(coffSymbol, &stringTable, (char*)compiler->symbolTable.strings.data + symbol->name);
 
             if(symbol->section && symbol->section < SDVM_COMPILER_SECTION_COUNT)
                 coffSymbol->sectionNumber = layout.sectionIndices[symbol->section];

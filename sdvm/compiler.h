@@ -4,9 +4,10 @@
 #include "common.h"
 #include "dynarray.h"
 #include "instruction.h"
+#include "dwarf.h"
 #include <stdbool.h>
 
-#define SDVM_COMPILER_SECTION_COUNT 8
+#define SDVM_COMPILER_SECTION_COUNT 10
 
 typedef struct sdvm_module_s sdvm_module_t;
 
@@ -53,6 +54,7 @@ typedef enum sdvm_compilerRelocationKind_e
     SdvmCompRelocationRelative32AtGot,
     SdvmCompRelocationRelative32AtPlt,
     SdvmCompRelocationRelative64,
+    SdvmCompRelocationSectionRelative32,
 } sdvm_compilerRelocationKind_t;
 
 typedef enum sdvm_compilerLocationKind_e
@@ -90,7 +92,6 @@ typedef enum sdvm_compilerObjectFileType_e
     SdvmObjectFileTypeCoff,
     SdvmObjectFileTypeMachO,
 } sdvm_compilerObjectFileType_t;
-
 
 typedef enum sdvm_functionStackSegmentName_e
 {
@@ -189,8 +190,10 @@ typedef struct sdvm_compiler_s
             sdvm_compilerObjectSection_t bssSection;
 
             sdvm_compilerObjectSection_t ehFrameSection;
-            sdvm_compilerObjectSection_t debugLineSection;
+            sdvm_compilerObjectSection_t debugAbbrevSection;
             sdvm_compilerObjectSection_t debugInfoSection;
+            sdvm_compilerObjectSection_t debugLineSection;
+            sdvm_compilerObjectSection_t debugStrSection;
         };
 
         sdvm_compilerObjectSection_t sections[SDVM_COMPILER_SECTION_COUNT];
@@ -242,8 +245,14 @@ typedef struct sdvm_moduleCompilationState_s
     sdvm_compilerSymbolHandle_t *importedValueTableSymbols;
     sdvm_compilerSymbolHandle_t *functionTableSymbols;
     sdvm_compilerSymbolHandle_t *exportedValueTableSymbols;
-} sdvm_moduleCompilationState_t;
 
+    sdvm_dwarf_cfi_builder_t cfi;
+    sdvm_dwarf_debugInfo_builder_t dwarf;
+
+    bool hasEmittedCIE;
+    size_t startPC;
+    size_t endPC;
+} sdvm_moduleCompilationState_t;
 
 typedef struct sdvm_compilerLiveInterval_s
 {
@@ -633,6 +642,7 @@ SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, siz
 SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);
 SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend);
 SDVM_API void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler, uint32_t labelIndex, int32_t addend);
+SDVM_API size_t sdvm_compiler_getCurrentPC(sdvm_compiler_t *compiler);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API bool sdvm_compiler_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);
