@@ -225,6 +225,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         elfSection->addressAlignment = section->alignment;
         elfSection->offset = layout.sectionContents[i];
         elfSection->size = section->contents.size;
+        elfSection->entrySize = section->entrySize;
 
         if(section->flags & SdvmCompSectionFlagWrite)
             elfSection->flags |= SDVM_SHF_WRITE;
@@ -234,6 +235,8 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
             elfSection->flags |= SDVM_SHF_EXECINSTR;
         if(section->flags & SdvmCompSectionFlagNoBits)
             elfSection->type = SDVM_SHT_NOBITS;
+        if(section->flags & SdvmCompSectionFlagCStrings)
+            elfSection->flags = SDVM_SHF_MERGE | SDVM_SHF_STRINGS;
 
         if((section->flags & SdvmCompSectionFlagNoBits) == 0)
             memcpy(objectFile->data + layout.sectionContents[i], section->contents.data, section->contents.size);

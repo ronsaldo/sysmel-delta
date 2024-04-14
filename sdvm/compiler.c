@@ -124,6 +124,7 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     sdvm_compilerObjectSection_initialize(&compiler->ehFrameSection);
     compiler->ehFrameSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 5);
     compiler->ehFrameSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagUnwind;
+    compiler->ehFrameSection.alignment = target->pointerSize;
     compiler->ehFrameSection.name = ".eh_frame";
     compiler->ehFrameSection.relSectionName = ".eh_frame.rel";
     compiler->ehFrameSection.relaSectionName = ".eh_frame.rela";
@@ -151,7 +152,8 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
 
     sdvm_compilerObjectSection_initialize(&compiler->debugStrSection);
     compiler->debugStrSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 9);
-    compiler->debugStrSection.flags = SdvmCompSectionFlagDebug;
+    compiler->debugStrSection.flags = SdvmCompSectionFlagDebug | SdvmCompSectionFlagCStrings;
+    compiler->debugStrSection.entrySize = 1;
     compiler->debugStrSection.name = ".debug_str";
     compiler->debugStrSection.relSectionName = ".debug_str.rel";
     compiler->debugStrSection.relaSectionName = ".debug_str.rela";
@@ -209,27 +211,50 @@ void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state
     state->importedValueTableSymbols = calloc(module->importValueTableSize, sizeof(sdvm_compilerSymbolHandle_t));
     state->functionTableSymbols = calloc(module->functionTableSize, sizeof(sdvm_compilerSymbolHandle_t));
     state->exportedValueTableSymbols = calloc(module->exportValueTableSize, sizeof(sdvm_compilerSymbolHandle_t));
+    state->functionDebugInfos = calloc(module->functionTableSize, sizeof(sdvm_functionCompilationDebugInfo_t));
     state->startPC = state->endPC = compiler->textSection.contents.size;
 
     sdvm_dwarf_cfi_create(&state->cfi, &compiler->ehFrameSection);
     sdvm_dwarf_debugInfo_create(&state->dwarf, compiler);
 }
 
+void sdvm_moduleCompilationState_emitFunctionDebugInfo(sdvm_moduleCompilationState_t *state, uint32_t functionIndex, sdvm_moduleFunctionTableEntry_t *function, sdvm_functionCompilationDebugInfo_t *functionDebugInfo)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_dwarf_debugInfo_builder_t *dwarf = &state->dwarf;
+    sdvm_dwarf_debugInfo_beginDIE(dwarf, DW_TAG_subprogram, false);
+    sdvm_dwarf_debugInfo_attribute_optionalModuleString(dwarf, DW_AT_name, state->module, function->name);
+    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_low_pc, &compiler->textSection, functionDebugInfo->startPC);
+    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_high_pc, &compiler->textSection, functionDebugInfo->endPC);
+    sdvm_dwarf_debugInfo_endDIE(dwarf);
+}
+
 bool sdvm_moduleCompilationState_finish(sdvm_moduleCompilationState_t *state)
 {
     sdvm_compiler_t *compiler = state->compiler;
+    sdvm_dwarf_debugInfo_builder_t *dwarf = &state->dwarf;
     state->endPC = compiler->textSection.contents.size;
 
     if(state->hasEmittedCIE)
         sdvm_dwarf_cfi_finish(&state->cfi);
 
-    sdvm_dwarf_debugInfo_beginDIE(&state->dwarf, DW_TAG_compile_unit, false);
-    sdvm_dwarf_debugInfo_attribute_string(&state->dwarf, DW_AT_producer, "SDVM");
-    sdvm_dwarf_debugInfo_attribute_address(&state->dwarf, DW_AT_low_pc, &compiler->textSection, state->startPC);
-    sdvm_dwarf_debugInfo_attribute_address(&state->dwarf, DW_AT_high_pc, &compiler->textSection, state->endPC);
+    sdvm_dwarf_debugInfo_beginDIE(dwarf, DW_TAG_compile_unit, state->module->functionTableSize > 0);
+    sdvm_dwarf_debugInfo_attribute_string(dwarf, DW_AT_producer, "SDVM");
+    sdvm_dwarf_debugInfo_attribute_optionalModuleString(dwarf, DW_AT_name, state->module, state->module->header->name);
+    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_low_pc, &compiler->textSection, state->startPC);
+    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_high_pc, &compiler->textSection, state->endPC);
+    sdvm_dwarf_debugInfo_endDIE(dwarf);
 
-    sdvm_dwarf_debugInfo_endDIE(&state->dwarf);
-    sdvm_dwarf_debugInfo_finish(&state->dwarf);
+    for(uint32_t i = 0; i < state->module->functionTableSize; ++i)
+    {
+        sdvm_moduleFunctionTableEntry_t *function = state->module->functionTable + i;
+        sdvm_functionCompilationDebugInfo_t *functionDebugInfo = state->functionDebugInfos + i;
+        sdvm_moduleCompilationState_emitFunctionDebugInfo(state, i, function, functionDebugInfo);
+    }
+
+    sdvm_dwarf_debugInfo_endDIEChildren(dwarf);
+
+    sdvm_dwarf_debugInfo_finish(dwarf);
     return true;
 }
 
@@ -241,6 +266,7 @@ void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
     free(state->importedValueTableSymbols);
     free(state->functionTableSymbols);
     free(state->exportedValueTableSymbols);
+    free(state->functionDebugInfos);
 }
 
 void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state)
@@ -2543,12 +2569,13 @@ void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *sta
     }
 }
 
-static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry, sdvm_compilerSymbolHandle_t symbol)
+static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry, sdvm_functionCompilationDebugInfo_t *functionDebugInfo, sdvm_compilerSymbolHandle_t symbol)
 {
     sdvm_functionCompilationState_t functionState = {
         .compiler = moduleState->compiler,
         .module = moduleState->module,
         .moduleState = moduleState,
+        .debugInfo = functionDebugInfo,
         .symbol = symbol,
         .sourceInstructions = (sdvm_constOrInstruction_t*)(moduleState->module->textSectionData + functionTableEntry->textSectionOffset),
         .instructionCount = functionTableEntry->textSectionSize / sizeof(sdvm_constOrInstruction_t)
@@ -2772,7 +2799,8 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     for(size_t i = 0; i < module->functionTableSize; ++i)
     {
         sdvm_moduleFunctionTableEntry_t *functionTableEntry = module->functionTable + i;
-        if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry, state.functionTableSymbols[i]))
+        sdvm_functionCompilationDebugInfo_t *functionDebugInfo = state.functionDebugInfos + i;
+        if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry, functionDebugInfo, state.functionTableSymbols[i]))
             hasSucceeded = false;
     }
 

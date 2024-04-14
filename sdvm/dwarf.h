@@ -2,6 +2,7 @@
 #define SDVM_DWARF_H
 
 #include "dynarray.h"
+#include "module.h"
 #include <stdbool.h>
 
 enum dwarf_tag_e {
@@ -579,6 +580,8 @@ SDVM_API void sdvm_dwarf_debugInfo_attribute_uleb128(sdvm_dwarf_debugInfo_builde
 SDVM_API void sdvm_dwarf_debugInfo_attribute_ref1(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, uint8_t value);
 SDVM_API void sdvm_dwarf_debugInfo_attribute_secOffset(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_compilerObjectSection_t *targetSection, uint32_t value);
 SDVM_API void sdvm_dwarf_debugInfo_attribute_string(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, const char *value);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_moduleString(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_module_t *module, sdvm_moduleString_t string);
+SDVM_API void sdvm_dwarf_debugInfo_attribute_optionalModuleString(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_module_t *module, sdvm_moduleString_t string);
 SDVM_API void sdvm_dwarf_debugInfo_attribute_address(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_compilerObjectSection_t *targetSection, uint64_t value);
 SDVM_API void sdvm_dwarf_debugInfo_attribute_beginLocationExpression(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute);
 SDVM_API void sdvm_dwarf_debugInfo_attribute_endLocationExpression(sdvm_dwarf_debugInfo_builder_t *builder);

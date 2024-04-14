@@ -5440,6 +5440,7 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
 
     // Set the function symbol
     size_t startOffset = state->compiler->textSection.contents.size;
+    state->debugInfo->startPC = startOffset;
     sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&state->compiler->symbolTable, state->symbol, state->compiler->textSection.symbolIndex, startOffset);
 
     // Emit the prologue.
@@ -5453,6 +5454,7 @@ bool sdvm_compiler_x64_compileModuleFunction(sdvm_functionCompilationState_t *st
 
     // Set the symbol size.
     size_t endOffset = state->compiler->textSection.contents.size;
+    state->debugInfo->endPC = endOffset;
     sdvm_compilerSymbolTable_setSymbolSize(&state->compiler->symbolTable, state->symbol, endOffset - startOffset);
     sdvm_compiler_x86_alignUnreacheableCode(state->compiler);
 

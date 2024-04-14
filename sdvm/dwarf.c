@@ -15,19 +15,17 @@ SDVM_API size_t sdvm_dwarf_encodeDwarfPointer(sdvm_dynarray_t *buffer, uint32_t 
 SDVM_API size_t sdvm_dwarf_encodeDwarfPointerSectionRelative(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, uint32_t value)
 {
     size_t offset = section->contents.size;
-    sdvm_dynarray_addAll(&section->contents, sizeof(value), &value);
+    uint32_t zero = 0;
+    sdvm_dynarray_addAll(&section->contents, 4, &zero);
 
-    if(targetSection)
-    {
-        sdvm_compilerRelocation_t relocation = {
-            .kind = SdvmCompRelocationSectionRelative32,
-            .symbol = targetSection->symbolIndex,
-            .addend = value,
-            .offset = offset
-        };
-        sdvm_dynarray_add(&section->relocations, &relocation);
-    }
+    sdvm_compilerRelocation_t relocation = {
+        .kind = SdvmCompRelocationSectionRelative32,
+        .symbol = targetSection->symbolIndex,
+        .addend = value,
+        .offset = offset
+    };
 
+    sdvm_dynarray_add(&section->relocations, &relocation);
     return offset;
 }
 
@@ -125,38 +123,32 @@ SDVM_API size_t sdvm_dwarf_encodeAlignment(sdvm_dynarray_t *buffer, size_t align
 SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer32(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, uint32_t value)
 {
     size_t offset = section->contents.size;
-    sdvm_dynarray_addAll(&section->contents, 4, &value);
+    uint32_t zero = 0;
+    sdvm_dynarray_addAll(&section->contents, 4, &zero);
 
-    if(targetSection)
-    {
-        sdvm_compilerRelocation_t relocation = {
-            .kind = SdvmCompRelocationAbsolute32,
-            .symbol = targetSection->symbolIndex,
-            .addend = value,
-            .offset = offset
-        };
-        sdvm_dynarray_add(&section->relocations, &relocation);
-    }
-
+    sdvm_compilerRelocation_t relocation = {
+        .kind = SdvmCompRelocationAbsolute32,
+        .symbol = targetSection->symbolIndex,
+        .addend = value,
+        .offset = offset
+    };
+    sdvm_dynarray_add(&section->relocations, &relocation);
     return offset;
 }
 
 SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer64(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, uint64_t value)
 {
     size_t offset = section->contents.size;
-    sdvm_dynarray_addAll(&section->contents, 8, &value);
+    uint64_t zero = 0;
+    sdvm_dynarray_addAll(&section->contents, 8, &zero);
 
-    if(targetSection)
-    {
-        sdvm_compilerRelocation_t relocation = {
-            .kind = SdvmCompRelocationAbsolute64,
-            .symbol = targetSection->symbolIndex,
-            .addend = value,
-            .offset = offset
-        };
-        sdvm_dynarray_add(&section->relocations, &relocation);
-    }
-    
+    sdvm_compilerRelocation_t relocation = {
+        .kind = SdvmCompRelocationAbsolute64,
+        .symbol = targetSection->symbolIndex,
+        .addend = value,
+        .offset = offset
+    };
+    sdvm_dynarray_add(&section->relocations, &relocation);
     return offset;
 }
 
@@ -172,19 +164,16 @@ SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer(sdvm_compilerObjectSection_t
 SDVM_API size_t sdvm_dwarf_encodeSectionRelative32(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, uint32_t value)
 {
     size_t offset = section->contents.size;
-    sdvm_dynarray_addAll(&section->contents, 4, &value);
+    uint32_t zero = 0;
+    sdvm_dynarray_addAll(&section->contents, 4, &zero);
 
-    if(targetSection)
-    {
-        sdvm_compilerRelocation_t relocation = {
-            .kind = SdvmCompRelocationSectionRelative32,
-            .symbol = targetSection->symbolIndex,
-            .addend = value,
-            .offset = offset
-        };
-        sdvm_dynarray_add(&section->relocations, &relocation);
-    }
-
+    sdvm_compilerRelocation_t relocation = {
+        .kind = SdvmCompRelocationSectionRelative32,
+        .symbol = targetSection->symbolIndex,
+        .addend = value,
+        .offset = offset
+    };
+    sdvm_dynarray_add(&section->relocations, &relocation);
     return offset;
 }
 
@@ -697,6 +686,25 @@ SDVM_API void sdvm_dwarf_debugInfo_attribute_string(sdvm_dwarf_debugInfo_builder
 
     size_t stringOffset = sdvm_dwarf_encodeCString(&builder->strSection->contents, value);
     sdvm_dwarf_encodeSectionRelative32(builder->infoSection, builder->strSection, stringOffset);
+}
+
+SDVM_API void sdvm_dwarf_debugInfo_attribute_moduleString(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_module_t *module, sdvm_moduleString_t string)
+{
+    sdvm_dwarf_encodeULEB128(&builder->abbrevSection->contents, attribute);
+    sdvm_dwarf_encodeULEB128(&builder->abbrevSection->contents, DW_FORM_strp);
+
+    size_t stringOffset = builder->strSection->contents.size;
+    sdvm_dynarray_addAll(&builder->strSection->contents, string.stringSectionSize, module->stringSectionData + string.stringSectionOffset);
+    sdvm_dwarf_encodeByte(&builder->strSection->contents, 0);
+    sdvm_dwarf_encodeSectionRelative32(builder->infoSection, builder->strSection, stringOffset);
+}
+
+SDVM_API void sdvm_dwarf_debugInfo_attribute_optionalModuleString(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_module_t *module, sdvm_moduleString_t string)
+{
+    if(string.stringSectionSize == 0)
+        return;
+
+    sdvm_dwarf_debugInfo_attribute_moduleString(builder, attribute, module, string);
 }
 
 SDVM_API void sdvm_dwarf_debugInfo_attribute_ref1(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, uint8_t value)

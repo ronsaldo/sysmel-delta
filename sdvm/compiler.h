@@ -20,6 +20,7 @@ typedef enum sdvm_compilerSectionFlags_e
     SdvmCompSectionFlagNoBits = 1<<3,
     SdvmCompSectionFlagUnwind = 1<<4,
     SdvmCompSectionFlagDebug = 1<<5,
+    SdvmCompSectionFlagCStrings = 1<<6,
 } sdvm_compilerSectionFlags_t;
 
 typedef enum sdvm_compilerSymbolKind_e
@@ -111,6 +112,7 @@ typedef struct sdvm_functionCompilationState_s sdvm_functionCompilationState_t;
 typedef struct sdvm_compilerCallingConvention_s sdvm_compilerCallingConvention_t;
 typedef struct sdvm_compilerInstruction_s sdvm_compilerInstruction_t;
 typedef struct sdvm_compilerInstructionPattern_s sdvm_compilerInstructionPattern_t;
+typedef struct sdvm_functionCompilationDebugInfo_s sdvm_functionCompilationDebugInfo_t;
 
 typedef struct sdvm_compilerSymbol_s
 {
@@ -144,6 +146,7 @@ typedef struct sdvm_compilerObjectSection_s
     uint32_t symbolIndex;
     uint32_t alignment;
     uint32_t flags;
+    uint32_t entrySize;
     const char *name;
     const char *relSectionName;
     const char *relaSectionName;
@@ -238,6 +241,12 @@ typedef struct sdvm_compilerObjectFile_s
     uint8_t *data;
 } sdvm_compilerObjectFile_t;
 
+struct sdvm_functionCompilationDebugInfo_s
+{
+    size_t startPC;
+    size_t endPC;
+};
+
 typedef struct sdvm_moduleCompilationState_s
 {
     sdvm_compiler_t *compiler;
@@ -245,6 +254,7 @@ typedef struct sdvm_moduleCompilationState_s
     sdvm_compilerSymbolHandle_t *importedValueTableSymbols;
     sdvm_compilerSymbolHandle_t *functionTableSymbols;
     sdvm_compilerSymbolHandle_t *exportedValueTableSymbols;
+    sdvm_functionCompilationDebugInfo_t *functionDebugInfos;
 
     sdvm_dwarf_cfi_builder_t cfi;
     sdvm_dwarf_debugInfo_builder_t dwarf;
@@ -462,6 +472,7 @@ struct sdvm_functionCompilationState_s
     sdvm_module_t *module;
     sdvm_moduleCompilationState_t *moduleState;
     sdvm_compilerSymbolHandle_t symbol;
+    sdvm_functionCompilationDebugInfo_t *debugInfo;
 
     const sdvm_compilerCallingConvention_t *callingConvention;
     sdvm_compilerCallingConventionState_t callingConventionState;

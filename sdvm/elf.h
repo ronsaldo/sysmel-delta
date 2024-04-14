@@ -69,6 +69,9 @@ enum {
     SDVM_SHF_WRITE = 1,
     SDVM_SHF_ALLOC = 2,
     SDVM_SHF_EXECINSTR = 4,
+    SDVM_SHF_MERGE = 0x10,
+    SDVM_SHF_STRINGS = 0x20,
+    SDVM_SHF_TLS = 0x400,
 };
 
 enum {
