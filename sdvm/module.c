@@ -82,9 +82,17 @@ static bool sdvm_module_fetchAndValidateDataStructures(sdvm_module_t *module)
             module->memoryDescriptorTableSize = header->size / sizeof(sdvm_moduleMemoryDescriptorTableEntry_t);
             module->memoryDescriptorTable = (sdvm_moduleMemoryDescriptorTableEntry_t*)(module->moduleData + header->offset);
             break;
-        case SdvmModuleSectionTypeDebugSource:
-            module->debugSourceTableSize = header->size / sizeof(sdvm_debugSourceTableEntry_t);
-            module->debugSourceTable = (sdvm_debugSourceTableEntry_t*)(module->moduleData + header->offset);
+        case SdvmModuleSectionTypeDebugSourceDirectory:
+            module->debugSourceDirectoryTableSize = header->size / sizeof(sdvm_debugSourceDirectoryTableEntry_t);
+            module->debugSourceDirectoryTable = (sdvm_debugSourceDirectoryTableEntry_t*)(module->moduleData + header->offset);
+            break;
+        case SdvmModuleSectionTypeDebugSourceCode:
+            module->debugSourceCodeTableSize = header->size / sizeof(sdvm_debugSourceCodeTableEntry_t);
+            module->debugSourceCodeTable = (sdvm_debugSourceCodeTableEntry_t*)(module->moduleData + header->offset);
+            break;
+        case SdvmModuleSectionTypeDebugFunctionTable:
+            module->debugFunctionTableSize = header->size / sizeof(sdvm_debugFunctionTableEntry_t);
+            module->debugFunctionTable = (sdvm_debugFunctionTableEntry_t*)(module->moduleData + header->offset);
             break;
         default:
             // Ignored by default

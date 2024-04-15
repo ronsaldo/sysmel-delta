@@ -20,11 +20,10 @@ typedef enum sdvm_moduleSectionType_e
     SdvmModuleSectionTypeImportModuleValueTable = SDVM_IM_FOUR_CC('i', 'm', 'p', 'v'),
     SdvmModuleSectionTypeExportValueTable = SDVM_IM_FOUR_CC('e', 'x', 'p', 'v'),
 
-    SdvmModuleSectionTypeDebugSource = SDVM_IM_FOUR_CC('d', 's', 'r', 'c'),
-    SdvmModuleSectionTypeDebugLineStart = SDVM_IM_FOUR_CC('d', 'l', 'n', 's'),
-    SdvmModuleSectionTypeDebugLineEnd = SDVM_IM_FOUR_CC('d', 'l', 'n', 'e'),
-    SdvmModuleSectionTypeDebugColumnStart = SDVM_IM_FOUR_CC('d', 'c', 'l', 's'),
-    SdvmModuleSectionTypeDebugColumnEnd = SDVM_IM_FOUR_CC('d', 'c', 'l', 'e'),
+    SdvmModuleSectionTypeDebugSourceDirectory = SDVM_IM_FOUR_CC('d', 's', 'r', 'd'),
+    SdvmModuleSectionTypeDebugSourceCode = SDVM_IM_FOUR_CC('d', 's', 'r', 'c'),
+    SdvmModuleSectionTypeDebugLineData = SDVM_IM_FOUR_CC('d', 'l', 'n', 'd'),
+    SdvmModuleSectionTypeDebugFunctionTable = SDVM_IM_FOUR_CC('d', 'f', 'n', 't'),
 } sdvm_moduleSectionType_t;
 
 typedef enum sdvm_moduleValueKind_e
@@ -41,7 +40,6 @@ typedef enum sdvm_moduleExternalType_e
     SdvmModuleExternalTypeNone = 0,
     SdvmModuleExternalTypeC = SDVM_IM_FOUR_CC('C', ' ', ' ', ' '),
 } sdvm_moduleExternalType_t;
-
 
 typedef struct sdvm_moduleString_s
 {
@@ -113,13 +111,30 @@ typedef struct sdvm_moduleMemoryDescriptorTableEntry_s
     uint32_t gcDescriptorSize;
 } sdvm_moduleMemoryDescriptorTableEntry_t;
 
-typedef struct sdvm_debugSourceTableEntry_s
+typedef struct sdvm_debugSourceDirectoryTableEntry_s
+{
+    uint32_t directoryIndex;
+    sdvm_moduleString_t name;
+} sdvm_debugSourceDirectoryTableEntry_t;
+
+typedef struct sdvm_debugSourceCodeTableEntry_s
 {
     uint32_t kind;
     sdvm_moduleString_t language;
     sdvm_moduleString_t name;
     sdvm_moduleString_t sourceCode;
-} sdvm_debugSourceTableEntry_t;
+} sdvm_debugSourceCodeTableEntry_t;
+
+typedef struct sdvm_debugFunctionTableEntry_s
+{
+    uint32_t sourceCode;
+    uint32_t startIndex;
+    uint32_t endIndex;
+    uint32_t startLine;
+    uint32_t endLine;
+    uint32_t startColumn;
+    uint32_t endColumn;
+} sdvm_debugFunctionTableEntry_t;
 
 typedef struct sdvm_module_s
 {
@@ -161,8 +176,14 @@ typedef struct sdvm_module_s
     size_t moduleDataSize;
     uint8_t *moduleData;
 
-    size_t debugSourceTableSize;
-    sdvm_debugSourceTableEntry_t *debugSourceTable;
+    size_t debugSourceDirectoryTableSize;
+    sdvm_debugSourceDirectoryTableEntry_t *debugSourceDirectoryTable;
+
+    size_t debugSourceCodeTableSize;
+    sdvm_debugSourceCodeTableEntry_t *debugSourceCodeTable;
+
+    size_t debugFunctionTableSize;
+    sdvm_debugFunctionTableEntry_t *debugFunctionTable;
 } sdvm_module_t;
 
 sdvm_module_t *sdvm_module_loadFromMemory(size_t dataSize, uint8_t *data);
