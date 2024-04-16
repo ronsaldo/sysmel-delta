@@ -125,7 +125,7 @@ typedef struct sdvm_debugSourceCodeTableEntry_s
     sdvm_moduleString_t sourceCode;
 } sdvm_debugSourceCodeTableEntry_t;
 
-typedef struct sdvm_debugFunctionTableEntry_s
+typedef struct sdvm_debugSourceLineInfo_s
 {
     uint32_t sourceCode;
     uint32_t startIndex;
@@ -134,6 +134,19 @@ typedef struct sdvm_debugFunctionTableEntry_s
     uint32_t endLine;
     uint32_t startColumn;
     uint32_t endColumn;
+} sdvm_debugSourceLineInfo_t;
+
+typedef struct sdvm_debugSourceLineDataTableEntry_s
+{
+    uint32_t pc;
+    sdvm_debugSourceLineInfo_t declarationLineInfo;
+    uint32_t sourceLineInfoStartIndex;
+    uint32_t sourceLineInfoEntryCount;
+} sdvm_debugSourceLineDataTableEntry_t;
+
+typedef struct sdvm_debugFunctionTableEntry_s
+{
+    sdvm_debugSourceLineInfo_t lineInfo;
 } sdvm_debugFunctionTableEntry_t;
 
 typedef struct sdvm_module_s
@@ -184,6 +197,9 @@ typedef struct sdvm_module_s
 
     size_t debugFunctionTableSize;
     sdvm_debugFunctionTableEntry_t *debugFunctionTable;
+
+    size_t debugLineDataTableSize;
+    sdvm_debugSourceLineDataTableEntry_t *debugLineDataTable;
 } sdvm_module_t;
 
 sdvm_module_t *sdvm_module_loadFromMemory(size_t dataSize, uint8_t *data);

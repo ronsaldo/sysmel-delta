@@ -2,6 +2,7 @@
 #include "module.h"
 #include "assert.h"
 #include "dwarf.h"
+#include "utils.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -190,18 +191,32 @@ SDVM_API const char *sdvm_compilerTarget_getDefaultTargetName(void)
     return SDVM_DEFAULT_TARGET_NAME;
 #else
 #ifdef _WIN32
-    return "x86_64-windows-msvc";
+    return "x86_64-pc-windows-msvc";
 #else
-    return "x86_64-linux-gnu";
+    return "x86_64-pc-linux-gnu";
 #endif
 #endif 
 }
 
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *targetName)
 {
-    if(strstr(targetName, "windows"))
-        return sdvm_compilerTarget_get_x64_windows();
-    return sdvm_compilerTarget_get_x64_linux();
+    sdvm_targetDescription_t description;
+    if(!sdvm_targetDescription_parseTriple(&description, targetName))
+        return NULL;
+
+    switch(description.architecture)
+    {
+    case SDVM_TARGET_ARCH_X86_64:
+        switch(description.os)
+        {
+        case SDVM_TARGET_OS_WINDOWS:
+            return sdvm_compilerTarget_get_x64_windows();
+        case SDVM_TARGET_OS_LINUX:
+        default:
+            return sdvm_compilerTarget_get_x64_linux();
+        }
+    default: return NULL;
+    }
 }
 
 void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module)

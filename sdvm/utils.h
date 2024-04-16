@@ -1,7 +1,61 @@
 #ifndef SDVM_UTILS_H
 #define SDVM_UTILS_H
 
+#include "common.h"
 #include <stdint.h>
+#include <stdbool.h>
+
+#define SDVM_TARGET_TRIPLE_COMPONENTS 4
+#define SDVM_TARGET_TRIPLE_COMPONENT_SIZE 16
+
+typedef enum sdvm_target_archicture_e
+{
+    SDVM_TARGET_ARCH_UNKNOWN = 0,
+    SDVM_TARGET_ARCH_I686,
+    SDVM_TARGET_ARCH_X86_64,
+    SDVM_TARGET_ARCH_ARM,
+    SDVM_TARGET_ARCH_AARCH64,
+    SDVM_TARGET_ARCH_RISC_V_32,
+    SDVM_TARGET_ARCH_RISC_V_64,
+} sdvm_target_archicture_t;
+
+typedef enum sdvm_target_subarchicture_e
+{
+    SDVM_TARGET_SUBARCH_NONE = 0,
+    SDVM_TARGET_SUBARCH_ARMV6,
+    SDVM_TARGET_SUBARCH_ARMV6A,
+    SDVM_TARGET_SUBARCH_ARMV6K,
+    SDVM_TARGET_SUBARCH_ARMV7K,
+} sdvm_target_subarchicture_t;
+
+typedef enum sdvm_target_os_e
+{
+    SDVM_TARGET_OS_UNKNOWN = 0,
+    SDVM_TARGET_OS_NONE,
+    SDVM_TARGET_OS_LINUX,
+    SDVM_TARGET_OS_WINDOWS,
+    SDVM_TARGET_OS_MACOS,
+} sdvm_target_os_t;
+
+typedef enum sdvm_target_abi_e
+{
+    SDVM_TARGET_ABI_UNKNOWN = 0,
+    SDVM_TARGET_ABI_MSVC,
+    SDVM_TARGET_ABI_GNU,
+    SDVM_TARGET_ABI_EABI,
+} sdvm_target_abi_t;
+
+typedef struct sdvm_targetDescription_s
+{
+    char architectureName[16];
+    char osName[16];
+    char vendorName[16];
+    char abiName[16];
+    sdvm_target_archicture_t architecture;
+    sdvm_target_subarchicture_t subarchitecture;
+    sdvm_target_os_t os;
+    sdvm_target_abi_t abi;
+} sdvm_targetDescription_t;
 
 static inline bool sdvm_uint32_isPowerOfTwo(uint32_t x)
 {
@@ -27,5 +81,8 @@ static inline int sdvm_uint64_log2(uint64_t x)
     return 31 - __builtin_clzl(x);
 }
 #endif
+
+SDVM_API bool sdvm_targetDescription_parseTriple(sdvm_targetDescription_t *outParsedDescription, const char *triple);
+SDVM_API bool sdvm_targetDescription_parseNames(sdvm_targetDescription_t *description);
 
 #endif //SDVM_UTILS_H

@@ -94,6 +94,10 @@ static bool sdvm_module_fetchAndValidateDataStructures(sdvm_module_t *module)
             module->debugFunctionTableSize = header->size / sizeof(sdvm_debugFunctionTableEntry_t);
             module->debugFunctionTable = (sdvm_debugFunctionTableEntry_t*)(module->moduleData + header->offset);
             break;
+        case SdvmModuleSectionTypeDebugLineData:
+            module->debugLineDataTableSize = header->size / sizeof(sdvm_debugSourceLineDataTableEntry_t);
+            module->debugLineDataTable = (sdvm_debugSourceLineDataTableEntry_t*)(module->moduleData + header->offset);
+            break;
         default:
             // Ignored by default
         }

@@ -8,3 +8,4 @@
 #include "dynarray.c"
 #include "dwarf.c"
 #include "errors.c"
+#include "utils.c"
