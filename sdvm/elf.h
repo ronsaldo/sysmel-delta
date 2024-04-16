@@ -131,6 +131,9 @@ enum {
     SDVM_R_AARCH64_ABS16 = 259,
     SDVM_R_AARCH64_PREL64 = 260,
     SDVM_R_AARCH64_PREL32 = 261,
+    
+    SDVM_R_AARCH64_JUMP26 = 282,
+    SDVM_R_AARCH64_CALL26 = 283,
 };
 
 #define SDVM_ELF64_SYM_INFO(type, binding) (((binding) << 4) | (type))

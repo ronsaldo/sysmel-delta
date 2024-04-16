@@ -56,6 +56,9 @@ typedef enum sdvm_compilerRelocationKind_e
     SdvmCompRelocationRelative32AtPlt,
     SdvmCompRelocationRelative64,
     SdvmCompRelocationSectionRelative32,
+
+    SdvmCompRelocationAArch64Call26,
+    SdvmCompRelocationAArch64Jump26,
 } sdvm_compilerRelocationKind_t;
 
 typedef enum sdvm_compilerLocationKind_e
