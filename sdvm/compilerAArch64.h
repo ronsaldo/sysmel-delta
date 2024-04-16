@@ -53,4 +53,10 @@ typedef enum sdvm_aarch64_shiftType_e
     SDVM_AARCH64_ASR = 2,
 } sdvm_aarch64_shiftType_t;
 
+typedef enum sdvm_aarch64_immediateShiftType_e
+{
+    SDVM_AARCH64_LSL_0 = 0,
+    SDVM_AARCH64_LSL_12 = 1,
+} sdvm_aarch64_immediateShiftType_t;
+
 #endif //SDVM_COMPILER_AARCH64_H
