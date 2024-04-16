@@ -2833,6 +2833,9 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         switch(instruction->decoding.opcode)
         {
         case SdvmConstInt32:
+            instruction->location = sdvm_compilerLocation_immediateS32(instruction->decoding.constant.signedPayload);
+            break;
+        case SdvmConstUInt32:
             instruction->location = sdvm_compilerLocation_immediateU32(instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64SExt:
@@ -2871,9 +2874,11 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstInt8Sub:
     case SdvmInstInt8And:
     case SdvmInstInt8Or:
+    case SdvmInstInt8Xor:
     case SdvmInstUInt8Add:
     case SdvmInstUInt8Sub:
     case SdvmInstUInt8And:
+    case SdvmInstUInt8Or:
     case SdvmInstUInt8Xor:
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(1, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(1, arg1);
@@ -2934,9 +2939,11 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstInt16Sub:
     case SdvmInstInt16And:
     case SdvmInstInt16Or:
+    case SdvmInstInt16Xor:
     case SdvmInstUInt16Add:
     case SdvmInstUInt16Sub:
     case SdvmInstUInt16And:
+    case SdvmInstUInt16Or:
     case SdvmInstUInt16Xor:
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(2, arg1);
@@ -2999,11 +3006,13 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstInt32Add:
     case SdvmInstInt32Sub:
     case SdvmInstInt32And:
+    case SdvmInstInt32Xor:
     case SdvmInstInt32Or:
     case SdvmInstUInt32Add:
     case SdvmInstUInt32Sub:
     case SdvmInstUInt32And:
     case SdvmInstUInt32Xor:
+    case SdvmInstUInt32Or:
         instruction->arg0Location = sdvm_compilerLocation_x86_intRegOrImm32(4, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x86_intRegOrImm32(4, arg1);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(4);
@@ -3075,9 +3084,11 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
     case SdvmInstInt64Sub:
     case SdvmInstInt64And:
     case SdvmInstInt64Or:
+    case SdvmInstInt64Xor:
     case SdvmInstUInt64Add:
     case SdvmInstUInt64Sub:
     case SdvmInstUInt64And:
+    case SdvmInstUInt64Or:
     case SdvmInstUInt64Xor:
         instruction->arg0Location = sdvm_compilerLocation_x64_intRegOrImmS32(8, arg0);
         instruction->arg1Location = sdvm_compilerLocation_x64_intRegOrImmS32(8, arg1);
@@ -4194,6 +4205,7 @@ void sdvm_compiler_x64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, const
     case SdvmCompLocationImmediateF32:
     case SdvmCompLocationImmediateF64:
     case SdvmCompLocationImmediateLabel:
+    case SdvmCompLocationConstantSection:
     case SdvmCompLocationLocalSymbolValue:
     case SdvmCompLocationGlobalSymbolValue:
     case SdvmCompLocationStackAddress:

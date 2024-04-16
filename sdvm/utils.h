@@ -82,6 +82,20 @@ static inline int sdvm_uint64_log2(uint64_t x)
 {
     return 31 - __builtin_clzl(x);
 }
+
+static inline int sdvm_uint32_ctz(uint32_t x)
+{
+    if(x == 0)
+        return 32;
+    return __builtin_ctz(x);
+}
+
+static inline int sdvm_uint64_ctz(uint64_t x)
+{
+    if(x == 0)
+        return 64;
+    return __builtin_ctz(x);
+}
 #endif
 
 SDVM_API bool sdvm_targetDescription_parseTriple(sdvm_targetDescription_t *outParsedDescription, const char *triple);
