@@ -971,7 +971,7 @@ void sdvm_compiler_aarch64_emitFunctionEpilogue(sdvm_functionCompilationState_t 
         return;
 
     sdvm_compiler_t *compiler = state->compiler;
-    sdvm_compiler_aarch64_stp_postIndex(compiler, true, SDVM_AARCH64_FP, SDVM_AARCH64_LR, SDVM_AARCH64_SP, 16);
+    sdvm_compiler_aarch64_ldp_postIndex(compiler, true, SDVM_AARCH64_FP, SDVM_AARCH64_LR, SDVM_AARCH64_SP, 16);
     //TODO: abort();
 }
 
