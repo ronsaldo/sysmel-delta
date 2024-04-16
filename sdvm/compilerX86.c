@@ -5404,13 +5404,8 @@ void sdvm_compiler_x64_computeFunctionStackLayout(sdvm_functionCompilationState_
         state->prologueStackSegment.size += pointerSize;
     }
 
-    sdvm_compiler_computeStackSegmentLayouts(state);
-
     if(state->requiresStackFrame)
     {
-        state->stackFrameRegister = SDVM_X86_RBP;
-        state->stackFramePointerAnchorOffset = pointerSize * 2;
-
         // Preserved integer registers.
         for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
         {
@@ -5427,6 +5422,14 @@ void sdvm_compiler_x64_computeFunctionStackLayout(sdvm_functionCompilationState_
                 state->vectorCallPreservedRegisterStackSegment.size += 16;
             }
         }
+    }
+
+    sdvm_compiler_computeStackSegmentLayouts(state);
+
+    if(state->requiresStackFramePointer)
+    {
+        state->stackFrameRegister = SDVM_X86_RBP;
+        state->stackFramePointerAnchorOffset = pointerSize * 2;
     }
     else
     {

@@ -249,6 +249,11 @@ void sdvm_compiler_aarch64_ret(sdvm_compiler_t *compiler)
     sdvm_compiler_aarch64_addInstruction(compiler, 0xD65F0000 | (SDVM_AARCH64_X30 << 5));
 }
 
+void sdvm_compiler_aarch64_brk(sdvm_compiler_t *compiler, uint16_t imm16)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xD4200000 | (imm16 << 5));
+}
+
 void sdvm_compiler_aarch64_adrp(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, uint32_t imm)
 {
     uint32_t immlo = imm & 3;
@@ -266,7 +271,22 @@ void sdvm_compiler_aarch64_add_shifted(sdvm_compiler_t *compiler, bool sf, sdvm_
     sdvm_compiler_aarch64_addInstruction(compiler, 0xB000000 | Rd | (Rn << 5) | (amount << 10) | (Rm << 16) | (shift << 22) | (sf ? (1<<31) : 0));
 }
 
-void sdvm_compiler_aarch64_add_immediate(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_aarch64_immediateShiftType_t imm12, uint8_t shift)
+void sdvm_compiler_aarch64_sub_immediate(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, uint16_t imm12, sdvm_aarch64_immediateShiftType_t shift)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x51000000 | Rd | (Rn << 5) | (imm12 << 10) | (shift << 22) | (sf ? (1<<31) : 0));
+}
+
+void sdvm_compiler_aarch64_sub_extended(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm, sdvm_aarch64_extendOption_t extend, uint8_t shift)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x4B200000 | Rd | (Rn << 5) | (shift << 10) | (extend << 13) | (Rm << 16) | (sf ? (1<<31) : 0));
+}
+
+void sdvm_compiler_aarch64_sub_shifted(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm, sdvm_aarch64_shiftType_t shift, uint8_t amount)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x4B000000 | Rd | (Rn << 5) | (amount << 10) | (Rm << 16) | (shift << 22) | (sf ? (1<<31) : 0));
+}
+
+void sdvm_compiler_aarch64_add_immediate(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, uint16_t imm12, sdvm_aarch64_immediateShiftType_t shift)
 {
     sdvm_compiler_aarch64_addInstruction(compiler, 0x11000000 | Rd | (Rn << 5) | (imm12 << 10) | (shift << 22) | (sf ? (1<<31) : 0));
 }
@@ -371,6 +391,48 @@ void sdvm_compiler_aarch64_ldp_offset(sdvm_compiler_t *compiler, bool sf, sdvm_c
     sdvm_compiler_aarch64_addInstruction(compiler, 0x29400000 | Rt1 | (Rn << 5) | (Rt2 << 10) | (imm7 << 15) | (sf ? (1<<31) : 0));
 }
 
+void sdvm_compiler_aarch64_ldr_postIndex(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, int16_t offset)
+{
+    uint16_t imm9 = offset & 511;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xB8400400 | Rt | (Rn << 5) | (imm9 << 12) | (sf ? (1<<30) : 0));
+}
+
+void sdvm_compiler_aarch64_ldr_preIndex(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, int16_t offset)
+{
+    uint16_t imm9 = offset & 511;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xB8400C00 | Rt | (Rn << 5) | (imm9 << 12) | (sf ? (1<<30) : 0));
+}
+
+void sdvm_compiler_aarch64_ldr_offset(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = (sf ? (offset / 8) : (offset /4)) & 4095;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xB9400000 | Rt | (Rn << 5) | (imm12 << 10)| (sf ? (1<<30) : 0));
+}
+
+void sdvm_compiler_aarch64_ldrh_offset(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = offset / 2;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x79400000 | Rt | (Rn << 5) | (imm12 << 10));
+}
+
+void sdvm_compiler_aarch64_ldrb_offset(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = offset;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x39400000 | Rt | (Rn << 5) | (imm12 << 10));
+}
+
+void sdvm_compiler_aarch64_ldrsh_offset(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = offset / 2;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x79800000 | Rt | (Rn << 5) | (imm12 << 10)| (sf ? (1<<22) : 0));
+}
+
+void sdvm_compiler_aarch64_ldrsb_offset(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = offset;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x39800000 | Rt | (Rn << 5) | (imm12 << 10)| (sf ? (1<<22) : 0));
+}
+
 void sdvm_compiler_aarch64_stp_postIndex(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt1, sdvm_compilerRegisterValue_t Rt2, sdvm_compilerRegisterValue_t Rn, int16_t offset)
 {
     uint8_t imm7 = (sf ? (offset / 8) : offset / 4) & 127;
@@ -389,6 +451,35 @@ void sdvm_compiler_aarch64_stp_offset(sdvm_compiler_t *compiler, bool sf, sdvm_c
     sdvm_compiler_aarch64_addInstruction(compiler, 0x29000000 | Rt1 | (Rn << 5) | (Rt2 << 10) | (imm7 << 15) | (sf ? (1<<31) : 0));
 }
 
+void sdvm_compiler_aarch64_str_postIndex(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, int16_t offset)
+{
+    uint16_t imm9 = offset & 511;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xB8000400 | Rt | (Rn << 5) | (imm9 << 12) | (sf ? (1<<30) : 0));
+}
+
+void sdvm_compiler_aarch64_str_preIndex(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, int16_t offset)
+{
+    uint16_t imm9 = offset & 511;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xB8000C00 | Rt | (Rn << 5) | (imm9 << 12) | (sf ? (1<<30) : 0));
+}
+
+void sdvm_compiler_aarch64_str_offset(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = (sf ? (offset / 8) : (offset /4)) & 4095;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xB9000000 | Rt | (Rn << 5) | (imm12 << 10)| (sf ? (1<<30) : 0));
+}
+
+void sdvm_compiler_aarch64_strb_offset(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = offset & 4095;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x39000000 | Rt | (Rn << 5) | (imm12 << 10));
+}
+
+void sdvm_compiler_aarch64_strh_offset(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rt, sdvm_compilerRegisterValue_t Rn, uint16_t offset)
+{
+    uint16_t imm12 = offset & 4095;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x79000000 | Rt | (Rn << 5) | (imm12 << 10));
+}
 
 static sdvm_compilerInstructionPatternTable_t sdvm_aarch64_instructionPatternTable = {
 };
@@ -585,13 +676,8 @@ void sdvm_compiler_aarch64_computeFunctionStackLayout(sdvm_functionCompilationSt
         state->prologueStackSegment.size += pointerSize*2;
     }
 
-    sdvm_compiler_computeStackSegmentLayouts(state);
-
     if(state->requiresStackFrame)
     {
-        state->stackFrameRegister = SDVM_AARCH64_FP;
-        state->stackFramePointerAnchorOffset = pointerSize * 2;
-
         // Preserved integer registers.
         for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
         {
@@ -609,11 +695,12 @@ void sdvm_compiler_aarch64_computeFunctionStackLayout(sdvm_functionCompilationSt
             }
         }
     }
-    else
-    {
-        state->stackFrameRegister = SDVM_AARCH64_SP;
-        state->stackFramePointerAnchorOffset = state->calloutStackSegment.endOffset;
-    }
+
+    sdvm_compiler_computeStackSegmentLayouts(state);
+
+    SDVM_ASSERT(!state->requiresStackFramePointer);
+    state->stackFrameRegister = SDVM_AARCH64_SP;
+    state->stackFramePointerAnchorOffset = state->calloutStackSegment.endOffset;
 
     sdvm_compiler_computeStackFrameOffsets(state);
 }
@@ -662,6 +749,18 @@ void sdvm_compiler_aarch64_emitFunctionPrologue(sdvm_functionCompilationState_t 
     // Construct the stack frame.
     sdvm_compiler_aarch64_stp_preIndex(compiler, true, SDVM_AARCH64_FP, SDVM_AARCH64_LR, SDVM_AARCH64_SP, -16);
     sdvm_compiler_aarch64_mov_sp(compiler, true, SDVM_AARCH64_FP, SDVM_AARCH64_SP);
+
+    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+    sdvm_dwarf_cfi_pushRegister(cfi, DW_AARCH64_REG_LR);
+    sdvm_dwarf_cfi_pushRegister(cfi, DW_AARCH64_REG_FP);
+
+    int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset - 16;
+    SDVM_ASSERT((stackSubtractionAmount % 16) == 0);
+    if(stackSubtractionAmount != 0)
+    {
+        sdvm_compiler_aarch64_sub_immediate(compiler, true, SDVM_AARCH64_SP, SDVM_AARCH64_SP, stackSubtractionAmount, SDVM_AARCH64_LSL_0);
+        sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
+    }
 }
 
 void sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
@@ -683,6 +782,24 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler
         if(sourceLocation->firstRegister.size <= 4)
             return sdvm_compiler_aarch64_mov(compiler, false, reg->value, sourceLocation->firstRegister.value);
         return sdvm_compiler_aarch64_mov(compiler, true, reg->value, sourceLocation->firstRegister.value);
+    case SdvmCompLocationStack:
+    case SdvmCompLocationStackPair:
+        switch(reg->size)
+        {
+        case 1:
+            if(sourceLocation->isSigned)
+                return sdvm_compiler_aarch64_ldrsb_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+            else
+                return sdvm_compiler_aarch64_ldrb_offset(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        case 2:
+            if(sourceLocation->isSigned)
+                return sdvm_compiler_aarch64_ldrsh_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+            else
+                return sdvm_compiler_aarch64_ldrh_offset(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        case 4: return sdvm_compiler_aarch64_ldr_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        case 8: return sdvm_compiler_aarch64_ldr_offset(compiler, true, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+        default: return abort();
+        }
     case SdvmCompLocationLocalSymbolValue:
         return sdvm_compiler_aarch64_adrl_sv(compiler, reg->value, sourceLocation->symbolHandle, sourceLocation->symbolOffset);
     default: return abort();
@@ -714,6 +831,45 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoRegister(sdvm_compiler_t *com
     }
 }
 
+void sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t *compiler, const sdvm_compilerRegister_t *sourceRegister, const sdvm_compilerStackLocation_t *stackLocation)
+{
+    switch(sourceRegister->kind)
+    {
+    case SdvmCompRegisterKindInteger:
+        switch(sourceRegister->size)
+        {
+        case 1: return sdvm_compiler_aarch64_strb_offset(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
+        case 2: return sdvm_compiler_aarch64_strh_offset(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
+        case 4: return sdvm_compiler_aarch64_str_offset(compiler, false, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
+        case 8: return sdvm_compiler_aarch64_str_offset(compiler, true, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
+        default:
+            return abort();
+        }
+    default:
+        return abort();
+    }
+}
+
+void sdvm_compiler_aarch64_emitMoveFromLocationIntoStack(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerStackLocation_t *stackLocation)
+{
+    switch(sourceLocation->kind)
+    {
+    case SdvmCompLocationRegister:
+        return sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+    case SdvmCompLocationRegisterPair:
+        {
+            sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+
+            sdvm_compilerStackLocation_t nextLocation = *stackLocation;
+            nextLocation.segmentOffset += sourceLocation->firstRegister.size;
+            nextLocation.framePointerOffset += sourceLocation->firstRegister.size;
+
+            return sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->secondRegister, &nextLocation);
+        }
+    default: return abort();
+    }
+}
+
 void sdvm_compiler_aarch64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, sdvm_compilerLocation_t *sourceLocation, sdvm_compilerLocation_t *destinationLocation)
 {
     switch(destinationLocation->kind)
@@ -727,8 +883,7 @@ void sdvm_compiler_aarch64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, s
         // TODO:
         return abort();
     case SdvmCompLocationStack:
-        // TODO:
-        return abort();
+        return sdvm_compiler_aarch64_emitMoveFromLocationIntoStack(compiler, sourceLocation, &destinationLocation->firstStackLocation);
     case SdvmCompLocationStackPair:
         return abort();
     case SdvmCompLocationImmediateS32:
@@ -882,14 +1037,120 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
         abort();
         return true;
 
+    case SdvmInstLoadInt8:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_ldrsb_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_ldrsb_offset(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+    case SdvmInstLoadUInt8:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_ldrb_offset(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_ldrb_offset(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+    case SdvmInstLoadInt16:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_ldrsh_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_ldrsh_offset(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+    case SdvmInstLoadUInt16:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_ldrh_offset(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_ldrh_offset(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+    case SdvmInstLoadInt32:
+    case SdvmInstLoadUInt32:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_ldr_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_ldr_offset(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+    case SdvmInstLoadInt64:
+    case SdvmInstLoadUInt64:
+    case SdvmInstLoadPointer:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+    case SdvmInstLoadGCPointer:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+        {
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8);
+        }
+        else
+        {
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, 0);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, 8);
+        }
+        return true;
+
+    case SdvmInstStoreInt8:
+    case SdvmInstStoreUInt8:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_strb_offset(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_strb_offset(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+
+    case SdvmInstStoreInt16:
+    case SdvmInstStoreUInt16:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_strh_offset(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_strh_offset(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+
+    case SdvmInstStoreInt32:
+    case SdvmInstStoreUInt32:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_str_offset(compiler, false, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_str_offset(compiler, false, arg1->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+
+    case SdvmInstStoreInt64:
+    case SdvmInstStoreUInt64:
+    case SdvmInstStorePointer:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+        else
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->firstRegister.value, arg0->firstRegister.value, 0);
+        return true;
+
+    case SdvmInstStoreGCPointer:
+        if(arg0->kind == SdvmCompLocationStackAddress)
+        {
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8, arg1->secondRegister.value);
+        }
+        else
+        {
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstRegister.value, 0, arg1->firstRegister.value);
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstRegister.value, 8, arg1->secondRegister.value);
+        }
+        return true;
+
     case SdvmInstInt32Add:
     case SdvmInstUInt32Add:
         sdvm_compiler_aarch64_add_shifted(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
+        return true;
+    case SdvmInstInt32Sub:
+    case SdvmInstUInt32Sub:
+        sdvm_compiler_aarch64_sub_shifted(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
         return true;
 
     case SdvmInstInt64Add:
     case SdvmInstUInt64Add:
         sdvm_compiler_aarch64_add_shifted(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
+        return true;
+    case SdvmInstInt64Sub:
+    case SdvmInstUInt64Sub:
+        sdvm_compiler_aarch64_sub_shifted(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
         return true;
     default:
         abort();

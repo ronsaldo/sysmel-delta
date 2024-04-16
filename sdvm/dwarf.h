@@ -460,6 +460,7 @@ enum dwarf_aarch64_register_e {
     DW_AARCH64_REG_X30 = 30,
     DW_AARCH64_REG_SP = 31,
     DW_AARCH64_REG_LR = DW_AARCH64_REG_X30,
+    DW_AARCH64_REG_FP = DW_AARCH64_REG_X29,
     DW_AARCH64_REG_PC = 32,
 };
 

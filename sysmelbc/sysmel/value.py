@@ -1842,7 +1842,7 @@ class ImportedExternalValue(TypedValue):
         return self.type
     
     def toJson(self):
-        return {'importedExternalValue': self.externalName.name.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
+        return {'importedExternalValue': self.externalName.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
 
 class ImportedModule(TypedValue):
     def __init__(self, name: TypedValue) -> None:

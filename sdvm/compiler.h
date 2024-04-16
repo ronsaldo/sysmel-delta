@@ -516,6 +516,7 @@ struct sdvm_functionCompilationState_s
 
     bool hasCallout;
     bool requiresStackFrame;
+    bool requiresStackFramePointer;
     sdvm_compilerRegisterValue_t stackFrameRegister;
     uint32_t stackFramePointerAnchorOffset;
 };
