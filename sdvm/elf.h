@@ -125,6 +125,14 @@ enum {
     SDVM_R_X86_64_PC64 = 24,
 };
 
+enum {
+    SDVM_R_AARCH64_ABS64 = 257,
+    SDVM_R_AARCH64_ABS32 = 258,
+    SDVM_R_AARCH64_ABS16 = 259,
+    SDVM_R_AARCH64_PREL64 = 260,
+    SDVM_R_AARCH64_PREL32 = 261,
+};
+
 #define SDVM_ELF64_SYM_INFO(type, binding) (((binding) << 4) | (type))
 
 typedef struct sdvm_elf64_header_s

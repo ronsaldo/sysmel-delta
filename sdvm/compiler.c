@@ -215,6 +215,9 @@ SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *t
         default:
             return sdvm_compilerTarget_get_x64_linux();
         }
+    case SDVM_TARGET_ARCH_AARCH64:
+        return sdvm_compilerTarget_get_aarch64_linux();
+
     default: return NULL;
     }
 }

@@ -426,6 +426,43 @@ enum dwarf_x64_register_e {
     DW_X64_REG_RA = 16,
 };
 
+enum dwarf_aarch64_register_e {
+    DW_AARCH64_REG_X0 = 0,
+    DW_AARCH64_REG_X1 = 1,
+    DW_AARCH64_REG_X2 = 2,
+    DW_AARCH64_REG_X3 = 3,
+    DW_AARCH64_REG_X4 = 4,
+    DW_AARCH64_REG_X5 = 5,
+    DW_AARCH64_REG_X6 = 6,
+    DW_AARCH64_REG_X7 = 7,
+    DW_AARCH64_REG_X8 = 8,
+    DW_AARCH64_REG_X9 = 9,
+    DW_AARCH64_REG_X10 = 10,
+    DW_AARCH64_REG_X11 = 11,
+    DW_AARCH64_REG_X12 = 12,
+    DW_AARCH64_REG_X13 = 13,
+    DW_AARCH64_REG_X14 = 14,
+    DW_AARCH64_REG_X15 = 15,
+    DW_AARCH64_REG_X16 = 16,
+    DW_AARCH64_REG_X17 = 17,
+    DW_AARCH64_REG_X18 = 18,
+    DW_AARCH64_REG_X19 = 19,
+    DW_AARCH64_REG_X20 = 20,
+    DW_AARCH64_REG_X21 = 21,
+    DW_AARCH64_REG_X22 = 22,
+    DW_AARCH64_REG_X23 = 23,
+    DW_AARCH64_REG_X24 = 24,
+    DW_AARCH64_REG_X25 = 25,
+    DW_AARCH64_REG_X26 = 26,
+    DW_AARCH64_REG_X27 = 27,
+    DW_AARCH64_REG_X28 = 28,
+    DW_AARCH64_REG_X29 = 29,
+    DW_AARCH64_REG_X30 = 30,
+    DW_AARCH64_REG_SP = 31,
+    DW_AARCH64_REG_LR = DW_AARCH64_REG_X30,
+    DW_AARCH64_REG_PC = 32,
+};
+
 typedef struct sdvm_compiler_s sdvm_compiler_t;
 typedef struct sdvm_compilerObjectSection_s sdvm_compilerObjectSection_t;
 

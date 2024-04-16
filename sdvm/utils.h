@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define SDVM_C_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
 #define SDVM_TARGET_TRIPLE_COMPONENTS 4
 #define SDVM_TARGET_TRIPLE_COMPONENT_SIZE 16
 

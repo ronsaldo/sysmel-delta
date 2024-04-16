@@ -22,7 +22,7 @@ static const sdvm_compilerRegister_t *sdvm_x64_sysv_integerPassingRegisters[] = 
     &sdvm_x86_R8,
     &sdvm_x86_R9,
 };
-static const uint32_t sdvm_x64_sysv_integerPassingRegisterCount = sizeof(sdvm_x64_sysv_integerPassingRegisters) / sizeof(sdvm_x64_sysv_integerPassingRegisters[0]);
+static const uint32_t sdvm_x64_sysv_integerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_integerPassingRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_x64_sysv_integerPassingDwordRegisters[] = {
     &sdvm_x86_EDI,
@@ -32,7 +32,7 @@ static const sdvm_compilerRegister_t *sdvm_x64_sysv_integerPassingDwordRegisters
     &sdvm_x86_R8D,
     &sdvm_x86_R9D,
 };
-static const uint32_t sdvm_x64_sysv_integerPassingDwordRegisterCount = sizeof(sdvm_x64_sysv_integerPassingDwordRegisters) / sizeof(sdvm_x64_sysv_integerPassingDwordRegisters[0]);
+static const uint32_t sdvm_x64_sysv_integerPassingDwordRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_integerPassingDwordRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_allocatableIntegerRegisters[] = {
     SDVM_X86_RAX,
@@ -53,29 +53,29 @@ static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_allocatableIntegerRegist
     SDVM_X86_R14,
     SDVM_X86_R15, // Optional GOT pointer
 };
-static const uint32_t sdvm_x64_sysv_allocatableIntegerRegisterCount = sizeof(sdvm_x64_sysv_allocatableIntegerRegisters) / sizeof(sdvm_x64_sysv_allocatableIntegerRegisters[0]);
+static const uint32_t sdvm_x64_sysv_allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_allocatableIntegerRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_x64_sysv_vectorFloatPassingRegister[] = {
     &sdvm_x86_XMM0,  &sdvm_x86_XMM1,  &sdvm_x86_XMM2,  &sdvm_x86_XMM3,
     &sdvm_x86_XMM4,  &sdvm_x86_XMM5,  &sdvm_x86_XMM6,  &sdvm_x86_XMM7,
 };
-static const uint32_t sdvm_x64_sysv_vectorFloatPassingRegisterCount = sizeof(sdvm_x64_sysv_vectorFloatPassingRegister) / sizeof(sdvm_x64_sysv_vectorFloatPassingRegister[0]);
+static const uint32_t sdvm_x64_sysv_vectorFloatPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_vectorFloatPassingRegister);
 
 static const sdvm_compilerRegister_t *sdvm_x64_sysv_vectorIntegerPassingRegister[] = {
     &sdvm_x86_XMM0I,  &sdvm_x86_XMM1I,  &sdvm_x86_XMM2I,  &sdvm_x86_XMM3I,
     &sdvm_x86_XMM4I,  &sdvm_x86_XMM5I,  &sdvm_x86_XMM6I,  &sdvm_x86_XMM7I,
 };
-static const uint32_t sdvm_x64_sysv_vectorIntegerPassingRegisterCount = sizeof(sdvm_x64_sysv_vectorIntegerPassingRegister) / sizeof(sdvm_x64_sysv_vectorIntegerPassingRegister[0]);
+static const uint32_t sdvm_x64_sysv_vectorIntegerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_vectorIntegerPassingRegister);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_callPreservedIntegerRegisters[] = {
     SDVM_X86_RBX, SDVM_X86_R12, SDVM_X86_R13, SDVM_X86_R14, SDVM_X86_R15, SDVM_X86_RSP, SDVM_X86_RBP
 };
-static const uint32_t sdvm_x64_sysv_callPreservedIntegerRegisterCount = sizeof(sdvm_x64_sysv_callPreservedIntegerRegisters) / sizeof(sdvm_x64_sysv_callPreservedIntegerRegisters[0]);
+static const uint32_t sdvm_x64_sysv_callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_callPreservedIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_callTouchedIntegerRegisters[] = {
     SDVM_X86_RAX, SDVM_X86_RCX, SDVM_X86_RDX, SDVM_X86_RSI, SDVM_X86_RDI, SDVM_X86_R8, SDVM_X86_R9, SDVM_X86_R10, SDVM_X86_R11
 };
-static const uint32_t sdvm_x64_sysv_callTouchedIntegerRegisterCount = sizeof(sdvm_x64_sysv_callTouchedIntegerRegisters) / sizeof(sdvm_x64_sysv_callTouchedIntegerRegisters[0]);
+static const uint32_t sdvm_x64_sysv_callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_callTouchedIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_callTouchedVectorRegisters[] = {
     SDVM_X86_XMM0,  SDVM_X86_XMM1,  SDVM_X86_XMM2,  SDVM_X86_XMM3,
@@ -83,7 +83,7 @@ static const sdvm_compilerRegisterValue_t sdvm_x64_sysv_callTouchedVectorRegiste
     SDVM_X86_XMM8,  SDVM_X86_XMM9,  SDVM_X86_XMM10, SDVM_X86_XMM11,
     SDVM_X86_XMM12, SDVM_X86_XMM13, SDVM_X86_XMM14, SDVM_X86_XMM15,
 };
-static const uint32_t sdvm_x64_sysv_callTouchedVectorRegisterCount = sizeof(sdvm_x64_sysv_callTouchedVectorRegisters) / sizeof(sdvm_x64_sysv_callTouchedVectorRegisters[0]);
+static const uint32_t sdvm_x64_sysv_callTouchedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_sysv_callTouchedVectorRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_allocatableVectorRegisters[] = {
     SDVM_X86_XMM0,  SDVM_X86_XMM1,  SDVM_X86_XMM2,  SDVM_X86_XMM3,
@@ -91,7 +91,7 @@ static const sdvm_compilerRegisterValue_t sdvm_x64_allocatableVectorRegisters[] 
     SDVM_X86_XMM8,  SDVM_X86_XMM9,  SDVM_X86_XMM10, SDVM_X86_XMM11,
     SDVM_X86_XMM12, SDVM_X86_XMM13, SDVM_X86_XMM14, SDVM_X86_XMM15,
 };
-static const uint32_t sdvm_x64_allocatableVectorRegisterCount = sizeof(sdvm_x64_allocatableVectorRegisters) / sizeof(sdvm_x64_allocatableVectorRegisters[0]);
+static const uint32_t sdvm_x64_allocatableVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_allocatableVectorRegisters);
 
 const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
     .supportsLocalSymbolValueCall = true,
@@ -151,7 +151,7 @@ static const sdvm_compilerRegister_t *sdvm_x64_win64_integerPassingRegisters[] =
     &sdvm_x86_R8,
     &sdvm_x86_R9,
 };
-static const uint32_t sdvm_x64_win64_integerPassingRegisterCount = sizeof(sdvm_x64_win64_integerPassingRegisters) / sizeof(sdvm_x64_win64_integerPassingRegisters[0]);
+static const uint32_t sdvm_x64_win64_integerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_integerPassingRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_x64_win64_integerPassingDwordRegisters[] = {
     &sdvm_x86_ECX,
@@ -159,7 +159,7 @@ static const sdvm_compilerRegister_t *sdvm_x64_win64_integerPassingDwordRegister
     &sdvm_x86_R8D,
     &sdvm_x86_R9D,
 };
-static const uint32_t sdvm_x64_win64_integerPassingDwordRegisterCount = sizeof(sdvm_x64_win64_integerPassingDwordRegisters) / sizeof(sdvm_x64_win64_integerPassingDwordRegisters[0]);
+static const uint32_t sdvm_x64_win64_integerPassingDwordRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_integerPassingDwordRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_win64_allocatableIntegerRegisters[] = {
     SDVM_X86_RAX,
@@ -182,39 +182,39 @@ static const sdvm_compilerRegisterValue_t sdvm_x64_win64_allocatableIntegerRegis
     SDVM_X86_R14,
     SDVM_X86_R15,
 };
-static const uint32_t sdvm_x64_win64_allocatableIntegerRegisterCount = sizeof(sdvm_x64_win64_allocatableIntegerRegisters) / sizeof(sdvm_x64_win64_allocatableIntegerRegisters[0]);
+static const uint32_t sdvm_x64_win64_allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_allocatableIntegerRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_x64_win64_vectorFloatPassingRegister[] = {
     &sdvm_x86_XMM0,  &sdvm_x86_XMM1,  &sdvm_x86_XMM2,  &sdvm_x86_XMM3,
 };
-static const uint32_t sdvm_x64_win64_vectorFloatPassingRegisterCount = sizeof(sdvm_x64_win64_vectorFloatPassingRegister) / sizeof(sdvm_x64_win64_vectorFloatPassingRegister[0]);
+static const uint32_t sdvm_x64_win64_vectorFloatPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_vectorFloatPassingRegister);
 
 static const sdvm_compilerRegister_t *sdvm_x64_win64_vectorIntegerPassingRegister[] = {
     &sdvm_x86_XMM0I,  &sdvm_x86_XMM1I,  &sdvm_x86_XMM2I,  &sdvm_x86_XMM3I,
 };
-static const uint32_t sdvm_x64_win64_vectorIntegerPassingRegisterCount = sizeof(sdvm_x64_win64_vectorIntegerPassingRegister) / sizeof(sdvm_x64_win64_vectorIntegerPassingRegister[0]);
+static const uint32_t sdvm_x64_win64_vectorIntegerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_vectorIntegerPassingRegister);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callPreservedIntegerRegisters[] = {
     SDVM_X86_RBX, SDVM_X86_RBP, SDVM_X86_RDI, SDVM_X86_RSI, SDVM_X86_RSP, SDVM_X86_R12, SDVM_X86_R13, SDVM_X86_R14, SDVM_X86_R15
 };
-static const uint32_t sdvm_x64_win64_callPreservedIntegerRegisterCount = sizeof(sdvm_x64_win64_callPreservedIntegerRegisters) / sizeof(sdvm_x64_win64_callPreservedIntegerRegisters[0]);
+static const uint32_t sdvm_x64_win64_callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_callPreservedIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callTouchedIntegerRegisters[] = {
     SDVM_X86_RAX, SDVM_X86_RCX, SDVM_X86_RDX, SDVM_X86_R8, SDVM_X86_R9, SDVM_X86_R10, SDVM_X86_R11
 };
-static const uint32_t sdvm_x64_win64_callTouchedIntegerRegisterCount = sizeof(sdvm_x64_win64_callTouchedIntegerRegisters) / sizeof(sdvm_x64_win64_callTouchedIntegerRegisters[0]);
+static const uint32_t sdvm_x64_win64_callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_callTouchedIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callTouchedVectorRegisters[] = {
     SDVM_X86_XMM0,  SDVM_X86_XMM1,  SDVM_X86_XMM2,  SDVM_X86_XMM3,
     SDVM_X86_XMM4,  SDVM_X86_XMM5,
 };
-static const uint32_t sdvm_x64_win64_callTouchedVectorRegisterCount = sizeof(sdvm_x64_win64_callTouchedVectorRegisters) / sizeof(sdvm_x64_sysv_callTouchedVectorRegisters[0]);
+static const uint32_t sdvm_x64_win64_callTouchedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_callTouchedVectorRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_x64_win64_callPreservedVectorRegisters[] = {
     SDVM_X86_XMM6, SDVM_X86_XMM7, SDVM_X86_XMM8, SDVM_X86_XMM9, SDVM_X86_XMM10,
     SDVM_X86_XMM11, SDVM_X86_XMM12, SDVM_X86_XMM13, SDVM_X86_XMM14, SDVM_X86_XMM15
 };
-static const uint32_t sdvm_x64_win64_callPreservedVectorRegisterCount = sizeof(sdvm_x64_win64_callPreservedVectorRegisters) / sizeof(sdvm_x64_win64_callPreservedVectorRegisters[0]);
+static const uint32_t sdvm_x64_win64_callPreservedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_x64_win64_callPreservedVectorRegisters);
 
 const sdvm_compilerCallingConvention_t sdvm_x64_win64_callingConvention = {
     .supportsLocalSymbolValueCall = true,

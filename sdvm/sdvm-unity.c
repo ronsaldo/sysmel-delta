@@ -3,6 +3,7 @@
 #include "compilerElf.c"
 #include "compilerCoff.c"
 #include "compilerX86.c"
+#include "compilerAArch64.c"
 #include "module.c"
 #include "instruction.c"
 #include "dynarray.c"
