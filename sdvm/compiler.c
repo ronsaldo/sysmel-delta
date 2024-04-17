@@ -644,6 +644,23 @@ void sdvm_compiler_applyPendingLabelRelocationsInSection(sdvm_compiler_t *compil
 
         switch(relocation->kind)
         {
+        case SdvmCompRelocationAArch64Jump19:
+            {
+                uint32_t *relocatedInstruction = (uint32_t *)(section->contents.data + relocation->offset);
+                const uint32_t mask = ((1<<19) - 1);
+                *relocatedInstruction &= ~(mask << 5);
+                *relocatedInstruction |= (((int32_t)(label->value - relocation->offset + relocation->addend) >> 2) & mask) << 5;
+            }
+            break;
+        case SdvmCompRelocationAArch64Jump26:
+        case SdvmCompRelocationAArch64Call26:
+            {
+                uint32_t *relocatedInstruction = (uint32_t *)(section->contents.data + relocation->offset);
+                const uint32_t mask = ((1<<26) - 1);
+                *relocatedInstruction &= ~mask;
+                *relocatedInstruction |= ((int32_t)(label->value - relocation->offset + relocation->addend) >> 2) & mask;
+            }
+            break;
         case SdvmCompRelocationRelative32:
             {
                 int32_t value = label->value - relocation->offset + relocation->addend;
@@ -2674,6 +2691,47 @@ void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler,
     }
 
     sdvm_compiler_addInstructionBytes(compiler, 4, &addressValue);
+}
+
+SDVM_API void sdvm_compiler_addInstruction32WithLabelValue(sdvm_compiler_t *compiler, uint32_t instruction, sdvm_compilerRelocationKind_t relocationKind, uint32_t labelIndex, int32_t addend)
+{
+    sdvm_compilerLabel_t *label = (sdvm_compilerLabel_t*)compiler->labels.data + labelIndex;
+    uint32_t relocatedInstruction = instruction;
+    if(label->section == &compiler->textSection)
+    {
+        switch(relocationKind)
+        {
+        case SdvmCompRelocationAArch64Jump19:
+            {
+                const uint32_t mask = ((1<<19) - 1);
+                relocatedInstruction &= ~(mask << 5);
+                relocatedInstruction |= (((int32_t)(label->value - compiler->textSection.contents.size + addend) >> 2) & mask) << 5;
+            }
+            break;
+        case SdvmCompRelocationAArch64Jump26:
+        case SdvmCompRelocationAArch64Call26:
+            {
+                const uint32_t mask = ((1<<26) - 1);
+                relocatedInstruction &= ~mask;
+                relocatedInstruction |= ((int32_t)(label->value - compiler->textSection.contents.size + addend) >> 2) & mask;
+            }
+            break;
+        default: abort();
+        }
+    }
+    else
+    {
+        sdvm_compilerPendingLabelRelocation_t pendingRelocation = {
+            .kind = relocationKind,
+            .labelIndex = labelIndex,
+            .addend = addend,
+            .offset = compiler->textSection.contents.size
+        };
+
+        sdvm_dynarray_add(&compiler->textSection.pendingLabelRelocations, &pendingRelocation);
+    }
+
+    sdvm_compiler_addInstructionBytes(compiler, 4, &relocatedInstruction);
 }
 
 SDVM_API size_t sdvm_compiler_getCurrentPC(sdvm_compiler_t *compiler)

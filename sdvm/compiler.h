@@ -61,6 +61,7 @@ typedef enum sdvm_compilerRelocationKind_e
     SdvmCompRelocationAArch64AddAbsoluteLo12NoCheck,
 
     SdvmCompRelocationAArch64Call26,
+    SdvmCompRelocationAArch64Jump19,
     SdvmCompRelocationAArch64Jump26,
 } sdvm_compilerRelocationKind_t;
 
@@ -662,6 +663,7 @@ SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, siz
 SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);
 SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend);
 SDVM_API void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler, uint32_t labelIndex, int32_t addend);
+SDVM_API void sdvm_compiler_addInstruction32WithLabelValue(sdvm_compiler_t *compiler, uint32_t instruction, sdvm_compilerRelocationKind_t relocationKind, uint32_t labelIndex, int32_t addend);
 SDVM_API size_t sdvm_compiler_getCurrentPC(sdvm_compiler_t *compiler);
 
 SDVM_API bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *module);

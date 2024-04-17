@@ -210,6 +210,36 @@ void sdvm_compiler_aarch64_alignUnreacheableCode(sdvm_compiler_t *compiler)
         compiler->textSection.alignment = 4;
 }
 
+sdvm_aarch64_condition_t sdvm_compiler_aarch64_mapConditionCode(bool isSigned, sdvm_baseOpcode_t condition)
+{
+    switch(condition)
+    {
+    case SdvmOpEquals: return SDVM_AARCH64_EQ;
+    case SdvmOpNotEquals: return SDVM_AARCH64_NE;
+    case SdvmOpLessThan:
+        if(isSigned)
+            return SDVM_AARCH64_LT;
+        else
+            return SDVM_AARCH64_MI;
+    case SdvmOpLessOrEquals:
+        if(isSigned)
+            return SDVM_AARCH64_LE;
+        else
+            return SDVM_AARCH64_LS;
+    case SdvmOpGreaterThan:
+        if(isSigned)
+            return SDVM_AARCH64_GT;
+        else
+            return SDVM_AARCH64_HI;
+    case SdvmOpGreaterOrEquals:
+        if(isSigned)
+            return SDVM_AARCH64_GE;
+        else
+            return SDVM_AARCH64_PL;
+    default: abort();
+    }
+}
+
 size_t sdvm_compiler_aarch64_addInstruction(sdvm_compiler_t *compiler, uint32_t instruction)
 {
     size_t offset = compiler->textSection.contents.size;
@@ -217,9 +247,24 @@ size_t sdvm_compiler_aarch64_addInstruction(sdvm_compiler_t *compiler, uint32_t 
     return offset;
 }
 
+void sdvm_compiler_aarch64_b_cond(sdvm_compiler_t *compiler, sdvm_aarch64_condition_t cond, uint32_t imm19)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x54000000 | (imm19 << 5) | cond);
+}
+
+void sdvm_compiler_aarch64_b_cond_label(sdvm_compiler_t *compiler, sdvm_aarch64_condition_t cond, uint32_t label)
+{
+    sdvm_compiler_addInstruction32WithLabelValue(compiler, 0x54000000 | cond, SdvmCompRelocationAArch64Jump19, label, 0);
+}
+
 void sdvm_compiler_aarch64_b(sdvm_compiler_t *compiler, uint32_t imm26)
 {
     sdvm_compiler_aarch64_addInstruction(compiler, 0x14000000 | imm26);
+}
+
+void sdvm_compiler_aarch64_b_label(sdvm_compiler_t *compiler, uint32_t label)
+{
+    sdvm_compiler_addInstruction32WithLabelValue(compiler, 0x14000000, SdvmCompRelocationAArch64Jump26, label, 0);
 }
 
 void sdvm_compiler_aarch64_b_sv(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
@@ -289,6 +334,22 @@ void sdvm_compiler_aarch64_sub_shifted(sdvm_compiler_t *compiler, bool sf, sdvm_
 void sdvm_compiler_aarch64_add_immediate(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, uint16_t imm12, sdvm_aarch64_immediateShiftType_t shift)
 {
     sdvm_compiler_aarch64_addInstruction(compiler, 0x11000000 | Rd | (Rn << 5) | (imm12 << 10) | (shift << 22) | (sf ? (1<<31) : 0));
+}
+
+void sdvm_compiler_aarch64_cmp_shifted(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm, sdvm_aarch64_shiftType_t shift, uint8_t amount)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x6B00001F | (Rn << 5) | (amount << 10) | (Rm << 16) | (shift << 22) | (sf ? (1<<31) : 0));
+}
+
+void sdvm_compiler_aarch64_cset(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_aarch64_condition_t condition)
+{
+    uint8_t invertedCondition = condition ^ 1;
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x1A9F07E0 | Rd | (invertedCondition << 12) | (sf ? (1<<31) : 0));
+}
+
+void sdvm_compiler_aarch64_tst_shifted(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm, sdvm_aarch64_shiftType_t shift, uint8_t amount)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x6A00001F | (Rn << 5) | (amount << 10) | (Rm << 16) | (shift << 22) | (sf ? (1<<31) : 0));
 }
 
 void sdvm_compiler_aarch64_adrl_sv(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
@@ -371,6 +432,11 @@ void sdvm_compiler_aarch64_movImm64(sdvm_compiler_t *compiler, sdvm_compilerRegi
     }
 
     abort();
+}
+
+void sdvm_compiler_aarch64_mul(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x1B007C00 | Rd | (Rn << 5) | (Rm << 16) | (sf ? (1<<31) : 0));
 }
 
 void sdvm_compiler_aarch64_ldp_postIndex(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rt1, sdvm_compilerRegisterValue_t Rt2, sdvm_compilerRegisterValue_t Rn, int16_t offset)
@@ -1135,6 +1201,18 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
         }
         return true;
 
+    case SdvmInstJump:
+        sdvm_compiler_aarch64_b_label(compiler, arg0->immediateLabel);
+        return true;
+    case SdvmInstJumpIfTrue:
+        sdvm_compiler_aarch64_tst_shifted(compiler, false, arg0->firstRegister.value, arg0->firstRegister.value, SDVM_AARCH64_LSL, 0);
+        sdvm_compiler_aarch64_b_cond_label(compiler, SDVM_AARCH64_EQ, arg1->immediateLabel);
+        return true;
+    case SdvmInstJumpIfFalse:
+        sdvm_compiler_aarch64_tst_shifted(compiler, false, arg0->firstRegister.value, arg0->firstRegister.value, SDVM_AARCH64_LSL, 0);
+        sdvm_compiler_aarch64_b_cond_label(compiler, SDVM_AARCH64_NE, arg1->immediateLabel);
+        return true;
+
     case SdvmInstInt32Add:
     case SdvmInstUInt32Add:
         sdvm_compiler_aarch64_add_shifted(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
@@ -1143,15 +1221,93 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstUInt32Sub:
         sdvm_compiler_aarch64_sub_shifted(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
         return true;
+    case SdvmInstInt32Mul:
+    case SdvmInstUInt32Mul:
+        sdvm_compiler_aarch64_mul(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstInt32Equals:
+    case SdvmInstInt32NotEquals:
+    case SdvmInstInt32LessThan:
+    case SdvmInstInt32LessOrEquals:
+    case SdvmInstInt32GreaterThan:
+    case SdvmInstInt32GreaterOrEquals:
+    case SdvmInstUInt32Equals:
+    case SdvmInstUInt32NotEquals:
+    case SdvmInstUInt32LessThan:
+    case SdvmInstUInt32LessOrEquals:
+    case SdvmInstUInt32GreaterThan:
+    case SdvmInstUInt32GreaterOrEquals:
+        sdvm_compiler_aarch64_cmp_shifted(compiler, false, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
+        sdvm_compiler_aarch64_cset(compiler, false, dest->firstRegister.value, sdvm_compiler_aarch64_mapConditionCode(instruction->decoding.instruction.arg0Type == SdvmTypeInt32, instruction->decoding.baseOpcode));
+        return true;
 
     case SdvmInstInt64Add:
     case SdvmInstUInt64Add:
+    case SdvmInstPointerAddOffsetInt64:
+    case SdvmInstPointerAddOffsetUInt64:
         sdvm_compiler_aarch64_add_shifted(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
         return true;
     case SdvmInstInt64Sub:
     case SdvmInstUInt64Sub:
         sdvm_compiler_aarch64_sub_shifted(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
         return true;
+    case SdvmInstInt64Mul:
+    case SdvmInstUInt64Mul:
+        sdvm_compiler_aarch64_mul(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstPointerAddOffsetUInt32:
+        sdvm_compiler_aarch64_add_extended(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_UXTW, 0);
+        return true;
+    case SdvmInstPointerAddOffsetInt32:
+        sdvm_compiler_aarch64_add_extended(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_SXTW, 0);
+        return true;
+
+    case SdvmInstInt8_Bitcast_UInt8:
+    case SdvmInstInt16_Bitcast_UInt16:
+    case SdvmInstInt32_Bitcast_UInt32:
+    case SdvmInstInt64_Bitcast_UInt64:
+    case SdvmInstUInt8_Bitcast_Int8:
+    case SdvmInstUInt16_Bitcast_Int16:
+    case SdvmInstUInt32_Bitcast_Int32:
+    case SdvmInstUInt64_Bitcast_Int64:
+
+    case SdvmInstInt64_Truncate_Int32:
+    case SdvmInstInt64_Truncate_Int16:
+    case SdvmInstInt64_Truncate_Int8:
+    case SdvmInstInt64_Truncate_UInt32:
+    case SdvmInstInt64_Truncate_UInt16:
+    case SdvmInstInt64_Truncate_UInt8:
+    case SdvmInstUInt64_Truncate_Int32:
+    case SdvmInstUInt64_Truncate_Int16:
+    case SdvmInstUInt64_Truncate_Int8:
+    case SdvmInstUInt64_Truncate_UInt32:
+    case SdvmInstUInt64_Truncate_UInt16:
+    case SdvmInstUInt64_Truncate_UInt8:
+
+    case SdvmInstInt32_Truncate_Int16:
+    case SdvmInstInt32_Truncate_Int8:
+    case SdvmInstInt32_Truncate_UInt16:
+    case SdvmInstInt32_Truncate_UInt8:
+    case SdvmInstUInt32_Truncate_Int16:
+    case SdvmInstUInt32_Truncate_Int8:
+    case SdvmInstUInt32_Truncate_UInt16:
+    case SdvmInstUInt32_Truncate_UInt8:
+
+    case SdvmInstInt16_Truncate_Int8:
+    case SdvmInstInt16_Truncate_UInt8:
+    case SdvmInstUInt16_Truncate_Int8:
+    case SdvmInstUInt16_Truncate_UInt8:
+        sdvm_compiler_aarch64_emitMoveFromLocationInto(compiler, arg0, dest);
+        return true;
+
+    case SdvmInstInt32_ZeroExtend_UInt64:
+    case SdvmInstUInt32_ZeroExtend_Int64:
+    case SdvmInstUInt32_ZeroExtend_UInt64:
+        sdvm_compiler_aarch64_mov_noopt(compiler, false, dest->firstRegister.value, arg0->firstRegister.value);
+        return true;
+
     default:
         abort();
     }
