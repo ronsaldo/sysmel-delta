@@ -3473,7 +3473,7 @@ static bool sdvm_compiler_x86_int8ComparisonAndJumpIfTrueCodegen(sdvm_functionCo
     else
         sdvm_compiler_x86_cmp8RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt8, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -3489,7 +3489,7 @@ static bool sdvm_compiler_x86_int8ComparisonAndJumpIfFalseCodegen(sdvm_functionC
     else
         sdvm_compiler_x86_cmp8RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt8, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -3518,7 +3518,7 @@ static bool sdvm_compiler_x86_int16ComparisonAndJumpIfTrueCodegen(sdvm_functionC
     else
         sdvm_compiler_x86_cmp16RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt16, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -3534,7 +3534,7 @@ static bool sdvm_compiler_x86_int16ComparisonAndJumpIfFalseCodegen(sdvm_function
     else
         sdvm_compiler_x86_cmp16RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt16, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -3563,7 +3563,7 @@ static bool sdvm_compiler_x86_int32ComparisonAndJumpIfTrueCodegen(sdvm_functionC
     else
         sdvm_compiler_x86_cmp32RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -3579,7 +3579,7 @@ static bool sdvm_compiler_x86_int32ComparisonAndJumpIfFalseCodegen(sdvm_function
     else
         sdvm_compiler_x86_cmp32RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -3608,7 +3608,7 @@ static bool sdvm_compiler_x86_int64ComparisonAndJumpIfTrueCodegen(sdvm_functionC
     else
         sdvm_compiler_x86_cmp64RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -3624,7 +3624,7 @@ static bool sdvm_compiler_x86_int64ComparisonAndJumpIfFalseCodegen(sdvm_function
     else
         sdvm_compiler_x86_cmp64RegReg(compiler, comparison->arg0Location.firstRegister.value, comparison->arg1Location.firstRegister.value);
 
-    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, comparison->decoding.instruction.arg0Type == SdvmTypeInt32, comparison->decoding.baseOpcode);
+    sdvm_compiler_x86_jumpOnInverseCondition(compiler, branch->arg1Location.immediateLabel, sdvm_instruction_typeIsSigned(comparison->decoding.instruction.arg0Type), comparison->decoding.baseOpcode);
     return true;
 }
 
@@ -4559,7 +4559,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         else
             sdvm_compiler_x86_cmp8RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
 
-        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt8, instruction->decoding.baseOpcode);
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, sdvm_instruction_typeIsSigned(instruction->decoding.instruction.arg0Type), instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstInt16Add:
@@ -4687,7 +4687,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         else
             sdvm_compiler_x86_cmp16RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
 
-        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt16, instruction->decoding.baseOpcode);
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, sdvm_instruction_typeIsSigned(instruction->decoding.instruction.arg0Type), instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstInt32Add:
@@ -4815,7 +4815,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         else
             sdvm_compiler_x86_cmp32RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
 
-        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt32, instruction->decoding.baseOpcode);
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, sdvm_instruction_typeIsSigned(instruction->decoding.instruction.arg0Type), instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstInt64Add:
@@ -4943,7 +4943,7 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
         else
             sdvm_compiler_x86_cmp64RegReg(compiler, arg0->firstRegister.value, arg1->firstRegister.value);
 
-        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, instruction->decoding.instruction.arg0Type == SdvmTypeInt64, instruction->decoding.baseOpcode);
+        sdvm_compiler_x86_setByteOnCondition(compiler, dest->firstRegister.value, sdvm_instruction_typeIsSigned(instruction->decoding.instruction.arg0Type), instruction->decoding.baseOpcode);
         return true;
 
     case SdvmInstFloat32Add:

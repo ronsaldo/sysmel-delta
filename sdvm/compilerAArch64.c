@@ -1229,12 +1229,36 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
         sdvm_compiler_aarch64_mul(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value);
         return true;
 
+    case SdvmInstInt8Equals:
+    case SdvmInstInt8NotEquals:
+    case SdvmInstInt8LessThan:
+    case SdvmInstInt8LessOrEquals:
+    case SdvmInstInt8GreaterThan:
+    case SdvmInstInt8GreaterOrEquals:
+    case SdvmInstInt16Equals:
+    case SdvmInstInt16NotEquals:
+    case SdvmInstInt16LessThan:
+    case SdvmInstInt16LessOrEquals:
+    case SdvmInstInt16GreaterThan:
+    case SdvmInstInt16GreaterOrEquals:
     case SdvmInstInt32Equals:
     case SdvmInstInt32NotEquals:
     case SdvmInstInt32LessThan:
     case SdvmInstInt32LessOrEquals:
     case SdvmInstInt32GreaterThan:
     case SdvmInstInt32GreaterOrEquals:
+    case SdvmInstUInt8Equals:
+    case SdvmInstUInt8NotEquals:
+    case SdvmInstUInt8LessThan:
+    case SdvmInstUInt8LessOrEquals:
+    case SdvmInstUInt8GreaterThan:
+    case SdvmInstUInt8GreaterOrEquals:
+    case SdvmInstUInt16Equals:
+    case SdvmInstUInt16NotEquals:
+    case SdvmInstUInt16LessThan:
+    case SdvmInstUInt16LessOrEquals:
+    case SdvmInstUInt16GreaterThan:
+    case SdvmInstUInt16GreaterOrEquals:
     case SdvmInstUInt32Equals:
     case SdvmInstUInt32NotEquals:
     case SdvmInstUInt32LessThan:
@@ -1242,7 +1266,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstUInt32GreaterThan:
     case SdvmInstUInt32GreaterOrEquals:
         sdvm_compiler_aarch64_cmp_shifted(compiler, false, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
-        sdvm_compiler_aarch64_cset(compiler, false, dest->firstRegister.value, sdvm_compiler_aarch64_mapConditionCode(instruction->decoding.instruction.arg0Type == SdvmTypeInt32, instruction->decoding.baseOpcode));
+        sdvm_compiler_aarch64_cset(compiler, false, dest->firstRegister.value, sdvm_compiler_aarch64_mapConditionCode(sdvm_instruction_typeIsSigned(instruction->decoding.instruction.arg0Type), instruction->decoding.baseOpcode));
         return true;
 
     case SdvmInstInt64Add:
@@ -1258,6 +1282,22 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstInt64Mul:
     case SdvmInstUInt64Mul:
         sdvm_compiler_aarch64_mul(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstInt64Equals:
+    case SdvmInstInt64NotEquals:
+    case SdvmInstInt64LessThan:
+    case SdvmInstInt64LessOrEquals:
+    case SdvmInstInt64GreaterThan:
+    case SdvmInstInt64GreaterOrEquals:
+    case SdvmInstUInt64Equals:
+    case SdvmInstUInt64NotEquals:
+    case SdvmInstUInt64LessThan:
+    case SdvmInstUInt64LessOrEquals:
+    case SdvmInstUInt64GreaterThan:
+    case SdvmInstUInt64GreaterOrEquals:
+        sdvm_compiler_aarch64_cmp_shifted(compiler, true, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_LSL, 0);
+        sdvm_compiler_aarch64_cset(compiler, true, dest->firstRegister.value, sdvm_compiler_aarch64_mapConditionCode(sdvm_instruction_typeIsSigned(instruction->decoding.instruction.arg0Type), instruction->decoding.baseOpcode));
         return true;
 
     case SdvmInstPointerAddOffsetUInt32:
