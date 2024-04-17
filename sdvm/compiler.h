@@ -227,6 +227,7 @@ struct sdvm_compilerTarget_s
     bool usesUnderscorePrefix;
     bool hasSeparateFloatFromVectorRegisters;
     bool usesCET;
+    bool closureCallNeedsScratch;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
     const sdvm_compilerCallingConvention_t *cdecl;

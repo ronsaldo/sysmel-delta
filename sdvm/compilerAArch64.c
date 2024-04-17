@@ -978,6 +978,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     sdvm_compilerLocation_t *dest = &instruction->destinationLocation;
     sdvm_compilerLocation_t *arg0 = &instruction->arg0Location;
     sdvm_compilerLocation_t *arg1 = &instruction->arg1Location;
+    sdvm_compilerLocation_t *scratch0 = &instruction->scratchLocation0;
 
     switch(instruction->decoding.opcode)
     {
@@ -1101,8 +1102,8 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstCallClosureInt32x4:
     case SdvmInstCallClosureUInt32x2:
     case SdvmInstCallClosureUInt32x4:
-        //TODO: 
-        abort();
+        sdvm_compiler_aarch64_ldr_offset(compiler, true, scratch0->firstRegister.value, arg0->firstRegister.value, 0);
+        sdvm_compiler_aarch64_blr(compiler, scratch0->firstRegister.value);
         return true;
 
     case SdvmInstLoadInt8:
@@ -1475,6 +1476,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_linux = {
     .coffMachine = SDVM_IMAGE_FILE_MACHINE_ARM64,
     .usesUnderscorePrefix = false,
     .usesCET = false,
+    .closureCallNeedsScratch = true,
 
     .defaultCC = &sdvm_aarch64_eabi_callingConvention,
     .cdecl = &sdvm_aarch64_eabi_callingConvention,
