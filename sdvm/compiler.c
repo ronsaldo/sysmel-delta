@@ -211,12 +211,23 @@ SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *t
         {
         case SDVM_TARGET_OS_WINDOWS:
             return sdvm_compilerTarget_get_x64_windows();
+        case SDVM_TARGET_OS_MACOSX:
+            return sdvm_compilerTarget_get_x64_macosx();
         case SDVM_TARGET_OS_LINUX:
         default:
             return sdvm_compilerTarget_get_x64_linux();
         }
     case SDVM_TARGET_ARCH_AARCH64:
-        return sdvm_compilerTarget_get_aarch64_linux();
+        switch(description.os)
+        {
+        case SDVM_TARGET_OS_WINDOWS:
+            return sdvm_compilerTarget_get_aarch64_windows();
+        case SDVM_TARGET_OS_MACOSX:
+            return sdvm_compilerTarget_get_aarch64_macosx();
+        case SDVM_TARGET_OS_LINUX:
+        default:
+            return sdvm_compilerTarget_get_aarch64_linux();
+        }
 
     default: return NULL;
     }

@@ -1,6 +1,13 @@
 #include "utils.h"
 #include <string.h>
 
+SDVM_API bool sdvm_targetDescription_isVendorName(const char *name)
+{
+    if(!strcmp(name, "pc") || !strcmp(name, "apple"))
+        return true;
+    return false;
+}
+
 SDVM_API bool sdvm_targetDescription_parseTriple(sdvm_targetDescription_t *outParsedDescription, const char *triple)
 {
     memset(outParsedDescription, 0, sizeof(sdvm_targetDescription_t));
@@ -52,8 +59,16 @@ SDVM_API bool sdvm_targetDescription_parseTriple(sdvm_targetDescription_t *outPa
         break;
     case 3:
         memcpy(outParsedDescription->architectureName, tripleComponents[0], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
-        memcpy(outParsedDescription->osName, tripleComponents[1], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
-        memcpy(outParsedDescription->abiName, tripleComponents[2], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
+        if(sdvm_targetDescription_isVendorName(tripleComponents[1]))
+        {
+            memcpy(outParsedDescription->vendorName, tripleComponents[1], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
+            memcpy(outParsedDescription->osName, tripleComponents[2], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
+        }
+        else
+        {
+            memcpy(outParsedDescription->osName, tripleComponents[1], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
+            memcpy(outParsedDescription->abiName, tripleComponents[2], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
+        }
         break;
     case 4:
         memcpy(outParsedDescription->architectureName, tripleComponents[0], SDVM_TARGET_TRIPLE_COMPONENT_SIZE);
@@ -104,9 +119,9 @@ SDVM_API bool sdvm_targetDescription_parseNames(sdvm_targetDescription_t *descri
     {
         description->os = SDVM_TARGET_OS_WINDOWS;
     }
-    else if(!strcmp(description->osName, "macos"))
+    else if(!strncmp(description->osName, "macosx", 5))
     {
-        description->os = SDVM_TARGET_OS_MACOS;
+        description->os = SDVM_TARGET_OS_MACOSX;
     }
     else if(!strcmp(description->osName, "linux"))
     {

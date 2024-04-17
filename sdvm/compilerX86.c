@@ -5515,7 +5515,7 @@ uint16_t sdvm_compiler_x64_mapCoffRelocationApplyingAddend(sdvm_compilerRelocati
     }
 }
 
-static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
+static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pic = {
     .pointerSize = 8,
     .objectFileType = SdvmObjectFileTypeElf,
     .elfMachine = SDVM_EM_X86_64,
@@ -5539,7 +5539,34 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pie = {
 
 const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_linux()
 {
-    return &sdvm_compilerTarget_x64_linux_pie;
+    return &sdvm_compilerTarget_x64_linux_pic;
+}
+
+static sdvm_compilerTarget_t sdvm_compilerTarget_x64_macosx = {
+    .pointerSize = 8,
+    .objectFileType = SdvmObjectFileTypeMachO,
+    .elfMachine = SDVM_EM_X86_64,
+    .coffMachine = SDVM_IMAGE_FILE_MACHINE_AMD64,
+    .usesUnderscorePrefix = true,
+    .usesCET = false,
+
+    .defaultCC = &sdvm_x64_sysv_callingConvention,
+    .cdecl = &sdvm_x64_sysv_callingConvention,
+    .stdcall = &sdvm_x64_sysv_callingConvention,
+    .apicall = &sdvm_x64_sysv_callingConvention,
+    .thiscall = &sdvm_x64_sysv_callingConvention,
+    .vectorcall = &sdvm_x64_sysv_callingConvention,
+
+    .compileModuleFunction = sdvm_compiler_x64_compileModuleFunction,
+    .mapElfRelocation = sdvm_compiler_x64_mapElfRelocation,
+    .mapCoffRelocationApplyingAddend = sdvm_compiler_x64_mapCoffRelocationApplyingAddend,
+
+    .instructionPatterns = &sdvm_x64_instructionPatternTable,
+};
+
+const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_macosx()
+{
+    return &sdvm_compilerTarget_x64_macosx;
 }
 
 static sdvm_compilerTarget_t sdvm_compilerTarget_x64_windows = {

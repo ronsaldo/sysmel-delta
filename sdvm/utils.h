@@ -36,7 +36,7 @@ typedef enum sdvm_target_os_e
     SDVM_TARGET_OS_NONE,
     SDVM_TARGET_OS_LINUX,
     SDVM_TARGET_OS_WINDOWS,
-    SDVM_TARGET_OS_MACOS,
+    SDVM_TARGET_OS_MACOSX,
 } sdvm_target_os_t;
 
 typedef enum sdvm_target_abi_e

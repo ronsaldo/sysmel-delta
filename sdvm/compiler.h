@@ -589,9 +589,12 @@ SDVM_API const char *sdvm_compilerTarget_getDefaultTargetName(void);
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_getNamed(const char *targetName);
 
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_linux(void);
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_macosx(void);
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_x64_windows(void);
 
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_linux(void);
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_macosx(void);
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_windows(void);
 
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state);

@@ -1536,3 +1536,59 @@ const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_linux(void)
 {
     return &sdvm_compilerTarget_aarch64_linux;
 }
+
+static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
+    .pointerSize = 8,
+    .objectFileType = SdvmObjectFileTypeMachO,
+    .elfMachine = SDVM_EM_AARCH64,
+    .coffMachine = SDVM_IMAGE_FILE_MACHINE_ARM64,
+    .usesUnderscorePrefix = false,
+    .usesCET = false,
+    .closureCallNeedsScratch = true,
+
+    .defaultCC = &sdvm_aarch64_eabi_callingConvention,
+    .cdecl = &sdvm_aarch64_eabi_callingConvention,
+    .stdcall = &sdvm_aarch64_eabi_callingConvention,
+    .apicall = &sdvm_aarch64_eabi_callingConvention,
+    .thiscall = &sdvm_aarch64_eabi_callingConvention,
+    .vectorcall = &sdvm_aarch64_eabi_callingConvention,
+
+    .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
+    .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,
+    .mapCoffRelocationApplyingAddend = sdvm_compiler_aarch64_mapCoffRelocationApplyingAddend,
+
+    .instructionPatterns = &sdvm_aarch64_instructionPatternTable,
+};
+
+const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_macosx(void)
+{
+    return &sdvm_compilerTarget_aarch64_macosx;
+}
+
+static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_windows = {
+    .pointerSize = 8,
+    .objectFileType = SdvmObjectFileTypeCoff,
+    .elfMachine = SDVM_EM_AARCH64,
+    .coffMachine = SDVM_IMAGE_FILE_MACHINE_ARM64,
+    .usesUnderscorePrefix = false,
+    .usesCET = false,
+    .closureCallNeedsScratch = true,
+
+    .defaultCC = &sdvm_aarch64_eabi_callingConvention,
+    .cdecl = &sdvm_aarch64_eabi_callingConvention,
+    .stdcall = &sdvm_aarch64_eabi_callingConvention,
+    .apicall = &sdvm_aarch64_eabi_callingConvention,
+    .thiscall = &sdvm_aarch64_eabi_callingConvention,
+    .vectorcall = &sdvm_aarch64_eabi_callingConvention,
+
+    .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
+    .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,
+    .mapCoffRelocationApplyingAddend = sdvm_compiler_aarch64_mapCoffRelocationApplyingAddend,
+
+    .instructionPatterns = &sdvm_aarch64_instructionPatternTable,
+};
+
+const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_windows(void)
+{
+    return &sdvm_compilerTarget_aarch64_windows;
+}
