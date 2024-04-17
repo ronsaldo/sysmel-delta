@@ -827,6 +827,8 @@ void sdvm_compiler_aarch64_emitFunctionPrologue(sdvm_functionCompilationState_t 
         sdvm_compiler_aarch64_sub_immediate(compiler, true, SDVM_AARCH64_SP, SDVM_AARCH64_SP, stackSubtractionAmount, SDVM_AARCH64_LSL_0);
         sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
     }
+    
+    sdvm_dwarf_cfi_endPrologue(cfi);
 }
 
 void sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
@@ -1206,11 +1208,11 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
         return true;
     case SdvmInstJumpIfTrue:
         sdvm_compiler_aarch64_tst_shifted(compiler, false, arg0->firstRegister.value, arg0->firstRegister.value, SDVM_AARCH64_LSL, 0);
-        sdvm_compiler_aarch64_b_cond_label(compiler, SDVM_AARCH64_EQ, arg1->immediateLabel);
+        sdvm_compiler_aarch64_b_cond_label(compiler, SDVM_AARCH64_NE, arg1->immediateLabel);
         return true;
     case SdvmInstJumpIfFalse:
         sdvm_compiler_aarch64_tst_shifted(compiler, false, arg0->firstRegister.value, arg0->firstRegister.value, SDVM_AARCH64_LSL, 0);
-        sdvm_compiler_aarch64_b_cond_label(compiler, SDVM_AARCH64_NE, arg1->immediateLabel);
+        sdvm_compiler_aarch64_b_cond_label(compiler, SDVM_AARCH64_EQ, arg1->immediateLabel);
         return true;
 
     case SdvmInstInt32Add:
@@ -1388,8 +1390,23 @@ void sdvm_compiler_aarch64_emitFunctionEpilogue(sdvm_functionCompilationState_t 
         return;
 
     sdvm_compiler_t *compiler = state->compiler;
+    sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
+    sdvm_dwarf_cfi_beginEpilogue(cfi);
+
+    int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset - 16;
+    SDVM_ASSERT((stackSubtractionAmount % 16) == 0);
+    if(stackSubtractionAmount != 0)
+    {
+        sdvm_compiler_aarch64_add_immediate(compiler, true, SDVM_AARCH64_SP, SDVM_AARCH64_SP, stackSubtractionAmount, SDVM_AARCH64_LSL_0);
+        sdvm_dwarf_cfi_stackSizeRestore(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
+    }
+
     sdvm_compiler_aarch64_ldp_postIndex(compiler, true, SDVM_AARCH64_FP, SDVM_AARCH64_LR, SDVM_AARCH64_SP, 16);
-    //TODO: abort();
+    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+    sdvm_dwarf_cfi_popRegister(cfi, DW_AARCH64_REG_FP);
+    sdvm_dwarf_cfi_popRegister(cfi, DW_AARCH64_REG_LR);
+
+    sdvm_dwarf_cfi_endEpilogue(cfi);
 }
 
 bool sdvm_compiler_aarch64_compileModuleFunction(sdvm_functionCompilationState_t *state)

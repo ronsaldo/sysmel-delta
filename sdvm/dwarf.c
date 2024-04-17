@@ -420,6 +420,19 @@ SDVM_API void sdvm_dwarf_cfi_stackSizeAdvance(sdvm_dwarf_cfi_builder_t *cfi, siz
     }
 }
 
+SDVM_API void sdvm_dwarf_cfi_stackSizeRestore(sdvm_dwarf_cfi_builder_t *cfi, size_t pc, size_t increment)
+{
+    if(!cfi->isInPrologue) return;
+    if(!increment) return;
+    
+    cfi->stackFrameSize -= increment / cfi->pointerSize;
+    if(!cfi->hasFramePointerRegister)
+    {
+        sdvm_dwarf_cfi_setPC(cfi, pc);
+        sdvm_dwarf_cfi_cfaInRegisterWithFactoredOffset(cfi, cfi->stackPointerRegister, cfi->stackFrameSizeAtFramePointer);
+    }
+}
+
 SDVM_API void sdvm_dwarf_cfi_endPrologue(sdvm_dwarf_cfi_builder_t *cfi)
 {
     SDVM_ASSERT(cfi->isInPrologue);

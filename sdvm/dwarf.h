@@ -584,6 +584,7 @@ SDVM_API void sdvm_dwarf_cfi_popRegister(sdvm_dwarf_cfi_builder_t *cfi, uint64_t
 SDVM_API void sdvm_dwarf_cfi_saveFramePointerInRegister(sdvm_dwarf_cfi_builder_t *cfi, uint64_t reg, int64_t offset);
 SDVM_API void sdvm_dwarf_cfi_restoreFramePointer(sdvm_dwarf_cfi_builder_t *cfi, int64_t offset);
 SDVM_API void sdvm_dwarf_cfi_stackSizeAdvance(sdvm_dwarf_cfi_builder_t *cfi, size_t pc, size_t increment);
+SDVM_API void sdvm_dwarf_cfi_stackSizeRestore(sdvm_dwarf_cfi_builder_t *cfi, size_t pc, size_t decrement);
 SDVM_API void sdvm_dwarf_cfi_endPrologue(sdvm_dwarf_cfi_builder_t *cfi);
 SDVM_API void sdvm_dwarf_cfi_beginEpilogue(sdvm_dwarf_cfi_builder_t *cfi);
 SDVM_API void sdvm_dwarf_cfi_endEpilogue(sdvm_dwarf_cfi_builder_t *cfi);
