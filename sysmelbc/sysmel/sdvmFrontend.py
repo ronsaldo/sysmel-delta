@@ -110,7 +110,7 @@ class SDVMModuleFrontEnd:
         if mirFunction in self.translatedFunctionDictionary:
             return self.translatedFunctionDictionary[mirFunction]
 
-        function = self.module.newFunction(mirFunction.name)
+        function = self.module.newFunction(mirFunction.name, sourcePosition = mirFunction.sourcePosition)
         self.translatedFunctionDictionary[mirFunction] = function
         SDVMFunctionFrontEnd(self).translateMirFunctionInto(mirFunction, function)
         return function

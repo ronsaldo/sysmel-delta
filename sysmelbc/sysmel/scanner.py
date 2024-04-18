@@ -1,6 +1,7 @@
 from enum import Enum
 from .value import SourceCode, SourcePosition
 import copy
+import os.path
 
 TokenKind = Enum('TokenKind', [
     'END_OF_SOURCE', 'ERROR',
@@ -347,7 +348,9 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
 def scanFileNamed(fileName: str) -> tuple[SourceCode, list[Token]]:
     with open(fileName, "rb") as f:
         sourceText = f.read()
-        sourceCode = SourceCode(fileName, sourceText)
+        sourceDirectory = os.path.dirname(fileName)
+        sourceName = os.path.basename(fileName)
+        sourceCode = SourceCode(sourceDirectory, sourceName, 'sysmel', sourceText)
         state = ScannerState(sourceCode)
         tokens = []
         while True:

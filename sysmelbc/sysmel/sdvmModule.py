@@ -25,8 +25,10 @@ SdvmModuleSectionTypeImportModuleValueTable = sdvmModuleFourCC('impv')
 SdvmModuleSectionTypeExportModuleValueTable = sdvmModuleFourCC('expv')
 SdvmModuleSectionTypeMemoryDescriptorTable = sdvmModuleFourCC('memd')
 
-SdvmModuleSectionTypeDebugLineStart = sdvmModuleFourCC('dlns')
-SdvmModuleSectionTypeDebugLineEnd = sdvmModuleFourCC('dlne')
+SdvmModuleSectionTypeDebugSourceDirectory = sdvmModuleFourCC('dsrd')
+SdvmModuleSectionTypeDebugSourceCode = sdvmModuleFourCC('dsrc')
+SdvmModuleSectionTypeDebugLineData = sdvmModuleFourCC('dlnd')
+SdvmModuleSectionTypeDebugFunctionTable = sdvmModuleFourCC('dfnt')
 
 SdvmModuleValueKindNull = 0
 SdvmModuleValueKindFunctionHandle = sdvmModuleFourCC('funh')
@@ -37,6 +39,9 @@ SdvmModuleValueKindObjectHandle = sdvmModuleFourCC('objh')
 SdvmModuleExternalTypeNone = 0
 SdvmModuleExternalTypeC = sdvmModuleFourCC('C   ')
 SdvmModuleExternalTypeCpp = sdvmModuleFourCC('C++ ')
+
+SdvmDebugSourceCodeKindFile = sdvmModuleFourCC('file')
+SdvmDebugSourceCodeKindString = sdvmModuleFourCC('strn')
 
 SdvmModuleExternalTypeMap = {None: SdvmModuleExternalTypeNone, '': SdvmModuleExternalTypeNone, 'C': SdvmModuleExternalTypeC}
 
@@ -73,13 +78,19 @@ class SDVMModule:
         self.functionTable = SDVMFunctionTableSection()
         self.exportModuleValueTable = SDVMExportModuleValueTableSection(self)
         self.memoryDescriptorTable = SDVMMemoryDescriptorTableSection(self)
+        self.debugSourceDirectoryTable = SDVMDebugSourceDirectoryTableSection(self)
+        self.debugSourceCodeTable = SDVMDebugSourceCodeTableSection(self)
+        self.debugLineData = SDVMDebugLineDataSection(self)
+        self.debugFunctionTable = SDVMDebugFunctionTableSection(self)
+
         self.sections: list[SDVMModuleSection] = [
             SDVMNullSection(),
             self.constantSection, self.dataSection, self.textSection,
             self.stringSection,
             self.memoryDescriptorTable, self.objectTable,
             self.importModuleTable, self.importModuleValueTable,
-            self.functionTable, self.exportModuleValueTable
+            self.functionTable, self.exportModuleValueTable,
+            self.debugSourceDirectoryTable, self.debugSourceCodeTable, self.debugLineData, self.debugFunctionTable
         ]
         self.entryPoint = 0
         self.entryPointClosure = 0
@@ -109,14 +120,16 @@ class SDVMModule:
     def setName(self, name: str) -> SDVMString:
         self.name = self.addString(name)
         return self.name
-
-    def newFunction(self, name: str = None, typeDescriptor: str = None):
-        function = SDVMFunction(self, name, typeDescriptor)
+    
+    def newFunction(self, name: str = None, typeDescriptor: str = None, sourcePosition = None):
+        function = SDVMFunction(self, name, typeDescriptor, sourcePosition)
         self.functionTable.addFunction(function)
+        self.debugFunctionTable.addFunction(function)
         return function
 
     def finishBuilding(self):
         self.functionTable.finishBuilding()
+        self.debugFunctionTable.finishBuilding()
 
     def prettyPrint(self) -> str:
         result = ''
@@ -274,6 +287,86 @@ class SDVMFunctionTableSection(SDVMModuleSection):
         result += '\n'
         return result
 
+class SDVMDebugSourceDirectoryTableSection(SDVMModuleSection):
+    def __init__(self, module: SDVMModule) -> None:
+        super().__init__(SdvmModuleSectionTypeDebugSourceDirectory)
+        self.module = module
+        self.directoryTable = dict()
+    
+    def getOrAddDirectory(self, value: str) -> int:
+        if value is None or value == '':
+            return 0
+
+        if value in self.directoryTable:
+            return self.directoryTable[value]
+        
+        string = self.module.addString(value)
+        self.contents += struct.pack('<II', string.offset, string.size)
+        index = len(self.directoryTable) + 1
+        self.directoryTable[value] = index
+        return index
+
+class SDVMDebugSourceCodeTableSection(SDVMModuleSection):
+    def __init__(self, module: SDVMModule) -> None:
+        super().__init__(SdvmModuleSectionTypeDebugSourceCode)
+        self.module = module
+        self.sourceCodeTable = dict()
+    
+    def getOrAddSourceCode(self, sourceCode) -> int:
+        if sourceCode is None: return 0
+        if sourceCode in self.sourceCodeTable:
+            return self.sourceCodeTable[sourceCode]
+        
+        index = len(self.sourceCodeTable) + 1
+
+        kind = SdvmDebugSourceCodeKindFile
+        directory = self.module.debugSourceDirectoryTable.getOrAddDirectory(sourceCode.directory)
+        name = self.module.addString(sourceCode.name)
+        language = self.module.addString(sourceCode.language)
+        self.contents += struct.pack('<IIIIIIII', kind, directory, name.offset, name.size, language.offset, language.size, 0, 0)
+        self.sourceCodeTable = index
+        return index
+
+class SDVMDebugLineDataSection(SDVMModuleSection):
+    def __init__(self, module: SDVMModule) -> None:
+        super().__init__(SdvmModuleSectionTypeDebugLineData)
+
+class SDVMDebugFunctionTableSection(SDVMModuleSection):
+    def __init__(self, module: SDVMModule) -> None:
+        super().__init__(SdvmModuleSectionTypeDebugFunctionTable)
+        self.module = module
+        self.functions = []
+
+    def addFunction(self, function):
+        self.functions.append(function)
+
+    def buildDebugFunctionData(self, function):
+        sourceCode = 0
+        startIndex = 0
+        endIndex = 0
+        startLine = 0
+        endLine = 0
+        startColumn = 0
+        endColumn = 0
+        sourceLineInfoStartIndex = 0
+        sourceLineInfoEntryCount = 0
+
+        if function.sourcePosition is not None:
+            sourceCode = self.module.debugSourceCodeTable.getOrAddSourceCode(function.sourcePosition.sourceCode)
+            startIndex = function.sourcePosition.startIndex
+            endIndex = function.sourcePosition.endIndex
+            startLine = function.sourcePosition.startLine
+            endLine = function.sourcePosition.endLine
+            startColumn = function.sourcePosition.startColumn
+            endColumn = function.sourcePosition.endColumn
+
+        return struct.pack('<IIIIIIIII', sourceCode, startIndex, endIndex, startLine, endLine, startColumn, endColumn, sourceLineInfoStartIndex, sourceLineInfoEntryCount)
+
+
+    def finishBuilding(self):
+        for function in self.functions:
+            self.contents += self.buildDebugFunctionData(function)
+
 class SDVMExportModuleValueTableEntry:
     def __init__(self, module: SDVMModule, kind: int, externalType: int, firstValue: int, secondValue: int, name: str, typeDescriptor: str) -> None:
         self.kind = kind
@@ -372,10 +465,11 @@ class SDVMInstruction(SDVMOperand):
         return struct.pack('<Q', self.definition.opcode | (self.encodeArgument(self.arg0) << 24) | (self.encodeArgument(self.arg1) << 44))
 
 class SDVMFunction:
-    def __init__(self, module: SDVMModule, name: str = None, typeDescriptor: str = None) -> None:
+    def __init__(self, module: SDVMModule, name: str = None, typeDescriptor: str = None, sourcePosition = None) -> None:
         self.module = module
         self.name = module.addString(name)
         self.typeDescriptor = module.addString(typeDescriptor)
+        self.sourcePosition = sourcePosition
         self.constants = []
         self.argumentInstructions = []
         self.captureInstructions = []

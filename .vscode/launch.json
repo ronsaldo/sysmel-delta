@@ -23,6 +23,14 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Launch (Mac OS X x64 target)",
+            "program": "${workspaceFolder}/build/bin/sdvm",
+            "args": ["-v", "-target", "x86_64-apple-macosx", "-o", "test.macho", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Launch (Win x64 target)",
             "program": "${workspaceFolder}/build/bin/sdvm",
             "args": ["-v", "-target", "x86_64-windows-msvc", "-o", "test.obj", "test.sdvm"],
@@ -34,6 +42,14 @@
             "name": "Launch (Linux AArch64 target)",
             "program": "${workspaceFolder}/build/bin/sdvm",
             "args": ["-v", "-target", "aarch64-linux-eabi", "-o", "test.aarch64.o", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch (Windows AArch64 target)",
+            "program": "${workspaceFolder}/build/bin/sdvm",
+            "args": ["-v", "-target", "aarch64-windows-eabi", "-o", "test.aarch64.obj", "test.sdvm"],
             "cwd": "${workspaceFolder}"
         }
     ]

@@ -921,11 +921,7 @@ class MIRModuleFrontend:
 
     def visitFunctionalDefinitionValue(self, functional: HIRFunctionalDefinition) -> MIRValue:
         mirFunction = MIRFunction(self.context, functional.name)
-        self.translatedValueDictionary[functional] = mirFunction
-        return mirFunction
-
-    def visitFunctionalDefinitionValue(self, functional: HIRFunctionalDefinition) -> MIRValue:
-        mirFunction = MIRFunction(self.context, functional.name)
+        mirFunction.sourcePosition = functional.sourcePosition
         self.translatedValueDictionary[functional] = mirFunction
         self.module.addGlobalValue(mirFunction)
         MIRFunctionFrontend(self).translateFunctionDefinitionInto(functional, mirFunction)

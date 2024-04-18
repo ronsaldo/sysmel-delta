@@ -1316,8 +1316,10 @@ def makeStringValue(value: str):
     return StringType.makeWithElements((data, size))
 
 class SourceCode:
-    def __init__(self, name: str, text: bytes) -> None:
+    def __init__(self, directory: str, name: str, language: str, text: bytes) -> None:
+        self.directory = directory
         self.name = name
+        self.language = language
         self.text = text
 
     def __str__(self) -> str:

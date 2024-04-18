@@ -41,6 +41,12 @@ typedef enum sdvm_moduleExternalType_e
     SdvmModuleExternalTypeC = SDVM_IM_FOUR_CC('C', ' ', ' ', ' '),
 } sdvm_moduleExternalType_t;
 
+typedef enum sdvm_debugSourceCodeKind_e
+{
+    SdvmDebugSourceCodeKindFile = SDVM_IM_FOUR_CC('f', 'i', 'l', 'e'),
+    SdvmDebugSourceCodeKindString = SDVM_IM_FOUR_CC('s', 't', 'r', 'n'),
+} sdvm_debugSourceCodeKind_t;
+
 typedef struct sdvm_moduleString_s
 {
     uint32_t stringSectionOffset;
@@ -113,15 +119,15 @@ typedef struct sdvm_moduleMemoryDescriptorTableEntry_s
 
 typedef struct sdvm_debugSourceDirectoryTableEntry_s
 {
-    uint32_t directoryIndex;
     sdvm_moduleString_t name;
 } sdvm_debugSourceDirectoryTableEntry_t;
 
 typedef struct sdvm_debugSourceCodeTableEntry_s
 {
     uint32_t kind;
-    sdvm_moduleString_t language;
+    uint32_t directoryIndex;
     sdvm_moduleString_t name;
+    sdvm_moduleString_t language;
     sdvm_moduleString_t sourceCode;
 } sdvm_debugSourceCodeTableEntry_t;
 
@@ -139,14 +145,14 @@ typedef struct sdvm_debugSourceLineInfo_s
 typedef struct sdvm_debugSourceLineDataTableEntry_s
 {
     uint32_t pc;
-    sdvm_debugSourceLineInfo_t declarationLineInfo;
-    uint32_t sourceLineInfoStartIndex;
-    uint32_t sourceLineInfoEntryCount;
+    sdvm_debugSourceLineInfo_t lineInfo;
 } sdvm_debugSourceLineDataTableEntry_t;
 
 typedef struct sdvm_debugFunctionTableEntry_s
 {
-    sdvm_debugSourceLineInfo_t lineInfo;
+    sdvm_debugSourceLineInfo_t declarationLineInfo;
+    uint32_t sourceLineInfoStartIndex;
+    uint32_t sourceLineInfoEntryCount;
 } sdvm_debugFunctionTableEntry_t;
 
 typedef struct sdvm_module_s
