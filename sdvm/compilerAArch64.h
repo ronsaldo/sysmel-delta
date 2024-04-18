@@ -59,4 +59,11 @@ typedef enum sdvm_aarch64_immediateShiftType_e
     SDVM_AARCH64_LSL_12 = 1,
 } sdvm_aarch64_immediateShiftType_t;
 
+typedef enum sdvm_aarch64_simd_float_type_e
+{
+    SDVM_AARCH_FLOAT_SINGLE_TYPE = 0,
+    SDVM_AARCH_FLOAT_DOUBLE_TYPE = 1,
+    SDVM_AARCH_FLOAT_HALF_TYPE = 3,
+} sdvm_aarch64_simd_float_type_t;
+
 #endif //SDVM_COMPILER_AARCH64_H

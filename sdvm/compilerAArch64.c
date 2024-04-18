@@ -96,7 +96,7 @@ static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callPreservedVectorR
     SDVM_AARCH64_V8,  SDVM_AARCH64_V9,  SDVM_AARCH64_V10, SDVM_AARCH64_V11,
     SDVM_AARCH64_V12, SDVM_AARCH64_V13, SDVM_AARCH64_V14, SDVM_AARCH64_V15,
 };
-static const uint32_t sdvm_aarch64_eabi_callPreservedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callTouchedVectorRegisters);
+static const uint32_t sdvm_aarch64_eabi_callPreservedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callPreservedVectorRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_aarch64_allocatableVectorRegisters[] = {
     SDVM_AARCH64_V0,  SDVM_AARCH64_V1,  SDVM_AARCH64_V2,  SDVM_AARCH64_V3,
@@ -247,6 +247,7 @@ size_t sdvm_compiler_aarch64_addInstruction(sdvm_compiler_t *compiler, uint32_t 
     return offset;
 }
 
+#pragma region GeneralPurposeInstructions
 void sdvm_compiler_aarch64_b_cond(sdvm_compiler_t *compiler, sdvm_aarch64_condition_t cond, uint32_t imm19)
 {
     sdvm_compiler_aarch64_addInstruction(compiler, 0x54000000 | (imm19 << 5) | cond);
@@ -547,6 +548,30 @@ void sdvm_compiler_aarch64_strh_offset(sdvm_compiler_t *compiler, sdvm_compilerR
     sdvm_compiler_aarch64_addInstruction(compiler, 0x79000000 | Rt | (Rn << 5) | (imm12 << 10));
 }
 
+#pragma endregion GeneralPurposeInstructions
+
+#pragma region SIMDInstructions
+
+void sdvm_compiler_aarch64_simd_fadd_scalar(sdvm_compiler_t *compiler, sdvm_aarch64_simd_float_type_t type, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0x1E202800 | Rd | (Rn << 5) | (Rm << 16) | (type << 22));
+}
+
+void sdvm_compiler_aarch64_simd_orr_vector_register(sdvm_compiler_t *compiler, bool Q, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm)
+{
+    sdvm_compiler_aarch64_addInstruction(compiler, 0xEA01C00 | Rd | (Rn << 5) | (Rm << 16) | (Q ? (1<<30) : 0));
+}
+
+void sdvm_compiler_aarch64_simd_mov_vector(sdvm_compiler_t *compiler, bool Q, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn)
+{
+    if(Rd == Rn)
+        return;
+
+    sdvm_compiler_aarch64_simd_orr_vector_register(compiler, Q, Rd, Rn, Rn);
+}
+
+#pragma endregion SIMDInstructions
+
 static sdvm_compilerInstructionPatternTable_t sdvm_aarch64_instructionPatternTable = {
 };
 
@@ -628,18 +653,24 @@ void sdvm_compiler_aarch64_computeInstructionLocationConstraints(sdvm_functionCo
     case SdvmInstInt32UDiv:
     case SdvmInstInt32And:
     case SdvmInstInt32Or:
+    case SdvmInstInt32Xor:
+    case SdvmInstInt32Min:
+    case SdvmInstInt32Max:
     case SdvmInstUInt32Add:
     case SdvmInstUInt32Sub:
     case SdvmInstUInt32Mul:
     case SdvmInstUInt32Div:
     case SdvmInstUInt32UDiv:
     case SdvmInstUInt32And:
-    case SdvmInstUInt32Xor:
     case SdvmInstUInt32Or:
+    case SdvmInstUInt32Xor:
+    case SdvmInstUInt32Min:
+    case SdvmInstUInt32Max:
         instruction->arg0Location = sdvm_compilerLocation_integerRegister(4);
         instruction->arg1Location = sdvm_compilerLocation_integerRegister(4);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(4);
         instruction->allowArg0DestinationShare = true;
+        instruction->allowArg1DestinationShare = true;
         return;
 
     case SdvmInstInt64Add:
@@ -649,17 +680,80 @@ void sdvm_compiler_aarch64_computeInstructionLocationConstraints(sdvm_functionCo
     case SdvmInstInt64UDiv:
     case SdvmInstInt64And:
     case SdvmInstInt64Or:
+    case SdvmInstInt64Xor:
+    case SdvmInstInt64Min:
+    case SdvmInstInt64Max:
     case SdvmInstUInt64Add:
     case SdvmInstUInt64Sub:
     case SdvmInstUInt64Mul:
     case SdvmInstUInt64Div:
     case SdvmInstUInt64UDiv:
     case SdvmInstUInt64And:
-    case SdvmInstUInt64Xor:
     case SdvmInstUInt64Or:
+    case SdvmInstUInt64Xor:
+    case SdvmInstUInt64Min:
+    case SdvmInstUInt64Max:
         instruction->arg0Location = sdvm_compilerLocation_integerRegister(8);
         instruction->arg1Location = sdvm_compilerLocation_integerRegister(8);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(8);
+        instruction->allowArg0DestinationShare = true;
+        instruction->allowArg1DestinationShare = true;
+        return;
+
+    case SdvmInstFloat32Add:
+    case SdvmInstFloat32Sub:
+    case SdvmInstFloat32Mul:
+    case SdvmInstFloat32Div:
+    case SdvmInstFloat32Min:
+    case SdvmInstFloat32Max:
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->arg1Location = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->allowArg0DestinationShare = true;
+        instruction->allowArg1DestinationShare = true;
+        return;
+
+    case SdvmInstFloat32Sqrt:
+    case SdvmInstFloat32Floor:
+    case SdvmInstFloat32Ceil:
+    case SdvmInstFloat32Round:
+    case SdvmInstFloat32Truncate:
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(4);
+        instruction->allowArg0DestinationShare = true;
+        return;
+
+    case SdvmInstFloat64Add:
+    case SdvmInstFloat64Sub:
+    case SdvmInstFloat64Mul:
+    case SdvmInstFloat64Div:
+    case SdvmInstFloat64Min:
+    case SdvmInstFloat64Max:
+    case SdvmInstFloat32x2Add:
+    case SdvmInstFloat32x2Sub:
+    case SdvmInstFloat32x2Mul:
+    case SdvmInstFloat32x2Div:
+    case SdvmInstFloat32x2Min:
+    case SdvmInstFloat32x2Max:
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->arg1Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->allowArg0DestinationShare = true;
+        instruction->allowArg1DestinationShare = true;
+        return;
+
+    case SdvmInstFloat64Sqrt:
+    case SdvmInstFloat64Floor:
+    case SdvmInstFloat64Ceil:
+    case SdvmInstFloat64Round:
+    case SdvmInstFloat64Truncate:
+    case SdvmInstFloat32x2Sqrt:
+    case SdvmInstFloat32x2Floor:
+    case SdvmInstFloat32x2Ceil:
+    case SdvmInstFloat32x2Round:
+    case SdvmInstFloat32x2Truncate:
+        instruction->arg0Location = sdvm_compilerLocation_vectorFloatRegister(8);
+        instruction->destinationLocation = sdvm_compilerLocation_vectorFloatRegister(8);
         instruction->allowArg0DestinationShare = true;
         return;
     default:
@@ -874,14 +968,15 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler
     }
 }
 
-void sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorFloatRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
+void sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
 {
-    abort();
-}
-
-void sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorIntegerRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
-{
-    abort();
+    switch(sourceLocation->kind)
+    {
+    case SdvmCompLocationRegister:
+    case SdvmCompLocationRegisterPair:
+        return sdvm_compiler_aarch64_simd_mov_vector(compiler, true, reg->value, sourceLocation->firstRegister.value);
+    default: return abort();
+    }
 }
 
 void sdvm_compiler_aarch64_emitMoveFromLocationIntoRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
@@ -892,9 +987,8 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoRegister(sdvm_compiler_t *com
         return sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(compiler, sourceLocation, reg);
     case SdvmCompRegisterKindFloat:
     case SdvmCompRegisterKindVectorFloat:
-        return sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorFloatRegister(compiler, sourceLocation, reg);
     case SdvmCompRegisterKindVectorInteger:
-        return sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorIntegerRegister(compiler, sourceLocation, reg);
+        return sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorRegister(compiler, sourceLocation, reg);
     default: abort();
     }
 }
@@ -1305,6 +1399,14 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
         return true;
     case SdvmInstPointerAddOffsetInt32:
         sdvm_compiler_aarch64_add_extended(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value, SDVM_AARCH64_SXTW, 0);
+        return true;
+
+    case SdvmInstFloat32Add:
+        sdvm_compiler_aarch64_simd_fadd_scalar(compiler, SDVM_AARCH_FLOAT_SINGLE_TYPE, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value);
+        return true;
+
+    case SdvmInstFloat64Add:
+        sdvm_compiler_aarch64_simd_fadd_scalar(compiler, SDVM_AARCH_FLOAT_DOUBLE_TYPE, dest->firstRegister.value, arg0->firstRegister.value, arg1->firstRegister.value);
         return true;
 
     case SdvmInstInt8_Bitcast_UInt8:
