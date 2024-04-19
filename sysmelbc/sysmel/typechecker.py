@@ -198,17 +198,28 @@ class Typechecker(ASTVisitor):
             functional = self.visitNode(ASTArgumentApplicationNode(argument.sourcePosition, functional, argument, isImplicit = isImplicit))
         return functional
     
-    def unpackArgumentsToRequiredArity(self, argument: ASTNode, requiredArity):
-        assert requiredArity >= 1
-        if requiredArity == 1:
+    def unpackArgumentsToRequiredArity(self, argument: ASTNode, declaredArity: int, isVariadic: bool):
+        minimalArity = declaredArity
+        if isVariadic:
+            minimalArity -= 1
+
+        assert minimalArity >= 0
+        assert declaredArity >= 1
+
+        if not isVariadic and declaredArity == 1:
             return [argument], None
-        
+
         if argument.isTupleNode() or argument.isTypedTupleNode():
             argumentArity = len(argument.elements)
-            if argumentArity != requiredArity:
-                return None, "Expected %d arguments instead of %d." % (requiredArity, argumentArity)
+            if isVariadic and argumentArity < minimalArity:
+                return None, "Expected at least %d arguments instead of %d." % (minimalArity, argumentArity)
+            elif not isVariadic and argumentArity != declaredArity:
+                return None, "Expected %d arguments instead of %d." % (declaredArity, argumentArity)
             return argument.elements, None
         
+        if isVariadic and minimalArity <= 1:
+            return [argument], None
+
         assert False
 
     def packArguments(self, arguments: list[ASTTypedNode], sourcePosition: SourcePosition):
@@ -238,11 +249,13 @@ class Typechecker(ASTVisitor):
             piValue: FunctionalValue = piNode.value
             argumentBindings = piValue.argumentBindings
             piBody = piValue.body
+            isVariadic = piValue.isVariadic
         else:
             assert piNode.isTypedPiNode()
             typedFunctionalNode: ASTTypedFunctionalNode = piNode
             argumentBindings = list(map(lambda n: n.binding, typedFunctionalNode.arguments))
             piBody = typedFunctionalNode.body
+            isVariadic = typedFunctionalNode.isVariadic
 
         ## If there are zero arguments, the argument must be unit.
         if len(argumentBindings) == 0:
@@ -271,15 +284,15 @@ class Typechecker(ASTVisitor):
 
             reduced = ASTBetaReducer(substitutionContext).visitNode(piBody)
             return implicitArgumentValueNodes, argument, reduced, [], None
-
-        unpackedArguments, errorMessage = self.unpackArgumentsToRequiredArity(argument, len(argumentBindings))
+        
+        unpackedArguments, errorMessage = self.unpackArgumentsToRequiredArity(argument, len(argumentBindings), isVariadic)
         if errorMessage is not None:
             return [], [argument], None, [], errorMessage
 
         implicitValueSubstitutions = []
         unpackedTypedArguments = []
-        for i in range(len(argumentBindings)):
-            argumentBinding = argumentBindings[i]
+        for i in range(len(unpackedArguments)):
+            argumentBinding = argumentBindings[min(i, len(argumentBindings) - 1)]
             implicitValueSubstitutions, unpackedTypedArgument, errorMessage = self.attemptToVisitNodeWithExpectedTypeExpression(unpackedArguments[i], argumentBinding.getTypeExpression(), implicitValueSubstitutions)
             if errorMessage is not None:
                 return [], unpackedTypedArgument, None, implicitValueSubstitutions, errorMessage
@@ -463,16 +476,16 @@ class Typechecker(ASTVisitor):
            return self.visitNode(ASTSequenceNode(node.sourcePosition, [functionalTypeNode, node.body]))
         
         if len(functionalTypeNode.arguments) == 0 and len(functionalTypeNode.tupleArguments) == 0:
-            return self.visitNode(ASTLambdaNode(node.sourcePosition, False, None, None, functionalTypeNode.resultType, node.body, functionalTypeNode.callingConvention))
+            return self.visitNode(ASTLambdaNode(node.sourcePosition, [], functionalTypeNode.isVariadic, functionalTypeNode.resultType, node.body, functionalTypeNode.callingConvention))
 
         resultType = functionalTypeNode.resultType
         body = node.body
         if len(functionalTypeNode.tupleArguments) != 0:
-            body = ASTLambdaNode(node.sourcePosition, functionalTypeNode.tupleArguments, resultType, body)
+            body = ASTLambdaNode(node.sourcePosition, functionalTypeNode.tupleArguments, functionalTypeNode.isVariadic, resultType, body)
             resultType = None
 
         for argument in reversed(functionalTypeNode.arguments):
-            body = ASTLambdaNode(argument.sourcePosition, [argument], resultType, body)
+            body = ASTLambdaNode(argument.sourcePosition, [argument], False, resultType, body)
             resultType = None
 
         ## Set the calling convention on the last lambda.
@@ -490,14 +503,15 @@ class Typechecker(ASTVisitor):
             return self.visitNode(ASTPiNode(node.sourcePosition, [], node.resultType, node.callingConvention))
 
         resultType = node.resultType
-        if len(node.tupleArguments) != 0:
-            resultType = ASTPiNode(node.sourcePosition, node.tupleArguments, resultType)
+        isVariadic = node.isVariadic
+        if len(node.tupleArguments) != 0 or isVariadic:
+            resultType = ASTPiNode(node.sourcePosition, node.tupleArguments, isVariadic, resultType, None)
 
         for argument in reversed(node.arguments):
             if argument.isExistential:
                 resultType = ASTSigmaNode(argument.sourcePosition, [argument], resultType)
             else:
-                resultType = ASTPiNode(argument.sourcePosition, [argument], resultType)
+                resultType = ASTPiNode(argument.sourcePosition, [argument], False, resultType)
         return self.visitNode(resultType)
     
     def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTTypedNode | ASTTypeNode:
@@ -637,10 +651,10 @@ class Typechecker(ASTVisitor):
         ## Compute the lambda type.
         bodyType = getTypeOfAnalyzedNode(body, node.sourcePosition)
         typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: a.type, typedArguments)), node.sourcePosition)
-        typedPi = reducePiNode(ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, functionalEnvironment.captureBindings, bodyType, node.callingConvention))
+        typedPi = reducePiNode(ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, bodyType, node.callingConvention))
 
         ## Make the lambda node.
-        typedLambda = ASTTypedLambdaNode(node.sourcePosition, typedPi, typedArguments, functionalEnvironment.captureBindings, body, node.callingConvention)
+        typedLambda = ASTTypedLambdaNode(node.sourcePosition, typedPi, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, body, node.callingConvention)
         return reduceLambdaNode(typedLambda)
 
     def visitPiNode(self, node: ASTPiNode):
@@ -653,7 +667,7 @@ class Typechecker(ASTVisitor):
 
         body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
         typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: a.type, typedArguments)), node.sourcePosition)
-        typedPi = ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, functionalEnvironment.captureBindings, body, node.callingConvention)
+        typedPi = ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, body, node.callingConvention)
         return reducePiNode(typedPi)
 
     def visitSigmaNode(self, node: ASTSigmaNode):
@@ -666,7 +680,7 @@ class Typechecker(ASTVisitor):
 
         body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
         typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: a.type, typedArguments)), node.sourcePosition)
-        typedSigma = ASTTypedSigmaNode(node.sourcePosition, typeUniverse, typedArguments, functionalEnvironment.captureBindings, body, node.callingConvention)
+        typedSigma = ASTTypedSigmaNode(node.sourcePosition, typeUniverse, typedArguments, False, functionalEnvironment.captureBindings, body, node.callingConvention)
         return reduceSigmaNode(typedSigma)
 
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
@@ -1215,6 +1229,12 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
     def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode):
         assert False
 
+    def visitTypedArraySubscriptAtNode(self, node: ASTTypedArraySubscriptAtNode):
+        type = self.visitNode(node.type)
+        array = self.visitNode(node.array)
+        index = self.visitNode(node.index)
+        return ASTTypedArraySubscriptAtNode(node.sourcePosition, type, array, index, node.loadResult)
+
     def visitTypedPointerLikeLoadNode(self, node: ASTTypedPointerLikeLoadNode):
         type = self.visitNode(node.type)
         pointer = self.visitNode(node.pointer)
@@ -1230,6 +1250,12 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         type = self.visitNode(node.type)
         pointer = self.visitNode(node.pointer)
         return reducePointerLikeReinterpretToNode(ASTTypedPointerLikeReinterpretToNode(node.sourcePosition, type, pointer))
+
+    def visitTypedPointerLikeSubscriptAtNode(self, node: ASTTypedPointerLikeSubscriptAtNode):
+        type = self.visitNode(node.type)
+        pointer = self.visitNode(node.pointer)
+        index = self.visitNode(node.index)
+        return ASTTypedPointerLikeSubscriptAtNode(node.sourcePosition, type, pointer, index)
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
         reducedType = self.visitNode(node.type)
@@ -1473,19 +1499,19 @@ def reduceFunctionTypeNode(node: ASTTypedFunctionTypeNode):
 
 def reducePiNode(node: ASTTypedPiNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        piValue = PiValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), [], [], node.body, node.sourcePosition, node.callingConvention)
+        piValue = PiValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition, node.callingConvention)
         return ASTLiteralTypeNode(node.sourcePosition, piValue)
     return node
 
-def reduceSigmaNode(node: ASTTypedPiNode):
+def reduceSigmaNode(node: ASTTypedSigmaNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        sigmaValue = SigmaValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), [], [], node.body, node.sourcePosition)
+        sigmaValue = SigmaValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition)
         return ASTLiteralTypeNode(node.sourcePosition, sigmaValue)
     return node
 
 def reduceLambdaNode(node: ASTTypedLambdaNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        lambdaValue = LambdaValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), [], [], node.body, node.sourcePosition)
+        lambdaValue = LambdaValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition)
         return ASTTypedLiteralNode(node.sourcePosition, node.type, lambdaValue)
     return node
 

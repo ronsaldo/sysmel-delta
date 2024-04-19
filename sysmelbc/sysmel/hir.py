@@ -28,6 +28,8 @@ class HIRContext:
         self.uint32Type = HIRPrimitiveIntegerType(self, 'UInt32', False, 4, 4)
         self.uint64Type = HIRPrimitiveIntegerType(self, 'UInt64', False, 8, 8)
 
+        self.cvargArgType = HIRPrimitiveCVarArgType(self, 'CVarArg', self.pointerSize, self.pointerAlignment)
+
         self.char8Type  = self.uint8Type
         self.char16Type = self.uint16Type
         self.char32Type = self.uint32Type
@@ -494,6 +496,9 @@ class HIRImportedModuleType(HIRPrimitiveType):
 class HIRPrimitiveBooleanType(HIRPrimitiveType):
     pass
 
+class HIRPrimitiveCVarArgType(HIRPrimitiveType):
+    pass
+
 class HIRPrimitiveIntegerType(HIRPrimitiveType):
     def __init__(self, context: HIRContext, name: str, isSigned: bool, size: int, alignment: int) -> None:
         super().__init__(context, name, size, alignment)
@@ -512,6 +517,7 @@ class HIRFunctionType(HIRTypeValue):
     def __init__(self, context: HIRContext) -> None:
         super().__init__(context)
         self.argumentTypes = []
+        self.isVariadic = False
         self.resultType: HIRValue = None
         self.callingConvention: str | None = None
 
@@ -527,6 +533,8 @@ class HIRFunctionType(HIRTypeValue):
             else:
                 result += ', '
             result += str(arg)
+        if self.isVariadic:
+            result += '...'
         result += ') -> '
         result += str(self.resultType)
         if self.callingConvention is not None:
@@ -694,6 +702,7 @@ class HIRFunctionalDefinition(HIRGlobalValue):
         super().__init__(context, context.functionalDefinitionType, sourcePosition)
         self.captures = []
         self.arguments = []
+        self.isVariadic = False
         self.firstBasicBlock: HIRBasicBlock = None
         self.lastBasicBlock: HIRBasicBlock = None
 
@@ -786,6 +795,9 @@ class HIRFunctionalDefinition(HIRGlobalValue):
             else:
                 result += ', '
             result += argument.fullPrintString()
+
+        if self.isVariadic:
+            result += '...'
 
         result += ') : '
         result += str(self.type)
@@ -1265,6 +1277,8 @@ class HIRModuleFrontend:
             (Float32Type, self.context.float32Type),
             (Float64Type, self.context.float64Type),
 
+            (CVarArgType, self.context.cvargArgType),
+
             (Float32x2Type, self.context.float32x2Type),
             (Float32x3Type, self.context.float32x3Type),
             (Float32x4Type, self.context.float32x4Type),
@@ -1362,6 +1376,7 @@ class HIRModuleFrontend:
 
         self.translatedValueDictionary[graphValue] = hirFunctionType
         hirFunctionType.argumentTypes = list(map(self.translateGraphValue, graphValue.arguments))
+        hirFunctionType.isVariadic = graphValue.isVariadic
         hirFunctionType.resultType = self.translateGraphValue(graphValue.resultType)
         hirFunctionType.callingConvention = graphValue.callingConvention
         return hirFunctionType

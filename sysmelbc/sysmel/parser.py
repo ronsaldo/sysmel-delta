@@ -223,7 +223,7 @@ def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
         tupleArguments = [arguments[-1]] + remainingTupleArguments
         arguments = arguments[:-1]
 
-    return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), arguments, tupleArguments, isVariadic, resultTypeExpression)
+    return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), arguments, tupleArguments, isVariadic, resultTypeExpression, None)
 
 def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     # (

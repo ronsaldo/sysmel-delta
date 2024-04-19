@@ -401,7 +401,7 @@ class ASTErrorNode(ASTNode):
         return {'kind': 'Error', 'message': self.message}
 
 class ASTFunctionalDependentTypeNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], tupleArguments: list[ASTNode], isVariadic: bool, resultType: ASTNode, callingConvention: Symbol = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], tupleArguments: list[ASTNode], isVariadic: bool, resultType: ASTNode, callingConvention: Symbol) -> None:
         super().__init__(sourcePosition)
         self.arguments = arguments
         self.tupleArguments = tupleArguments
@@ -577,9 +577,10 @@ class ASTFormSumTypeNode(ASTNode):
         return {'kind': 'FormSumType', 'elements': list(map(lambda n: n.toJson(), self.elements))}
 
 class ASTPiNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], body: ASTNode, callingConvention: Symbol = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], isVariadic: bool, body: ASTNode, callingConvention: Symbol) -> None:
         super().__init__(sourcePosition)
         self.arguments = arguments
+        self.isVariadic = isVariadic
         self.body = body
         self.callingConvention = callingConvention
 
@@ -587,7 +588,7 @@ class ASTPiNode(ASTNode):
         return visitor.visitPiNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'PiNode', 'arguments': list(map(lambda x: x.toJson(), self.arguments)), 'body': optionalASTNodeToJson(self.body)}
+        return {'kind': 'PiNode', 'arguments': list(map(lambda x: x.toJson(), self.arguments)), 'isVariadic': self.isVariadic, 'body': optionalASTNodeToJson(self.body)}
 
 class ASTSigmaNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], body: ASTNode) -> None:
@@ -614,9 +615,10 @@ class ASTFunctionNode(ASTNode):
         return {'kind': 'Function', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
     
 class ASTLambdaNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTArgumentNode], resultType: ASTNode, body: ASTNode, callingConvention: Symbol = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTArgumentNode], isVariadic: bool, resultType: ASTNode, body: ASTNode, callingConvention: Symbol = None) -> None:
         super().__init__(sourcePosition)
         self.arguments = arguments
+        self.isVariadic = isVariadic
         self.resultType = resultType
         self.body = body
         self.callingConvention = callingConvention
@@ -1156,9 +1158,10 @@ class ASTTypedFunctionTypeNode(ASTTypedNode):
         return {'kind': 'TypedFunctionTypeNode', 'type': self.type.toJson(), 'argumentType': self.argumentType.toJson(), 'resultType': self.resultType.toJson()}
 
 class ASTTypedFunctionalNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, arguments: list[ASTTypedArgumentNode], captureBindings: list[SymbolCaptureBinding], body: ASTTypedNode, callingConvention: Symbol | None = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, arguments: list[ASTTypedArgumentNode], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], body: ASTTypedNode, callingConvention: Symbol | None) -> None:
         super().__init__(sourcePosition, type)
         self.arguments = arguments
+        self.isVariadic = isVariadic
         self.captureBindings = captureBindings
         self.body = body
         self.callingConvention = callingConvention

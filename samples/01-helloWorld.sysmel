@@ -2,11 +2,11 @@ let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)
 let: #puts with: (fromExternal: #C import: #puts withType: (Char8 pointer => Void) __cdecl).
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
-    puts("Hello World" elements).
+    printf("Hello World\n" elements).
 
     let: #i mutableWith: 1i32.
     while: (i < argc) do: {
-        puts("Loop body" elements).
+        printf("Loop body\n" elements).
         puts(argv at: i asSize)
     } continueWith: (i := i + 1i32).
 

@@ -278,9 +278,10 @@ class FunctionalActivationEnvironment:
         raise Exception('%s: Binding for %s does not have an active value.' % (str(sourcePosition), repr(binding.name)))
     
 class FunctionalValue(TypedValue):
-    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None) -> None:
+    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None) -> None:
         self.type = type
         self.argumentBindings = argumentBindings
+        self.isVariadic = isVariadic
         self.captureBindings = captureBindings
         self.captureBindingValues = captureBindingValues
         self.body = body
@@ -320,8 +321,8 @@ class LambdaValue(FunctionalValue):
         return {'lambda': list(map(lambda n: n.toJson(), self.argumentBindings)), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class PiValue(FunctionalValue):
-    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
-        super().__init__(type, argumentBindings, captureBindings, captureBindingValues, body, sourcePosition)
+    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
+        super().__init__(type, argumentBindings, isVariadic, captureBindings, captureBindingValues, body, sourcePosition)
         self.callingConvention = callingConvention
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
@@ -337,7 +338,7 @@ class PiValue(FunctionalValue):
         if self.callingConvention == conventionName:
             return self
 
-        return PiValue(self.type, self.argumentBindings, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, self.callingConvention)
+        return PiValue(self.type, self.argumentBindings, self.isVariadic, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, conventionName)
 
     def toJson(self):
         return {'pi': list(map(lambda n: n.toJson(), self.argumentBindings)), 'body': self.body.toJson(), 'type': self.type.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}

@@ -24,12 +24,12 @@ class GHIRContext:
         self.constantValues[value] = constantValue
         return constantValue
     
-    def getFunctionType(self, type, argumentTypes, resultType, callingConventionName: str = None):
-        hashKey = (type, tuple(argumentTypes), resultType, callingConventionName)
+    def getFunctionType(self, type, argumentTypes, isVariadic: bool, resultType, callingConventionName: str = None):
+        hashKey = (type, tuple(argumentTypes), isVariadic, resultType, callingConventionName)
         if hashKey in self.simpleFunctionTypes:
             return self.simpleFunctionTypes[hashKey]
         
-        simpleFunctionType = GHIRSimpleFunctionType(self, None, type, argumentTypes, resultType, callingConventionName)
+        simpleFunctionType = GHIRSimpleFunctionType(self, None, type, argumentTypes, isVariadic, resultType, callingConventionName)
         self.simpleFunctionTypes[hashKey] = simpleFunctionType
         return simpleFunctionType
 
@@ -549,10 +549,11 @@ class GHIRTypeUniverse(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRSimpleFunctionType(GHIRValue):
-    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, arguments: list[GHIRValue], resultType: GHIRValue, callingConvention: str | None = None) -> None:    
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, arguments: list[GHIRValue], isVariadic: bool, resultType: GHIRValue, callingConvention: str | None = None) -> None:    
         super().__init__(context, sourcePosition)
         self.type = type
         self.arguments = arguments
+        self.isVariadic = isVariadic
         self.resultType = resultType
         self.callingConvention = callingConvention
 
@@ -569,6 +570,8 @@ class GHIRSimpleFunctionType(GHIRValue):
             if len(argumentList) != 0:
                 argumentList += ', '
             argumentList += graphPrinter.printValue(argument)
+        if self.isVariadic:
+            argumentList += '...'
 
         resultType = graphPrinter.printValue(self.resultType)
         conventionName = ''
@@ -593,10 +596,11 @@ class GHIRSimpleFunctionType(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRFunctionalDefinitionValue(GHIRValue):
-    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, captures: list[GHIRCaptureBindingValue] = [], arguments: list[GHIRArgumentBindingValue] = [], body: GHIRValue = None) -> None:
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, captures: list[GHIRCaptureBindingValue] = [], arguments: list[GHIRArgumentBindingValue] = [], isVariadic = False, body: GHIRValue = None) -> None:
         super().__init__(context, sourcePosition)
         self.captures = captures
         self.arguments = arguments
+        self.isVariadic = isVariadic
         self.body = body
 
     def accept(self, visitor: GHIRVisitor):
@@ -629,6 +633,8 @@ class GHIRFunctionalDefinitionValue(GHIRValue):
             if len(argumentList) != 0:
                 argumentList += ', '
             argumentList += graphPrinter.printValue(argument)
+        if self.isVariadic:
+            argumentList += '...'
 
         body = graphPrinter.printValue(self.body)
         graphPrinter.printLine('%s := definition captures [%s] arguments [%s] body %s' % (valueName, captureList, argumentList, body))
@@ -706,7 +712,7 @@ class GHIRPiValue(GHIRFunctionalValue):
         if self.definition.isFunctionalDefinition() and self.definition.isCaptureless() and not self.definition.hasArgumentDependency():
             argumentTypes = list(map(lambda arg: arg.getType(), self.definition.arguments))
             resultType = self.definition.body
-            simpleFunctionType = self.context.getFunctionType(self.getType(), argumentTypes, resultType, self.callingConvention)
+            simpleFunctionType = self.context.getFunctionType(self.getType(), argumentTypes, self.definition.isVariadic, resultType, self.callingConvention)
             return self.replaceWith(simpleFunctionType)
         return super().simplify()
 
@@ -1648,9 +1654,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
             conventionName = value.callingConventionName.value
 
         if argumentType.isProductType():
-            return self.context.getFunctionType(type, argumentType.elements, resultType, conventionName)
+            return self.context.getFunctionType(type, argumentType.elements, value.isVariadic, resultType, conventionName)
         else:
-            return self.context.getFunctionType(type, [argumentType], resultType, conventionName)
+            return self.context.getFunctionType(type, [argumentType], value.isVariadic, resultType, conventionName)
 
     def visitSigmaValue(self, value: SigmaValue):
         type = self.translateValue(value.getType())
@@ -1717,7 +1723,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         captures = list(map(self.translateCaptureBinding, functionalValue.captureBindings))
         arguments = list(map(self.translateArgumentBinding, functionalValue.argumentBindings))
         body = self.translateExpression(functionalValue.body)
-        return GHIRFunctionalDefinitionValue(self.context, functionalValue.sourcePosition, captures, arguments, body).simplify()
+        return GHIRFunctionalDefinitionValue(self.context, functionalValue.sourcePosition, captures, arguments, functionalValue.isVariadic, body).simplify()
     
     def visitImportedModuleValue(self, value: ImportedModuleValue):
         type: GHIRValue = self.translateValue(value.type)
@@ -1745,6 +1751,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         bindingValue = GHIRArgumentBindingValue(self.context, binding.sourcePosition, type, self.optionalSymbolToString(binding.name))
         self.translatedBindingValueDictionary[binding] = bindingValue
         return bindingValue
+    
+    def translateArgumentNode(self, node: ASTTypedArgumentNode) -> GHIRArgumentBindingValue:
+        return self.translateArgumentBinding(node.binding)
 
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> TypedValue:
         return self.translateValue(node.value)
@@ -1819,18 +1828,18 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitTypedPiNode(self, node: ASTTypedPiNode) -> TypedValue:
         type = self.translateExpression(node.type)
         captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
-        argumentBinding = self.translateArgumentBinding(node.argumentBinding)
+        argumentBindings = list(map(self.translateArgumentNode, node.arguments))
         body = self.translateExpression(node.body)
-        functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
+        functionDefinition = GHIRFunctionalDefinitionValue(self.context, node.sourcePosition, captureBindings, argumentBindings, node.isVariadic, body).simplify()
         capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
         return GHIRPiValue(self.context, node.sourcePosition, type, functionDefinition, capturedValues).simplify()
 
     def visitTypedSigmaNode(self, node: ASTTypedSigmaNode) -> TypedValue:
         type = self.translateExpression(node.type)
         captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
-        argumentBinding = self.translateArgumentBinding(node.argumentBinding)
+        argumentBindings = list(map(self.translateArgumentNode, node.arguments))
         body = self.translateExpression(node.body)
-        functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
+        functionDefinition = GHIRFunctionalDefinitionValue(self.context, node.sourcePosition, captureBindings, argumentBindings, node.isVariadic, body).simplify()
         capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
         return GHIRSigmaValue(self.context, node.sourcePosition, type, functionDefinition, capturedValues).simplify()
 
@@ -1869,9 +1878,9 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode) -> TypedValue:
         type = self.translateExpression(node.type)
         captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
-        argumentBinding = self.translateArgumentBinding(node.argumentBinding)
+        argumentBindings = list(map(self.translateArgumentNode, node.arguments))
         body = self.translateExpression(node.body)
-        functionDefinition = GHIRFunctionalDefinitionValue(self.context, captureBindings, [argumentBinding], body).simplify()
+        functionDefinition = GHIRFunctionalDefinitionValue(self.context, node.sourcePosition, captureBindings, argumentBindings, node.isVariadic, body).simplify()
         capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
         return GHIRLambdaValue(self.context, node.sourcePosition, type, functionDefinition, capturedValues).simplify()
 

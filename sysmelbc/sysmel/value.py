@@ -759,10 +759,11 @@ class StringDataValue(TypedValue):
 class FunctionType(BaseType):
     FunctionTypeCache = dict()
 
-    def __init__(self, argumentType: TypedValue, resultType: TypedValue, callingConventionName: TypedValue | None = None) -> None:
+    def __init__(self, argumentType: TypedValue, isVariadic: bool, resultType: TypedValue, callingConventionName: TypedValue | None = None) -> None:
         super().__init__(None)
         self.type = None
         self.argumentType = argumentType
+        self.isVariadic = isVariadic
         self.resultType = resultType
         self.callingConventionName = callingConventionName
 
@@ -794,7 +795,7 @@ class FunctionType(BaseType):
         if functionKey in cls.FunctionTypeCache:
             return cls.FunctionTypeCache[functionKey]
 
-        functionType = cls(argumentType, resultType, callingConventionName)
+        functionType = cls(argumentType, False, resultType, callingConventionName)
         cls.FunctionTypeCache[functionKey] = functionType
         return functionType
 
