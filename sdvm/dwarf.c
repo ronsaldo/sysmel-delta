@@ -65,6 +65,14 @@ SDVM_API size_t sdvm_dwarf_encodeQWord(sdvm_dynarray_t *buffer, uint64_t value)
     return offset;
 }
 
+SDVM_API size_t sdvm_dwarf_encodeString(sdvm_dynarray_t *buffer, const char *string, size_t stringSize)
+{
+    size_t offset = buffer->size;
+    sdvm_dynarray_addAll(buffer, stringSize, string);
+    sdvm_dwarf_encodeByte(buffer, 0);
+    return offset;
+}
+
 SDVM_API size_t sdvm_dwarf_encodeCString(sdvm_dynarray_t *buffer, const char *cstring)
 {
     size_t offset = buffer->size;
@@ -546,9 +554,30 @@ SDVM_API void sdvm_dwarf_debugInfo_beginLineInformation(sdvm_dwarf_debugInfo_bui
     builder->lineProgramState.regDiscriminator = false;
 }
 
+SDVM_API void sdvm_dwarf_debugInfo_addDirectory(sdvm_dwarf_debugInfo_builder_t *builder, const char *name, size_t nameSize)
+{
+    if(nameSize == 0)
+        sdvm_dwarf_encodeCString(&builder->lineSection->contents, ".");
+    else
+        sdvm_dwarf_encodeString(&builder->lineSection->contents, name, nameSize);
+}
+
 SDVM_API void sdvm_dwarf_debugInfo_endDirectoryList(sdvm_dwarf_debugInfo_builder_t *builder)
 {
     sdvm_dwarf_encodeByte(&builder->lineSection->contents, 0);
+}
+
+SDVM_API void sdvm_dwarf_debugInfo_addFile(sdvm_dwarf_debugInfo_builder_t *builder, uint32_t directoryIndex, const char *name, size_t nameSize, const char *source, size_t sourceSize)
+{
+    (void)source;
+    (void)sourceSize;
+    if(nameSize == 0)
+        sdvm_dwarf_encodeCString(&builder->lineSection->contents, ".");
+    else
+        sdvm_dwarf_encodeString(&builder->lineSection->contents, name, nameSize);
+    sdvm_dwarf_encodeULEB128(&builder->lineSection->contents, directoryIndex);
+    sdvm_dwarf_encodeULEB128(&builder->lineSection->contents, 0); // Last modification time.
+    sdvm_dwarf_encodeULEB128(&builder->lineSection->contents, 0); // Size in bytes.
 }
 
 SDVM_API void sdvm_dwarf_debugInfo_endFileList(sdvm_dwarf_debugInfo_builder_t *builder)

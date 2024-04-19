@@ -595,8 +595,10 @@ SDVM_API void sdvm_dwarf_debugInfo_destroy(sdvm_dwarf_debugInfo_builder_t *build
 
 SDVM_API void sdvm_dwarf_debugInfo_beginLineInformation(sdvm_dwarf_debugInfo_builder_t *builder);
 
+SDVM_API void sdvm_dwarf_debugInfo_addDirectory(sdvm_dwarf_debugInfo_builder_t *builder, const char *name, size_t nameSize);
 SDVM_API void sdvm_dwarf_debugInfo_endDirectoryList(sdvm_dwarf_debugInfo_builder_t *builder);
 
+SDVM_API void sdvm_dwarf_debugInfo_addFile(sdvm_dwarf_debugInfo_builder_t *builder, uint32_t directoryIndex, const char *name, size_t nameSize, const char *source, size_t sourceSize);
 SDVM_API void sdvm_dwarf_debugInfo_endFileList(sdvm_dwarf_debugInfo_builder_t *builder);
 
 SDVM_API void sdvm_dwarf_debugInfo_endLineInformationHeader(sdvm_dwarf_debugInfo_builder_t *builder);

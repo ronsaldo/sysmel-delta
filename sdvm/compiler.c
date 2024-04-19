@@ -247,15 +247,54 @@ void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state
     sdvm_dwarf_debugInfo_create(&state->dwarf, compiler);
 }
 
-void sdvm_moduleCompilationState_emitFunctionDebugInfo(sdvm_moduleCompilationState_t *state, uint32_t functionIndex, sdvm_moduleFunctionTableEntry_t *function, sdvm_functionCompilationDebugInfo_t *functionDebugInfo)
+void sdvm_moduleCompilationState_emitFunctionDebugInfo(sdvm_moduleCompilationState_t *state, sdvm_moduleFunctionTableEntry_t *function, sdvm_functionCompilationDebugInfo_t *compilationDebugInfo, sdvm_debugFunctionTableEntry_t *moduleDebugFunction)
 {
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_dwarf_debugInfo_builder_t *dwarf = &state->dwarf;
     sdvm_dwarf_debugInfo_beginDIE(dwarf, DW_TAG_subprogram, false);
     sdvm_dwarf_debugInfo_attribute_optionalModuleString(dwarf, DW_AT_name, state->module, function->name);
-    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_low_pc, &compiler->textSection, functionDebugInfo->startPC);
-    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_high_pc, &compiler->textSection, functionDebugInfo->endPC);
+    if(moduleDebugFunction)
+    {
+        sdvm_dwarf_debugInfo_attribute_uleb128(dwarf, DW_AT_decl_file, moduleDebugFunction->declarationLineInfo.sourceCode);
+        sdvm_dwarf_debugInfo_attribute_uleb128(dwarf, DW_AT_decl_line, moduleDebugFunction->declarationLineInfo.startLine);
+        sdvm_dwarf_debugInfo_attribute_uleb128(dwarf, DW_AT_decl_column, moduleDebugFunction->declarationLineInfo.startColumn);
+    }
+    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_low_pc, &compiler->textSection, compilationDebugInfo->startPC);
+    sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_high_pc, &compiler->textSection, compilationDebugInfo->endPC);
+
     sdvm_dwarf_debugInfo_endDIE(dwarf);
+}
+
+bool sdvm_moduleCompilationState_emitDebugLineInfo(sdvm_moduleCompilationState_t *state, uint32_t *lineInfoOffset)
+{
+    sdvm_compiler_t *compiler = state->compiler;
+    sdvm_dwarf_debugInfo_builder_t *dwarf = &state->dwarf;
+    sdvm_module_t *module = state->module;
+    if(!module->debugSourceCodeTableSize)
+        return false;
+
+    *lineInfoOffset = compiler->debugLineSection.contents.size;
+    sdvm_dwarf_debugInfo_beginLineInformation(dwarf);
+    for(uint32_t i = 0; i < module->debugSourceDirectoryTableSize; ++i)
+    {
+        sdvm_debugSourceDirectoryTableEntry_t *directoryEntry = module->debugSourceDirectoryTable + i;
+        sdvm_dwarf_debugInfo_addDirectory(dwarf, (char*)module->stringSectionData + directoryEntry->name.stringSectionOffset, directoryEntry->name.stringSectionSize);
+    }
+    sdvm_dwarf_debugInfo_endDirectoryList(dwarf);
+
+    for(uint32_t i = 0; i < module->debugSourceCodeTableSize; ++i)
+    {
+        sdvm_debugSourceCodeTableEntry_t *sourceCodeEntry = module->debugSourceCodeTable + i;
+        sdvm_dwarf_debugInfo_addFile(dwarf,
+            sourceCodeEntry->directoryIndex,
+            (char*)module->stringSectionData + sourceCodeEntry->name.stringSectionOffset, sourceCodeEntry->name.stringSectionSize,
+            (char*)module->stringSectionData + sourceCodeEntry->sourceCode.stringSectionOffset, sourceCodeEntry->sourceCode.stringSectionSize);
+    }
+    sdvm_dwarf_debugInfo_endFileList(dwarf);
+    sdvm_dwarf_debugInfo_endLineInformationHeader(dwarf);
+
+    sdvm_dwarf_debugInfo_endLineInformation(dwarf);
+    return true;
 }
 
 bool sdvm_moduleCompilationState_finish(sdvm_moduleCompilationState_t *state)
@@ -267,8 +306,13 @@ bool sdvm_moduleCompilationState_finish(sdvm_moduleCompilationState_t *state)
     if(state->hasEmittedCIE)
         sdvm_dwarf_cfi_finish(&state->cfi);
 
+    uint32_t lineInfoOffset = 0;
+    bool hasLineInfo = sdvm_moduleCompilationState_emitDebugLineInfo(state, &lineInfoOffset);
+
     sdvm_dwarf_debugInfo_beginDIE(dwarf, DW_TAG_compile_unit, state->module->functionTableSize > 0);
     sdvm_dwarf_debugInfo_attribute_string(dwarf, DW_AT_producer, "SDVM");
+    if(hasLineInfo)
+        sdvm_dwarf_debugInfo_attribute_secOffset(dwarf, DW_AT_stmt_list, &compiler->debugLineSection, lineInfoOffset);
     sdvm_dwarf_debugInfo_attribute_optionalModuleString(dwarf, DW_AT_name, state->module, state->module->header->name);
     sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_low_pc, &compiler->textSection, state->startPC);
     sdvm_dwarf_debugInfo_attribute_address(dwarf, DW_AT_high_pc, &compiler->textSection, state->endPC);
@@ -277,8 +321,9 @@ bool sdvm_moduleCompilationState_finish(sdvm_moduleCompilationState_t *state)
     for(uint32_t i = 0; i < state->module->functionTableSize; ++i)
     {
         sdvm_moduleFunctionTableEntry_t *function = state->module->functionTable + i;
-        sdvm_functionCompilationDebugInfo_t *functionDebugInfo = state->functionDebugInfos + i;
-        sdvm_moduleCompilationState_emitFunctionDebugInfo(state, i, function, functionDebugInfo);
+        sdvm_debugFunctionTableEntry_t *debugFunction = i < state->module->debugFunctionTableSize ? state->module->debugFunctionTable + i : NULL;
+        sdvm_functionCompilationDebugInfo_t *functionCompilationDebugInfo = state->functionDebugInfos + i;
+        sdvm_moduleCompilationState_emitFunctionDebugInfo(state, function, functionCompilationDebugInfo, debugFunction);
     }
 
     sdvm_dwarf_debugInfo_endDIEChildren(dwarf);
