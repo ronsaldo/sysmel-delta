@@ -324,12 +324,49 @@ class SDVMDebugSourceCodeTableSection(SDVMModuleSection):
         name = self.module.addString(sourceCode.name)
         language = self.module.addString(sourceCode.language)
         self.contents += struct.pack('<IIIIIIII', kind, directory, name.offset, name.size, language.offset, language.size, 0, 0)
-        self.sourceCodeTable = index
+        self.sourceCodeTable[sourceCode] = index
         return index
 
 class SDVMDebugLineDataSection(SDVMModuleSection):
     def __init__(self, module: SDVMModule) -> None:
         super().__init__(SdvmModuleSectionTypeDebugLineData)
+        self.module = module
+        self.tableSize = 0
+        self.lastSourcePosition = None
+
+    def getTableSize(self) -> int:
+        return self.tableSize
+    
+    def beginBuildingFunction(self):
+        self.lastSourcePosition = None
+
+    def endBuildingFunction(self):
+        pass
+
+    def addLineSourcePositionEntry(self, pc, sourcePosition):
+        if self.lastSourcePosition == sourcePosition:
+            return
+        
+        sourceCode = 0
+        startIndex = 0
+        endIndex = 0
+        startLine = 0
+        endLine = 0
+        startColumn = 0
+        endColumn = 0
+
+        if sourcePosition is not None:
+            sourceCode = self.module.debugSourceCodeTable.getOrAddSourceCode(sourcePosition.sourceCode)
+            startIndex = sourcePosition.startIndex
+            endIndex = sourcePosition.endIndex
+            startLine = sourcePosition.startLine
+            endLine = sourcePosition.endLine
+            startColumn = sourcePosition.startColumn
+            endColumn = sourcePosition.endColumn
+       
+        self.contents += struct.pack('<IIIIIIII', pc, sourceCode, startIndex, endIndex, startLine, endLine, startColumn, endColumn)
+        self.tableSize += 1
+        self.lastSourcePosition = sourcePosition
 
 class SDVMDebugFunctionTableSection(SDVMModuleSection):
     def __init__(self, module: SDVMModule) -> None:
@@ -348,8 +385,6 @@ class SDVMDebugFunctionTableSection(SDVMModuleSection):
         endLine = 0
         startColumn = 0
         endColumn = 0
-        sourceLineInfoStartIndex = 0
-        sourceLineInfoEntryCount = 0
 
         if function.sourcePosition is not None:
             sourceCode = self.module.debugSourceCodeTable.getOrAddSourceCode(function.sourcePosition.sourceCode)
@@ -359,6 +394,15 @@ class SDVMDebugFunctionTableSection(SDVMModuleSection):
             endLine = function.sourcePosition.endLine
             startColumn = function.sourcePosition.startColumn
             endColumn = function.sourcePosition.endColumn
+
+        pc = 0
+        self.module.debugLineData.beginBuildingFunction()
+        sourceLineInfoStartIndex = self.module.debugLineData.getTableSize()
+        for instruction in function.allInstructions():
+            self.module.debugLineData.addLineSourcePositionEntry(pc, instruction.sourcePosition)
+            pc += 1
+        self.module.debugLineData.endBuildingFunction()
+        sourceLineInfoEntryCount = self.module.debugLineData.getTableSize() - sourceLineInfoStartIndex
 
         return struct.pack('<IIIIIIIII', sourceCode, startIndex, endIndex, startLine, endLine, startColumn, endColumn, sourceLineInfoStartIndex, sourceLineInfoEntryCount)
 
@@ -426,11 +470,12 @@ class SDVMMemoryDescriptor(SDVMOperand):
         return struct.pack('<QQII', self.descriptor.size, self.descriptor.alignment, 0, 0)
     
 class SDVMConstant(SDVMOperand):
-    def __init__(self, definition: SdvmConstantDef, value = None, payload: int = 0) -> None:
+    def __init__(self, definition: SdvmConstantDef, value = None, payload: int = 0, sourcePosition = None) -> None:
         super().__init__()
         self.definition = definition
         self.value = value
         self.payload = payload
+        self.sourcePosition = sourcePosition
 
     def prettyPrint(self) -> str:
         if self.value is None:
@@ -441,11 +486,12 @@ class SDVMConstant(SDVMOperand):
         return struct.pack('<Q', self.definition.opcode | (self.payload << 12))
 
 class SDVMInstruction(SDVMOperand):
-    def __init__(self, definition: SdvmInstructionDef, arg0: SDVMOperand | None = None, arg1: SDVMOperand | None = None) -> None:
+    def __init__(self, definition: SdvmInstructionDef, arg0: SDVMOperand | None = None, arg1: SDVMOperand | None = None, sourcePosition = None) -> None:
         super().__init__()
         self.definition = definition
         self.arg0 = arg0
         self.arg1 = arg1
+        self.sourcePosition = sourcePosition
 
     def prettyPrint(self) -> str:
         if self.arg1 is None:

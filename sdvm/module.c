@@ -210,3 +210,17 @@ void sdvm_module_dump(sdvm_module_t *module)
     for(size_t i = 1; i <= module->functionTableSize; ++i)
         sdvm_module_dumpFunction(module, i);
 }
+
+sdvm_debugSourceLineInfo_t sdvm_debugSourceLineDataReader_getNextLineInfoForPC(sdvm_debugSourceLineDataReader_t *reader, uint32_t pc)
+{
+    sdvm_debugSourceLineInfo_t result = {};
+
+    // Find the successor entry of the requested PC.
+    while (reader->currentIndex < reader->entryCount && reader->entries[reader->currentIndex].pc <= pc)
+        ++reader->currentIndex;
+
+    // If we have a predecessor, then return it.
+    if(reader->currentIndex > 0)
+        result = reader->entries[reader->currentIndex - 1].lineInfo;
+    return result;
+}

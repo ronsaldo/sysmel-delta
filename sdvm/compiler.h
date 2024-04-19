@@ -270,6 +270,8 @@ typedef struct sdvm_moduleCompilationState_s
     bool hasEmittedCIE;
     size_t startPC;
     size_t endPC;
+    size_t lastInstructionPC;
+    sdvm_dynarray_t debugLineInfoTable;
 } sdvm_moduleCompilationState_t;
 
 typedef struct sdvm_compilerLiveInterval_s
@@ -384,6 +386,8 @@ struct sdvm_compilerInstruction_s
     uint8_t isBranchDestination : 1;
     uint8_t isBackwardBranchDestination : 1;
     uint8_t isIndirectBranchDestination : 1;
+
+    sdvm_debugSourceLineInfo_t debugSourceLineInfo;
 };
 
 struct sdvm_compilerCallingConvention_s
@@ -598,6 +602,7 @@ SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_windows(vo
 
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state);
+SDVM_API void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t *state, sdvm_debugSourceLineInfo_t lineInfo);
 
 SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval);
 

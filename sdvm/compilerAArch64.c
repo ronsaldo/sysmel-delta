@@ -1460,6 +1460,8 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
 
 void sdvm_compiler_aarch64_emitFunctionInstruction(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
+    sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, instruction->debugSourceLineInfo);
+
     if(instruction->decoding.isConstant)
     {
         // Emit the label, if this is a label.

@@ -709,6 +709,7 @@ class MIRBuilder:
         return self.basicBlock is not None and self.basicBlock.lastInstruction is not None and self.basicBlock.lastInstruction.isTerminatorInstruction()
     
     def addInstruction(self, instruction: MIRInstruction) -> HIRValue:
+        instruction.sourcePosition = self.sourcePosition
         self.basicBlock.addInstruction(instruction)
         return instruction
 

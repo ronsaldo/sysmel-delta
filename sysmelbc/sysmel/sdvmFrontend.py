@@ -148,7 +148,7 @@ class SDVMFunctionFrontEnd:
     def translateBasicBlocksOf(self, mirFunction: MIRFunction):
         basicBlocks = list(mirFunction.reachableBasicBlocksInReversePostOrder())
         for basicBlock in basicBlocks:
-            basicBlockLabel = SDVMInstruction(SdvmConstLabel)
+            basicBlockLabel = SDVMInstruction(SdvmConstLabel, sourcePosition = basicBlock.sourcePosition)
             self.translatedValueDictionary[basicBlock] = basicBlockLabel
 
         for i in range(len(basicBlocks)):
@@ -216,16 +216,16 @@ class SDVMFunctionFrontEnd:
         return self.function.constLocalProcedure(sdvmFunction)
 
     def visitNullaryPrimitiveInstruction(self, instruction: MIRNullaryPrimitiveInstruction) -> SDVMOperand:
-        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef))
+        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, sourcePosition = instruction.sourcePosition))
 
     def visitUnaryPrimitiveInstruction(self, instruction: MIRUnaryPrimitiveInstruction) -> SDVMOperand:
         operand = self.translateValue(instruction.operand)
-        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, operand))
+        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, operand, sourcePosition = instruction.sourcePosition))
 
     def visitBinaryPrimitiveInstruction(self, instruction: MIRBinaryPrimitiveInstruction) -> SDVMOperand:
         left = self.translateValue(instruction.left)
         right = self.translateValue(instruction.right)
-        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, left, right))
+        return self.function.addInstruction(SDVMInstruction(instruction.instructionDef, left, right, sourcePosition = instruction.sourcePosition))
     
     def visitAllocaInstruction(self, instruction: MIRAllocaInstruction) -> SDVMOperand:
         if instruction.isGCPointer():
@@ -237,7 +237,7 @@ class SDVMFunctionFrontEnd:
             allocaInstruction = SdvmInstAllocateLocal
 
         memoryDescriptor = self.moduleFrontend.module.addMemoryDescriptor(instruction.memoryDescriptor)
-        return self.function.addInstruction(SDVMInstruction(allocaInstruction, memoryDescriptor))
+        return self.function.addInstruction(SDVMInstruction(allocaInstruction, memoryDescriptor, sourcePosition = instruction.sourcePosition))
 
     def visitLoadInstruction(self, instruction: MIRLoadInstruction) -> SDVMOperand:
         pointer = self.translateValue(instruction.pointer)
@@ -245,7 +245,7 @@ class SDVMFunctionFrontEnd:
             loadInstruction = self.moduleFrontend.loadGCInstructionDictionary[instruction.getType()]
         else:
             loadInstruction = self.moduleFrontend.loadInstructionDictionary[instruction.getType()]
-        return self.function.addInstruction(SDVMInstruction(loadInstruction, pointer))
+        return self.function.addInstruction(SDVMInstruction(loadInstruction, pointer, sourcePosition = instruction.sourcePosition))
 
     def visitStoreInstruction(self, instruction: MIRStoreInstruction) -> SDVMOperand:
         pointer = self.translateValue(instruction.pointer)
@@ -254,24 +254,24 @@ class SDVMFunctionFrontEnd:
             storeInstruction = self.moduleFrontend.storeGCInstructionDictionary[instruction.value.getType()]
         else:
             storeInstruction = self.moduleFrontend.storeInstructionDictionary[instruction.value.getType()]
-        return self.function.addInstruction(SDVMInstruction(storeInstruction, pointer, value))
+        return self.function.addInstruction(SDVMInstruction(storeInstruction, pointer, value, sourcePosition = instruction.sourcePosition))
 
     def visitCallInstruction(self, instruction: MIRCallInstruction) -> SDVMOperand:
         calledFunctional = self.translateValue(instruction.functional)
         translatedArguments = list(map(self.translateValue, instruction.arguments))
-        self.function.addInstruction(SDVMInstruction(SdvmInstBeginCall, len(instruction.arguments)))
+        self.function.addInstruction(SDVMInstruction(SdvmInstBeginCall, len(instruction.arguments), sourcePosition = instruction.sourcePosition))
         
         for i in range(len(translatedArguments)):
             translatedArgument = translatedArguments[i]
             argument = instruction.arguments[i]
             callArgumentInstruction = self.moduleFrontend.callArgumentInstructionDictionary[argument.getType()]
-            self.function.addInstruction(SDVMInstruction(callArgumentInstruction, translatedArgument))
+            self.function.addInstruction(SDVMInstruction(callArgumentInstruction, translatedArgument, sourcePosition = instruction.sourcePosition))
 
         if instruction.functional.getType().isClosureType():
             callInstruction = self.moduleFrontend.callClosureInstructionDictionary[instruction.getType()]
         else:
             callInstruction = self.moduleFrontend.callInstructionDictionary[instruction.getType()]
-        return self.function.addInstruction(SDVMInstruction(callInstruction, calledFunctional))
+        return self.function.addInstruction(SDVMInstruction(callInstruction, calledFunctional, sourcePosition = instruction.sourcePosition))
 
     def visitBranchInstruction(self, instruction: MIRBranchInstruction) -> SDVMOperand:
         if instruction.destination is self.nextBasicBlock:
@@ -297,4 +297,4 @@ class SDVMFunctionFrontEnd:
 
     def visitReturnInstruction(self, instruction: MIRReturnInstruction) -> SDVMOperand:
         result = self.translateValue(instruction.result)
-        return self.function.addInstruction(SDVMInstruction(self.moduleFrontend.returnInstructionDictionary[instruction.result.type], result))
+        return self.function.addInstruction(SDVMInstruction(self.moduleFrontend.returnInstructionDictionary[instruction.result.type], result, sourcePosition = instruction.sourcePosition))

@@ -5290,6 +5290,8 @@ void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *
     if(instruction->isBackwardBranchDestination || instruction->isIndirectBranchDestination)
         sdvm_compiler_x86_alignReacheableCode(state->compiler);
 
+    sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, instruction->debugSourceLineInfo);
+
     if(instruction->isIndirectBranchDestination && state->compiler->target->usesCET)
         sdvm_compiler_x86_endbr64(state->compiler);
 

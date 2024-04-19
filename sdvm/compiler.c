@@ -243,6 +243,8 @@ void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state
     state->functionDebugInfos = calloc(module->functionTableSize, sizeof(sdvm_functionCompilationDebugInfo_t));
     state->startPC = state->endPC = compiler->textSection.contents.size;
 
+    sdvm_dynarray_initialize(&state->debugLineInfoTable, sizeof(sdvm_debugSourceLineDataTableEntry_t), 512);
+
     sdvm_dwarf_cfi_create(&state->cfi, &compiler->ehFrameSection);
     sdvm_dwarf_debugInfo_create(&state->dwarf, compiler);
 }
@@ -273,6 +275,41 @@ bool sdvm_moduleCompilationState_emitDebugLineInfo(sdvm_moduleCompilationState_t
     if(!module->debugSourceCodeTableSize)
         return false;
 
+    size_t lineDataTableSize = state->debugLineInfoTable.size;
+    sdvm_debugSourceLineDataTableEntry_t *lineDataTable = (sdvm_debugSourceLineDataTableEntry_t *)state->debugLineInfoTable.data;
+
+    // Preprocessing step.
+    int32_t previousLine = 1;
+    int32_t minLineAdvance = INT32_MAX;
+    int32_t maxLineAdvance = INT32_MIN;
+    for(size_t i = 0; i < lineDataTableSize; ++i)
+    {
+        if(lineDataTable[i].lineInfo.sourceCode == 0)
+            continue;
+
+        int32_t line = lineDataTable[i].lineInfo.startLine;
+        int32_t lineAdvance = previousLine - line;
+        if(abs(lineAdvance) < 8)
+        {
+            if(lineAdvance < minLineAdvance)
+                minLineAdvance = lineAdvance;
+            if(lineAdvance > maxLineAdvance)
+                maxLineAdvance = lineAdvance;
+        }
+        previousLine = line;
+    }
+
+    if(minLineAdvance > maxLineAdvance)
+        minLineAdvance = maxLineAdvance = 1;
+
+    int32_t lineBase = minLineAdvance;
+    int32_t lineRange = maxLineAdvance - minLineAdvance;
+    if(lineRange < 1)
+        lineRange = 1;
+    dwarf->lineProgramHeader.lineBase = lineBase;
+    dwarf->lineProgramHeader.lineRange = lineRange;
+
+    // Dwarf debug line info program header.
     *lineInfoOffset = compiler->debugLineSection.contents.size;
     sdvm_dwarf_debugInfo_beginLineInformation(dwarf);
     for(uint32_t i = 0; i < module->debugSourceDirectoryTableSize; ++i)
@@ -293,6 +330,37 @@ bool sdvm_moduleCompilationState_emitDebugLineInfo(sdvm_moduleCompilationState_t
     sdvm_dwarf_debugInfo_endFileList(dwarf);
     sdvm_dwarf_debugInfo_endLineInformationHeader(dwarf);
 
+    // Emit the source positions.
+    previousLine = 1;
+    uint32_t pc = state->startPC;
+    uint32_t currentSource = 0;
+    sdvm_dwarf_debugInfo_line_setAddress(dwarf, &compiler->textSection, pc);
+
+    for(size_t i = 0; i < lineDataTableSize; ++i)
+    {
+        sdvm_debugSourceLineDataTableEntry_t *entry = lineDataTable + i;
+        if(entry->lineInfo.sourceCode == 0)
+            continue;
+
+        if(entry->lineInfo.sourceCode != currentSource)
+        {
+            sdvm_dwarf_debugInfo_line_setFile(dwarf, entry->lineInfo.sourceCode);
+            currentSource = entry->lineInfo.sourceCode;
+        }
+
+        sdvm_dwarf_debugInfo_line_setColumn(dwarf, entry->lineInfo.startColumn);
+
+        int32_t pcAdvance = entry->pc - pc;
+        int32_t lineAdvance = entry->lineInfo.startLine - previousLine;
+        sdvm_dwarf_debugInfo_line_advanceLineAndPC(dwarf, lineAdvance, pcAdvance);
+        pc = entry->pc;
+        previousLine = entry->lineInfo.startLine;
+    }
+
+    // Finish
+    if(pc != state->endPC)
+        sdvm_dwarf_debugInfo_line_setAddress(dwarf, &compiler->textSection, state->endPC);
+    sdvm_dwarf_debugInfo_line_endSequence(dwarf);
     sdvm_dwarf_debugInfo_endLineInformation(dwarf);
     return true;
 }
@@ -337,10 +405,40 @@ void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
     sdvm_dwarf_cfi_destroy(&state->cfi);
     sdvm_dwarf_debugInfo_destroy(&state->dwarf);
 
+    sdvm_dynarray_destroy(&state->debugLineInfoTable);
+
     free(state->importedValueTableSymbols);
     free(state->functionTableSymbols);
     free(state->exportedValueTableSymbols);
     free(state->functionDebugInfos);
+}
+
+void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t *state, sdvm_debugSourceLineInfo_t lineInfo)
+{
+    uint32_t pc = (uint32_t)state->compiler->textSection.contents.size;
+    sdvm_debugSourceLineDataTableEntry_t *entries = (sdvm_debugSourceLineDataTableEntry_t *)state->debugLineInfoTable.data;
+    sdvm_debugSourceLineInfo_t lastLineInfo = {};
+
+    if(state->debugLineInfoTable.size != 0)
+    {
+        sdvm_debugSourceLineDataTableEntry_t *lastEntry = entries + state->debugLineInfoTable.size - 1;
+        if(lastEntry->pc == pc)
+        {
+            lastEntry->lineInfo = lineInfo;
+            return;
+        }
+
+        lastLineInfo = lastEntry->lineInfo;
+    }
+
+    if(memcmp(&lastLineInfo, &lineInfo, sizeof(sdvm_debugSourceLineInfo_t)) == 0)
+        return;
+
+    sdvm_debugSourceLineDataTableEntry_t newEntry = {
+        .pc = pc,
+        .lineInfo = lineInfo
+    };
+    sdvm_dynarray_add(&state->debugLineInfoTable, &newEntry);
 }
 
 void sdvm_functionCompilationState_destroy(sdvm_functionCompilationState_t *state)
@@ -664,6 +762,9 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
             printf(" usage [%u, %u]", instruction->liveInterval.firstUsage, instruction->liveInterval.lastUsage);
         else
             printf(" unused");
+
+        if(instruction->debugSourceLineInfo.sourceCode)
+            printf(" source %d %d-%d:%d-%d", instruction->debugSourceLineInfo.sourceCode, instruction->debugSourceLineInfo.startLine, instruction->debugSourceLineInfo.endLine, instruction->debugSourceLineInfo.startColumn, instruction->debugSourceLineInfo.endColumn);
         
         printf("\n");
     }
@@ -2689,7 +2790,7 @@ void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *sta
     }
 }
 
-static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry, sdvm_functionCompilationDebugInfo_t *functionDebugInfo, sdvm_compilerSymbolHandle_t symbol)
+static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *moduleState, sdvm_moduleFunctionTableEntry_t *functionTableEntry, sdvm_debugFunctionTableEntry_t *debugFunctionTableEntry, sdvm_functionCompilationDebugInfo_t *functionDebugInfo, sdvm_compilerSymbolHandle_t symbol)
 {
     sdvm_functionCompilationState_t functionState = {
         .compiler = moduleState->compiler,
@@ -2705,6 +2806,14 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
     for(int i = 0; i < SdvmFunctionStackSegmentCount; ++i)
         functionState.stackSegments[i].alignment = 1;
 
+    // Decode the line info.
+    sdvm_debugSourceLineDataReader_t debugLineReader = {};
+    if(debugFunctionTableEntry)
+    {
+        debugLineReader.entryCount = debugFunctionTableEntry->sourceLineInfoEntryCount;
+        debugLineReader.entries = moduleState->module->debugLineDataTable + debugFunctionTableEntry->sourceLineInfoStartIndex;
+    }
+
     // Decode all of the instructions.
     functionState.instructions = calloc(functionState.instructionCount, sizeof(sdvm_compilerInstruction_t));
     for(uint32_t i = 0; i < functionState.instructionCount; ++i)
@@ -2712,6 +2821,7 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         sdvm_compilerInstruction_t *instruction = functionState.instructions + i;
         instruction->index = i;
         instruction->decoding = sdvm_instruction_decode(functionState.sourceInstructions[i]);
+        instruction->debugSourceLineInfo = sdvm_debugSourceLineDataReader_getNextLineInfoForPC(&debugLineReader, i);
     }
 
     // Compute the control flow.
@@ -2961,7 +3071,8 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
     {
         sdvm_moduleFunctionTableEntry_t *functionTableEntry = module->functionTable + i;
         sdvm_functionCompilationDebugInfo_t *functionDebugInfo = state.functionDebugInfos + i;
-        if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry, functionDebugInfo, state.functionTableSymbols[i]))
+        sdvm_debugFunctionTableEntry_t *debugFunctionTableEntry = module->debugFunctionTableSize ? module->debugFunctionTable + i : NULL;
+        if(!sdvm_compiler_compileModuleFunction(&state, functionTableEntry, debugFunctionTableEntry, functionDebugInfo, state.functionTableSymbols[i]))
             hasSucceeded = false;
     }
 

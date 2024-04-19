@@ -1429,6 +1429,7 @@ class HIRFunctionalDefinitionFrontend:
             self.functionalDefinition.arguments.append(argument)
 
         self.builder = HIRBuilder(self.context, self.functionalDefinition)
+        self.builder.sourcePosition = self.functionalDefinition.sourcePosition
         self.builder.beginNewBasicBlock('entry')
 
         resultValue = self.translateGraphValue(graphFunctionalDefinition.body)

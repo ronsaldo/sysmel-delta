@@ -1,6 +1,7 @@
 #ifndef SDVM_MODULE_H
 #define SDVM_MODULE_H
 
+#include "common.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -208,10 +209,20 @@ typedef struct sdvm_module_s
     sdvm_debugSourceLineDataTableEntry_t *debugLineDataTable;
 } sdvm_module_t;
 
-sdvm_module_t *sdvm_module_loadFromMemory(size_t dataSize, uint8_t *data);
-sdvm_module_t *sdvm_module_loadFromFileNamed(const char *fileName);
-void sdvm_module_destroy(sdvm_module_t *module);
-void sdvm_module_dumpFunction(sdvm_module_t *module, size_t index);
-void sdvm_module_dump(sdvm_module_t *module);
+typedef struct sdvm_debugSourceLineDataReader_s
+{
+    uint32_t entryCount;
+    sdvm_debugSourceLineDataTableEntry_t *entries;
+
+    uint32_t currentIndex;
+} sdvm_debugSourceLineDataReader_t;
+
+SDVM_API sdvm_module_t *sdvm_module_loadFromMemory(size_t dataSize, uint8_t *data);
+SDVM_API sdvm_module_t *sdvm_module_loadFromFileNamed(const char *fileName);
+SDVM_API void sdvm_module_destroy(sdvm_module_t *module);
+SDVM_API void sdvm_module_dumpFunction(sdvm_module_t *module, size_t index);
+SDVM_API void sdvm_module_dump(sdvm_module_t *module);
+
+SDVM_API sdvm_debugSourceLineInfo_t sdvm_debugSourceLineDataReader_getNextLineInfoForPC(sdvm_debugSourceLineDataReader_t *reader, uint32_t pc);
 
 #endif //SDVM_MODULE_H
