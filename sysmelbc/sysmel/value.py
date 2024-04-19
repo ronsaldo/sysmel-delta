@@ -147,11 +147,14 @@ class TypedValue(ABC):
 
     def isSigma(self) -> bool:
         return False
-    
-    def isProductType(self):
+
+    def isCVarArgType(self) -> bool:
+        return False
+
+    def isProductType(self) -> bool:
         return False
     
-    def isProductTypeValue(self):
+    def isProductTypeValue(self) -> bool:
         return False
 
     def isEquivalentTo(self, other) -> bool:
@@ -208,6 +211,12 @@ class TypedValue(ABC):
     def isProductTypeNodeOrLiteral(self) -> bool:
         return False
     
+    def isCVarArgTypeNode(self) -> bool:
+        return False
+    
+    def isCVarArgCompatibleType(self) -> bool:
+        return False
+    
     def asTypedFunctionTypeNodeAtFor(self, sourcePosition, typechecker):
         return typechecker.makeSemanticError(sourcePosition, "Failed to convert value into function type node %s." % self.prettyPrint())
     
@@ -216,6 +225,9 @@ class TypedValue(ABC):
 
     def interpretAsBoolean(self) -> bool:
         raise Exception("Not a boolean value.")
+    
+    def applyCoercionExpresionIntoCVarArgType(self, node):
+        return node
 
 class TypeUniverse(TypedValue):
     InstancedUniverses = dict()
@@ -306,7 +318,8 @@ class VoidTypeClass(BaseType):
         return self.singleton
 
 class CVarArgTypeClass(BaseType):
-    pass
+    def isCVarArgType(self) -> bool:
+        return True
 
 class IntegerTypeClass(BaseType):
     pass
@@ -321,6 +334,9 @@ class PrimitiveIntegerTypeClass(PrimitiveTypeClass):
     @abstractmethod
     def normalizeIntegerValue(self, value: int) -> int:
         pass
+
+    def isCVarArgCompatibleType(self) -> bool:
+        return True
 
 class PrimitiveSizeIntegerTypeClass(PrimitiveIntegerTypeClass):
     def __init__(self, name: str, isSigned, literalSuffix) -> None:
@@ -363,8 +379,13 @@ class PrimitiveFloat32TypeClass(PrimitiveFloatTypeClass):
     def normalizeFloatValue(self, value: float) -> float:
         return struct.unpack('f', struct.pack('f', value))[0]
 
+    def applyCoercionExpresionIntoCVarArgType(self, node):
+        from .ast import ASTMessageSendNode, ASTLiteralNode
+        return ASTMessageSendNode(node.sourcePosition, node, ASTLiteralNode(node.sourcePosition, Symbol.intern('asFloat64')), [node])
+    
 class PrimitiveFloat64TypeClass(PrimitiveFloatTypeClass):
-    pass
+    def isCVarArgCompatibleType(self) -> bool:
+        return True
 
 class PrimitiveVectorTypeClass(PrimitiveTypeClass):
     def __init__(self, name: str, elementType: TypedValue, elements: int, literalSuffix='') -> None:
@@ -1059,6 +1080,9 @@ class DerivedType(BaseType):
     def getType(self):
         return self.baseType.getType()
 
+    def isCVarArgCompatibleType(self) -> bool:
+        return self.baseType.isCVarArgCompatibleType()
+
 class DecoratedType(DerivedType):
     DecoratedTypeCache = dict()
 
@@ -1216,6 +1240,9 @@ class PointerType(DerivedType):
         return cls(baseType)
 
     def isPointerType(self) -> bool:
+        return True
+    
+    def isCVarArgCompatibleType(self) -> bool:
         return True
 
     def getElementTypeExpressionAt(self, sourcePosition):
@@ -1386,6 +1413,9 @@ class ASTNode(TypedValue):
     def isEquivalentTo(self, other) -> bool:
         return self == other
     
+    def performSatisfiedByCheckInEnvironment(self, other, environment) -> bool:
+        return self.performEquivalenceCheckInEnvironment(other, environment)
+    
     def performEquivalenceCheckInEnvironment(self, other, environment) -> bool:
         if self == other: return True
         if other.isTypedIdentifierReferenceNode() and other.binding.isImplicitValueBinding():
@@ -1484,6 +1514,9 @@ class ASTTypeNode(ASTNode):
     
     def getTypeUniverse(self) -> TypedValue:
         return TypeUniverse.getWithIndex(self.computeTypeUniverseIndex())
+    
+    def applyCoercionExpresionIntoCVarArgType(self, node):
+        return node
 
     @abstractmethod
     def computeTypeUniverseIndex(self) -> int:
@@ -1491,11 +1524,17 @@ class ASTTypeNode(ASTNode):
 
     def getTypeExpressionAt(self, sourcePosition: SourcePosition):
         return ASTLiteralTypeNode(sourcePosition, self.getTypeUniverse())
+    
+    def isCVarArgCompatibleTypeNode(self) -> bool:
+        return False
 
 class ASTLiteralTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, value: TypedValue) -> None:
         super().__init__(sourcePosition)
         self.value = value
+
+    def applyCoercionExpresionIntoCVarArgType(self, node):
+        return self.value.applyCoercionExpresionIntoCVarArgType(node)
 
     def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition: SourcePosition) -> int | None:
         return self.value.findIndexOfFieldOrNoneAt(fieldName, sourcePosition)
@@ -1514,6 +1553,16 @@ class ASTLiteralTypeNode(ASTTypeNode):
 
     def computeTypeUniverseIndex(self) -> int:
         return self.value.getTypeUniverseIndex()
+    
+    def isCVarArgCompatibleTypeNode(self) -> bool:
+        return self.value.isCVarArgCompatibleType()
+    
+    def performSatisfiedByCheckInEnvironment(self, other, environment) -> bool:
+        if self.value.isCVarArgType():
+            if other.isCVarArgCompatibleTypeNode():
+                return True, environment
+
+        return super().performSatisfiedByCheckInEnvironment(other, environment)
 
     def isEquivalentTo(self, other: ASTNode) -> bool:
         if self == other:
@@ -1551,6 +1600,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
     
     def isProductTypeNodeOrLiteral(self) -> bool:
         return self.value.isProductType()
+    
+    def isCVarArgTypeNode(self) -> bool:
+        return self.value.isCVarArgType()
     
     def asUnpackedTupleTypeExpressionsAt(self, sourcePosition: SourcePosition):
         return list(map(lambda t: ASTLiteralTypeNode(sourcePosition, t), self.value.elementTypes))

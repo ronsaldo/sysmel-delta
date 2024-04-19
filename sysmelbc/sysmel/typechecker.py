@@ -69,6 +69,9 @@ class Typechecker(ASTVisitor):
         if not targetTypeExpression.isReferenceLikeTypeNodeOrLiteral() and nodeType.isReferenceLikeTypeNodeOrLiteral():
             coercedNode = self.visitNode(ASTPointerLikeLoadNode(node.sourcePosition, node))
             return self.applyCoercionsToNodeFor(coercedNode, targetTypeExpression)
+        
+        if targetTypeExpression.isCVarArgTypeNode():
+            return self.visitNode(nodeType.applyCoercionExpresionIntoCVarArgType(node))
 
         return node
 
@@ -94,7 +97,7 @@ class Typechecker(ASTVisitor):
     def doesTypedNodeConformToTypeExpression(self, typedNode: ASTTypedNode | ASTTypeNode, expectedTypeExpression: ASTNode | None) -> ASTTypedNode | ASTTypeNode | None:
         typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
-        return expectedTypeNode.performEquivalenceCheckInEnvironment(typedNodeType, self.lexicalEnvironment)
+        return expectedTypeNode.performSatisfiedByCheckInEnvironment(typedNodeType, self.lexicalEnvironment)
     
     def visitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> ASTTypedNode | ASTTypeNode:
         if expectedType is None:

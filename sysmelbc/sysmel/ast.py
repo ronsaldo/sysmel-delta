@@ -779,6 +779,9 @@ class ASTDerivedTypeNode(ASTTypeNode):
     def getBaseTypeExpressionAt(self, sourcePosition: SourcePosition) -> ASTTypeNode:
         return self.baseType
 
+    def isCVarArgCompatibleTypeNode(self) -> bool:
+        return self.baseType.isCVarArgCompatibleTypeNode()
+
     def computeTypeUniverseIndex(self) -> int:
         return self.baseType.computeTypeUniverseIndex()
 
@@ -821,6 +824,9 @@ class ASTPointerTypeNode(ASTDerivedTypeNode):
         return True
 
     def isPointerTypeNodeOrLiteral(self) -> bool:
+        return True
+    
+    def isCVarArgCompatibleTypeNode(self) -> bool:
         return True
 
     def toJson(self) -> dict:
