@@ -71,6 +71,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitFormRecordTypeNode(self, node):
+        pass
+
+    @abstractmethod
     def visitFormSumTypeNode(self, node):
         pass
 
@@ -200,6 +204,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitProductTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitRecordTypeNode(self, node):
         pass
 
     @abstractmethod
@@ -389,6 +397,7 @@ class ASTApplicationNode(ASTNode):
     CurlyBracket = 2
     ByteArrayStart = 3
     Block = 4
+    Dictionary = 5
 
     def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, arguments: list[ASTNode], kind = Normal) -> None:
         super().__init__(sourcePosition)
@@ -590,21 +599,25 @@ class ASTFormProductTypeNode(ASTNode):
         return {'kind': 'FormProductType', 'elements': list(map(lambda n: n.toJson(), self.elements))}
 
 class ASTFormRecordTypeNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode], fieldNames: list[ASTNode]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: ASTNode, fieldNames: list[ASTNode], fieldTypes: list[ASTNode], isRecursive: bool = False) -> None:
         super().__init__(sourcePosition)
-        self.elements = elements
+        self.name = name
         self.fieldNames = fieldNames
+        self.fieldTypes = fieldTypes
+        self.isRecursive = isRecursive
 
     def accept(self, visitor: ASTVisitor):
-        return visitor.visitForRecordTypeTypeNode(self)
+        return visitor.visitFormRecordTypeNode(self)
     
     def toJson(self) -> dict:
-        return {'kind': 'FormRecordType', 'elements': list(map(lambda n: n.toJson(), self.elements))}
+        return {'kind': 'FormRecordType', 'name' : optionalASTNodeToJson(self.name), 'fieldNames': list(map(lambda n: n.toJson(), self.fieldNames)), 'fieldTypes': list(map(lambda n: n.toJson(), self.fieldTypes))}
     
 class ASTFormSumTypeNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: ASTNode, elements: list[ASTNode], isRecursive: bool = False) -> None:
         super().__init__(sourcePosition)
+        self.name = name
         self.elements = elements
+        self.isRecursive = isRecursive
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFormSumTypeNode(self)
@@ -1000,6 +1013,28 @@ class ASTProductTypeNode(ASTTypeNode):
 
     def toJson(self) -> dict:
         return {'kind': 'ProductType', 'elementTypes': list(map(optionalASTNodeToJson, self.elementTypes))}
+    
+class ASTRecordTypeNode(ASTProductTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, elementTypes: list[ASTTypeNode], fieldNames: list[Symbol], isRecursive: bool) -> None:
+        super().__init__(sourcePosition, elementTypes)
+        self.name = name
+        self.fieldNames = fieldNames
+        self.isRecursive = isRecursive
+    
+    def accept(self, visitor):
+        return visitor.visitRecordTypeNode(self)
+    
+    def asUnpackedTupleTypeExpressionsAt(self, sourcePosition: SourcePosition):
+        return self
+
+    def isRecordTypeNodeOrLiteral(self) -> bool:
+        return True
+
+    def isRecordTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'RecordType', 'name' : optionalToJson(self.name), 'elementTypes': list(map(optionalASTNodeToJson, self.elementTypes)), 'fieldNames': list(map(optionalToJson, self.fieldNames))}
     
 class ASTSumTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, alternativeTypes: list[ASTTypeNode]) -> None:
@@ -1651,6 +1686,15 @@ class ASTSequentialVisitor(ASTVisitor):
         for element in node.elements:
             self.visitNode(element)
 
+    def visitFormRecordTypeNode(self, node: ASTFormRecordTypeNode):
+        if node.name is not None:
+            self.visitNode(node.name)
+
+        for fieldName in node.fieldNames:
+            self.visitNode(fieldName)
+        for fieldType in node.fieldTypes:
+            self.visitNode(fieldType)
+
     def visitFormSumTypeNode(self, node: ASTFormSumTypeNode):
         for element in node.elements:
             self.visitNode(element)
@@ -1714,7 +1758,7 @@ class ASTSequentialVisitor(ASTVisitor):
 
     def visitTupleNode(self, node: ASTTupleNode):
         for expression in node.elements:
-            self.visitNode(expression)
+            self.visitOptionalNode(expression)
 
     def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
         for expression in node.alternativeTypes:
@@ -1741,6 +1785,10 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.baseType)
             
     def visitProductTypeNode(self, node: ASTProductTypeNode):
+        for expression in node.elementTypes:
+            self.visitNode(expression)
+
+    def visitRecordTypeNode(self, node: ASTRecordTypeNode):
         for expression in node.elementTypes:
             self.visitNode(expression)
 

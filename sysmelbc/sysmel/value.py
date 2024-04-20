@@ -1006,6 +1006,19 @@ class RecordType(ProductType):
 
     def toJson(self):
         return {'recordType': list(map(lambda v: v.toJson(), self.elementTypes)), 'fields' : list(map(lambda v: v.toJson(), self.fields))}
+    
+    def prettyPrint(self) -> str:
+        if self.name is not None:
+            return self.name
+        result = '(RecordWithFields: #{'
+        for i in range(len(self.fields)):
+            if i > 0:
+                result += '. '
+            result += self.elementTypes[i].prettyPrint()
+            result += ' : '
+            result += self.fields[i].prettyPrint()
+        result += '})'
+        return result
 
 class SumTypeValue(TypedValue):
     def __init__(self, type: TypedValue, variantIndex: int, value: TypedValue) -> None:

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 from .value import *
 from .environment import *
 from .ast import *
@@ -823,6 +824,12 @@ class GHIRProductType(GHIRValue):
             self.type = replacement
             replacement.registerUserValue(self)
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
+
+class GHIRRecordType(GHIRProductType):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, name: str | None, elements: list[GHIRValue], fieldNames: list[str]) -> None:
+        super().__init__(context, sourcePosition, type, elements)
+        self.name = name
+        self.fieldNames = fieldNames
 
 class GHIRSumType(GHIRValue):
     def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elements: list[GHIRValue]) -> None:
@@ -1897,9 +1904,15 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         elements = list(map(self.translateExpression, node.elementTypes))
         return GHIRProductType(self.context, node.sourcePosition, type, elements).simplify()
 
-    def visitSumTypeNode(self, node: ASTSumTypeNode):
+    def visitRecordTypeNode(self, node: ASTRecordTypeNode):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())
         elements = list(map(self.translateExpression, node.elementTypes))
+        fieldNames = list(map(self.optionalSymbolToString, node.fieldNames))
+        return GHIRRecordType(self.context, node.sourcePosition, type, self.optionalSymbolToString(node.name), elements, fieldNames).simplify()
+
+    def visitSumTypeNode(self, node: ASTSumTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        elements = list(map(self.translateExpression, node.alternativeTypes))
         return GHIRSumType(self.context, node.sourcePosition, type, elements).simplify()
     
     def visitTypedArgumentNode(self, node: ASTTypedArgumentNode):

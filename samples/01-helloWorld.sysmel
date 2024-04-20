@@ -1,4 +1,4 @@
-let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
+#*let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
     printf("Hello World: %d\n" elements, argc).
@@ -10,6 +10,7 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 
     0i32
 }.
+*#
 
 ##(:[Type]T :(T)x :: T) #[Int32].
 ##((:[Type]T :(T)x :: T) :=> x) #[Int32].
@@ -23,12 +24,12 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 
 ##Char8 pointer[0sz]
 
-#*
-RecordWithFields: #{
+Record: #MyRecord withFields: #{
     int32: Int32.
     float32: Float32.
 }.
-*#
+
+MyRecord#{int32: 0i32. float32: 42f32}.
 
 ## #{int32: Int32. float32: Float32}.
 ## #{}.

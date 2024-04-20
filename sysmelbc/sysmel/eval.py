@@ -53,6 +53,17 @@ class ASTEvaluator(ASTTypecheckedVisitor):
             elementTypes.append(self.visitNode(elementType))
         return ProductType.makeWithElementTypes(elementTypes)
 
+    def visitRecordTypeNode(self, node: ASTRecordTypeNode):
+        assert not node.isRecursive
+        elementTypes = []
+        for elementType in node.elementTypes:
+            elementTypes.append(self.visitNode(elementType))
+
+        name = None
+        if node.name is not None:
+            name = node.name.value
+        return RecordType(elementTypes, node.fieldNames, name)
+
     def visitDictionaryTypeNode(self, node: ASTDictionaryTypeNode):
         keyType = self.visitNode(node.keyType)
         valueType = self.visitNode(node.valueType)

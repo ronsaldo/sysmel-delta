@@ -326,12 +326,14 @@ def parseDictionary(state: ParserState) -> tuple[ParserState, ASTNode]:
 def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
     state, receiver = parseTerm(state)
-    while state.peekKind() in [TokenKind.IDENTIFIER, TokenKind.LEFT_PARENT, TokenKind.LEFT_BRACKET, TokenKind.LEFT_CURLY_BRACKET, TokenKind.BYTE_ARRAY_START]:
-        token = state.next()
+    while state.peekKind() in [TokenKind.IDENTIFIER, TokenKind.LEFT_PARENT, TokenKind.LEFT_BRACKET, TokenKind.LEFT_CURLY_BRACKET, TokenKind.BYTE_ARRAY_START, TokenKind.DICTIONARY_START]:
+        token = state.peek()
         if token.kind == TokenKind.IDENTIFIER:
+            state.advance()
             selector = ASTLiteralNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
             receiver = ASTMessageSendNode(receiver.sourcePosition.to(selector.sourcePosition), receiver, selector, [])
         elif token.kind == TokenKind.LEFT_PARENT:
+            state.advance()
             state, arguments = parseExpressionListUntilEndOrDelimiter(state, TokenKind.RIGHT_PARENT)
             if state.peekKind() == TokenKind.RIGHT_PARENT:
                 state.advance()
@@ -339,6 +341,7 @@ def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNod
                 arguments.append(ASTErrorNode(state.currentSourcePosition(), "Expected right parenthesis."))
             receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments)
         elif token.kind == TokenKind.LEFT_BRACKET:
+            state.advance()
             state, arguments = parseExpressionListUntilEndOrDelimiter(state, TokenKind.RIGHT_BRACKET)
             if state.peekKind() == TokenKind.RIGHT_BRACKET:
                 state.advance()
@@ -346,6 +349,7 @@ def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNod
                 arguments.append(ASTErrorNode(state.currentSourcePosition(), "Expected right bracket."))
             receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments, kind = ASTApplicationNode.Bracket)
         elif token.kind == TokenKind.BYTE_ARRAY_START:
+            state.advance()
             state, arguments = parseExpressionListUntilEndOrDelimiter(state, TokenKind.RIGHT_BRACKET)
             if state.peekKind() == TokenKind.RIGHT_BRACKET:
                 state.advance()
@@ -354,7 +358,10 @@ def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNod
             receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments, kind = ASTApplicationNode.ByteArrayStart)
         elif token.kind == TokenKind.LEFT_CURLY_BRACKET:
             state, argument = parseBlock(state)
-            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, [arguments], kind = ASTApplicationNode.Block)
+            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, [argument], kind = ASTApplicationNode.Block)
+        elif token.kind == TokenKind.DICTIONARY_START:
+            state, argument = parseDictionary(state)
+            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, [argument], kind = ASTApplicationNode.Dictionary)
     return state, receiver
 
 def isBinaryExpressionOperator(kind: TokenKind) -> bool:

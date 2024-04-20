@@ -563,6 +563,22 @@ def callingConventionMacro(macroContext: MacroContext, functionNode: ASTNode, co
     else:
         return macroContext.typechecker.visitNode(functionNode).withCallingConventionNamed(conventionName)
 
+def formNamedRecordWithFieldsMacro(macroContext: MacroContext, name: ASTNode, fields: ASTNode) -> ASTNode:
+    keyAndFields, errorNode = macroContext.typechecker.expandAndUnpackDictionaryNodeWithElements(fields)
+    if errorNode is not None:
+        return ASTFormRecordTypeNode(macroContext.sourcePosition, name, [None], [errorNode])
+
+    fieldNames = []
+    fieldTypes = []
+    for fieldName, type in keyAndFields:
+        fieldNames.append(fieldName)
+        fieldTypes.append(type)
+
+    return ASTFormRecordTypeNode(macroContext.sourcePosition, name, fieldNames, fieldTypes)
+
+def formRecordWithFieldsMacro(macroContext: MacroContext, fields: ASTNode) -> ASTNode:
+    return formNamedRecordWithFieldsMacro(macroContext, None, fields)
+
 def cdeclMacro(macroContext: MacroContext, functionNode: ASTNode) -> ASTNode:
     return callingConventionMacro(macroContext, functionNode, Symbol.intern('cdecl'))
 
@@ -759,6 +775,9 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [(MacroContextType, ASTNodeType), ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['=>', 'Type::=>', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], arrowMacro, ['macro']],
+    ['RecordWithFields:', 'Type::RecordWithFields:', [(MacroContextType, ASTNodeType), ASTNodeType], formRecordWithFieldsMacro, ['macro']],
+    ['Record:withFields:', 'Type::Record:withFields:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], formNamedRecordWithFieldsMacro, ['macro']],
+
     ['__cdecl', 'Type::__cdecl', [(MacroContextType, ASTNodeType), ASTNodeType], cdeclMacro, ['macro']],
     ['__stdcall', 'Type::__stdcall', [(MacroContextType, ASTNodeType), ASTNodeType], stdcallMacro, ['macro']],
     ['__apicall', 'Type::__apicall', [(MacroContextType, ASTNodeType), ASTNodeType], apicallMacro, ['macro']],

@@ -194,12 +194,20 @@ class Typechecker(ASTVisitor):
         errorNode = ASTTypedErrorNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, AbortType), errorMessage, innerNodes)
         self.errorAccumulator.add(errorNode)
         return errorNode
+    
+    def expandDictionaryApplicationNode(self, node: ASTApplicationNode):
+        assert len(node.arguments) == 1
+        functional = self.visitNode(node.functional)
+        keyAndValues, node = self.expandAndUnpackDictionaryNodeWithElements(node.arguments[0])
+        assert False
 
     def visitApplicationNode(self, node: ASTApplicationNode):
         if node.kind == ASTApplicationNode.Bracket:
             return self.visitNode(ASTMessageSendNode(node.sourcePosition, node.functional, ASTLiteralNode(node.sourcePosition, Symbol.intern('[]:')), node.arguments))
         elif node.kind == ASTApplicationNode.CurlyBracket:
             return self.visitNode(ASTMessageSendNode(node.sourcePosition, node.functional, ASTLiteralNode(node.sourcePosition, Symbol.intern('{}:')), node.arguments))
+        elif node.kind == ASTApplicationNode.Dictionary:
+            return self.expandDictionaryApplicationNode(node)
 
         functional = self.visitNode(node.functional)
         isImplicit = node.kind == ASTApplicationNode.ByteArrayStart
@@ -328,6 +336,8 @@ class Typechecker(ASTVisitor):
         if requiredArity == 0:
             return [], None
         elif requiredArity == 1:
+            if node.isTupleNode() or node.isTypedTupleNode() and len(node.elements) == 1:
+                return node.elements, None
             return [node], None
         
         if node.isTupleNode() or node.isTypedTupleNode():
@@ -565,6 +575,52 @@ class Typechecker(ASTVisitor):
         for expression in node.elements:
             elementTypes.append(self.visitTypeExpression(expression))
         return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypes))
+
+    def unpackAssociationNode(self, node: ASTNode):
+        if not node.isTupleNode() and not node.isTypedTupleNode():
+            return ASTErrorNode(node.sourcePosition, 'Expected a a tuple.'), ASTErrorNode(node.sourcePosition, 'Expected a a tuple.')
+
+        tupleElements = node.elements
+        if len(tupleElements) != 2:
+            return ASTErrorNode(node.sourcePosition, 'Expected a tuple with two elements.'), ASTErrorNode(node.sourcePosition, 'Expected a tuple with two elements.')
+        return tupleElements[0], tupleElements[1]
+
+    def expandAndUnpackDictionaryNodeWithElements(self, node: ASTNode):
+        expandedNode = self.visitNodeForMacroExpansionOnly(node)
+        if not expandedNode.isDictionaryNode() and not expandedNode.isTypedDictionaryNode():
+            return None, ASTErrorNode(node.sourcePosition, 'Expected a dictionary.')
+        
+        unpackedElements = []
+        for element in expandedNode.elements:
+            unpackedElements.append(self.unpackAssociationNode(element))
+
+        return unpackedElements, None
+    
+    def makeBindingForTypeNode(self, name: Symbol | None, typeNode: ASTTypeNode):
+        if name is None:
+            return typeNode
+        
+        if typeNode.isLiteralTypeNode():
+            typeBinding = SymbolValueBinding(typeNode.sourcePosition, name, typeNode.value)
+            self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(typeBinding)
+            return typeNode
+
+        typeUniverse = ASTLiteralTypeNode(typeNode.sourcePosition, typeNode.getTypeUniverse())
+        typeBinding = SymbolLocalBinding(typeNode.sourcePosition, name, typeUniverse, typeNode, False)
+        self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(typeBinding)
+        return ASTTypedBindingDefinitionNode(typeNode.sourcePosition, typeUniverse, typeBinding, typeNode, isMutable = False, isPublic = False, module = None)
+        
+    def visitFormRecordTypeNode(self, node: ASTFormRecordTypeNode):
+        name = self.evaluateOptionalSymbol(node.name)
+        assert len(node.fieldNames) == len(node.fieldTypes)
+        fieldTypes = []
+        fieldNames = []
+        for fieldType in node.fieldTypes:
+            fieldTypes.append(self.visitTypeExpression(fieldType))
+        for fieldName in node.fieldNames:
+            fieldNames.append(self.evaluateOptionalSymbol(fieldName))
+
+        return self.makeBindingForTypeNode(name, reduceRecordTypeNode(ASTRecordTypeNode(node.sourcePosition, name, fieldTypes, fieldNames, node.isRecursive)))
 
     def visitFormSumTypeNode(self, node: ASTFormSumTypeNode):
         elementTypes = []
@@ -967,6 +1023,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitProductTypeNode(self, node: ASTProductTypeNode):
+        return node
+
+    def visitRecordTypeNode(self, node: ASTRecordTypeNode):
         return node
 
     def visitSumTypeNode(self, node: ASTProductTypeNode):
@@ -1385,6 +1444,12 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedElementTypes.append(self.visitNode(element))
         return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, reducedElementTypes))
 
+    def visitRecordTypeNode(self, node: ASTRecordTypeNode):
+        reducedElementTypes = []
+        for element in node.elementTypes:
+            reducedElementTypes.append(self.visitNode(element))
+        return reduceRecordTypeNode(ASTRecordTypeNode(node.sourcePosition, reducedElementTypes))
+
     def visitDictionaryTypeNode(self, node: ASTDictionaryTypeNode):
         keyType = self.visitNode(node.keyType)
         valueType = self.visitNode(node.valueType)
@@ -1395,6 +1460,13 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         for alternative in node.alternativeTypesTypes:
             reducedAlternativeTypes.append(self.visitNode(alternative))
         return reduceSumTypeNode(ASTSumTypeNode(node.sourcePosition, reducedAlternativeTypes))
+
+    def visitTypedDictionaryNode(self, node: ASTTypedDictionaryNode):
+        reducedType = self.visitNode(node.type)
+        reducedElements = []
+        for element in node.elements:
+            reducedElements.append(self.visitNode(element))
+        return reduceDictionaryNode(ASTTypedDictionaryNode(node.sourcePosition, reducedType, reducedElements))
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         reducedType = self.visitNode(node.type)
@@ -1648,6 +1720,14 @@ def reduceProductTypeNode(node: ASTProductTypeNode):
 
     if all(elementType.isLiteralTypeNode() for elementType in node.elementTypes):
         return ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(list(map(lambda n: n.value, node.elementTypes))))
+    return node
+
+def reduceRecordTypeNode(node: ASTRecordTypeNode):
+    if all(elementType.isLiteralTypeNode() for elementType in node.elementTypes):
+        nameValue = None
+        if node.name is not None:
+            nameValue = node.name.value
+        return ASTLiteralTypeNode(node.sourcePosition, RecordType(list(map(lambda n: n.value, node.elementTypes)), node.fieldNames, nameValue))
     return node
 
 def reduceDictionaryTypeNode(node: ASTDictionaryTypeNode):
