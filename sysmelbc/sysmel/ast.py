@@ -223,6 +223,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitRecordNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTupleNode(self, node):
         pass
 
@@ -811,6 +815,22 @@ class ASTTupleNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
+class ASTRecordNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, fieldNames: list[ASTNode], fieldValues: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.type = type
+        self.fieldNames = fieldNames
+        self.fieldValues = fieldValues
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitRecordNode(self)
+    
+    def isRecordNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'record', 'type': self.type.toJson(), 'fieldNames': list(map(optionalASTNodeToJson, self.fieldNames)), 'fieldValues': list(map(optionalASTNodeToJson, self.fieldValues))}
+    
 class ASTOverloadsTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, alternativeTypes: list[ASTTypeNode]) -> None:
         super().__init__(sourcePosition)
@@ -1489,9 +1509,10 @@ class ASTTypedDictionaryNode(ASTTypedNode):
         return {'kind': 'TypedDictionary', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
     
 class ASTTypedTupleNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTNode]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTNode], isRecord: bool) -> None:
         super().__init__(sourcePosition, type)
         self.elements = elements
+        self.isRecord = isRecord
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedTupleNode(self)
@@ -1758,6 +1779,13 @@ class ASTSequentialVisitor(ASTVisitor):
 
     def visitTupleNode(self, node: ASTTupleNode):
         for expression in node.elements:
+            self.visitOptionalNode(expression)
+
+    def visitRecordNode(self, node: ASTRecordNode):
+        self.visitNode(node.type)
+        for expression in node.fieldNames:
+            self.visitOptionalNode(expression)
+        for expression in node.fieldValues:
             self.visitOptionalNode(expression)
 
     def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
@@ -2109,4 +2137,7 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitTupleNode(self, node):
+        assert False
+
+    def visitRecordNode(self, node):
         assert False

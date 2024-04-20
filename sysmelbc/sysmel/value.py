@@ -160,6 +160,9 @@ class TypedValue(ABC):
     def isProductTypeValue(self) -> bool:
         return False
 
+    def isRecordType(self) -> bool:
+        return False
+
     def isEquivalentTo(self, other) -> bool:
         return self == other
 
@@ -213,7 +216,10 @@ class TypedValue(ABC):
     
     def isProductTypeNodeOrLiteral(self) -> bool:
         return False
-    
+
+    def isRecordTypeNodeOrLiteral(self) -> bool:
+        return False
+
     def isCVarArgTypeNode(self) -> bool:
         return False
     
@@ -976,7 +982,22 @@ class RecordTypeValue(ProductTypeValue):
             result[self.type.fields[i].value] = self.elements[i].toJson()
 
         return result
-    
+
+    def prettyPrint(self) -> str:
+        result = self.type.prettyPrint()
+        result += '#{'
+        isFirst = True
+        for i in range(len(self.elements)):
+            element = self.elements[i]
+            if isFirst:
+                isFirst = False
+            else:
+                result += '. '
+            result += self.type.fields[i].prettyPrint()
+            result += ' : '
+            result += element.prettyPrint()
+        result += '}'
+        return result
 class RecordType(ProductType):
     def __init__(self, elementTypes: list[TypedValue], fields: list[TypedValue], name = None) -> None:
         assert len(elementTypes) == len(fields)
@@ -999,6 +1020,9 @@ class RecordType(ProductType):
             return None, None
 
         return found, ASTLiteralTypeNode(sourcePosition, self.elementTypes[found])
+    
+    def isRecordType(self) -> bool:
+        return True
 
     @classmethod
     def makeWithElementTypes(cls, elementTypes: list[TypedValue]):
@@ -1698,6 +1722,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
     
     def isProductTypeNodeOrLiteral(self) -> bool:
         return self.value.isProductType()
+    
+    def isRecordTypeNodeOrLiteral(self) -> bool:
+        return self.value.isRecordType()
     
     def isCVarArgTypeNode(self) -> bool:
         return self.value.isCVarArgType()

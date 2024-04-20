@@ -198,8 +198,19 @@ class Typechecker(ASTVisitor):
     def expandDictionaryApplicationNode(self, node: ASTApplicationNode):
         assert len(node.arguments) == 1
         functional = self.visitNode(node.functional)
-        keyAndValues, node = self.expandAndUnpackDictionaryNodeWithElements(node.arguments[0])
-        assert False
+        if functional.isRecordTypeNodeOrLiteral():
+            keys, values, errorNode = self.expandAndUnpackUnzippedDictionaryNodeWithElements(node.arguments[0])
+            assert errorNode is None
+            return self.visitNode(ASTRecordNode(node.sourcePosition, functional, keys, values))
+        
+        functionalType = getTypeOfAnalyzedNode(functional, node.sourcePosition)
+        if functionalType.isRecordTypeNodeOrLiteral():
+            keys, values, errorNode = self.expandAndUnpackUnzippedDictionaryNodeWithElements(node.arguments[0])
+            assert errorNode is None
+            assert False
+
+        selector = ASTLiteralNode(node.sourcePosition, Symbol.intern('#{}:'))
+        return self.visitNode(ASTMessageSendNode(node.sourcePosition, functional, selector, node.arguments))
 
     def visitApplicationNode(self, node: ASTApplicationNode):
         if node.kind == ASTApplicationNode.Bracket:
@@ -595,6 +606,18 @@ class Typechecker(ASTVisitor):
             unpackedElements.append(self.unpackAssociationNode(element))
 
         return unpackedElements, None
+    
+    def expandAndUnpackUnzippedDictionaryNodeWithElements(self, node: ASTNode):
+        keysAndValues, errorNode = self.expandAndUnpackDictionaryNodeWithElements(node)
+        if keysAndValues is None:
+            return None, None, errorNode
+
+        keys = []
+        values = []
+        for key, value in keysAndValues:
+            keys.append(key)
+            values.append(value)
+        return keys, values, errorNode
     
     def makeBindingForTypeNode(self, name: Symbol | None, typeNode: ASTTypeNode):
         if name is None:
@@ -1002,7 +1025,49 @@ class Typechecker(ASTVisitor):
             return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, typedElements))
         
         tupleType = reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
-        return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements))
+        return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements, False))
+
+    def visitRecordNode(self, node: ASTRecordNode):
+        recordTypeExpression = self.visitTypeExpression(node.type)
+        if not recordTypeExpression.isRecordTypeNodeOrLiteral():
+            return self.visitNode(ASTSequenceNode(node.sourcePosition,
+                [ASTErrorNode(recordTypeExpression.sourcePosition, "Expected a record type.")] + node.fieldNames + node.fieldValues)
+            )
+        
+        errorNodes = []
+        coercedFieldValues = []
+        fieldValues = [None] * len(recordTypeExpression.value.elementTypes)
+        for i in range(len(node.fieldNames)):
+            fieldNameExpression = node.fieldNames[i]
+            fieldName, errorNode = self.evaluateSymbol(fieldNameExpression)
+            if errorNode is not None:
+                errorNodes.append(errorNode)
+                continue
+
+            fieldIndex, fieldType = recordTypeExpression.findIndexOfFieldOrNoneAt(fieldName, fieldNameExpression.sourcePosition)
+            if fieldIndex is None:
+                errorNodes.append(ASTErrorNode(fieldName.sourcePosition, 'Failed to find field %s in record %s.' % (fieldName.prettyPrint(), recordTypeExpression.prettyPrint())))
+                continue
+
+            fieldValue = self.visitNodeWithExpectedTypeExpression(node.fieldValues[i], fieldType)
+            coercedFieldValues.append(fieldValue)
+            if fieldValues[i] is not None:
+                errorNodes.append(fieldValue)
+                errorNodes.append(ASTErrorNode(fieldName.sourcePosition, 'Field %s initialization is duplication.' % fieldName.prettyPrint()))
+                
+                continue
+
+            fieldValues[i] = fieldValue
+
+        ## Make sure all of the fields are set.
+        for i in range(len(fieldValues)):
+            if fieldValues[i] is None:
+                assert False
+
+        if len(errorNodes):
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, coercedFieldValues + errorNodes))
+        
+        return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, recordTypeExpression, fieldValues, True))
 
     def visitOverloadsTypeNode(self, node: ASTProductTypeNode):
         return node
@@ -1473,7 +1538,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         reducedElements = []
         for element in node.elements:
             reducedElements.append(self.visitNode(element))
-        return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements))
+        return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements, node.isRecord))
     
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
         reducedType = self.visitNode(node.type)
@@ -1739,10 +1804,11 @@ def reduceDictionaryNode(node: ASTTypedDictionaryNode):
     return node
 
 def reduceTupleNode(node: ASTTypedTupleNode):
-    if len(node.elements) == 0:
-        return ASTLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
-    elif len(node.elements) == 1:
-        return node.elements[0]
+    if not node.isRecord:
+        if  len(node.elements) == 0:
+            return ASTLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
+        elif len(node.elements) == 1:
+            return node.elements[0]
 
     if node.type.isLiteralTypeNode() and all(element.isTypedLiteralNode() for element in node.elements):
         productType: ProductType = node.type.value
