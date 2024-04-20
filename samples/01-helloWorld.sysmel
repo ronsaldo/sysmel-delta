@@ -22,3 +22,14 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 ##Int32 pointer
 
 ##Char8 pointer[0sz]
+
+#*
+RecordWithFields: #{
+    int32: Int32.
+    float32: Float32.
+}.
+*#
+
+## #{int32: Int32. float32: Float32}.
+## #{}.
+## 0i32 : 1i32.

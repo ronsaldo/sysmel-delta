@@ -53,6 +53,11 @@ class ASTEvaluator(ASTTypecheckedVisitor):
             elementTypes.append(self.visitNode(elementType))
         return ProductType.makeWithElementTypes(elementTypes)
 
+    def visitDictionaryTypeNode(self, node: ASTDictionaryTypeNode):
+        keyType = self.visitNode(node.keyType)
+        valueType = self.visitNode(node.valueType)
+        return DictionaryType.makeWithKeyAndValueType(keyType, valueType)
+
     def visitSumTypeNode(self, node: ASTSumTypeNode):
         alternativeTypes = []
         for alternativeType in node.alternativeTypes:
@@ -191,6 +196,14 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedPointerLikeSubscriptAtNode(self, node: ASTTypedArraySubscriptAtNode):
         assert False
 
+    def visitTypedDictionaryNode(self, node: ASTTypedDictionaryNode) -> TypedValue:
+        elements = []
+        for expression in node.elements:
+            elements.append(self.visitNode(expression))
+
+        dictionaryType = self.visitNode(node.type)
+        return dictionaryType.makeWithElements(elements)
+
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode) -> TypedValue:
         result = VoidType.getSingleton()
         for expression in node.elements:
@@ -198,7 +211,7 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         return result
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
-        elements = list()
+        elements = []
         for expression in node.elements:
             elements.append(self.visitNode(expression))
 

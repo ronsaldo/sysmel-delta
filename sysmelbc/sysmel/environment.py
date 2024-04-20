@@ -712,7 +712,7 @@ for name, expander in [
 
 TopLevelEnvironment = LexicalEnvironment(EmptyEnvironment.getSingleton())
 for baseType in [
-        AbortType, VoidType,
+        AbortType, VoidType, AnyType,
         CVarArgType,
         IntegerType, StringType, FalseType, TrueType, BooleanType,
         Int8Type, Int16Type, Int32Type, Int64Type,

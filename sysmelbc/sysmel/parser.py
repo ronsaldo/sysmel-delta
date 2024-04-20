@@ -141,6 +141,7 @@ def parseTerm(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.IDENTIFIER: return parseIdentifier(state)
     elif state.peekKind() == TokenKind.LEFT_PARENT: return parseParenthesis(state)
     elif state.peekKind() == TokenKind.LEFT_CURLY_BRACKET: return parseBlock(state)
+    elif state.peekKind() == TokenKind.DICTIONARY_START: return parseDictionary(state)
     else: return parseLiteral(state)
 
 def parseOptionalParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
@@ -271,6 +272,57 @@ def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
     else:
         return state, ASTBlockNode(state.sourcePositionFrom(startPosition), functionalType, body)
 
+def parseDictionaryAssociation(state: ParserState) -> tuple[ParserState, ASTNode]:
+    startPosition = state.position
+    value = None
+    if state.peekKind() == TokenKind.KEYWORD:
+        keyToken = state.next()
+        key = ASTLiteralNode(keyToken.sourcePosition, Symbol.intern(keyToken.getStringValue()[:-1]))
+
+        if state.peekKind() not in [TokenKind.DOT, TokenKind.RIGHT_CURLY_BRACKET]:
+            state, value = parseAssociationExpression(state)
+    else:
+        state, key = parseBinaryExpressionSequence(state)
+        if state.peekKind() == TokenKind.COLON:
+            state.advance()
+            state, value = parseAssociationExpression(state)
+
+    return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [key, value])
+
+def parseDictionary(state: ParserState) -> tuple[ParserState, ASTNode]:
+    # #{
+    startPosition = state.position
+    assert state.peekKind() == TokenKind.DICTIONARY_START
+    state.advance()
+
+    # Chop the initial dots
+    while state.peekKind() == TokenKind.DOT:
+        state.advance()
+
+    # Parse the next expression
+    expectsExpression = True
+    elements = []
+    while not state.atEnd() and state.peekKind() != TokenKind.RIGHT_CURLY_BRACKET:
+        if not expectsExpression:
+            elements.append(ASTErrorNode(state.currentSourcePosition(), "Expected dot before association."))
+
+        state, expression = parseDictionaryAssociation(state)
+        elements.append(expression)
+
+        expectsExpression = False
+        # Chop the next dot sequence
+        while state.peekKind() == TokenKind.DOT:
+            expectsExpression = True
+            state.advance()
+
+    # }
+    if state.peekKind() == TokenKind.RIGHT_CURLY_BRACKET:
+        state.advance()
+    else:
+        elements.append(ASTErrorNode(state.currentSourcePosition(), "Expected a right curly brack (})."))
+
+    return state, ASTDictionaryNode(state.sourcePositionFrom(startPosition), elements)
+
 def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
     state, receiver = parseTerm(state)
@@ -325,9 +377,20 @@ def parseBinaryExpressionSequence(state: ParserState) -> tuple[ParserState, ASTN
 
     return state, ASTBinaryExpressionSequenceNode(state.sourcePositionFrom(startPosition), elements)
 
+def parseAssociationExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+    startPosition = state.position
+    state, key = parseBinaryExpressionSequence(state)
+
+    if state.peekKind() != TokenKind.COLON:
+        return state, key
+    
+    state.advance()
+    state, value = parseAssociationExpression(state)
+    return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [key, value])
+
 def parseFunctionExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
-    state, assignedStore = parseBinaryExpressionSequence(state)
+    state, assignedStore = parseAssociationExpression(state)
     if state.peekKind() == TokenKind.ASSIGNMENT_ARROW:
         state.advance()
         state, functionalBody = parseFunctionExpression(state)

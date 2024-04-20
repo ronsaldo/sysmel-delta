@@ -151,6 +151,9 @@ class TypedValue(ABC):
     def isCVarArgType(self) -> bool:
         return False
 
+    def isAnyType(self) -> bool:
+        return False
+
     def isProductType(self) -> bool:
         return False
     
@@ -321,6 +324,10 @@ class CVarArgTypeClass(BaseType):
     def isCVarArgType(self) -> bool:
         return True
 
+class AnyTypeClass(BaseType):
+    def isAnyType(self) -> bool:
+        return True
+
 class IntegerTypeClass(BaseType):
     pass
 
@@ -407,6 +414,7 @@ class ModuleTypeClass(BaseType):
 
 AbortType = AbortTypeClass("Abort")
 VoidType = VoidTypeClass("Void", "void")
+AnyType = AnyTypeClass("Any")
 
 CVarArgType = CVarArgTypeClass("CVarArg")
 
@@ -903,6 +911,18 @@ class ProductTypeValue(TypedValue):
 
     def toJson(self):
         return {'product': list(map(lambda v: v.toJson(), self.elements))}
+    
+    def prettyPrint(self) -> str:
+        result = '('
+        isFirst = True
+        for element in self.elements:
+            if isFirst:
+                isFirst = False
+            else:
+                result += ', '
+            result += element.prettyPrint()
+        result += ')'
+        return result
 
 class ProductType(BaseType):
     ProductTypeCache = dict()
@@ -1049,6 +1069,71 @@ class SumType(BaseType):
         cls.SumTypeCache[key] = sumType
         return sumType
 
+class DictionaryTypeValue(TypedValue):
+    def __init__(self, type: TypedValue, elements: list[TypedValue]) -> None:
+        super().__init__()
+        self.type = type
+        self.elements = elements
+
+    def getType(self):
+        return self.type
+
+    def toJson(self):
+        return {'dictionary': list(map(lambda v: v.toJson(), self.elements))}
+    
+    def prettyPrint(self) -> str:
+        result = '#{'
+        isFirst = True
+        for element in self.elements:
+            if isFirst:
+                isFirst = False
+            else:
+                result += '. '
+            result += element.elements[0].prettyPrint()
+            result += ' : '
+            result += element.elements[1].prettyPrint()
+
+        result += '}'
+        return result
+    
+class DictionaryType(BaseType):
+    DictionaryTypeCache = dict()
+
+    def __init__(self, keyType: TypedValue, valueType: TypedValue, name = None) -> None:
+        self.keyType = keyType
+        self.valueType = valueType
+        self.name = name
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitDictionaryType(self)
+
+    def makeWithElements(self, elements) -> DictionaryTypeValue:
+        return DictionaryTypeValue(self, elements)
+
+    def getType(self):
+        return TypeType
+    
+    def isDictionaryType(self):
+        return True
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not isinstance(other, DictionaryType): return False
+
+        return self.keyType.isEquivalentTo(other.keyType) and self.valueType.isEquivalentTo(other.valueType)
+
+    def toJson(self):
+        return {'dictionaryType': self.keyType.toJson(), 'valueType': self.valueType.toJson()}
+    
+    @classmethod
+    def makeWithKeyAndValueType(cls, keyType: TypedValue, valueType: TypedValue):
+        hashKey = (keyType, valueType)
+        if hashKey in cls.DictionaryTypeCache:
+            return cls.DictionaryTypeCache[hashKey]
+
+        dictionaryType = cls(keyType, valueType)
+        cls.DictionaryTypeCache[hashKey] = dictionaryType
+        return dictionaryType
+    
 ## Boolean :: False | True.
 FalseType = VoidTypeClass("False", "false")
 TrueType = VoidTypeClass("True", "true")

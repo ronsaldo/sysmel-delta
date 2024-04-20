@@ -47,7 +47,17 @@ class Typechecker(ASTVisitor):
             return leftTypeExpression
 
         return self.makeSemanticError(sourcePosition, "Type checking failure. Branch has mismatching types. '%s' vs '%s'" % (leftTypeExpression.prettyPrint(), rightTypeExpression.prettyPrint()))
-    
+
+    def mergeListOfTypes(self, typeExpressions: list[ASTNode], defaultTypeExpression: ASTNode, sourcePosition: SourcePosition):
+        if len(typeExpressions) == 0:
+            return defaultTypeExpression
+        
+        mergedTypeExpression = typeExpressions[0]
+        for i in range(1, len(typeExpressions)):
+            typeExpression = typeExpressions[i]
+            mergedTypeExpression = self.mergeTypesOfBranch(mergedTypeExpression, typeExpression, sourcePosition)
+        return mergedTypeExpression
+
     def applyCoercionsToNodeFor(self, node: ASTNode, targetTypeExpression: ASTTypeNode):
         nodeType = getTypeOfAnalyzedNode(node, node.sourcePosition)
         if targetTypeExpression.isProductTypeNodeOrLiteral():
@@ -545,11 +555,22 @@ class Typechecker(ASTVisitor):
         size = self.visitNodeWithExpectedType(node.size, SizeType)
         return reduceArrayType(ASTArrayTypeNode(node.sourcePosition, elementType, size))
 
+    def visitFormDictionaryTypeNode(self, node: ASTFormDictionaryTypeNode):
+        keyType = self.visitNode(node.keyType)
+        valueType = self.visitNode(node.valueType)
+        return reduceDictionaryTypeNode(ASTDictionaryTypeNode(node.sourcePosition, keyType, valueType))
+
     def visitFormProductTypeNode(self, node: ASTFormProductTypeNode):
-        assert False
+        elementTypes = []
+        for expression in node.elements:
+            elementTypes.append(self.visitTypeExpression(expression))
+        return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypes))
 
     def visitFormSumTypeNode(self, node: ASTFormSumTypeNode):
-        assert False
+        elementTypes = []
+        for expression in node.elements:
+            elementTypes.append(self.visitTypeExpression(expression))
+        return reduceSumTypeNode(ASTSumTypeNode(node.sourcePosition, elementTypes))
 
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
         bindingList = self.lexicalEnvironment.lookSymbolBindingListRecursively(node.value)
@@ -779,6 +800,47 @@ class Typechecker(ASTVisitor):
             return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, self.packMessageSendArguments(node.sourcePosition, node.arguments)))
         else:
             return self.visitNode(ASTApplicationNode(node.sourcePosition, selectorNode, self.packMessageSendArguments(node.sourcePosition, [analyzedReceiver] + node.arguments)))
+        
+    def extraAssociationKeyAndValueType(self, node: ASTTypedNode):
+        typeNode = getTypeOfAnalyzedNode(node, node.sourcePosition)
+        if not typeNode.isProductTypeNodeOrLiteral():
+            anyTypeLiteral = ASTLiteralTypeNode(node.sourcePosition, AnyType)
+            return self.makeSemanticError(node.sourcePosition, 'Expected an association, which is tuple with two elements.'), anyTypeLiteral, anyTypeLiteral
+        
+        if typeNode.isLiteralTypeNode():
+            if len(typeNode.value.elementTypes) != 2:
+                anyTypeLiteral = ASTLiteralTypeNode(node.sourcePosition, AnyType)
+                return self.makeSemanticError(node.sourcePosition, 'Expected an association, which is tuple with two elements.'), anyTypeLiteral, anyTypeLiteral
+            keyType = ASTLiteralTypeNode(node.sourcePosition, typeNode.value.elementTypes[0])
+            valueType = ASTLiteralTypeNode(node.sourcePosition, typeNode.value.elementTypes[1])
+            return node, keyType, valueType
+        else:
+            if len(typeNode.elements) != 2:
+                anyTypeLiteral = ASTLiteralTypeNode(node.sourcePosition, AnyType)
+                return self.makeSemanticError(node.sourcePosition, 'Expected an association, which is tuple with two elements.'), anyTypeLiteral, anyTypeLiteral
+            return node, typeNode.elements[0], typeNode.elements[1]
+
+    def visitDictionaryNode(self, node: ASTDictionaryNode):
+        elements = []
+        keyTypes = []
+        valueTypes = []
+        for element in node.elements:
+            typedElement, keyType, valueType = self.extraAssociationKeyAndValueType(self.visitNode(element))
+            elements.append(typedElement)
+            keyTypes.append(keyType)
+            valueTypes.append(valueType)
+
+        anyTypeLiteral = ASTLiteralTypeNode(node.sourcePosition, AnyType)
+        keyType = self.mergeListOfTypes(keyTypes, anyTypeLiteral, node.sourcePosition)
+        valueType = self.mergeListOfTypes(valueTypes, anyTypeLiteral, node.sourcePosition)
+        dictionaryType = self.visitNode(ASTFormDictionaryTypeNode(node.sourcePosition, keyType, valueType))
+        associationType = self.visitNode(ASTFormProductTypeNode(node.sourcePosition, [keyType, valueType]))
+
+        coercedElements = []
+        for element in elements:
+            coercedElements.append(self.visitNodeWithExpectedTypeExpression(element, associationType))
+
+        return reduceDictionaryNode(ASTTypedDictionaryNode(node.sourcePosition, dictionaryType, coercedElements))
 
     def visitSequenceNode(self, node: ASTSequenceNode):
         if len(node.elements) == 0:
@@ -909,7 +971,10 @@ class Typechecker(ASTVisitor):
 
     def visitSumTypeNode(self, node: ASTProductTypeNode):
         return node
-    
+
+    def visitDictionaryTypeNode(self, node: ASTProductTypeNode):
+        return node
+
     def visitTypedAllocaMutableWithValueNode(self, node: ASTTypedAllocaMutableWithValueNode):
         return node
 
@@ -980,6 +1045,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedPointerLikeSubscriptAtNode(self, node: ASTTypedPointerLikeSubscriptAtNode):
+        return node
+
+    def visitTypedDictionaryNode(self, node: ASTTypedDictionaryNode):
         return node
 
     def visitTypedSequenceNode(self, node: ASTTypedSequenceNode):
@@ -1317,6 +1385,11 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedElementTypes.append(self.visitNode(element))
         return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, reducedElementTypes))
 
+    def visitDictionaryTypeNode(self, node: ASTDictionaryTypeNode):
+        keyType = self.visitNode(node.keyType)
+        valueType = self.visitNode(node.valueType)
+        return reduceDictionaryTypeNode(ASTDictionaryTypeNode(node.sourcePosition, keyType, valueType))
+
     def visitSumTypeNode(self, node: ASTSumTypeNode):
         reducedAlternativeTypes = []
         for alternative in node.alternativeTypesTypes:
@@ -1575,6 +1648,14 @@ def reduceProductTypeNode(node: ASTProductTypeNode):
 
     if all(elementType.isLiteralTypeNode() for elementType in node.elementTypes):
         return ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(list(map(lambda n: n.value, node.elementTypes))))
+    return node
+
+def reduceDictionaryTypeNode(node: ASTDictionaryTypeNode):
+    if node.keyType.isLiteralTypeNode() and node.valueType.isLiteralTypeNode():
+        return ASTLiteralTypeNode(node.sourcePosition, DictionaryType.makeWithKeyAndValueType(node.keyType.value, node.valueType.value))
+    return node
+
+def reduceDictionaryNode(node: ASTTypedDictionaryNode):
     return node
 
 def reduceTupleNode(node: ASTTypedTupleNode):

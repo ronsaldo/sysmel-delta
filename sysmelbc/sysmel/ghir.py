@@ -7,6 +7,7 @@ class GHIRContext:
     def __init__(self) -> None:
         self.constantValues = dict()
         self.simpleFunctionTypes = dict()
+        self.dictionaryTypes = dict()
         self.productTypes = dict()
         self.sumTypes = dict()
         self.decoratedTypes = dict()
@@ -33,6 +34,15 @@ class GHIRContext:
         self.simpleFunctionTypes[hashKey] = simpleFunctionType
         return simpleFunctionType
 
+    def getDictionaryType(self, type, keyType, valueType):
+        hashKey = (type, keyType, valueType)
+        if hashKey in self.dictionaryTypes:
+            return self.dictionaryTypes[hashKey]
+        
+        dictionaryType = GHIRDictionaryType(self, None, type, keyType, valueType)
+        self.dictionaryTypes[hashKey] = dictionaryType
+        return dictionaryType
+    
     def getProductType(self, type, elements):
         hashKey = (type, tuple(elements))
         if hashKey in self.productTypes:
@@ -174,6 +184,10 @@ class GHIRVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitDictionaryType(self, value):
+        pass
+
+    @abstractmethod
     def visitProductType(self, value):
         pass
 
@@ -223,6 +237,10 @@ class GHIRVisitor(ABC):
 
     @abstractmethod
     def visitWhileExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitMakeDictionaryExpression(self, value):
         pass
 
     @abstractmethod
@@ -730,6 +748,45 @@ class GHIRSigmaValue(GHIRFunctionalValue):
             productType = self.context.getProductType(self.getType(), argumentTypes + [resultType])
             return self.replaceWith(productType)
         return super().simplify()
+
+class GHIRDictionaryType(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, keyType: GHIRValue, valueType: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.keyType = keyType
+        self.valueType = valueType
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitDictionaryType(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isDictionaryType(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        keyType = graphPrinter.printValue(self.keyType)
+        valueType = graphPrinter.printValue(self.valueType)
+
+        graphPrinter.printLine('%s := dictionaryType %s -> %s : %s' % (valueName, keyType, valueType, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.keyType
+        yield self.valueType
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.keyType is usedValue:
+            self.keyType = replacement
+            replacement.registerUserValue(self)
+        if self.valueType is usedValue:
+            self.valueType = replacement
+            replacement.registerUserValue(self)
 
 class GHIRProductType(GHIRValue):
     def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elements: list[GHIRValue]) -> None:
@@ -1342,6 +1399,42 @@ class GHIRPointerLikeSubscriptAtExpression(GHIRValue):
             self.index = replacement
             replacement.registerUserValue(self)
 
+class GHIRMakeDictionaryExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elements: list[GHIRValue]) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.elements = elements
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitMakeDictionaryExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isMakeDictionaryExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        elementList = ''
+        for element in self.elements:
+            if len(elementList) != 0:
+                elementList += ', '
+            elementList += graphPrinter.printValue(element)
+
+        graphPrinter.printLine('%s := makeDictionary [%s] : %s' % (valueName, elementList, type))
+
+    def usedValues(self):
+        yield self.type
+        for element in self.elements:
+            yield element
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
+
 class GHIRMakeTupleExpression(GHIRValue):
     def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, elements: list[GHIRValue]) -> None:
         super().__init__(context, sourcePosition)
@@ -1680,6 +1773,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateValue(value.type)
         return GHIRCurryingFunction(self.context, None, type, innerFunction).simplify()
 
+    def visitDictionaryType(self, value: DictionaryType):
+        type = self.translateValue(value.getType())
+        keyType = self.translateValue(value.keyType)
+        valueType = self.translateValue(value.valueType)
+        return self.context.getDictionaryType(type, keyType, valueType)
+
     def visitProductType(self, value: ProductType):
         type = self.translateValue(value.getType())
         elementTypes = list(map(self.translateValue, value.elementTypes))
@@ -1786,6 +1885,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         elementType = self.translateExpression(node.elementType)
         size = self.translateExpression(node.size)
         return GHIRArrayType(self.context, node.sourcePosition, type, elementType, size).simplify()
+
+    def visitDictionaryTypeNode(self, node: ASTDictionaryTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        keyType = self.translateExpression(node.keyType)
+        valueType = self.translateExpression(node.valueType)
+        return GHIRDictionaryType(self.context, node.sourcePosition, type, keyType, valueType).simplify()
 
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())
@@ -1932,6 +2037,11 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         index = self.translateExpression(node.index)
         return GHIRPointerLikeSubscriptAtExpression(self.context, node.sourcePosition, type, pointer, index)
 
+    def visitTypedDictionaryNode(self, node: ASTTypedDictionaryNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        elements = list(map(self.translateExpression, node.elements))
+        return GHIRMakeDictionaryExpression(self.context, node.sourcePosition, type, elements).simplify()
+
     def visitTypedTupleNode(self, node: ASTTypedTupleNode) -> TypedValue:
         type = self.translateExpression(node.type)
         elements = list(map(self.translateExpression, node.elements))
@@ -2027,6 +2137,12 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
     def visitArrayType(self, value: GHIRArrayType):
         return self.checkValue(value.elementType) or self.checkValue(value.size)
 
+    def visitDictionaryType(self, value: GHIRProductType):
+        for element in value.elements:
+            if self.checkValue(element):
+                return True
+        return False
+
     def visitProductType(self, value: GHIRProductType):
         for element in value.elements:
             if self.checkValue(element):
@@ -2089,6 +2205,12 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
 
     def visitWhileExpression(self, value: GHIRWhileExpression):
         return self.checkValue(value.condition) or self.checkValue(value.bodyExpression) or self.checkValue(value.continueExpression)
+
+    def visitMakeDictionaryExpression(self, value: GHIRMakeDictionaryExpression):
+        for element in value.elements:
+            if self.checkValue(element):
+                return True
+        return False
 
     def visitMakeTupleExpression(self, value: GHIRMakeTupleExpression):
         for element in value.elements:

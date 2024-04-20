@@ -63,6 +63,18 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitFormDictionaryTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitFormProductTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitFormSumTypeNode(self, node):
+        pass
+
+    @abstractmethod
     def visitFunctionalDependentTypeNode(self, node):
         pass
 
@@ -183,11 +195,19 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitDictionaryTypeNode(self, node):
+        pass
+
+    @abstractmethod
     def visitProductTypeNode(self, node):
         pass
 
     @abstractmethod
     def visitSumTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitDictionaryNode(self, node):
         pass
 
     @abstractmethod
@@ -292,6 +312,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedSequenceNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedDictionaryNode(self, node):
         pass
 
     @abstractmethod
@@ -542,6 +566,18 @@ class ASTFormTemporaryReferenceTypeNode(ASTFormDerivedTypeNode):
     def toJson(self) -> dict:
         return {'kind': 'FormTemporaryReferenceType', 'baseType': self.baseType.toJson()}
     
+class ASTFormDictionaryTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, keyType: ASTNode, valueType: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.keyType = keyType
+        self.valueType = valueType
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormDictionaryTypeNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'FormDictionaryType', 'key' : self.keyType.toJson(), 'value' : self.valueType.toJson()}
+    
 class ASTFormProductTypeNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
         super().__init__(sourcePosition)
@@ -708,6 +744,20 @@ class ASTMessageSendNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'MessageSend', 'receiver': optionalASTNodeToJson(self.receiver), 'selector': self.selector.toJson(), 'arguments': list(map(optionalASTNodeToJson, self.arguments))}
+
+class ASTDictionaryNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.elements = elements
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitDictionaryNode(self)
+    
+    def isDictionaryNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'Dictionary', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
 class ASTSequenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
@@ -896,6 +946,31 @@ class ASTArrayTypeNode(ASTTypeNode):
     
     def toJson(self) -> dict:
         return {'kind': 'ArrayType', 'elementType': self.elementType.toJson(), 'size' : self.size.toJson()}
+
+class ASTDictionaryTypeNode(ASTTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, keyType: ASTTypeNode, valueType: ASTTypeNode) -> None:
+        super().__init__(sourcePosition)
+        self.keyType = keyType
+        self.valueType = valueType
+        self.typeUniverseIndex = None
+
+    def computeTypeUniverseIndex(self) -> int:
+        if self.typeUniverseIndex is None:
+            self.typeUniverseIndex = max(self.keyType.computeTypeUniverseIndex(), self.valueType.computeTypeUniverseIndex())
+        
+        return self.typeUniverseIndex
+    
+    def accept(self, visitor):
+        return visitor.visitDictionaryTypeNode(self)
+
+    def isDictionaryTypeNodeOrLiteral(self) -> bool:
+        return True
+
+    def isDictionaryTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'DictionaryType', 'key': self.keyType.toJson(), 'value': self.valueType.toJson()}
     
 class ASTProductTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, elementTypes: list[ASTTypeNode]) -> None:
@@ -1364,6 +1439,20 @@ class ASTTypedSequenceNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedSequence', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
+class ASTTypedDictionaryNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTNode]) -> None:
+        super().__init__(sourcePosition, type)
+        self.elements = elements
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedDictionaryNode(self)
+
+    def isTypedDictionaryNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedDictionary', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
+    
 class ASTTypedTupleNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTNode]) -> None:
         super().__init__(sourcePosition, type)
@@ -1554,6 +1643,10 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitFormTemporaryReferenceTypeNode(self, node: ASTFormTemporaryReferenceTypeNode):
         self.visitNode(node.baseType)
 
+    def visitFormDictionaryTypeNode(self, node: ASTFormDictionaryTypeNode):
+        self.visitNode(node.keyType)
+        self.visitNode(node.valueType)
+
     def visitFormProductTypeNode(self, node: ASTFormProductTypeNode):
         for element in node.elements:
             self.visitNode(element)
@@ -1615,6 +1708,10 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.elements:
             self.visitNode(expression)
 
+    def visitDictionaryNode(self, node: ASTDictionaryNode):
+        for expression in node.elements:
+            self.visitNode(expression)
+
     def visitTupleNode(self, node: ASTTupleNode):
         for expression in node.elements:
             self.visitNode(expression)
@@ -1629,6 +1726,10 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitArrayTypeNode(self, node: ASTArrayTypeNode):
         self.visitNode(node.elementType)
         self.visitNode(node.size)
+
+    def visitDictionaryTypeNode(self, node: ASTDictionaryTypeNode):
+        self.visitNode(node.keyType)
+        self.visitNode(node.valueType)
 
     def visitPointerTypeNode(self, node: ASTPointerTypeNode):
         self.visitNode(node.baseType)
@@ -1782,6 +1883,11 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.elements:
             self.visitNode(expression)
 
+    def visitTypedDictionaryNode(self, node: ASTTypedDictionaryNode):
+        self.visitNode(node.type)
+        for expression in node.elements:
+            self.visitNode(expression)
+
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         self.visitNode(node.type)
         for expression in node.elements:
@@ -1859,6 +1965,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitFormArrayTypeNode(self, node):
+        assert False
+
+    def visitFormDictionaryTypeNode(self, node):
         assert False
 
     def visitFormProductTypeNode(self, node):
@@ -1946,6 +2055,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitPointerLikeSubscriptAtNode(self, node: ASTPointerLikeSubscriptAtNode):
+        assert False
+
+    def visitDictionaryNode(self, node):
         assert False
 
     def visitTupleNode(self, node):
