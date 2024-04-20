@@ -249,6 +249,10 @@ class GHIRVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitModifiedTupleExpression(self, value):
+        pass
+
+    @abstractmethod
     def visitApplicationValue(self, value):
         pass
 
@@ -1478,6 +1482,53 @@ class GHIRMakeTupleExpression(GHIRValue):
             replacement.registerUserValue(self)
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
+class GHIRModifiedTupleExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, baseTuple: GHIRValue, elements: list[GHIRValue], elementIndices: list[int]) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.baseTuple = baseTuple
+        self.elements = elements
+        self.elementIndices = elementIndices
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitModifiedTupleExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isModifiedTupleExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        baseTuple = graphPrinter.printValue(self.baseTuple)
+        elementList = ''
+        for i in range(len(self.elements)):
+            element = self.elements[i]
+            elementIndex = self.elementIndices[i]
+            if len(elementList) != 0:
+                elementList += ', '
+            elementList += str(elementIndex)
+            elementList += ': '
+            elementList += graphPrinter.printValue(element)
+
+        graphPrinter.printLine('%s := modifiedTuple %s [%s] : %s' % (valueName, elementList, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.baseTuple
+        for element in self.elements:
+            yield element
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.baseTuple is usedValue:
+            self.baseTuple = replacement
+            replacement.registerUserValue(self)
+        self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
+
 class GHIRTupleAtExpression(GHIRValue):
     def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, tuple: GHIRValue, index: int) -> None:
         super().__init__(context, sourcePosition)
@@ -2060,6 +2111,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         elements = list(map(self.translateExpression, node.elements))
         return GHIRMakeTupleExpression(self.context, node.sourcePosition, type, elements).simplify()
 
+    def visitTypedModifiedTupleNode(self, node: ASTTypedModifiedTupleNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        baseTuple = self.translateExpression(node.baseTuple)
+        elements = list(map(self.translateExpression, node.elements))
+        return GHIRModifiedTupleExpression(self.context, node.sourcePosition, type, baseTuple, elements, node.elementIndices).simplify()
+
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode) -> TypedValue:
         type = self.translateExpression(node.type)
         tuple = self.translateExpression(node.tuple)
@@ -2226,6 +2283,14 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
         return False
 
     def visitMakeTupleExpression(self, value: GHIRMakeTupleExpression):
+        for element in value.elements:
+            if self.checkValue(element):
+                return True
+        return False
+
+    def visitModifiedTupleExpression(self, value: GHIRModifiedTupleExpression):
+        if self.checkValue(value.baseTuple):
+            return True
         for element in value.elements:
             if self.checkValue(element):
                 return True

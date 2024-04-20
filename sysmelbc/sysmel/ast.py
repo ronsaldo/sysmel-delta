@@ -227,6 +227,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitModifiedRecordNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTupleNode(self, node):
         pass
 
@@ -332,6 +336,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitTypedTupleNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitTypedModifiedTupleNode(self, node):
         pass
 
     @abstractmethod
@@ -830,7 +838,23 @@ class ASTRecordNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'record', 'type': self.type.toJson(), 'fieldNames': list(map(optionalASTNodeToJson, self.fieldNames)), 'fieldValues': list(map(optionalASTNodeToJson, self.fieldValues))}
+
+class ASTModifiedRecordNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, record: ASTNode, fieldNames: list[ASTNode], fieldValues: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.record = record
+        self.fieldNames = fieldNames
+        self.fieldValues = fieldValues
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitModifiedRecordNode(self)
     
+    def isRecordNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'modifiedRecord', 'record': self.record.toJson(), 'fieldNames': list(map(optionalASTNodeToJson, self.fieldNames)), 'fieldValues': list(map(optionalASTNodeToJson, self.fieldValues))}
+
 class ASTOverloadsTypeNode(ASTTypeNode):
     def __init__(self, sourcePosition: SourcePosition, alternativeTypes: list[ASTTypeNode]) -> None:
         super().__init__(sourcePosition)
@@ -1526,6 +1550,23 @@ class ASTTypedTupleNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedTuple', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
+class ASTTypedModifiedTupleNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, baseTuple: ASTNode, elements: list[ASTNode], elementIndices: list[int], isRecord: bool) -> None:
+        super().__init__(sourcePosition, type)
+        self.baseTuple = baseTuple
+        self.elements = elements
+        self.elementIndices = elementIndices
+        self.isRecord = isRecord
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedModifiedTupleNode(self)
+
+    def isTypedModifiedTupleNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedModifiedTuple', 'type': self.type.toJson(), 'baseTuple': self.baseTuple.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements)), 'elementIndices' : self.elementIndices}
+    
 class ASTTypedTupleAtNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, tuple: ASTNode, index: int) -> None:
         super().__init__(sourcePosition, type)
@@ -1788,6 +1829,13 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.fieldValues:
             self.visitOptionalNode(expression)
 
+    def visitModifiedRecordNode(self, node: ASTModifiedRecordNode):
+        self.visitNode(node.record)
+        for expression in node.fieldNames:
+            self.visitOptionalNode(expression)
+        for expression in node.fieldValues:
+            self.visitOptionalNode(expression)
+
     def visitOverloadsTypeNode(self, node: ASTOverloadsTypeNode):
         for expression in node.alternativeTypes:
             self.visitNode(expression)
@@ -1969,6 +2017,12 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.elements:
             self.visitNode(expression)
 
+    def visitTypedModifiedTupleNode(self, node: ASTTypedModifiedTupleNode):
+        self.visitNode(node.type)
+        self.visitNode(node.baseTuple)
+        for expression in node.elements:
+            self.visitNode(expression)
+
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
         self.visitNode(node.type)
         self.visitNode(node.tuple)
@@ -2140,4 +2194,7 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitRecordNode(self, node):
+        assert False
+
+    def visitModifiedRecordNode(self, node):
         assert False

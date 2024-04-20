@@ -229,6 +229,16 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         productType = self.visitNode(node.type)
         return productType.makeWithElements(tuple(elements))
 
+    def visitTypedModifiedTupleNode(self, node: ASTTypedModifiedTupleNode) -> TypedValue:
+        baseTuple = self.visitNode(node.baseTuple)
+        modifiedElements = list(baseTuple.elements)
+        for i in range(len(node.elements)):
+            element = self.visitNode(node.elements[i])
+            elementIndex = node.elementIndices[i]
+            modifiedElements[elementIndex] = element
+
+        return baseTuple.type.makeWithElements(tuple(modifiedElements))
+
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode) -> TypedValue:
         tuple = self.visitNode(node.tuple)
         return tuple[node.index]

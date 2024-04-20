@@ -207,7 +207,7 @@ class Typechecker(ASTVisitor):
         if functionalType.isRecordTypeNodeOrLiteral():
             keys, values, errorNode = self.expandAndUnpackUnzippedDictionaryNodeWithElements(node.arguments[0])
             assert errorNode is None
-            assert False
+            return self.visitNode(ASTModifiedRecordNode(node.sourcePosition, functional, keys, values))
 
         selector = ASTLiteralNode(node.sourcePosition, Symbol.intern('#{}:'))
         return self.visitNode(ASTMessageSendNode(node.sourcePosition, functional, selector, node.arguments))
@@ -1031,7 +1031,7 @@ class Typechecker(ASTVisitor):
         recordTypeExpression = self.visitTypeExpression(node.type)
         if not recordTypeExpression.isRecordTypeNodeOrLiteral():
             return self.visitNode(ASTSequenceNode(node.sourcePosition,
-                [ASTErrorNode(recordTypeExpression.sourcePosition, "Expected a record type.")] + node.fieldNames + node.fieldValues)
+                node.fieldNames + node.fieldValues + [ASTErrorNode(recordTypeExpression.sourcePosition, "Expected a record type.")])
             )
         
         errorNodes = []
@@ -1069,6 +1069,38 @@ class Typechecker(ASTVisitor):
         
         return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, recordTypeExpression, fieldValues, True))
 
+    def visitModifiedRecordNode(self, node: ASTModifiedRecordNode):
+        record = self.visitNode(node.record)
+        recordTypeExpression = getTypeOfAnalyzedNode(record, node.sourcePosition)
+        if not recordTypeExpression.isRecordTypeNodeOrLiteral():
+            return self.visitNode(ASTSequenceNode(node.sourcePosition,
+                [record] + node.fieldNames + node.fieldValues + [ASTErrorNode(recordTypeExpression.sourcePosition, "Expected a record type.")])
+            )
+        
+        errorNodes = []
+        coercedFieldValues = []
+        elementIndices = []
+        for i in range(len(node.fieldNames)):
+            fieldNameExpression = node.fieldNames[i]
+            fieldName, errorNode = self.evaluateSymbol(fieldNameExpression)
+            if errorNode is not None:
+                errorNodes.append(errorNode)
+                continue
+
+            fieldIndex, fieldType = recordTypeExpression.findIndexOfFieldOrNoneAt(fieldName, fieldNameExpression.sourcePosition)
+            if fieldIndex is None:
+                errorNodes.append(ASTErrorNode(fieldName.sourcePosition, 'Failed to find field %s in record %s.' % (fieldName.prettyPrint(), recordTypeExpression.prettyPrint())))
+                continue
+
+            fieldValue = self.visitNodeWithExpectedTypeExpression(node.fieldValues[i], fieldType)
+            elementIndices.append(fieldIndex)
+            coercedFieldValues.append(fieldValue)
+
+        if len(errorNodes):
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, coercedFieldValues + errorNodes))
+        
+        return reduceModifiedTupleNode(ASTTypedModifiedTupleNode(node.sourcePosition, recordTypeExpression, record, coercedFieldValues, elementIndices, True))
+    
     def visitOverloadsTypeNode(self, node: ASTProductTypeNode):
         return node
 
@@ -1179,7 +1211,10 @@ class Typechecker(ASTVisitor):
 
     def visitTypedTupleNode(self, node: ASTTypedTupleNode):
         return node
-    
+
+    def visitTypedModifiedTupleNode(self, node: ASTTypedModifiedTupleNode):
+        return node
+
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
         return node
 
@@ -1539,7 +1574,16 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         for element in node.elements:
             reducedElements.append(self.visitNode(element))
         return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements, node.isRecord))
-    
+
+    def visitTypedModifiedTupleNode(self, node: ASTTypedModifiedTupleNode):
+        reducedType = self.visitNode(node.type)
+        baseType = self.visitNode(node.baseTuple)
+
+        reducedElements = []
+        for element in node.elements:
+            reducedElements.append(self.visitNode(element))
+        return reduceModifiedTupleNode(ASTTypedModifiedTupleNode(node.sourcePosition, reducedType, baseType, reducedElements, node.elementIndices, node.isRecord))
+
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
         reducedType = self.visitNode(node.type)
         reducedTuple = self.visitNode(node.tuple)
@@ -1814,6 +1858,9 @@ def reduceTupleNode(node: ASTTypedTupleNode):
         productType: ProductType = node.type.value
         tuple = productType.makeWithElements(list(map(lambda n: n.value, node.elements)))
         return ASTTypedLiteralNode(node.sourcePosition, node.type, tuple)
+    return node
+
+def reduceModifiedTupleNode(node: ASTTypedModifiedTupleNode):
     return node
 
 def reduceTupleAtNode(node: ASTTypedTupleAtNode):
