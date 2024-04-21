@@ -21,9 +21,10 @@ typedef struct sdvm_compilerMachOFileLayout_s
     size_t sectionRelocations[SDVM_COMPILER_SECTION_COUNT];
     uint16_t sectionIndices[SDVM_COMPILER_SECTION_COUNT];
     bool writtenSections[SDVM_COMPILER_SECTION_COUNT];
+    size_t symbolTableCommand;
+    size_t dySymbolTableCommand;
     size_t commandsSize;
 } sdvm_compilerMachOFileLayout_t;
-
 
 static sdvm_compilerMachOFileLayout_t sdvm_compilerMachO64_computeObjectFileLayout(sdvm_compiler_t *compiler)
 {
@@ -50,6 +51,16 @@ static sdvm_compilerMachOFileLayout_t sdvm_compilerMachO64_computeObjectFileLayo
     }
 
     layout.objectSegmentCommandSize = layout.size - layout.objectSegment;
+
+    // Symbol tables
+    if(compiler->symbolTable.symbols.size != 0)
+    {
+        layout.symbolTableCommand = layout.size;
+        layout.size += sizeof(sdvm_symtab_command_t);
+
+        layout.dySymbolTableCommand = layout.size;
+        layout.size += sizeof(sdvm_dysymtab_command_t);
+    }
 
     // End the commands size.
     layout.commandsSize = layout.size - layout.objectSegment;
@@ -92,6 +103,11 @@ static sdvm_compilerMachOFileLayout_t sdvm_compilerMachO64_computeObjectFileLayo
     baseAddress = sdvm_uint64_alignedTo(baseAddress, objectSegmentAlignment);
     layout.objectSegmentAddressSize = baseAddress - layout.objectSegmentAddress;
     layout.objectSegmentSize = layout.size - layout.objectSegmentOffset;
+
+    // Symbols
+    if(compiler->symbolTable.symbols.size != 0)
+    {
+    }
 
     return layout;
 }
@@ -167,6 +183,19 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
         }
     }
     
+    // Symbol tables
+    if(compiler->symbolTable.symbols.size != 0)
+    {
+        header->ncmds += 2;
+        sdvm_symtab_command_t *symtabCommand = (sdvm_symtab_command_t*)(objectFile->data + layout.symbolTableCommand);
+        symtabCommand->cmd = SDVM_MACHO_LC_SYMTAB;
+        symtabCommand->cmdsize = sizeof(sdvm_symtab_command_t);
+
+        sdvm_dysymtab_command_t *dySymtabCommand = (sdvm_dysymtab_command_t*)(objectFile->data + layout.dySymbolTableCommand);
+        dySymtabCommand->cmd = SDVM_MACHO_LC_DYSYMTAB;
+        dySymtabCommand->cmdsize = sizeof(sdvm_dysymtab_command_t);
+    }
+
     return objectFile;
 }
 
