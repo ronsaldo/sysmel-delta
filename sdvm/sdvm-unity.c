@@ -2,6 +2,7 @@
 #include "compiler.c"
 #include "compilerElf.c"
 #include "compilerCoff.c"
+#include "compilerMachO.c"
 #include "compilerX86.c"
 #include "compilerAArch64.c"
 #include "module.c"

@@ -335,13 +335,13 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
     return objectFile;
 }
 
-bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName)
+bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName)
 {
     sdvm_compilerObjectFile_t *objectFile = sdvm_compilerElf64_encode(compiler);
     if(!objectFile)
         return false;
 
-    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, elfFileName);
+    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, objectFileName);
     sdvm_compileObjectFile_destroy(objectFile);
     return succeeded;
 }
@@ -352,13 +352,13 @@ SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf32_encode(sdvm_compiler_t *c
     abort();
 }
 
-SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName)
+SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName)
 {
     sdvm_compilerObjectFile_t *objectFile = sdvm_compilerElf32_encode(compiler);
     if(!objectFile)
         return false;
 
-    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, elfFileName);
+    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, objectFileName);
     sdvm_compileObjectFile_destroy(objectFile);
     return succeeded;
 }

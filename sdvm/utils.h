@@ -98,6 +98,21 @@ static inline int sdvm_uint64_ctz(uint64_t x)
 }
 #endif
 
+static inline size_t sdvm_size_alignedTo(size_t value, size_t alignment)
+{
+    return (value + alignment - 1) & (-alignment);
+}
+
+static inline uint32_t sdvm_uint32_alignedTo(uint32_t value, uint32_t alignment)
+{
+    return (value + alignment - 1) & (-alignment);
+}
+
+static inline uint64_t sdvm_uint64_alignedTo(uint64_t value, uint64_t alignment)
+{
+    return (value + alignment - 1) & (-alignment);
+}
+
 SDVM_API bool sdvm_targetDescription_parseTriple(sdvm_targetDescription_t *outParsedDescription, const char *triple);
 SDVM_API bool sdvm_targetDescription_parseNames(sdvm_targetDescription_t *description);
 

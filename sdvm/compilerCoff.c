@@ -286,13 +286,13 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
     return objectFile;
 }
 
-bool sdvm_compilerCoff_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName)
+bool sdvm_compilerCoff_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName)
 {
     sdvm_compilerObjectFile_t *objectFile = sdvm_compilerCoff_encode(compiler);
     if(!objectFile)
         return false;
 
-    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, elfFileName);
+    bool succeeded = sdvm_compileObjectFile_saveToFileNamed(objectFile, objectFileName);
     sdvm_compileObjectFile_destroy(objectFile);
     return succeeded;
 }

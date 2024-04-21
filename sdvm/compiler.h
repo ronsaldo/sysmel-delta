@@ -155,6 +155,8 @@ typedef struct sdvm_compilerObjectSection_s
     uint32_t flags;
     uint32_t entrySize;
     const char *name;
+    const char *machoSectionName;
+    const char *machoSegmentName;
     const char *relSectionName;
     const char *relaSectionName;
 
@@ -224,6 +226,8 @@ struct sdvm_compilerTarget_s
     sdvm_compilerObjectFileType_t objectFileType;
     uint32_t elfMachine;
     uint16_t coffMachine;
+    uint32_t machoCpuType;
+    uint32_t machoCpuSubtype;
     bool usesUnderscorePrefix;
     bool hasSeparateFloatFromVectorRegisters;
     bool usesCET;
@@ -683,13 +687,19 @@ SDVM_API void sdvm_compileObjectFile_destroy(sdvm_compilerObjectFile_t *objectFi
 SDVM_API bool sdvm_compileObjectFile_saveToFileNamed(sdvm_compilerObjectFile_t *objectFile, const char *fileName);
 
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler);
-SDVM_API bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
+SDVM_API bool sdvm_compilerElf64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);
 
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerElf32_encode(sdvm_compiler_t *compiler);
-SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
+SDVM_API bool sdvm_compilerElf32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);
 
 SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler);
-SDVM_API bool sdvm_compilerCoff_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *elfFileName);
+SDVM_API bool sdvm_compilerCoff_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler);
+SDVM_API bool sdvm_compilerMachO64_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);
+
+SDVM_API sdvm_compilerObjectFile_t *sdvm_compilerMachO32_encode(sdvm_compiler_t *compiler);
+SDVM_API bool sdvm_compilerMachO32_encodeObjectAndSaveToFileNamed(sdvm_compiler_t *compiler, const char *objectFileName);
 
 SDVM_API void sdvm_registerSet_clear(sdvm_registerSet_t *set);
 SDVM_API bool sdvm_registerSet_includes(const sdvm_registerSet_t *set, uint8_t value);
