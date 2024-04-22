@@ -232,4 +232,22 @@ typedef struct sdvm_dysymtab_command_s
     uint32_t nlocrel;
 } sdvm_dysymtab_command_t;
 
+typedef struct sdvm_macho_nlist_s
+{
+	uint32_t n_strx;
+	uint8_t  n_type;
+	uint8_t  n_sect;
+	int16_t  n_desc;
+	uint32_t n_value;
+} sdvm_macho_nlist_t;
+
+typedef struct sdvm_macho_nlist_64_s
+{
+    uint32_t n_strx;
+    uint8_t  n_type;
+    uint8_t  n_sect;
+    uint16_t n_desc;
+    uint64_t n_value;
+} sdvm_macho_nlist_64_t;
+
 #endif //SDVM_MACHO_H
