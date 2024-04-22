@@ -1,7 +1,9 @@
 #include "compiler.h"
 #include "macho.h"
 #include "utils.h"
+#include "assert.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct sdvm_compilerMachOFileLayout_s
@@ -24,7 +26,68 @@ typedef struct sdvm_compilerMachOFileLayout_s
     size_t symbolTableCommand;
     size_t dySymbolTableCommand;
     size_t commandsSize;
+    size_t symbolCount;
+    size_t symbolTable;
+    size_t stringTable;
+    size_t stringTableSize;
 } sdvm_compilerMachOFileLayout_t;
+
+typedef enum sdvm_compilerMachOSymbolCategory_e
+{
+    SdvmCompMachOSymbolCategoryLocal = 0,
+    SdvmCompMachOSymbolCategoryExternalDefined,
+    SdvmCompMachOSymbolCategoryExternalUndefined,
+} sdvm_compilerMachOSymbolCategory_t;
+
+typedef struct sdvm_compilerMachOSymbol_s
+{
+    int category;
+    size_t index;
+    const char *name;
+    sdvm_compilerSymbol_t *symbol;
+} sdvm_compilerMachOSymbol_t;
+
+typedef struct sdvm_compilerMachStringTableState_s
+{
+    char *writeBuffer;
+    size_t size;
+} sdvm_compilerMachStringTableState_t;
+
+int sdvm_compilerMachOSymbol_sortCompare(const void *a, const void *b)
+{
+    sdvm_compilerMachOSymbol_t *left = (sdvm_compilerMachOSymbol_t*)a;
+    sdvm_compilerMachOSymbol_t *right = (sdvm_compilerMachOSymbol_t*)b;
+    if(left->category != right->category)
+        return left->category - right->category;
+    
+    if(!left->name && !right->name)
+        return left->index - right->index;
+    return strcmp(left->name, right->name);
+}
+
+static size_t sdvm_compilerMachO_computeNameStringSize(const char *string)
+{
+    if(!string)
+        return 0;
+
+    size_t stringLength = strlen(string);
+    if(stringLength == 0)
+        return 0;
+
+    return stringLength + 1;
+}
+
+static size_t sdvm_compilerMachOStringTable_write(sdvm_compilerMachStringTableState_t *stringTable, const char *string)
+{
+    if(!string || !*string)
+        return 0;
+    
+    size_t stringLength = strlen(string);
+    size_t result = stringTable->size;
+    memcpy(stringTable->writeBuffer + result, string, stringLength);
+    stringTable->size += stringLength + 1;
+    return result;
+}
 
 static sdvm_compilerMachOFileLayout_t sdvm_compilerMachO64_computeObjectFileLayout(sdvm_compiler_t *compiler)
 {
@@ -107,7 +170,33 @@ static sdvm_compilerMachOFileLayout_t sdvm_compilerMachO64_computeObjectFileLayo
     // Symbols
     if(compiler->symbolTable.symbols.size != 0)
     {
+        layout.symbolCount = 0;
+        layout.stringTableSize = 1;
+        sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
+        for(size_t i = 0; i < compiler->symbolTable.symbols.size; ++i)
+        {
+            sdvm_compilerSymbol_t *symbol = symbols + i;
+            if(symbol->binding == SdvmCompSymbolBindingLocal)
+            {
+                if(symbol->section && layout.writtenSections[symbol->section])
+                {
+                    layout.stringTableSize += sdvm_compilerMachO_computeNameStringSize((char*)compiler->symbolTable.strings.data + symbol->name);
+                    ++layout.symbolCount;
+                }
+            }
+            else
+            {
+                layout.stringTableSize += sdvm_compilerMachO_computeNameStringSize((char*)compiler->symbolTable.strings.data + symbol->name);
+                ++layout.symbolCount;
+            }
+        }
+
+        layout.symbolTable = layout.size;
+        layout.size += layout.symbolCount * sizeof(sdvm_macho64_nlist_t);
     }
+
+    layout.stringTable = layout.size;
+    layout.size += layout.stringTable;
 
     return layout;
 }
@@ -186,14 +275,106 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
     // Symbol tables
     if(compiler->symbolTable.symbols.size != 0)
     {
+        sdvm_compilerMachStringTableState_t stringTable = {
+            .size = 1,
+            .writeBuffer = objectFile->data + layout.stringTable
+        };
+
+        // Make a list with the symbols so that we can group and sort them.
+        sdvm_compilerMachOSymbol_t *sortingSymbols = calloc(layout.symbolCount, sizeof(sdvm_compilerMachOSymbol_t));
+        sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
+        size_t sortingSymbolCount = 0;
+        for(size_t i = 0; i < compiler->symbolTable.symbols.size; ++i)
+        {
+            sdvm_compilerSymbol_t *symbol = symbols + i;
+            if(symbol->binding == SdvmCompSymbolBindingLocal)
+            {
+                if(symbol->section && layout.writtenSections[symbol->section])
+                {
+                    sdvm_compilerMachOSymbol_t *sortingSymbol = sortingSymbols + sortingSymbolCount++;
+                    sortingSymbol->category = SdvmCompMachOSymbolCategoryLocal;
+                    sortingSymbol->index = i;
+                    sortingSymbol->name = (char*)compiler->symbolTable.strings.data + symbol->name;
+                    sortingSymbol->symbol = symbol;
+                }
+            }
+            else
+            {
+                sdvm_compilerMachOSymbol_t *sortingSymbol = sortingSymbols + sortingSymbolCount++;
+                sortingSymbol->category = symbol->section ? SdvmCompMachOSymbolCategoryExternalDefined : SdvmCompMachOSymbolCategoryExternalUndefined;
+                sortingSymbol->index = i;
+                sortingSymbol->name = (char*)compiler->symbolTable.strings.data + symbol->name;
+                sortingSymbol->symbol = symbol;
+            }
+        }
+        SDVM_ASSERT(layout.symbolCount == sortingSymbolCount);
+
+        qsort(sortingSymbols, sortingSymbolCount, sizeof(sdvm_compilerMachOSymbol_t), sdvm_compilerMachOSymbol_sortCompare);
+
         header->ncmds += 2;
         sdvm_symtab_command_t *symtabCommand = (sdvm_symtab_command_t*)(objectFile->data + layout.symbolTableCommand);
         symtabCommand->cmd = SDVM_MACHO_LC_SYMTAB;
         symtabCommand->cmdsize = sizeof(sdvm_symtab_command_t);
+        symtabCommand->nsyms = layout.symbolCount;
+        symtabCommand->symoff = layout.symbolTable;
+        symtabCommand->stroff = layout.stringTable;
+        symtabCommand->strsize = layout.stringTableSize;
 
         sdvm_dysymtab_command_t *dySymtabCommand = (sdvm_dysymtab_command_t*)(objectFile->data + layout.dySymbolTableCommand);
         dySymtabCommand->cmd = SDVM_MACHO_LC_DYSYMTAB;
         dySymtabCommand->cmdsize = sizeof(sdvm_dysymtab_command_t);
+
+        bool hasSeenFirstLocal = false;
+        bool hasSeenFirstExternalDefined = false;
+        bool hasSeenFirstExternalUndefined = false;
+        sdvm_macho64_nlist_t *machoSymbols = (sdvm_macho64_nlist_t*)(objectFile->data + layout.symbolTable);
+        for(size_t i = 0; i < sortingSymbolCount; ++i)
+        {
+            sdvm_compilerMachOSymbol_t *sortingSymbol = sortingSymbols + i;
+            sdvm_compilerSymbol_t *symbol = sortingSymbol->symbol;
+            sdvm_macho64_nlist_t *machoSymbol = machoSymbols + i;
+
+            machoSymbol->n_value = symbol->value;
+            if(symbol->binding != SdvmCompSymbolBindingLocal)
+                machoSymbol->n_type |= SDVM_MACHO_N_EXT;
+
+            if(symbol->section)
+            {
+                machoSymbol->n_sect = layout.sectionIndices[symbol->section];
+                machoSymbol->n_type |= SDVM_MACHO_N_SECT;
+            }
+            symbol->objectSymbolIndex = i;
+            machoSymbol->n_strx = sdvm_compilerMachOStringTable_write(&stringTable, sortingSymbol->name);
+            switch(sortingSymbol->category)
+            {
+            case SdvmCompMachOSymbolCategoryLocal:
+                if(!hasSeenFirstLocal)
+                {
+                    dySymtabCommand->ilocalsym = i;
+                    hasSeenFirstLocal = true;
+                }
+                ++dySymtabCommand->nlocalsym;
+                break;
+            case SdvmCompMachOSymbolCategoryExternalDefined:
+                if(!hasSeenFirstExternalDefined)
+                {
+                    dySymtabCommand->iextdefsym = i;
+                    hasSeenFirstExternalDefined = true;
+                }
+                ++dySymtabCommand->nextdefsym;
+                break;
+            case SdvmCompMachOSymbolCategoryExternalUndefined:
+                if(!hasSeenFirstExternalUndefined)
+                {
+                    dySymtabCommand->iundefsym = i;
+                    hasSeenFirstExternalUndefined = true;
+                }
+                ++dySymtabCommand->nundefsym;
+                break;
+            }
+        }
+
+        free(sortingSymbols);
     }
 
     return objectFile;

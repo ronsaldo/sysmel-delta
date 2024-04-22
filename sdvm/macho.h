@@ -9,6 +9,17 @@
 #define	SDVM_MH_MAGIC_64 0xfeedfacf
 #define	SDVM_MH_OBJECT 0x1
 
+#define SDVM_MACHO_N_STAB 0xe0
+#define SDVM_MACHO_N_PEXT 0x10
+#define SDVM_MACHO_N_TYPE 0xe
+#define SDVM_MACHO_N_EXT 0x1
+
+#define SDVM_MACHO_N_UNDEF 0x2
+#define SDVM_MACHO_N_ABS 0x2
+#define SDVM_MACHO_N_SECT 0xe
+#define SDVM_MACHO_N_PBUD 0xc
+#define SDVM_MACHO_N_INDR 0xa
+
 typedef enum sdvm_macho_cpu_type_e
 {
     SDVM_MACHO_CPU_TYPE_ARCH_ABI64 = 0x01000000, 
@@ -241,13 +252,13 @@ typedef struct sdvm_macho_nlist_s
 	uint32_t n_value;
 } sdvm_macho_nlist_t;
 
-typedef struct sdvm_macho_nlist_64_s
+typedef struct sdvm_macho64_nlist_s
 {
     uint32_t n_strx;
     uint8_t  n_type;
     uint8_t  n_sect;
     uint16_t n_desc;
     uint64_t n_value;
-} sdvm_macho_nlist_64_t;
+} sdvm_macho64_nlist_t;
 
 #endif //SDVM_MACHO_H
