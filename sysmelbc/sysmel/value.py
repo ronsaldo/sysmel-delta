@@ -196,7 +196,7 @@ class TypedValue(ABC):
     def isTemporaryReferenceType(self) -> bool:
         return False
     
-    def findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition) -> int | None:
+    def findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition) -> int:
         return None, None
 
     def getBaseTypeExpressionAt(self, sourcePosition):
@@ -794,7 +794,7 @@ class StringDataValue(TypedValue):
 class FunctionType(BaseType):
     FunctionTypeCache = dict()
 
-    def __init__(self, argumentType: TypedValue, isVariadic: bool, resultType: TypedValue, callingConventionName: TypedValue | None = None) -> None:
+    def __init__(self, argumentType: TypedValue, isVariadic: bool, resultType: TypedValue, callingConventionName: TypedValue = None) -> None:
         super().__init__(None)
         self.type = None
         self.argumentType = argumentType
@@ -1014,7 +1014,7 @@ class RecordType(ProductType):
     def makeWithElements(self, elements) -> RecordTypeValue:
         return RecordTypeValue(self, elements)
     
-    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition) -> int | None:
+    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition) -> int:
         found = self.fieldNameDictionary.get(fieldName, None)
         if found is None:
             return None, None
@@ -1218,7 +1218,7 @@ class DecoratedType(DerivedType):
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitDecoratedType(self)
 
-    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition) -> int | None:
+    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition) -> int:
         return self.baseType.findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition)
     
     def prettyPrint(self) -> str:
@@ -1658,7 +1658,7 @@ class ASTLiteralTypeNode(ASTTypeNode):
     def applyCoercionExpresionIntoCVarArgType(self, node):
         return self.value.applyCoercionExpresionIntoCVarArgType(node)
 
-    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition: SourcePosition) -> int | None:
+    def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition: SourcePosition) -> int:
         return self.value.findIndexOfFieldOrNoneAt(fieldName, sourcePosition)
     
     def withCallingConventionNamed(self, callingConventionName: TypedValue):
@@ -1810,7 +1810,7 @@ class SymbolBinding(ABC):
         return substitutionContext.lookSubstitutionForBindingInNode(self, oldNode)
 
     @abstractmethod
-    def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
+    def getTypeExpression(self) -> ASTNode:
         pass
 
     def getCanonicalBinding(self):
@@ -1893,7 +1893,7 @@ class SymbolValueBinding(SymbolBinding):
     def evaluateInActivationEnvironmentAt(self, activationEnvironment, sourcePosition: SourcePosition) -> TypedValue:
         return self.value
 
-    def evaluateSubstitutionInContextAt(self, substitutionContext, sourcePosition: SourcePosition) -> ASTTypedNode | ASTTypeNode:
+    def evaluateSubstitutionInContextAt(self, substitutionContext, sourcePosition: SourcePosition) -> ASTNode:
         if self.value.isType():
             return ASTLiteralTypeNode(sourcePosition, self.value)
         return ASTTypedLiteralNode(sourcePosition, self.getTypeExpression(), self.value)
@@ -1908,7 +1908,7 @@ class SymbolValueBinding(SymbolBinding):
         return 0
 
 class SymbolLocalBinding(SymbolBinding):
-    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTTypeNode, valueExpression: ASTTypedNode | ASTTypeNode, isMutable: bool) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTTypeNode, valueExpression: ASTNode, isMutable: bool) -> None:
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
         self.valueExpression = valueExpression
@@ -1924,13 +1924,13 @@ class SymbolLocalBinding(SymbolBinding):
         return {'localBinding': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
 class SymbolArgumentBinding(SymbolBinding):
-    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode, isImplicit = False, isExistential = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTNode, isImplicit = False, isExistential = False) -> None:
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
         self.isImplicit = isImplicit
         self.isExistential = isExistential
 
-    def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
+    def getTypeExpression(self) -> ASTNode:
         return self.typeExpression
 
     def getCaptureNestingLevel(self) -> int:
@@ -1943,11 +1943,11 @@ class SymbolArgumentBinding(SymbolBinding):
         return {'argument': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
 class SymbolImplicitValueBinding(SymbolBinding):
-    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTLiteralTypeNode | ASTTypedNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTNode) -> None:
         super().__init__(sourcePosition, name)
         self.typeExpression = typeExpression
     
-    def getTypeExpression(self) -> ASTLiteralTypeNode | ASTTypedNode:
+    def getTypeExpression(self) -> ASTNode:
         return self.typeExpression
 
     def getCaptureNestingLevel(self) -> int:
@@ -1983,7 +1983,7 @@ class Module(TypedValue):
             return
         self.exportedBindings.append(binding)
 
-    def exportValue(self, name: Symbol, value: TypedValue, externalName: Symbol | None = None):
+    def exportValue(self, name: Symbol, value: TypedValue, externalName: Symbol = None):
         self.exportedValues.append((name, value, externalName))
 
     def getType(self):
@@ -2048,7 +2048,7 @@ class ImportedModule(TypedValue):
     def toJson(self):
         return {'importedModule': str(self.name)}
 
-def optionalToJson(value: TypedValue | None):
+def optionalToJson(value: TypedValue):
     if value is None:
         return None
     else:

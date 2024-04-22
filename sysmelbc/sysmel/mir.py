@@ -130,7 +130,7 @@ class MIRClosureType(MIRType):
         return True
 
 class MIRFunctionType(MIRType):
-    def __init__(self, context: MIRContext, name: str, size: int, alignment: int, callingConvention: str | None = None) -> None:
+    def __init__(self, context: MIRContext, name: str, size: int, alignment: int, callingConvention: str = None) -> None:
         super().__init__(context, name, size, alignment)
         self.callingConvention = callingConvention
 
@@ -767,7 +767,7 @@ class MIRModule:
         self.entryPointClosure: MIRGlobalVariable = None
         self.name = ''
 
-    def exportValue(self, name: str, value: MIRConstant, externalName: str | None = None) -> None:
+    def exportValue(self, name: str, value: MIRConstant, externalName: str = None) -> None:
         self.exportedValues.append((name, value, externalName))
 
     def importModule(self, name: str) -> MIRImportedModule:

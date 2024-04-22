@@ -266,7 +266,7 @@ class GHIRValue(ABC):
         self.sourcePosition = sourcePosition
         self.userValues = []
 
-    def getName(self) -> str | None:
+    def getName(self) -> str:
         return None
 
     @abstractmethod
@@ -352,7 +352,7 @@ class GHIRGraphPrinter:
         self.valueCount = 0
         self.valueToNameDictionary = dict()
 
-    def printValue(self, value: GHIRValue | None) -> str:
+    def printValue(self, value: GHIRValue) -> str:
         if value is None: return 'None'
         if value in self.valueToNameDictionary:
             return self.valueToNameDictionary[value]
@@ -572,7 +572,7 @@ class GHIRTypeUniverse(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRSimpleFunctionType(GHIRValue):
-    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, arguments: list[GHIRValue], isVariadic: bool, resultType: GHIRValue, callingConvention: str | None = None) -> None:    
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, arguments: list[GHIRValue], isVariadic: bool, resultType: GHIRValue, callingConvention: str = None) -> None:    
         super().__init__(context, sourcePosition)
         self.type = type
         self.arguments = arguments
@@ -830,7 +830,7 @@ class GHIRProductType(GHIRValue):
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
 class GHIRRecordType(GHIRProductType):
-    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, name: str | None, elements: list[GHIRValue], fieldNames: list[str]) -> None:
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, name: str, elements: list[GHIRValue], fieldNames: list[str]) -> None:
         super().__init__(context, sourcePosition, type, elements)
         self.name = name
         self.fieldNames = fieldNames
@@ -1702,7 +1702,7 @@ class GHIRModule(GHIRValue):
     def getType(self) -> GHIRValue:
         return None
     
-    def exportValue(self, name: str, value: GHIRValue, externalName: str | None = None):
+    def exportValue(self, name: str, value: GHIRValue, externalName: str = None):
         self.exportedValues.append((name, value, externalName))
 
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
@@ -2134,7 +2134,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitTypedModuleEntryPointNode(self, node: ASTTypedModuleEntryPointNode) -> TypedValue:
         assert False
 
-    def optionalSymbolToString(self, symbol: Symbol) -> str | None:
+    def optionalSymbolToString(self, symbol: Symbol) -> str:
         if symbol is None: return None
         return symbol.value
 

@@ -25,10 +25,10 @@ class Typechecker(ASTVisitor):
     def withEnvironment(self, newEnvironment: LexicalEnvironment):
         return Typechecker(newEnvironment, self.errorAccumulator)
 
-    def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
+    def visitNode(self, node: ASTNode) -> ASTNode:
         return node.accept(self)
 
-    def visitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode) -> ASTTypedNode | ASTTypeNode:
+    def visitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode) -> ASTNode:
         if expectedTypeExpression is None:
             return self.visitNode(node)
 
@@ -39,7 +39,7 @@ class Typechecker(ASTVisitor):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
     
-    def visitNodeWithCurrentExpectedType(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
+    def visitNodeWithCurrentExpectedType(self, node: ASTNode) -> ASTNode:
         return self.visitNode(node)
     
     def mergeTypesOfBranch(self, leftTypeExpression: ASTNode, rightTypeExpression: ASTNode, sourcePosition: SourcePosition):
@@ -85,7 +85,7 @@ class Typechecker(ASTVisitor):
 
         return node
 
-    def attemptToVisitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode, startingImplicitValueSubstitutions = []) -> tuple[tuple[SymbolImplicitValueBinding, ASTNode], ASTTypedNode | ASTTypeNode, str | None]:
+    def attemptToVisitNodeWithExpectedTypeExpression(self, node: ASTNode, expectedTypeExpression: ASTNode, startingImplicitValueSubstitutions = []) -> tuple[tuple[SymbolImplicitValueBinding, ASTNode], ASTNode, str]:
         typedNode = self.visitNode(node)
 
         if expectedTypeExpression is None:
@@ -101,15 +101,15 @@ class Typechecker(ASTVisitor):
         
         return implicitValueSubstitutions, coercedTypedNode, None
     
-    def attemptToVisitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> tuple[ASTTypedNode | ASTTypeNode, str | None]:
+    def attemptToVisitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> tuple[ASTNode, str]:
         return self.attemptToVisitNodeWithExpectedTypeExpression(node, ASTLiteralTypeNode(node.sourcePosition, expectedType))
 
-    def doesTypedNodeConformToTypeExpression(self, typedNode: ASTTypedNode | ASTTypeNode, expectedTypeExpression: ASTNode | None) -> ASTTypedNode | ASTTypeNode | None:
+    def doesTypedNodeConformToTypeExpression(self, typedNode: ASTNode, expectedTypeExpression: ASTNode) -> ASTNode:
         typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
         return expectedTypeNode.performSatisfiedByCheckInEnvironment(typedNodeType, self.lexicalEnvironment)
     
-    def visitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> ASTTypedNode | ASTTypeNode:
+    def visitNodeWithExpectedType(self, node: ASTNode, expectedType: TypedValue) -> ASTNode:
         if expectedType is None:
             return self.visitNode(node)
 
@@ -144,20 +144,20 @@ class Typechecker(ASTVisitor):
                     return self.visitNodeForMacroExpansionOnly(macroValue)
         return node
 
-    def evaluateSymbol(self, node: ASTNode) -> Symbol | None:
+    def evaluateSymbol(self, node: ASTNode) -> Symbol:
         return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, SymbolType))
 
-    def evaluateString(self, node: ASTNode) -> Symbol | None:
+    def evaluateString(self, node: ASTNode) -> Symbol:
         return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, StringType))
 
-    def evaluateOptionalSymbol(self, node: ASTNode) -> Symbol | None:
+    def evaluateOptionalSymbol(self, node: ASTNode) -> Symbol:
         if node is None:
             return None
         
         symbol, errorNode = self.evaluateSymbol(node)
         return symbol
     
-    def evaluateReducedLiteral(self, node: ASTTypedNode) -> TypedValue | None:
+    def evaluateReducedLiteral(self, node: ASTTypedNode) -> TypedValue:
         if node.isTypedLiteralNode():
             return node.value, None
 
@@ -548,7 +548,7 @@ class Typechecker(ASTVisitor):
                 resultType = ASTPiNode(argument.sourcePosition, [argument], False, resultType)
         return self.visitNode(resultType)
     
-    def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTTypedNode | ASTTypeNode:
+    def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTNode:
         if binding.isValueBinding():
             if binding.value.isType():
                 return ASTLiteralTypeNode(node.sourcePosition, binding.value)
@@ -619,7 +619,7 @@ class Typechecker(ASTVisitor):
             values.append(value)
         return keys, values, errorNode
     
-    def makeBindingForTypeNode(self, name: Symbol | None, typeNode: ASTTypeNode):
+    def makeBindingForTypeNode(self, name: Symbol, typeNode: ASTTypeNode):
         if name is None:
             return typeNode
         
@@ -1255,7 +1255,7 @@ class SubstitutionContext:
     def addLocalBinding(self, binding: SymbolBinding):
         self.localBindings.add(binding)
 
-    def lookSubstitutionForBindingInNode(self, binding: SymbolBinding, oldNode: ASTTypedNode) -> ASTTypedNode | ASTTypeNode:
+    def lookSubstitutionForBindingInNode(self, binding: SymbolBinding, oldNode: ASTTypedNode) -> ASTNode:
         if binding in self.bindingSubstitutionNodes:
             return self.applySourcePositionToSubstitution(self.bindingSubstitutionNodes[binding], oldNode.sourcePosition)
         if binding in self.bindingSubstitutionBindings:
@@ -1267,7 +1267,7 @@ class SubstitutionContext:
             return self.parent.lookSubstitutionForBindingInNode(binding, oldNode)
         return oldNode
 
-    def lookSubstitutionForCapturedBindingInNode(self, binding: SymbolBinding) -> ASTTypedNode | ASTTypeNode | SymbolBinding:
+    def lookSubstitutionForCapturedBindingInNode(self, binding: SymbolBinding):
         if binding in self.bindingSubstitutionNodes:
             return self.bindingSubstitutionNodes[binding]
         if binding in self.bindingSubstitutionBindings:
@@ -1310,7 +1310,7 @@ class SubstitutionContext:
         self.captureBindings.append(capturedBinding)
         return capturedBinding
 
-    def setSubstitutionNodeForBinding(self, binding: SymbolBinding, substitution: ASTTypedNode | ASTTypeNode) -> None:
+    def setSubstitutionNodeForBinding(self, binding: SymbolBinding, substitution: ASTNode) -> None:
         self.bindingSubstitutionNodes[binding] = substitution
 
     def setSubstitutionBindingForBinding(self, binding: SymbolBinding, newBinding: SymbolBinding) -> None:
@@ -1350,7 +1350,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         super().__init__()
         self.substitutionContext = substitutionContext
 
-    def visitNode(self, node: ASTNode) -> ASTTypedNode | ASTTypeNode:
+    def visitNode(self, node: ASTNode) -> ASTNode:
         return node.accept(self)
 
     def visitLiteralTypeNode(self, node: ASTLiteralTypeNode) -> ASTLiteralTypeNode:
@@ -1601,7 +1601,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
     def visitTypedFromExternalImportWithTypeNode(self, node: ASTTypedFromExternalImportWithTypeNode):
         return ASTTypedFromExternalImportWithTypeNode(node.sourcePosition, self.visitNode(node.type), node.externalName, node.name)
     
-def getTypeOfAnalyzedNode(node: ASTTypedNode | ASTTypeNode, sourcePosition: SourcePosition) -> ASTTypedNode | ASTTypeNode:
+def getTypeOfAnalyzedNode(node: ASTNode, sourcePosition: SourcePosition) -> ASTNode:
     if node.isTypeNode():
         return ASTLiteralTypeNode(sourcePosition, node.getTypeUniverse())
     return node.type
@@ -1617,7 +1617,7 @@ def unpackReductionArgumentToArity(argument: ASTTypedTupleNode, requiredArity: i
     
     assert False
 
-def betaReduceFunctionalValueApplicationWithArgument(functionalValue: FunctionalValue | ASTTypeNode, application: ASTTypedApplicationNode, argument: ASTTypedNode | ASTTypeNode):
+def betaReduceFunctionalValueApplicationWithArgument(functionalValue, application: ASTTypedApplicationNode, argument: ASTNode):
     argumentBindings = functionalValue.argumentBindings
     unpackedArguments = unpackReductionArgumentToArity(argument, len(argumentBindings))
     body = functionalValue.body
@@ -1628,7 +1628,7 @@ def betaReduceFunctionalValueApplicationWithArgument(functionalValue: Functional
         substitutionContext.setSubstitutionNodeForBinding(argumentBindings[i], unpackedArguments[i])
     return ASTBetaReducer(substitutionContext).visitNode(body)
 
-def betaReduceTypedFunctionalNodeApplicationWithArgument(typedFunctionalNode: ASTTypedFunctionalNode, application: ASTTypedApplicationNode, argument: ASTTypedNode | ASTTypeNode):
+def betaReduceTypedFunctionalNodeApplicationWithArgument(typedFunctionalNode: ASTTypedFunctionalNode, application: ASTTypedApplicationNode, argument: ASTNode):
     argumentBinding = typedFunctionalNode.argumentBinding
     body = typedFunctionalNode.body
 
@@ -1638,7 +1638,7 @@ def betaReduceTypedFunctionalNodeApplicationWithArgument(typedFunctionalNode: AS
     substitutionContext.setSubstitutionNodeForBinding(argumentBinding, argument)
     return ASTBetaReducer(substitutionContext).visitNode(body)
 
-def betaReduceFunctionalNodeApplicationWithArgument(functionalNode: ASTTypedNode | ASTTypeNode, application: ASTTypedApplicationNode, argument: ASTTypedNode | ASTTypeNode):
+def betaReduceFunctionalNodeApplicationWithArgument(functionalNode: ASTNode, application: ASTTypedApplicationNode, argument: ASTNode):
     if functionalNode.isTypedFunctionalNode():
         return betaReduceTypedFunctionalNodeApplicationWithArgument(functionalNode, application, argument)
     
@@ -1646,7 +1646,7 @@ def betaReduceFunctionalNodeApplicationWithArgument(functionalNode: ASTTypedNode
     return betaReduceFunctionalValueApplicationWithArgument(functionalNode.value, application, argument)
     
     
-def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition) -> ASTTypedLiteralNode | ASTTypeNode:
+def makeTypedLiteralForValueAt(value: TypedValue, sourcePosition: SourcePosition) -> ASTNode:
     if value.isType():
         return ASTLiteralTypeNode(sourcePosition, value)
     return ASTTypedLiteralNode(sourcePosition, ASTLiteralTypeNode(sourcePosition, value.getType()), value)

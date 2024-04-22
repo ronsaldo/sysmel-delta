@@ -56,7 +56,7 @@ class AbstractEnvironment(ABC):
     def hasSubstitutionForImplicitValueBinding(self, binding) -> bool:
         return False
 
-    def findSubstitutionForImplicitValueBinding(self, binding) -> ASTNode | None:
+    def findSubstitutionForImplicitValueBinding(self, binding) -> ASTNode:
         return None
     
     def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
@@ -121,7 +121,7 @@ class ChildEnvironment(AbstractEnvironment):
     def hasSubstitutionForImplicitValueBinding(self, binding) -> bool:
         return self.parent.hasSubstitutionForImplicitValueBinding(binding)
 
-    def findSubstitutionForImplicitValueBinding(self, binding) -> ASTNode | None:
+    def findSubstitutionForImplicitValueBinding(self, binding) -> ASTNode:
         return None
 
     def getImplicitValueSubstitutionsUpTo(self, targetEnvironment) -> list[tuple[SymbolImplicitValueBinding, ASTNode]]:
@@ -237,7 +237,7 @@ class FunctionalAnalysisEnvironment(LexicalEnvironment):
             return self.argumentBindingMap[symbol]
         return None
     
-    def getOrCreateCaptureForBinding(self, binding: SymbolBinding | None) -> SymbolBinding | None:
+    def getOrCreateCaptureForBinding(self, binding: SymbolBinding) -> SymbolBinding:
         if binding is None: return binding
         if binding.isValueBinding(): return binding
         if binding in self.capturedBindingMap:
@@ -476,7 +476,7 @@ def optionalIdentifierToString(symbol: TypedValue) -> str:
 def makeFunctionTypeFromTo(first: TypedValue, second: TypedValue, sourcePosition: SourcePosition = EmptySourcePosition()) -> PiValue:
     return FunctionType.makeFromTo(first, second)
 
-def parseSimpleTypeSignature(signature: TypedValue | tuple[TypedValue]) -> TypedValue:
+def parseSimpleTypeSignature(signature) -> TypedValue:
     if isinstance(signature, tuple):
         return ProductType.makeWithElementTypes(list(signature))
     return signature

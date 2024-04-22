@@ -100,6 +100,7 @@ static bool sdvm_module_fetchAndValidateDataStructures(sdvm_module_t *module)
             break;
         default:
             // Ignored by default
+            break;
         }
     }
 

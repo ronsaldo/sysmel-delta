@@ -203,7 +203,7 @@ class SDVMStringSection(SDVMModuleSection):
         self.stringDict: dict[str,SDVMString] = dict()
         self.encodedStringDict: dict[bytes,SDVMString] = dict()
 
-    def add(self, value: str | None) -> SDVMString:
+    def add(self, value: str) -> SDVMString:
         if value is None or len(value) == 0:
             return SDVMString()
         if value in self.stringDict:
@@ -213,7 +213,7 @@ class SDVMStringSection(SDVMModuleSection):
         self.stringDict[value] = stringValue
         return stringValue
 
-    def addEncoded(self, encodedValue: bytes | None) -> SDVMString:
+    def addEncoded(self, encodedValue: bytes) -> SDVMString:
         if encodedValue is None or len(encodedValue) == 0:
             return SDVMString()
         if encodedValue in self.encodedStringDict:
@@ -486,7 +486,7 @@ class SDVMConstant(SDVMOperand):
         return struct.pack('<Q', self.definition.opcode | (self.payload << 12))
 
 class SDVMInstruction(SDVMOperand):
-    def __init__(self, definition: SdvmInstructionDef, arg0: SDVMOperand | None = None, arg1: SDVMOperand | None = None, sourcePosition = None) -> None:
+    def __init__(self, definition: SdvmInstructionDef, arg0: SDVMOperand = None, arg1: SDVMOperand = None, sourcePosition = None) -> None:
         super().__init__()
         self.definition = definition
         self.arg0 = arg0
@@ -544,12 +544,12 @@ class SDVMFunction:
         self.instructions.append(instruction)
         return instruction
     
-    def beginArguments(self, argumentCount: int) -> SDVMInstruction | None:
+    def beginArguments(self, argumentCount: int) -> SDVMInstruction:
         if argumentCount == 0:
             return
         return self.addArgumentInstruction(SDVMInstruction(SdvmInstBeginArguments, argumentCount, 0))
 
-    def beginCaptures(self, captureCount: int) -> SDVMInstruction | None:
+    def beginCaptures(self, captureCount: int) -> SDVMInstruction:
         if captureCount == 0:
             return
         return self.addCaptureInstruction(SDVMInstruction(SdvmInstBeginCaptures, captureCount))
@@ -557,7 +557,7 @@ class SDVMFunction:
     def const(self, definition: SdvmConstantDef, value: int = 0, payload: int = 0) -> SDVMConstant:
         return self.addConstant(SDVMConstant(definition, value, payload))
 
-    def inst(self, definition: SdvmInstructionDef, arg0: SDVMOperand | None = None, arg1: SDVMOperand | None = None) -> SDVMConstant:
+    def inst(self, definition: SdvmInstructionDef, arg0: SDVMOperand = None, arg1: SDVMOperand = None) -> SDVMConstant:
         return self.addInstruction(SDVMInstruction(definition, arg0, arg1))
 
     def constBoolean(self, value: bool) -> SDVMConstant:

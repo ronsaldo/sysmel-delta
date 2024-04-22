@@ -181,7 +181,7 @@ class HIRTypeValue(HIRValue):
     def buildMemoryDescriptor(self):
         return MemoryDescriptor(self.getSize(), self.getAlignment())
 
-    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int] | None]:
+    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int]]:
         raise Exception("Not an aggregate or pointer type.")
 
     def getAlignedSize(self) -> int:
@@ -355,7 +355,7 @@ class HIRArrayType(HIRDerivedType):
     def getSize(self) -> int:
         return self.baseType.getAlignedSize() * self.size
     
-    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int] | None]:
+    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int]]:
         if index.isConstantPrimitiveInteger():
             return self.baseType, self.baseType.getAlignedSize() * index.value, None
         else:
@@ -407,7 +407,7 @@ class HIRPointerLikeType(HIRDerivedType):
     def isPointerLikeType(self):
         return True
 
-    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int] | None]:
+    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int]]:
         if index.isConstantPrimitiveInteger():
             return self.baseType, self.baseType.getAlignedSize() * index.value, None
         else:
@@ -519,7 +519,7 @@ class HIRFunctionType(HIRTypeValue):
         self.argumentTypes = []
         self.isVariadic = False
         self.resultType: HIRValue = None
-        self.callingConvention: str | None = None
+        self.callingConvention: str = None
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitFunctionType(self)
@@ -1192,7 +1192,7 @@ class HIRModule(HIRValue):
     def getType(self):
         return None
     
-    def exportValue(self, name: str, value: HIRValue, externalName: str | None = None):
+    def exportValue(self, name: str, value: HIRValue, externalName: str = None):
         self.exportedValues.append((name, value, externalName))
 
     def importModuleWithName(self, name: str):

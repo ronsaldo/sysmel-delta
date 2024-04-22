@@ -691,7 +691,7 @@ class ASTLambdaNode(ASTNode):
         return {'kind': 'Lambda', 'arguments': list(map(lambda x: x.toJson(), self.arguments)), 'resultType': optionalASTNodeToJson(self.resultType), 'body': self.body.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}
 
 class ASTBindingDefinitionNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, expectedTypeExpression: ASTNode | None, initialValueExpression: ASTNode, isMutable = False, isPublic = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, expectedTypeExpression: ASTNode, initialValueExpression: ASTNode, isMutable = False, isPublic = False) -> None:
         super().__init__(sourcePosition)
         self.nameExpression = nameExpression
         self.expectedTypeExpression = expectedTypeExpression
@@ -1141,7 +1141,7 @@ class ASTFromModuleImportWithTypeNode(ASTNode):
         return {'kind': 'FromModuleImportWithType', 'module': self.module.toJson(), 'name': self.name.toJson(), 'type': self.type.toJson()}
 
 class ASTModuleExportValueNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, externalName: ASTNode | None, name: ASTNode, value: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, externalName: ASTNode, name: ASTNode, value: ASTNode) -> None:
         super().__init__(sourcePosition)
         self.externalName = externalName
         self.name = name
@@ -1318,7 +1318,7 @@ class ASTTypedFunctionTypeNode(ASTTypedNode):
         return {'kind': 'TypedFunctionTypeNode', 'type': self.type.toJson(), 'argumentType': self.argumentType.toJson(), 'resultType': self.resultType.toJson()}
 
 class ASTTypedFunctionalNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, arguments: list[ASTTypedArgumentNode], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], body: ASTTypedNode, callingConvention: Symbol | None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, arguments: list[ASTTypedArgumentNode], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], body: ASTTypedNode, callingConvention: Symbol) -> None:
         super().__init__(sourcePosition, type)
         self.arguments = arguments
         self.isVariadic = isVariadic
@@ -1608,7 +1608,7 @@ class ASTTypedFromExternalImportWithTypeNode(ASTTypedNode):
 
 
 class ASTTypedModuleExportValueNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, externalName: Symbol | None, name: Symbol, value: ASTTypeNode | ASTTypedNode, module: Module) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, externalName: Symbol, name: Symbol, value: ASTNode, module: Module) -> None:
         super().__init__(sourcePosition, type)
         self.externalName = externalName
         self.name = name
@@ -1633,7 +1633,7 @@ class ASTTypedModuleEntryPointNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedModuleEntryPoint', 'type': self.type.toJson(), 'entryPoint': self.entryPoint.toJson()}
     
-def optionalASTNodeToJson(node: ASTNode | None) -> dict | None:
+def optionalASTNodeToJson(node: ASTNode) -> dict:
     if node is None:
         return None
     else:

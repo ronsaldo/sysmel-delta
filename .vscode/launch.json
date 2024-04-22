@@ -51,6 +51,14 @@
             "program": "${workspaceFolder}/build/bin/sdvm",
             "args": ["-v", "-target", "aarch64-windows-eabi", "-o", "test.aarch64.obj", "test.sdvm"],
             "cwd": "${workspaceFolder}"
-        }
-    ]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch (Mac OS X AArch64 target)",
+            "program": "${workspaceFolder}/build/bin/sdvm",
+            "args": ["-v", "-target", "aarch64-apple-macosx", "-o", "test.aarch.macho", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
+   ]
 }
