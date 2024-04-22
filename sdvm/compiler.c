@@ -208,11 +208,23 @@ SDVM_API const char *sdvm_compilerTarget_getDefaultTargetName(void)
 #ifdef SDVM_DEFAULT_TARGET_NAME
     return SDVM_DEFAULT_TARGET_NAME;
 #else
-#ifdef _WIN32
+#   if defined(__aarch64__)
+#       ifdef _WIN32
+    return "aarch64-windows-msvc"; // TODO: Find the correct name for this
+#       elif defined(__APPLE__)
+    return "arm64-apple-macosx";
+#       else
+    return "aarch64-linux-gnu";
+#       endif
+#   else
+#       ifdef _WIN32
     return "x86_64-pc-windows-msvc";
-#else
+#       elif defined(__APPLE__)
+    return "x86_64-apple-macosx"
+#       else
     return "x86_64-pc-linux-gnu";
-#endif
+#       endif
+#   endif
 #endif 
 }
 

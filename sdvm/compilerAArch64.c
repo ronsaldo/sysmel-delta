@@ -3,6 +3,7 @@
 #include "module.h"
 #include "elf.h"
 #include "coff.h"
+#include "macho.h"
 #include "dwarf.h"
 #include "utils.h"
 #include <string.h>
@@ -1618,6 +1619,8 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_linux = {
     .objectFileType = SdvmObjectFileTypeElf,
     .elfMachine = SDVM_EM_AARCH64,
     .coffMachine = SDVM_IMAGE_FILE_MACHINE_ARM64,
+    .machoCpuType = SDVM_MACHO_CPU_TYPE_ARM64,
+    .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_ARM_ALL,
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .closureCallNeedsScratch = true,
@@ -1646,6 +1649,8 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
     .objectFileType = SdvmObjectFileTypeMachO,
     .elfMachine = SDVM_EM_AARCH64,
     .coffMachine = SDVM_IMAGE_FILE_MACHINE_ARM64,
+    .machoCpuType = SDVM_MACHO_CPU_TYPE_ARM64,
+    .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_ARM_ALL,
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .closureCallNeedsScratch = true,
@@ -1674,6 +1679,8 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_windows = {
     .objectFileType = SdvmObjectFileTypeCoff,
     .elfMachine = SDVM_EM_AARCH64,
     .coffMachine = SDVM_IMAGE_FILE_MACHINE_ARM64,
+    .machoCpuType = SDVM_MACHO_CPU_TYPE_ARM64,
+    .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_ARM_ALL,
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .closureCallNeedsScratch = true,
