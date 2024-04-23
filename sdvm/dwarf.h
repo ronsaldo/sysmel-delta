@@ -392,6 +392,7 @@ enum dwarf_eh_pe_e {
     DW_EH_PE_datarel = 0x30,
     DW_EH_PE_funcrel = 0x40,
     DW_EH_PE_aligned = 0x50,
+    DW_EH_PE_indirect = 0x80,
 };
 
 enum dwarf_x86_register_e {

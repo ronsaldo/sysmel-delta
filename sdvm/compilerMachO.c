@@ -432,7 +432,6 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
                 {
                     symbolAddend = symbol->value;
                     machRelocations->r_extern = 0;
-                    // TODO: Handle the weird x86_64 case.
                     machRelocations->r_symbolnum = layout.sectionIndices[symbol->section];
                 }
                 else
@@ -447,7 +446,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
             else
                 machoSection->flags |= SDVM_MACHO_S_ATTR_LOC_RELOC;
                 
-            machRelocations += target->mapMachORelocation(relocationEntry, symbolAddend, objectFile->data + layout.sectionContents[i] + relocationEntry->offset, machRelocations);
+            machRelocations += target->mapMachORelocation(relocationEntry, symbolAddend, machoSection->addr, objectFile->data + layout.sectionContents[i] + relocationEntry->offset, machRelocations);
         }
     }
 

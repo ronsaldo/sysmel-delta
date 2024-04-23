@@ -301,7 +301,7 @@ SDVM_API void sdvm_dwarf_cfi_endFDE(sdvm_dwarf_cfi_builder_t *cfi, size_t pc)
 
 SDVM_API void sdvm_dwarf_cfi_finish(sdvm_dwarf_cfi_builder_t *cfi)
 {
-    sdvm_dwarf_encodeDWord(&cfi->section->contents, 0);
+    (void)cfi;
 }
 
 SDVM_API void sdvm_dwarf_cfi_setPC(sdvm_dwarf_cfi_builder_t *cfi, size_t pc)

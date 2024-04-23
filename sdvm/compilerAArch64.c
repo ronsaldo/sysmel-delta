@@ -1653,7 +1653,7 @@ size_t sdvm_compiler_aarch64_countMachORelocations(sdvm_compilerRelocationKind_t
     }
 }
 
-size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations)
+size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint64_t relocatedSectionOffset, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations)
 {
     uint32_t *instruction = (uint32_t*)target;
     switch(relocation->kind)
@@ -1681,7 +1681,7 @@ size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *reloc
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_BRANCH26;
         return 1;
     case SdvmCompRelocationRelative32:
-        *instruction = relocation->addend + symbolAddend;
+        *instruction = relocation->addend + symbolAddend - relocation->offset - relocatedSectionOffset;
         machRelocations->r_pcrel = true;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
@@ -1745,7 +1745,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
     .coffMachine = SDVM_IMAGE_FILE_MACHINE_ARM64,
     .machoCpuType = SDVM_MACHO_CPU_TYPE_ARM64,
     .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_ARM_ALL,
-    .usesUnderscorePrefix = false,
+    .usesUnderscorePrefix = true,
     .usesCET = false,
     .closureCallNeedsScratch = true,
 
