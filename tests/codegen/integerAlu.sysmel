@@ -1,0 +1,21 @@
+export: #int32Add with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a + b.
+export: #int32Sub with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a - b.
+export: #int32Mul with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a * b.
+export: #int32Div with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a / b.
+export: #int32Rem with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a % b.
+
+export: #int32BitAnd with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a & b.
+export: #int32BitOr with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a | b.
+export: #int32BitXor with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a ^ b.
+export: #int32ShiftLeft with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a << b.
+export: #int32ShiftRight with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> a >> b.
+
+export: #int32Min with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> (a min: b).
+export: #int32Max with: (:(Int32)a, :(Int32)b :: Int32) __cdecl :=> (a max: b).
+
+export: #int32Equals with: (:(Int32)a, :(Int32)b :: Boolean) __cdecl :=> a = b.
+export: #int32NotEquals with: (:(Int32)a, :(Int32)b :: Boolean) __cdecl :=> a ~= b.
+export: #int32LessThan with: (:(Int32)a, :(Int32)b :: Boolean) __cdecl :=> a < b.
+export: #int32LessEquals with: (:(Int32)a, :(Int32)b :: Boolean) __cdecl :=> a <= b.
+export: #int32GreaterThan with: (:(Int32)a, :(Int32)b :: Boolean) __cdecl :=> a > b.
+export: #int32GreaterEquals with: (:(Int32)a, :(Int32)b :: Boolean) __cdecl :=> a >= b.

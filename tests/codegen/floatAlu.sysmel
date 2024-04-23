@@ -1,0 +1,41 @@
+export: #float32Add with: (:(Float32)a, :(Float32)b :: Float32) __cdecl :=> a + b.
+export: #float32Sub with: (:(Float32)a, :(Float32)b :: Float32) __cdecl :=> a - b.
+export: #float32Mul with: (:(Float32)a, :(Float32)b :: Float32) __cdecl :=> a * b.
+export: #float32Div with: (:(Float32)a, :(Float32)b :: Float32) __cdecl :=> a / b.
+
+export: #float32Min with: (:(Float32)a, :(Float32)b :: Float32) __cdecl :=> (a min: b).
+export: #float32Max with: (:(Float32)a, :(Float32)b :: Float32) __cdecl :=> (a max: b).
+
+export: #float32Sqrt with: (:(Float32)v :: Float32) __cdecl :=> v sqrt.
+export: #float32Floor with: (:(Float32)v :: Float32) __cdecl :=> v floor.
+export: #float32Ceil with: (:(Float32)v :: Float32) __cdecl :=> v ceil.
+export: #float32Rounded with: (:(Float32)v :: Float32) __cdecl :=> v rounded.
+export: #float32Truncated with: (:(Float32)v :: Float32) __cdecl :=> v truncated.
+
+export: #float32Equals with: (:(Float32)a, :(Float32)b :: Boolean) __cdecl :=> a = b.
+export: #float32NotEquals with: (:(Float32)a, :(Float32)b :: Boolean) __cdecl :=> a ~= b.
+export: #float32LessThan with: (:(Float32)a, :(Float32)b :: Boolean) __cdecl :=> a < b.
+export: #float32LessEquals with: (:(Float32)a, :(Float32)b :: Boolean) __cdecl :=> a <= b.
+export: #float32GreaterThan with: (:(Float32)a, :(Float32)b :: Boolean) __cdecl :=> a > b.
+export: #float32GreaterEquals with: (:(Float32)a, :(Float32)b :: Boolean) __cdecl :=> a >= b.
+
+export: #float64Add with: (:(Float64)a, :(Float64)b :: Float64) __cdecl :=> a + b.
+export: #float64Sub with: (:(Float64)a, :(Float64)b :: Float64) __cdecl :=> a - b.
+export: #float64Mul with: (:(Float64)a, :(Float64)b :: Float64) __cdecl :=> a * b.
+export: #float64Div with: (:(Float64)a, :(Float64)b :: Float64) __cdecl :=> a / b.
+
+export: #float64Min with: (:(Float64)a, :(Float64)b :: Float64) __cdecl :=> (a min: b).
+export: #float64Max with: (:(Float64)a, :(Float64)b :: Float64) __cdecl :=> (a max: b).
+
+export: #float64Sqrt with: (:(Float64)v :: Float64) __cdecl :=> v sqrt.
+export: #float64Floor with: (:(Float64)v :: Float64) __cdecl :=> v floor.
+export: #float64Ceil with: (:(Float64)v :: Float64) __cdecl :=> v ceil.
+export: #float64Rounded with: (:(Float64)v :: Float64) __cdecl :=> v rounded.
+export: #float64Truncated with: (:(Float64)v :: Float64) __cdecl :=> v truncated.
+
+export: #float64Equals with: (:(Float64)a, :(Float64)b :: Boolean) __cdecl :=> a = b.
+export: #float64NotEquals with: (:(Float64)a, :(Float64)b :: Boolean) __cdecl :=> a ~= b.
+export: #float64LessThan with: (:(Float64)a, :(Float64)b :: Boolean) __cdecl :=> a < b.
+export: #float64LessEquals with: (:(Float64)a, :(Float64)b :: Boolean) __cdecl :=> a <= b.
+export: #float64GreaterThan with: (:(Float64)a, :(Float64)b :: Boolean) __cdecl :=> a > b.
+export: #float64GreaterEquals with: (:(Float64)a, :(Float64)b :: Boolean) __cdecl :=> a >= b.

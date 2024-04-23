@@ -6,6 +6,7 @@ import json
 import os.path
 
 module = None
+
 # Evaluate the command line arguments
 for arg in sys.argv[1:]:
     if module is None:

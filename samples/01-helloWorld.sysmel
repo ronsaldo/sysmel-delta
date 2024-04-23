@@ -28,4 +28,4 @@ Record: #TestRecord withFields: #{
     float32: Float32.
 }.
 
-TestRecord#{int32: 0i32. float32: 42f32}#{int32: 45i32}.
+TestRecord#{int32: 0i32. float32: 42f32}#{int32: 45i32}int32.
