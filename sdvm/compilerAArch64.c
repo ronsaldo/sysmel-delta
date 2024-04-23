@@ -1653,7 +1653,7 @@ size_t sdvm_compiler_aarch64_countMachORelocations(sdvm_compilerRelocationKind_t
     }
 }
 
-size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint64_t relocatedSectionOffset, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations)
+size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint64_t symbolSectionAddend, uint64_t relocatedSectionOffset, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations)
 {
     uint32_t *instruction = (uint32_t*)target;
     switch(relocation->kind)
@@ -1681,14 +1681,19 @@ size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *reloc
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_BRANCH26;
         return 1;
     case SdvmCompRelocationRelative32:
-        *instruction = relocation->addend + symbolAddend - relocation->offset - relocatedSectionOffset;
+        *instruction = relocation->addend + symbolAddend - (relocatedSectionOffset + relocation->offset);
         machRelocations->r_pcrel = true;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
         return 1;
     case SdvmCompRelocationSectionRelative32:
-    case SdvmCompRelocationAbsolute32:
         *instruction = relocation->addend + symbolAddend;
+        machRelocations->r_pcrel = false;
+        machRelocations->r_length = 2;
+        machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
+        return 1;
+    case SdvmCompRelocationAbsolute32:
+        *instruction = relocation->addend + symbolAddend + symbolSectionAddend;
         machRelocations->r_pcrel = false;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
@@ -1696,7 +1701,7 @@ size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *reloc
     case SdvmCompRelocationAbsolute64:
         {
             int64_t *target64 = (int64_t*)target;
-            *target64 = relocation->addend + symbolAddend;
+            *target64 = relocation->addend + symbolAddend + symbolSectionAddend;
             machRelocations->r_pcrel = false;
             machRelocations->r_length = 3;
             machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;

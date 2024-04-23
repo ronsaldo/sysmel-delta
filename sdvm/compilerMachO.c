@@ -193,7 +193,7 @@ static sdvm_compilerMachOFileLayout_t sdvm_compilerMachO64_computeObjectFileLayo
         for(size_t i = 0; i < compiler->symbolTable.symbols.size; ++i)
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;
-            if(symbol->section && (compiler->sections[symbol->section].flags & SdvmCompSectionFlagDebug))
+            if(symbol->section && (compiler->sections[symbol->section].flags & (SdvmCompSectionFlagDebug | SdvmCompSectionFlagUnwind)))
                 continue;
 
             if(symbol->binding == SdvmCompSymbolBindingLocal)
@@ -246,7 +246,8 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
     objectSegment->vmsize = layout.objectSegmentAddressSize;
     objectSegment->fileoff = layout.objectSegmentOffset;
     objectSegment->filesize = layout.objectSegmentSize;
-    strncpy(objectSegment->segname, "__OBJECT", sizeof(objectSegment->segname));
+    objectSegment->initprot = SDVM_MACHO_VMPROT_WRITE | SDVM_MACHO_VMPROT_READ | SDVM_MACHO_VMPROT_EXECUTE;
+    objectSegment->maxprot = SDVM_MACHO_VMPROT_WRITE | SDVM_MACHO_VMPROT_READ | SDVM_MACHO_VMPROT_EXECUTE;
 
     // Write the section headers.
     for(size_t i = 1; i < SDVM_COMPILER_SECTION_COUNT; ++i)
@@ -263,18 +264,6 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
         machoSection->reloff = layout.sectionRelocations[i];
         strncpy(machoSection->sectname, section->machoSectionName, sizeof(objectSegment->segname));
         strncpy(machoSection->segname, section->machoSegmentName, sizeof(objectSegment->segname));
-
-        if(section->flags & SdvmCompSectionFlagWrite)
-        {
-            objectSegment->initprot |= SDVM_MACHO_VMPROT_WRITE;
-            objectSegment->maxprot |= SDVM_MACHO_VMPROT_WRITE;
-        }
-
-        if(section->flags & SdvmCompSectionFlagRead)
-        {
-            objectSegment->initprot |= SDVM_MACHO_VMPROT_READ;
-            objectSegment->maxprot |= SDVM_MACHO_VMPROT_READ;
-        }
 
         if(section->flags & SdvmCompSectionFlagExec)
         {
@@ -312,7 +301,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
         for(size_t i = 0; i < compiler->symbolTable.symbols.size; ++i)
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;
-            if(symbol->section && (compiler->sections[symbol->section].flags & SdvmCompSectionFlagDebug))
+            if(symbol->section && (compiler->sections[symbol->section].flags & (SdvmCompSectionFlagDebug | SdvmCompSectionFlagUnwind)))
                 continue;
 
             if(symbol->binding == SdvmCompSymbolBindingLocal)
@@ -368,6 +357,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
 
             if(symbol->section)
             {
+                machoSymbol->n_value += layout.sectionAddresses[symbol->section];
                 machoSymbol->n_sect = layout.sectionIndices[symbol->section];
                 machoSymbol->n_type |= SDVM_MACHO_N_SECT;
             }
@@ -425,12 +415,14 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
             sdvm_compilerRelocation_t *relocationEntry = relocations + j; 
             machRelocations->r_address = relocationEntry->offset;
             int64_t symbolAddend = 0;
+            int64_t symbolSectionAddend = 0;
             if(relocations->symbol)
             {
                 sdvm_compilerSymbol_t *symbol = symbols + relocationEntry->symbol - 1;
                 if(symbol->binding == SdvmCompSymbolBindingLocal && (symbol->objectSymbolIndex == 0 || (section->flags & SdvmCompSectionFlagDebug)))
                 {
                     symbolAddend = symbol->value;
+                    symbolSectionAddend = layout.sectionAddresses[symbol->section];
                     machRelocations->r_extern = 0;
                     machRelocations->r_symbolnum = layout.sectionIndices[symbol->section];
                 }
@@ -446,8 +438,12 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
             else
                 machoSection->flags |= SDVM_MACHO_S_ATTR_LOC_RELOC;
                 
-            machRelocations += target->mapMachORelocation(relocationEntry, symbolAddend, machoSection->addr, objectFile->data + layout.sectionContents[i] + relocationEntry->offset, machRelocations);
+            machRelocations += target->mapMachORelocation(relocationEntry, symbolAddend, symbolSectionAddend, machoSection->addr, objectFile->data + layout.sectionContents[i] + relocationEntry->offset, machRelocations);
         }
+
+        // TODO: Investigate why this relocation is failing.
+        if(section->flags & SdvmCompSectionFlagUnwind)
+            machoSection->nreloc = 0;
     }
 
     return objectFile;

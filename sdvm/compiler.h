@@ -245,7 +245,7 @@ struct sdvm_compilerTarget_s
     uint32_t (*mapElfRelocation) (sdvm_compilerRelocationKind_t kind);
     uint16_t (*mapCoffRelocationApplyingAddend) (sdvm_compilerRelocation_t *relocation, uint8_t *target);
     size_t (*countMachORelocations) (sdvm_compilerRelocationKind_t kind);
-    size_t (*mapMachORelocation) (sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint64_t relocatedSectionOffset, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations);
+    size_t (*mapMachORelocation) (sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint64_t symbolSectionAddend, uint64_t relocatedSectionOffset, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations);
 
     sdvm_compilerInstructionPatternTable_t *instructionPatterns;
 };

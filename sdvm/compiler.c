@@ -108,12 +108,22 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     compiler->rodataSection.flags = SdvmCompSectionFlagRead;
     compiler->rodataSection.name = ".rodata";
     compiler->rodataSection.machoSectionName = "__const";
-    compiler->rodataSection.machoSegmentName = "__DATA";
+    compiler->rodataSection.machoSegmentName = "__TEXT";
     compiler->rodataSection.relSectionName = ".rodata.rel";
     compiler->rodataSection.relaSectionName = ".rodata.rela";
 
+    sdvm_compilerObjectSection_initialize(&compiler->ehFrameSection);
+    compiler->ehFrameSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 3);
+    compiler->ehFrameSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagUnwind;
+    compiler->ehFrameSection.alignment = target->pointerSize;
+    compiler->ehFrameSection.name = ".eh_frame";
+    compiler->ehFrameSection.machoSectionName = "__eh_frame";
+    compiler->ehFrameSection.machoSegmentName = "__TEXT";
+    compiler->ehFrameSection.relSectionName = ".eh_frame.rel";
+    compiler->ehFrameSection.relaSectionName = ".eh_frame.rela";
+
     sdvm_compilerObjectSection_initialize(&compiler->dataSection);
-    compiler->dataSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 3);
+    compiler->dataSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 4);
     compiler->dataSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagWrite;
     compiler->dataSection.name = ".data";
     compiler->dataSection.machoSectionName = "__data";
@@ -122,23 +132,13 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     compiler->dataSection.relaSectionName = ".data.rela";
 
     sdvm_compilerObjectSection_initialize(&compiler->bssSection);
-    compiler->bssSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 4);
+    compiler->bssSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 5);
     compiler->bssSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagWrite | SdvmCompSectionFlagNoBits;
     compiler->bssSection.name = ".bss";
     compiler->bssSection.machoSectionName = "__bss";
     compiler->bssSection.machoSegmentName = "__DATA";
     compiler->bssSection.relSectionName = ".bss.rel";
     compiler->bssSection.relaSectionName = ".bss.rela";
-
-    sdvm_compilerObjectSection_initialize(&compiler->ehFrameSection);
-    compiler->ehFrameSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 5);
-    compiler->ehFrameSection.flags = SdvmCompSectionFlagRead | SdvmCompSectionFlagUnwind;
-    compiler->ehFrameSection.alignment = target->pointerSize;
-    compiler->ehFrameSection.name = ".eh_frame";
-    compiler->ehFrameSection.machoSectionName = "__eh_frame";
-    compiler->ehFrameSection.machoSegmentName = "__TEXT";
-    compiler->ehFrameSection.relSectionName = ".eh_frame.rel";
-    compiler->ehFrameSection.relaSectionName = ".eh_frame.rela";
 
     sdvm_compilerObjectSection_initialize(&compiler->debugAbbrevSection);
     compiler->debugAbbrevSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 6);
