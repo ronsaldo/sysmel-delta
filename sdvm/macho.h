@@ -100,6 +100,9 @@ typedef enum sdvm_macho_section_flags_e
     SDVM_MACHO_S_ZEROFILL = 1,
     SDVM_MACHO_S_ATTR_SOME_INSTRUCTIONS = 0x00000400,
     SDVM_MACHO_S_ATTR_PURE_INSTRUCTIONS = 0x80000000,
+    SDVM_MACHO_S_ATTR_DEBUG = 1<<25,
+    SDVM_MACHO_S_ATTR_EXT_RELOC = 1<<9,
+    SDVM_MACHO_S_ATTR_LOC_RELOC = 1<<8,
 } sdvm_macho_section_flags_t;
 
 typedef enum sdvm_macho_symbol_type_e
@@ -111,6 +114,43 @@ typedef enum sdvm_macho_symbol_type_e
     SDVM_MACHO_SYMBOL_TYPE_PREBOUND_UNDEFINED = 0xc,
     SDVM_MACHO_SYMBOL_TYPE_INDIRECT = 0xa,
 } sdvm_macho_symbol_type_t;
+
+typedef enum sdvm_reloc_type_generic_e
+{
+    SDVM_MACHO_GENERIC_RELOC_VANILLA,
+    SDVM_MACHO_GENERIC_RELOC_PAIR,
+    SDVM_MACHO_GENERIC_RELOC_SECTDIFF,
+    SDVM_MACHO_GENERIC_RELOC_PB_LA_PTR,
+    SDVM_MACHO_GENERIC_RELOC_LOCAL_SECTDIFF,
+} sdvm_reloc_type_generic_t;
+
+typedef enum sdvm_reloc_type_x86_64_e
+{
+    SDVM_MACHO_X86_64_UNSIGNED,
+    SDVM_MACHO_X86_64_SIGNED,
+    SDVM_MACHO_X86_64_BRANCH,
+    SDVM_MACHO_X86_64_GOT_LOAD,
+    SDVM_MACHO_X86_64_GOT,
+    SDVM_MACHO_X86_64_SUBTRACTOR,
+    SDVM_MACHO_X86_64_SIGNED_1,
+    SDVM_MACHO_X86_64_SIGNED_2,
+    SDVM_MACHO_X86_64_SIGNED_4,
+} sdvm_reloc_type_x86_64_t;
+
+typedef enum sdvm_reloc_type_arm64_e
+{
+    SDVM_MACHO_ARM64_RELOC_UNSIGNED,
+    SDVM_MACHO_ARM64_RELOC_SUBTRACTOR,
+    SDVM_MACHO_ARM64_RELOC_BRANCH26,
+    SDVM_MACHO_ARM64_RELOC_PAGE21,
+    SDVM_MACHO_ARM64_RELOC_PAGEOFF12,
+    SDVM_MACHO_ARM64_RELOC_GOT_LOAD_PAGE21,
+    SDVM_MACHO_ARM64_RELOC_GOT_LOAD_PAGE12,
+    SDVM_MACHO_ARM64_RELOC_POINTER_TO_GOT,
+    SDVM_MACHO_ARM64_RELOC_TLVP_LOAD_PAGE21,
+    SDVM_MACHO_ARM64_RELOC_TLVP_LOAD_PAGEOFF12,
+    SDVM_MACHO_ARM64_RELOC_ADDEND,
+} sdvm_reloc_type_arm64_t;
 
 typedef struct sdvm_macho_header_s
 {
@@ -260,5 +300,11 @@ typedef struct sdvm_macho64_nlist_s
     uint16_t n_desc;
     uint64_t n_value;
 } sdvm_macho64_nlist_t;
+
+typedef struct sdvm_macho_relocation_info_s
+{
+    int32_t r_address;
+    uint32_t r_symbolnum: 24, r_pcrel: 1, r_length: 2, r_extern: 1, r_type: 4;
+} sdvm_macho_relocation_info_t;
 
 #endif //SDVM_MACHO_H

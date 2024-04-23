@@ -120,6 +120,7 @@ typedef struct sdvm_compilerCallingConvention_s sdvm_compilerCallingConvention_t
 typedef struct sdvm_compilerInstruction_s sdvm_compilerInstruction_t;
 typedef struct sdvm_compilerInstructionPattern_s sdvm_compilerInstructionPattern_t;
 typedef struct sdvm_functionCompilationDebugInfo_s sdvm_functionCompilationDebugInfo_t;
+typedef struct sdvm_macho_relocation_info_s sdvm_macho_relocation_info_t;
 
 typedef struct sdvm_compilerSymbol_s
 {
@@ -243,6 +244,8 @@ struct sdvm_compilerTarget_s
     bool (*compileModuleFunction) (sdvm_functionCompilationState_t *state);
     uint32_t (*mapElfRelocation) (sdvm_compilerRelocationKind_t kind);
     uint16_t (*mapCoffRelocationApplyingAddend) (sdvm_compilerRelocation_t *relocation, uint8_t *target);
+    size_t (*countMachORelocations) (sdvm_compilerRelocationKind_t kind);
+    size_t (*mapMachORelocation) (sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations);
 
     sdvm_compilerInstructionPatternTable_t *instructionPatterns;
 };

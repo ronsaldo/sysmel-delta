@@ -280,6 +280,13 @@ void sdvm_compiler_aarch64_bl(sdvm_compiler_t *compiler, uint32_t imm26)
     sdvm_compiler_aarch64_addInstruction(compiler, 0x94000000 | imm26);
 }
 
+uint32_t sdvm_compiler_aarch64_branch26_setTarget(uint32_t instruction, uint32_t immediate)
+{
+    uint32_t mask = ((1<<26) - 1);
+    uint32_t imm26 = (immediate >> 2) & mask;
+    return (instruction & ~mask) | imm26;
+}
+
 void sdvm_compiler_aarch64_bl_sv(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
 {
     sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationAArch64Call26, symbolHandle, addend);
@@ -306,6 +313,21 @@ void sdvm_compiler_aarch64_adrp(sdvm_compiler_t *compiler, sdvm_compilerRegister
     uint32_t immlo = imm & 3;
     uint32_t immhi = imm >> 2;
     sdvm_compiler_aarch64_addInstruction(compiler, 0x90000000 | (immhi << 5) | (immlo << 29) | Rd);
+}
+
+uint32_t sdvm_compiler_aarch64_adrp_setImmediate(uint32_t instruction, uint32_t imm)
+{
+    sdvm_compilerRegisterValue_t Rd = instruction & 31;
+    uint32_t immlo = imm & 3;
+    uint32_t immhi = imm >> 2;
+    return 0x90000000 | (immhi << 5) | (immlo << 29) | Rd;
+}
+
+uint32_t sdvm_compiler_aarch64_addSub_setImmediate(uint32_t instruction, uint32_t imm)
+{
+    uint32_t mask = (1<<12) - 1;
+    uint32_t imm12 = imm & mask;
+    return (instruction & ~(mask << 10)) | (imm12 << 10);
 }
 
 void sdvm_compiler_aarch64_add_extended(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm, sdvm_aarch64_extendOption_t extend, uint8_t shift)
@@ -884,6 +906,7 @@ void sdvm_compiler_aarch64_ensureCIE(sdvm_moduleCompilationState_t *state)
     cfi->stackPointerRegister = DW_AARCH64_REG_SP;
 
     sdvm_dwarf_cfi_beginCIE(cfi, &ehCie);
+    sdvm_dwarf_cfi_cfaInRegisterWithFactoredOffset(cfi, DW_AARCH64_REG_SP, 0);
     sdvm_dwarf_cfi_endCIE(cfi);
 
     state->hasEmittedCIE = true;
@@ -1614,6 +1637,75 @@ uint16_t sdvm_compiler_aarch64_mapCoffRelocationApplyingAddend(sdvm_compilerRelo
     abort();
 }
 
+size_t sdvm_compiler_aarch64_countMachORelocations(sdvm_compilerRelocationKind_t kind)
+{
+    switch(kind)
+    {
+    case SdvmCompRelocationAArch64AdrRelativePageHi21:
+    case SdvmCompRelocationAArch64AddAbsoluteLo12NoCheck:
+    case SdvmCompRelocationAArch64Call26:
+    case SdvmCompRelocationAArch64Jump26:
+    case SdvmCompRelocationRelative32:
+    case SdvmCompRelocationSectionRelative32:
+    case SdvmCompRelocationAbsolute64:
+        return 1;
+    default: abort();
+    }
+}
+
+size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations)
+{
+    uint32_t *instruction = (uint32_t*)target;
+    switch(relocation->kind)
+    {
+    case SdvmCompRelocationAArch64AdrRelativePageHi21:
+        *instruction = sdvm_compiler_aarch64_adrp_setImmediate(*instruction, (relocation->addend + symbolAddend) >> 12);
+            
+        machRelocations->r_pcrel = true;
+        machRelocations->r_length = 2;
+        machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_PAGE21;
+        return 1;
+    case SdvmCompRelocationAArch64AddAbsoluteLo12NoCheck:
+        *instruction = sdvm_compiler_aarch64_addSub_setImmediate(*instruction, relocation->addend + symbolAddend);
+
+        machRelocations->r_pcrel = false;
+        machRelocations->r_length = 2;
+        machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_PAGEOFF12;
+        return 1;
+    case SdvmCompRelocationAArch64Call26:
+    case SdvmCompRelocationAArch64Jump26:
+        *instruction = sdvm_compiler_aarch64_branch26_setTarget(*instruction, relocation->addend + symbolAddend);
+
+        machRelocations->r_pcrel = true;
+        machRelocations->r_length = 2;
+        machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_BRANCH26;
+        return 1;
+    case SdvmCompRelocationRelative32:
+        *instruction = relocation->addend + symbolAddend;
+        machRelocations->r_pcrel = true;
+        machRelocations->r_length = 2;
+        machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
+        return 1;
+    case SdvmCompRelocationSectionRelative32:
+    case SdvmCompRelocationAbsolute32:
+        *instruction = relocation->addend + symbolAddend;
+        machRelocations->r_pcrel = false;
+        machRelocations->r_length = 2;
+        machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
+        return 1;
+    case SdvmCompRelocationAbsolute64:
+        {
+            int64_t *target64 = (int64_t*)target;
+            *target64 = relocation->addend + symbolAddend;
+            machRelocations->r_pcrel = false;
+            machRelocations->r_length = 3;
+            machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
+            return 1;
+        }
+    default: abort();
+    }
+}
+
 static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_linux = {
     .pointerSize = 8,
     .objectFileType = SdvmObjectFileTypeElf,
@@ -1635,6 +1727,8 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_linux = {
     .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,
     .mapCoffRelocationApplyingAddend = sdvm_compiler_aarch64_mapCoffRelocationApplyingAddend,
+    .countMachORelocations = sdvm_compiler_aarch64_countMachORelocations,
+    .mapMachORelocation = sdvm_compiler_aarch64_mapMachORelocation,
 
     .instructionPatterns = &sdvm_aarch64_instructionPatternTable,
 };
@@ -1665,6 +1759,8 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
     .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,
     .mapCoffRelocationApplyingAddend = sdvm_compiler_aarch64_mapCoffRelocationApplyingAddend,
+    .countMachORelocations = sdvm_compiler_aarch64_countMachORelocations,
+    .mapMachORelocation = sdvm_compiler_aarch64_mapMachORelocation,
 
     .instructionPatterns = &sdvm_aarch64_instructionPatternTable,
 };
@@ -1695,6 +1791,8 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_windows = {
     .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,
     .mapCoffRelocationApplyingAddend = sdvm_compiler_aarch64_mapCoffRelocationApplyingAddend,
+    .countMachORelocations = sdvm_compiler_aarch64_countMachORelocations,
+    .mapMachORelocation = sdvm_compiler_aarch64_mapMachORelocation,
 
     .instructionPatterns = &sdvm_aarch64_instructionPatternTable,
 };
