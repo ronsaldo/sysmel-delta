@@ -280,13 +280,6 @@ void sdvm_compiler_aarch64_bl(sdvm_compiler_t *compiler, uint32_t imm26)
     sdvm_compiler_aarch64_addInstruction(compiler, 0x94000000 | imm26);
 }
 
-uint32_t sdvm_compiler_aarch64_branch26_setTarget(uint32_t instruction, uint32_t immediate)
-{
-    uint32_t mask = ((1<<26) - 1);
-    uint32_t imm26 = (immediate >> 2) & mask;
-    return (instruction & ~mask) | imm26;
-}
-
 void sdvm_compiler_aarch64_bl_sv(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
 {
     sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationAArch64Call26, symbolHandle, addend);
@@ -313,21 +306,6 @@ void sdvm_compiler_aarch64_adrp(sdvm_compiler_t *compiler, sdvm_compilerRegister
     uint32_t immlo = imm & 3;
     uint32_t immhi = imm >> 2;
     sdvm_compiler_aarch64_addInstruction(compiler, 0x90000000 | (immhi << 5) | (immlo << 29) | Rd);
-}
-
-uint32_t sdvm_compiler_aarch64_adrp_setImmediate(uint32_t instruction, uint32_t imm)
-{
-    sdvm_compilerRegisterValue_t Rd = instruction & 31;
-    uint32_t immlo = imm & 3;
-    uint32_t immhi = imm >> 2;
-    return 0x90000000 | (immhi << 5) | (immlo << 29) | Rd;
-}
-
-uint32_t sdvm_compiler_aarch64_addSub_setImmediate(uint32_t instruction, uint32_t imm)
-{
-    uint32_t mask = (1<<12) - 1;
-    uint32_t imm12 = imm & mask;
-    return (instruction & ~(mask << 10)) | (imm12 << 10);
 }
 
 void sdvm_compiler_aarch64_add_extended(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rn, sdvm_compilerRegisterValue_t Rm, sdvm_aarch64_extendOption_t extend, uint8_t shift)
@@ -1643,6 +1621,7 @@ size_t sdvm_compiler_aarch64_countMachORelocations(sdvm_compilerRelocationKind_t
     {
     case SdvmCompRelocationAArch64AdrRelativePageHi21:
     case SdvmCompRelocationAArch64AddAbsoluteLo12NoCheck:
+        return 2;
     case SdvmCompRelocationAArch64Call26:
     case SdvmCompRelocationAArch64Jump26:
     case SdvmCompRelocationRelative32:
@@ -1653,29 +1632,41 @@ size_t sdvm_compiler_aarch64_countMachORelocations(sdvm_compilerRelocationKind_t
     }
 }
 
+sdvm_macho_relocation_info_t sdvm_compiler_aarch64_addendRelocation(uint32_t offset, int64_t addend)
+{
+    sdvm_macho_relocation_info_t reloc = {
+        .r_address = offset,
+        .r_symbolnum = addend,
+        .r_length = 2,
+        .r_pcrel = false,
+        .r_type = SDVM_MACHO_ARM64_RELOC_ADDEND,
+    };
+
+    return reloc;
+}
+
 size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint64_t symbolSectionAddend, uint64_t relocatedSectionOffset, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations)
 {
     uint32_t *instruction = (uint32_t*)target;
     switch(relocation->kind)
     {
     case SdvmCompRelocationAArch64AdrRelativePageHi21:
-        *instruction = sdvm_compiler_aarch64_adrp_setImmediate(*instruction, (relocation->addend + symbolAddend) >> 12);
-            
         machRelocations->r_pcrel = true;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_PAGE21;
-        return 1;
+        machRelocations[1] = machRelocations[0];
+        machRelocations[0] = sdvm_compiler_aarch64_addendRelocation(relocation->offset, relocation->addend + symbolAddend);
+        return 2;
     case SdvmCompRelocationAArch64AddAbsoluteLo12NoCheck:
-        *instruction = sdvm_compiler_aarch64_addSub_setImmediate(*instruction, relocation->addend + symbolAddend);
-
         machRelocations->r_pcrel = false;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_PAGEOFF12;
-        return 1;
+        machRelocations[1] = machRelocations[0];
+        machRelocations[0] = sdvm_compiler_aarch64_addendRelocation(relocation->offset, relocation->addend + symbolAddend);
+        return 2;
     case SdvmCompRelocationAArch64Call26:
     case SdvmCompRelocationAArch64Jump26:
-        *instruction = sdvm_compiler_aarch64_branch26_setTarget(*instruction, relocation->addend + symbolAddend);
-
+        SDVM_ASSERT(relocation->addend + symbolAddend == 0);
         machRelocations->r_pcrel = true;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_BRANCH26;
