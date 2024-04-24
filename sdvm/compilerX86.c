@@ -3773,8 +3773,7 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
         sdvm_compilerRegisterValue_t reg = convention->callPreservedVectorRegisters[i];
         if(sdvm_registerSet_includes(&state->usedCallPreservedVectorRegisterSet, reg))
         {
-            // TODO: Emit movapd
-            abort();
+            sdvm_compiler_x86_movapsRmoReg(compiler, state->stackFrameRegister, vectorOffset, reg);
             vectorOffset += 16;
         }
     }
@@ -3807,8 +3806,7 @@ void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *sta
         sdvm_compilerRegisterValue_t reg = convention->callPreservedVectorRegisters[i];
         if(sdvm_registerSet_includes(&state->usedCallPreservedVectorRegisterSet, reg))
         {
-            // TODO: Emit movapd
-            abort();
+            sdvm_compiler_x86_movapsRegRmo(compiler, reg, state->stackFrameRegister, vectorOffset);
             vectorOffset += 16;
         }
     }
