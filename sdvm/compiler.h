@@ -312,10 +312,18 @@ typedef struct sdvm_compilerStackLocation_s
     int32_t framePointerOffset;
 } sdvm_compilerStackLocation_t;
 
+typedef struct sdvm_compilerScratchMoveRegisters_s
+{
+    bool isValid;
+    sdvm_compilerRegisterKind_t kind;
+    sdvm_compilerRegisterValue_t value;
+} sdvm_compilerScratchMoveRegisters_t;
+
 typedef struct sdvm_compilerLocation_s
 {
     sdvm_compilerLocationKind_t kind;
     uint8_t isSigned : 1;
+    sdvm_compilerScratchMoveRegisters_t scratchMoveRegister;
 
     union {
         int32_t immediateS32;
@@ -481,8 +489,8 @@ typedef struct sdvm_compilerCallingConventionState_s
     uint32_t usedArgumentIntegerRegisterCount;
     uint32_t usedArgumentVectorRegisterCount;
 
-    uint32_t usedCalloutSpace;
-    uint32_t usedCalloutSpaceAlignment;
+    uint32_t usedStackSpace;
+    uint32_t usedStackSpaceAlignment;
 } sdvm_compilerCallingConventionState_t;
 
 typedef struct sdvm_functionCompilationStackSegment_s
@@ -656,6 +664,8 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegister(sdvm_com
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterWithSize(sdvm_compilerRegister_t reg, uint8_t size);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificSignedRegister(sdvm_compilerRegister_t reg);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificRegisterPair(sdvm_compilerRegister_t firstRegister, sdvm_compilerRegister_t secondRegister);
+
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificStack(uint32_t size, uint32_t alignment, sdvm_functionStackSegmentName_t segment, uint32_t segmentOffset);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stack(uint32_t size, uint32_t alignment);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackAddress(uint32_t size, uint32_t alignment);

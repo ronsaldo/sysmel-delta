@@ -1247,6 +1247,22 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stackSignedInteger(uint32
     return location;
 }
 
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_specificStack(uint32_t size, uint32_t alignment, sdvm_functionStackSegmentName_t segment, uint32_t segmentOffset)
+{
+    sdvm_compilerLocation_t location = {
+        .kind = SdvmCompLocationStack,
+        .firstStackLocation = {
+            .isValid = true,
+            .size = size,
+            .alignment = alignment,
+            .segment = segment,
+            .segmentOffset = segmentOffset
+        }
+    };
+
+    return location;
+}
+
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_stack(uint32_t size, uint32_t alignment)
 {
     sdvm_compilerLocation_t location = {
@@ -1418,6 +1434,34 @@ SDVM_API bool sdvm_compilerLocation_isOnStack(const sdvm_compilerLocation_t *loc
     return location->kind == SdvmCompLocationStack || location->kind == SdvmCompLocationStackAddress || location->kind == SdvmCompLocationStackPair;
 }
 
+SDVM_API bool sdvm_compilerStackLocation_matches(const sdvm_compilerStackLocation_t *first, const sdvm_compilerStackLocation_t *second)
+{
+    return first->size == second->size && first->segment == first->segment && first->isValid == second->isValid && (!first->isValid || second->segmentOffset == second->segmentOffset);
+}
+
+SDVM_API bool sdvm_compilerLocation_matchesStackLocation(const sdvm_compilerLocation_t *firstLocation, const sdvm_compilerLocation_t *secondLocation)
+{
+    if(!sdvm_compilerLocation_isOnStack(firstLocation) || firstLocation->kind != secondLocation->kind)
+        return false;
+    if (!sdvm_compilerStackLocation_matches(&firstLocation->firstStackLocation, &secondLocation->firstStackLocation))
+        return false;
+    if(firstLocation->kind == SdvmCompLocationStackPair && !sdvm_compilerStackLocation_matches(&firstLocation->secondStackLocation, &secondLocation->secondStackLocation))
+        return false;
+    return true;
+}
+
+sdvm_compilerScratchMoveRegisters_t sdvm_compilerScratchMoveRegisters_fromRegisterLocation(const sdvm_compilerLocation_t *location)
+{
+    SDVM_ASSERT(sdvm_compilerLocationKind_isRegister(location->kind));
+    SDVM_ASSERT(!sdvm_compilerLocationKind_isRegister(location->firstRegister.isPending));
+    sdvm_compilerScratchMoveRegisters_t result = {
+        .isValid = true,
+        .kind = location->firstRegister.kind,
+        .value = location->firstRegister.value,
+    };
+    return result;
+}
+
 void sdvm_compilerCallingConventionState_reset(sdvm_compilerCallingConventionState_t *state, const sdvm_compilerCallingConvention_t *convention, uint32_t argumentCount, bool isCallout, bool isVariadic)
 {
     state->convention = convention;
@@ -1429,30 +1473,49 @@ void sdvm_compilerCallingConventionState_reset(sdvm_compilerCallingConventionSta
     state->usedArgumentCount = 0;
     state->usedArgumentIntegerRegisterCount = 0;
     state->usedArgumentVectorRegisterCount = 0;
-    state->usedCalloutSpace = convention->calloutShadowSpace;
-    state->usedCalloutSpaceAlignment = convention->stackAlignment;
+    state->usedStackSpace = convention->calloutShadowSpace;
+    state->usedStackSpaceAlignment = convention->stackAlignment;
 }
 
 void sdvm_compilerCallingConventionState_endCall(sdvm_functionCompilationState_t *state, sdvm_compilerCallingConventionState_t *calloutState, const sdvm_compilerCallingConvention_t *convention)
 {
     (void)convention;
     // Make sure to record the required callout space for this call.
-    if(state->calloutStackSegment.size <= calloutState->usedCalloutSpace)
-        state->calloutStackSegment.size = calloutState->usedCalloutSpace;
+    if(state->calloutStackSegment.size <= calloutState->usedStackSpace)
+        state->calloutStackSegment.size = calloutState->usedStackSpace;
 
-    if(state->calloutStackSegment.alignment <= calloutState->usedCalloutSpaceAlignment)
-        state->calloutStackSegment.alignment = calloutState->usedCalloutSpaceAlignment;
+    if(state->calloutStackSegment.alignment <= calloutState->usedStackSpaceAlignment)
+        state->calloutStackSegment.alignment = calloutState->usedStackSpaceAlignment;
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_memory(sdvm_compilerCallingConventionState_t *state, size_t valueSize, size_t valueAlignment)
 {
-    abort();
+    size_t requiredAlignment = valueAlignment;
+    if(valueAlignment < state->convention->stackParameterAlignment)
+        requiredAlignment = state->convention->stackParameterAlignment;
+
+    size_t alignedValueSize = sdvm_size_alignedTo(valueSize, requiredAlignment);
+
+    if(state->usedStackSpaceAlignment < requiredAlignment)
+        state->usedStackSpaceAlignment = requiredAlignment;
+    uint32_t calloutOffset = sdvm_uint32_alignedTo(state->usedStackSpace, (uint32_t)requiredAlignment);
+    state->usedStackSpace = calloutOffset + alignedValueSize;
+    ++state->usedArgumentCount;
+    return sdvm_compilerLocation_specificStack(valueSize, valueAlignment, state->isCallout ? SdvmFunctionStackSegmentCallout : SdvmFunctionStackSegmentArgumentPassing, calloutOffset);
+}
+
+bool sdvm_compilerCallingConventionState_isMemoryVariadic(sdvm_compilerCallingConventionState_t *state)
+{
+    return state->isVariadic && state->convention->nonFixedVariadicArgumentsArePassedViaStack && state->usedArgumentCount >= state->fixedArgumentCount;
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_integer32(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegister(*state->convention->integer32Registers[state->usedArgumentIntegerRegisterCount++]);
+    }
     return sdvm_compilerCallingConventionState_memory(state, 4, 4);
 }
 
@@ -1465,12 +1528,14 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_signedInteger32(sdvm
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_integer64(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->convention->integerRegisterSize >= 8 && state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->convention->integerRegisterSize >= 8 && state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
     {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegister(*state->convention->integer64Registers[state->usedArgumentIntegerRegisterCount++]);
     }
-    else if(state->convention->integerRegisterSize == 4 && state->usedArgumentIntegerRegisterCount + 1 < state->convention->integerRegisterCount)
+    else if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->convention->integerRegisterSize == 4 && state->usedArgumentIntegerRegisterCount + 1 < state->convention->integerRegisterCount)
     {
+        ++state->usedArgumentCount;
         sdvm_compilerLocation_t pairLocation = sdvm_compilerLocation_specificRegisterPair(*state->convention->integer32Registers[state->usedArgumentIntegerRegisterCount], *state->convention->integer32Registers[state->usedArgumentIntegerRegisterCount + 1]);
         state->usedArgumentIntegerRegisterCount += 2;
         return pairLocation;
@@ -1481,17 +1546,21 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_integer64(sdvm_compi
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_pointer(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentIntegerRegisterCount < state->convention->integerRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegister(*state->convention->integerRegisters[state->usedArgumentIntegerRegisterCount++]);
+    }
     return sdvm_compilerCallingConventionState_memory(state, state->convention->integerRegisterSize, state->convention->integerRegisterSize);
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_pointerPair(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentIntegerRegisterCount + 1 < state->convention->integerRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentIntegerRegisterCount + 1 < state->convention->integerRegisterCount)
     {
         sdvm_compilerLocation_t pairLocation = sdvm_compilerLocation_specificRegisterPair(*state->convention->integerRegisters[state->usedArgumentIntegerRegisterCount], *state->convention->integerRegisters[state->usedArgumentIntegerRegisterCount + 1]);
         state->usedArgumentIntegerRegisterCount += 2;
+        ++state->usedArgumentCount;
         return pairLocation;
     }
 
@@ -1500,36 +1569,49 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_pointerPair(sdvm_com
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_float32(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegisterWithSize(*state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount++], 4);
+    }
     return sdvm_compilerCallingConventionState_memory(state, 4, 4);
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_float64(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegisterWithSize(*state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount++], 8);
+    }
     return sdvm_compilerCallingConventionState_memory(state, 8, 8);
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_floatVector64(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegisterWithSize(*state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount++], 8);
+    }
     return sdvm_compilerCallingConventionState_memory(state, 8, 8);
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_floatVector128(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegisterWithSize(*state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount++], 8);
+    }
     return sdvm_compilerCallingConventionState_memory(state, 16, 16);
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_floatVector128x2(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentVectorRegisterCount + 1 < state->convention->vectorRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentVectorRegisterCount + 1 < state->convention->vectorRegisterCount)
     {
+        ++state->usedArgumentCount;
         sdvm_compilerLocation_t pairLocation = sdvm_compilerLocation_specificRegisterPair(*state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount], *state->convention->vectorFloatRegisters[state->usedArgumentVectorRegisterCount + 1]);
         state->usedArgumentVectorRegisterCount += 2;
         return pairLocation;
@@ -1540,15 +1622,21 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_floatVector128x2(sdv
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_integerVector64(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegisterWithSize(*state->convention->vectorIntegerRegisters[state->usedArgumentVectorRegisterCount++], 8);
+    }
     return sdvm_compilerCallingConventionState_memory(state, 8, 8);
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_integerVector128(sdvm_compilerCallingConventionState_t *state)
 {
-    if(state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->usedArgumentVectorRegisterCount < state->convention->vectorRegisterCount)
+    {
+        ++state->usedArgumentCount;
         return sdvm_compilerLocation_specificRegisterWithSize(*state->convention->vectorIntegerRegisters[state->usedArgumentVectorRegisterCount++], 8);
+    }
     return sdvm_compilerCallingConventionState_memory(state, 16, 16);
 }
 
@@ -1566,7 +1654,7 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledFunction(sdvm_
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_implicitArg0Location(sdvm_functionCompilationState_t *functionState, sdvm_compilerCallingConventionState_t *state)
 {
     (void)functionState;
-    if(state->isVariadic && state->convention->usesVariadicVectorCountRegister)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->isVariadic && state->convention->usesVariadicVectorCountRegister)
         return sdvm_compilerLocation_specificRegister(*state->convention->variadicVectorCountRegister);
     return sdvm_compilerLocation_null();
 }
@@ -1574,7 +1662,7 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_implicitArg0Location
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_implicitArg0SourceLocation(sdvm_functionCompilationState_t *functionState, sdvm_compilerCallingConventionState_t *state)
 {
     (void)functionState;
-    if(state->isVariadic && state->convention->usesVariadicVectorCountRegister)
+    if(!sdvm_compilerCallingConventionState_isMemoryVariadic(state) && state->isVariadic && state->convention->usesVariadicVectorCountRegister)
         return sdvm_compilerLocation_immediateS32(state->usedArgumentVectorRegisterCount);
     return sdvm_compilerLocation_null();
 }
@@ -2574,6 +2662,17 @@ void sdvm_linearScanRegisterAllocator_allocateRegisterLocation(sdvm_linearScanRe
     }
 }
 
+void sdvm_linearScanRegisterAllocator_allocateScratchMoveRegisterLocation(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction, sdvm_compilerLocation_t *location)
+{
+    (void)instruction;
+    if(location->scratchMoveRegister.isValid)
+        return;
+
+    location->scratchMoveRegister.kind = SdvmCompRegisterKindInteger;
+    location->scratchMoveRegister.value = sdvm_linearScanRegisterAllocatorFile_allocate(registerAllocator->compiler, registerAllocator->registerFiles[SdvmCompRegisterKindInteger]);
+    location->scratchMoveRegister.isValid = true;
+}
+
 bool sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(sdvm_linearScanRegisterAllocator_t *registerAllocator, sdvm_compilerInstruction_t *instruction, sdvm_compilerLocation_t *location, sdvm_compilerInstruction_t *sourceInstruction, sdvm_compilerLocation_t *sharingLocation, sdvm_compilerInstruction_t *sharingSourceInstruction)
 {
     if(!sdvm_compilerLocationKind_isRegister(sharingLocation->kind) ||
@@ -2703,8 +2802,16 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation0, NULL);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation1, NULL);
 
-    sdvm_linearScanRegisterAllocator_spillClobberSets(registerAllocator, &startInstruction->clobberSets);
+    if(sdvm_compilerLocation_isOnStack(&startInstruction->arg0Location) && startInstruction->decoding.arg0IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg0 = state->instructions + startInstruction->decoding.instruction.arg0;
+        if(sdvm_compilerLocationKind_isRegister(startInstruction->arg0Location.kind))
+            startInstruction->arg0Location.scratchMoveRegister = sdvm_compilerScratchMoveRegisters_fromRegisterLocation(&startInstruction->arg0Location);
+        else if(!sdvm_compilerLocation_matchesStackLocation(&startInstruction->arg0Location, &arg0->location))
+            sdvm_linearScanRegisterAllocator_allocateScratchMoveRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg0Location);
+    }
 
+    sdvm_linearScanRegisterAllocator_spillClobberSets(registerAllocator, &startInstruction->clobberSets);
     sdvm_linearScanRegisterAllocator_endInstruction(registerAllocator, endInstruction);
 }
 
@@ -2875,22 +2982,26 @@ void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *sta
         sdvm_compiler_computeInstructionStackFrameOffsets(state, instruction);
     }
 
-    // Copy the locations from the stack arguments.
+    // Copy or compute the locations from the stack arguments.
     for(uint32_t i = 0; i < state->instructionCount; ++i)
     {
         sdvm_compilerInstruction_t *instruction = state->instructions + i;
         if(instruction->decoding.arg0IsInstruction && sdvm_compilerLocation_isOnStack(&instruction->arg0Location))
         {
             sdvm_compilerInstruction_t *arg0 = state->instructions + instruction->decoding.instruction.arg0;
-            instruction->arg0Location = arg0->location;
-            SDVM_ASSERT(sdvm_compilerLocation_isOnStack(&instruction->arg0Location));
+            if(sdvm_compilerLocation_isOnStack(&arg0->arg0Location))
+                instruction->arg0Location = arg0->location;
+            else
+                sdvm_compiler_computeStackFrameLocations(state, &instruction->arg0Location);
         }
 
         if(instruction->decoding.arg1IsInstruction && sdvm_compilerLocation_isOnStack(&instruction->arg1Location))
         {
             sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
-            instruction->arg1Location = arg1->location;
-            SDVM_ASSERT(sdvm_compilerLocation_isOnStack(&instruction->arg1Location));
+            if(sdvm_compilerLocation_isOnStack(&arg1->arg0Location))
+                instruction->arg1Location = arg1->location;
+            else
+                sdvm_compiler_computeStackFrameLocations(state, &instruction->arg1Location);
         }
     }
 }
