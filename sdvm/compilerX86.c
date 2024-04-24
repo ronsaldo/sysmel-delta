@@ -3846,6 +3846,43 @@ void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *sta
     sdvm_dwarf_cfi_endEpilogue(cfi);
 }
 
+void sdvm_compiler_x64_emitMemoryToMemoryFixedSizedMove(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t sourcePointer, int32_t sourcePointerOffset, sdvm_x86_registerIndex_t destinationPointer, int32_t destinationPointerOffset, size_t copySize, const sdvm_compilerScratchMoveRegisters_t *scratchMoveRegister)
+{
+    SDVM_ASSERT(scratchMoveRegister->isValid);
+    SDVM_ASSERT(scratchMoveRegister->kind == SdvmCompRegisterKindInteger);
+    sdvm_compilerRegisterValue_t scratchRegister = scratchMoveRegister->value;
+
+    size_t offset = 0;
+    while(offset < copySize)
+    {
+        size_t remainingSize = copySize - offset;
+        if(remainingSize >= 8)
+        {
+            sdvm_compiler_x86_mov64RegRmo(compiler, scratchRegister, sourcePointer, sourcePointerOffset + offset);
+            sdvm_compiler_x86_mov64RmoReg(compiler, destinationPointer, destinationPointerOffset + offset, scratchRegister);
+            offset += 8;
+        }
+        else if(remainingSize >= 4)
+        {
+            sdvm_compiler_x86_mov32RegRmo(compiler, scratchRegister, sourcePointer, sourcePointerOffset + offset);
+            sdvm_compiler_x86_mov32RmoReg(compiler, destinationPointer, destinationPointerOffset + offset, scratchRegister);
+            offset += 4;
+        }
+        else if(remainingSize >= 2)
+        {
+            sdvm_compiler_x86_movzxReg32Rmo16(compiler, scratchRegister, sourcePointer, sourcePointerOffset + offset);
+            sdvm_compiler_x86_mov16RmoReg(compiler, destinationPointer, destinationPointerOffset + offset, scratchRegister);
+            offset += 2;
+        }
+        else
+        {
+            sdvm_compiler_x86_movzxReg32Rmo8(compiler, scratchRegister, sourcePointer, sourcePointerOffset + offset);
+            sdvm_compiler_x86_mov8RmoReg(compiler, destinationPointer, destinationPointerOffset + offset, scratchRegister);
+            offset += 1;
+        }
+    }
+}
+
 void sdvm_compiler_x64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerRegister_t *reg)
 {
     switch(sourceLocation->kind)
@@ -4166,7 +4203,7 @@ void sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t *co
     }
 }
 
-void sdvm_compiler_x64_emitMoveFromLocationIntoStack(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerStackLocation_t *stackLocation)
+void sdvm_compiler_x64_emitMoveFromLocationIntoStack(sdvm_compiler_t *compiler, const sdvm_compilerLocation_t *sourceLocation, const sdvm_compilerLocation_t *destinationLocation, const sdvm_compilerStackLocation_t *stackLocation)
 {
     switch(sourceLocation->kind)
     {
@@ -4182,6 +4219,13 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoStack(sdvm_compiler_t *compiler, 
 
             return sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->secondRegister, &nextLocation);
         }
+    case SdvmCompLocationStack:
+        SDVM_ASSERT(destinationLocation->scratchMoveRegister.isValid);
+        return sdvm_compiler_x64_emitMemoryToMemoryFixedSizedMove(compiler,
+            sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset,
+            destinationLocation->firstStackLocation.framePointerRegister, destinationLocation->firstStackLocation.framePointerOffset,
+            sourceLocation->firstStackLocation.size <= destinationLocation->firstStackLocation.size ? sourceLocation->firstStackLocation.size : destinationLocation->firstStackLocation.size,
+            &destinationLocation->scratchMoveRegister);
     default: return abort();
     }
 }
@@ -4198,7 +4242,7 @@ void sdvm_compiler_x64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, const
     case SdvmCompLocationRegisterPair:
         return sdvm_compiler_x64_emitMoveFromLocationIntoRegisterPair(compiler, sourceLocation, &destinationLocation->firstRegister, &destinationLocation->secondRegister);
     case SdvmCompLocationStack:
-        return sdvm_compiler_x64_emitMoveFromLocationIntoStack(compiler, sourceLocation, &destinationLocation->firstStackLocation);
+        return sdvm_compiler_x64_emitMoveFromLocationIntoStack(compiler, sourceLocation, destinationLocation, &destinationLocation->firstStackLocation);
     case SdvmCompLocationStackPair:
         return abort();
     case SdvmCompLocationImmediateS32:
