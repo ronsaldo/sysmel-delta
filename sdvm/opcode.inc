@@ -115,7 +115,7 @@ SDVM_OPCODE_DEF(FreeManual,     52, "Frees Manual memory")
 // Common instructions
 SDVM_INSTRUCTION_DEF(Nop, Nop, Void, Void, Void, "No operation")
 SDVM_INSTRUCTION_DEF(BeginArguments, BeginArguments, Void, Info, Info, "Begin fetching arguments. Argument count. Calling convention.")
-SDVM_INSTRUCTION_DEF(BeginCall, BeginCall, Void, Info, Info, "Begin call. Argument count. Calling convention index.")
+SDVM_INSTRUCTION_DEF(BeginCall, BeginCall, Void, Info, Info, "Begin call. Low 8 bits fixed argument count. High bit set. Calling convention index.")
 SDVM_INSTRUCTION_DEF(BeginCaptures, BeginCaptures, GCPointer, Info, Void, "Begin captures.")
 
 // Argument fetching instructions.

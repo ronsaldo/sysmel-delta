@@ -384,6 +384,8 @@ struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t destinationLocation;
     sdvm_compilerLocation_t arg0Location;
     sdvm_compilerLocation_t arg1Location;
+    sdvm_compilerLocation_t implicitArg0Location;
+    sdvm_compilerLocation_t implicitArg0SourceLocation;
     sdvm_compilerLocation_t scratchLocation0;
     sdvm_compilerLocation_t scratchLocation1;
     sdvm_compilerInstructionClobberSets_t clobberSets;
@@ -404,6 +406,8 @@ struct sdvm_compilerCallingConvention_s
     bool anchorsFramePointerAtBottom;
     bool usesSingleRegisterCount;
     bool vectorsArePassedByPointers;
+    bool usesVariadicVectorCountRegister;
+    bool nonFixedVariadicArgumentsArePassedViaStack;
     uint32_t integerRegisterSize;
     uint32_t integerRegisterCount;
 
@@ -461,6 +465,8 @@ struct sdvm_compilerCallingConvention_s
 
     uint32_t callTouchedVectorRegisterCount;
     const sdvm_compilerRegisterValue_t *callTouchedVectorRegisters;
+
+    const sdvm_compilerRegister_t *variadicVectorCountRegister;
 };
 
 typedef struct sdvm_compilerCallingConventionState_s
@@ -468,8 +474,10 @@ typedef struct sdvm_compilerCallingConventionState_s
     const sdvm_compilerCallingConvention_t *convention;
 
     bool isCallout;
+    bool isVariadic;
 
-    uint32_t argumentCount;
+    uint32_t fixedArgumentCount;
+    uint32_t usedArgumentCount;
     uint32_t usedArgumentIntegerRegisterCount;
     uint32_t usedArgumentVectorRegisterCount;
 

@@ -575,10 +575,12 @@ class MIRStoreInstruction(MIRInstruction):
         return 'store %s value %s' % (str(self.pointer), str(self.value))
 
 class MIRCallInstruction(MIRInstruction):
-    def __init__(self, context: MIRContext, type: MIRValue, functional: MIRValue, arguments: list[MIRValue], name: str = None) -> None:
+    def __init__(self, context: MIRContext, type: MIRValue, functional: MIRValue, arguments: list[MIRValue], fixedArgumentCount: int, isVariadic: bool, name: str = None) -> None:
         super().__init__(context, type, name)
         self.functional = functional
         self.arguments = arguments
+        self.fixedArgumentCount = fixedArgumentCount
+        self.isVariadic = isVariadic
 
     def accept(self, visitor: MIRValueVisitor):
         return visitor.visitCallInstruction(self)
@@ -716,8 +718,8 @@ class MIRBuilder:
     def branch(self, destination: MIRBasicBlock) -> MIRInstruction:
         return self.addInstruction(MIRBranchInstruction(self.context, destination))
 
-    def call(self, resultType: MIRType, function: MIRValue, arguments: list[HIRValue]) -> MIRInstruction:
-        return self.addInstruction(MIRCallInstruction(self.context, resultType, function, arguments))
+    def call(self, resultType: MIRType, function: MIRValue, arguments: list[HIRValue], fixedArgumentCount: int, isVariadic: bool) -> MIRInstruction:
+        return self.addInstruction(MIRCallInstruction(self.context, resultType, function, arguments, fixedArgumentCount, isVariadic))
 
     def condBranch(self, condition: MIRBasicBlock, trueDestination: MIRBasicBlock, falseDestination: MIRBasicBlock) -> MIRInstruction:
         return self.addInstruction(MIRCondBranchInstruction(self.context, condition, trueDestination, falseDestination))
@@ -1124,6 +1126,7 @@ class MIRFunctionFrontend:
 
     def visitCallInstruction(self, hirInstruction: HIRCallInstruction):
         hirFunctional = hirInstruction.functional
+        hitFunctionalType = hirFunctional.getType()
         if hirFunctional.isConstantPrimitiveFunction():
             constantPrimitiveFunction: HIRConstantPrimitiveFunction = hirFunctional
             primitiveName = constantPrimitiveFunction.name
@@ -1134,10 +1137,12 @@ class MIRFunctionFrontend:
                 if primitiveTranslationResult is not None:
                     return primitiveTranslationResult
 
+        isVariadic = hitFunctionalType.isVariadicFunctionType()
+        fixedArgumentCount = hitFunctionalType.getFixedArgumentCount()
         resultType = self.translateType(hirInstruction.type)
         functional = self.translateValue(hirInstruction.functional)
         arguments = list(filter(lambda x: x.hasNotAbortType(), map(self.translateValue, hirInstruction.arguments)))
-        return self.builder.call(resultType, functional, arguments)
+        return self.builder.call(resultType, functional, arguments, fixedArgumentCount, isVariadic)
     
     def visitCondBranchInstruction(self, hirInstruction: HIRCondBranchInstruction):
         condition = self.translateValue(hirInstruction.condition)

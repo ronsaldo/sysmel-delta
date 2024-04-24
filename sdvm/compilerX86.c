@@ -97,6 +97,7 @@ static const uint32_t sdvm_x64_allocatableVectorRegisterCount = SDVM_C_ARRAY_SIZ
 const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
     .supportsLocalSymbolValueCall = true,
     .supportsGlobalSymbolValueCall = true,
+    .usesVariadicVectorCountRegister = true,
 
     .stackAlignment = 16,
     .stackParameterAlignment = 8,
@@ -142,9 +143,10 @@ const sdvm_compilerCallingConvention_t sdvm_x64_sysv_callingConvention = {
     .callTouchedIntegerRegisters = sdvm_x64_sysv_callTouchedIntegerRegisters,
 
     .callTouchedVectorRegisterCount = sdvm_x64_sysv_callTouchedVectorRegisterCount,
-    .callTouchedVectorRegisters = sdvm_x64_sysv_callTouchedVectorRegisters
-};
+    .callTouchedVectorRegisters = sdvm_x64_sysv_callTouchedVectorRegisters,
 
+    .variadicVectorCountRegister = &sdvm_x86_RAX,
+};
 
 static const sdvm_compilerRegister_t *sdvm_x64_win64_integerPassingRegisters[] = {
     &sdvm_x86_RCX,
@@ -5324,6 +5326,9 @@ void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *
         sdvm_compilerInstruction_t *arg1 = state->instructions + startInstruction->decoding.instruction.arg1;
         sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &arg1->location, &instruction->arg1Location);
     }
+
+    // Used for variadic callouts.
+    sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &startInstruction->implicitArg0SourceLocation, &startInstruction->implicitArg0Location);
 
     // Emit the actual instruction operation
     if(instruction->pattern)

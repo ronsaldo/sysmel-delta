@@ -259,7 +259,11 @@ class SDVMFunctionFrontEnd:
     def visitCallInstruction(self, instruction: MIRCallInstruction) -> SDVMOperand:
         calledFunctional = self.translateValue(instruction.functional)
         translatedArguments = list(map(self.translateValue, instruction.arguments))
-        self.function.addInstruction(SDVMInstruction(SdvmInstBeginCall, len(instruction.arguments), sourcePosition = instruction.sourcePosition))
+        argumentsDescriptor = instruction.fixedArgumentCount & SdvmBeginCallFixedArgumentMask
+        if instruction.isVariadic:
+            argumentsDescriptor |= SdvmBeginCallVariadicFlag
+
+        self.function.addInstruction(SDVMInstruction(SdvmInstBeginCall, argumentsDescriptor, sourcePosition = instruction.sourcePosition))
         
         for i in range(len(translatedArguments)):
             translatedArgument = translatedArguments[i]

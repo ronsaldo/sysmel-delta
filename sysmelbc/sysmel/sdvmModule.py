@@ -49,6 +49,9 @@ SdvmConstantPayloadBits = 52
 SdvmConstantPayloadHalfBits = SdvmConstantPayloadBits // 2
 SdvmConstantPayloadHalfMaxValue = (1 << SdvmConstantPayloadHalfBits) - 1
 
+SdvmBeginCallFixedArgumentMask = 0xFF
+SdvmBeginCallVariadicFlag = 1<<8
+
 class SDVMString:
     def __init__(self, offset: int = 0, size: int = 0, value: str = None) -> None:
         self.value = value

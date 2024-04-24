@@ -165,6 +165,61 @@ const sdvm_compilerCallingConvention_t sdvm_aarch64_eabi_callingConvention = {
     .callPreservedVectorRegisters = sdvm_aarch64_eabi_callPreservedVectorRegisters
 };
 
+const sdvm_compilerCallingConvention_t sdvm_aarch64_apple_callingConvention = {
+    .supportsLocalSymbolValueCall = true,
+    .supportsGlobalSymbolValueCall = true,
+    .nonFixedVariadicArgumentsArePassedViaStack = true,
+
+    .stackAlignment = 16,
+    .stackParameterAlignment = 8,
+    .calloutShadowSpace = 0,
+
+    .integerRegisterSize = 8,
+    .integerRegisterCount = sdvm_aarch64_eabi_integerPassingRegisterCount,
+
+    .integer32Registers = sdvm_aarch64_eabi_integerPassingDwordRegisters,
+    .integer64Registers = sdvm_aarch64_eabi_integerPassingRegisters,
+    .integerRegisters = sdvm_aarch64_eabi_integerPassingRegisters,
+
+    .closureRegister = &sdvm_aarch64_X9,
+    .closureGCRegister = &sdvm_aarch64_X10,
+
+    .firstInteger32ResultRegister = &sdvm_aarch64_W0,
+    .firstInteger64ResultRegister = &sdvm_aarch64_X0,
+    .firstIntegerResultRegister = &sdvm_aarch64_X0,
+    .secondInteger32ResultRegister = &sdvm_aarch64_W1,
+    .secondInteger64ResultRegister = &sdvm_aarch64_X1,
+    .secondIntegerResultRegister = &sdvm_aarch64_X1,
+
+    .vectorRegisterSize = 16,
+    .vectorRegisterCount = sdvm_aarch64_eabi_vectorFloatPassingRegisterCount,
+    .vectorFloatRegisters = sdvm_aarch64_eabi_vectorFloatPassingRegister,
+    .vectorIntegerRegisters = sdvm_aarch64_eabi_vectorIntegerPassingRegister,
+
+    .firstVectorFloatResultRegister = &sdvm_aarch64_V0,
+    .firstVectorIntegerResultRegister = &sdvm_aarch64_VI0,
+    .secondVectorFloatResultRegister = &sdvm_aarch64_V1,
+    .secondVectorIntegerResultRegister = &sdvm_aarch64_VI1,
+
+    .allocatableIntegerRegisterCount = sdvm_aarch64_eabi_allocatableIntegerRegisterCount,
+    .allocatableIntegerRegisters = sdvm_aarch64_eabi_allocatableIntegerRegisters,
+    
+    .allocatableVectorRegisterCount = sdvm_aarch64_allocatableVectorRegisterCount,
+    .allocatableVectorRegisters = sdvm_aarch64_allocatableVectorRegisters,
+
+    .callPreservedIntegerRegisterCount = sdvm_aarch64_eabi_callPreservedIntegerRegisterCount,
+    .callPreservedIntegerRegisters = sdvm_aarch64_eabi_callPreservedIntegerRegisters,
+    
+    .callTouchedIntegerRegisterCount = sdvm_aarch64_eabi_callTouchedIntegerRegisterCount,
+    .callTouchedIntegerRegisters = sdvm_aarch64_eabi_callTouchedIntegerRegisters,
+
+    .callTouchedVectorRegisterCount = sdvm_aarch64_eabi_callTouchedVectorRegisterCount,
+    .callTouchedVectorRegisters = sdvm_aarch64_eabi_callTouchedVectorRegisters,
+
+    .callPreservedVectorRegisterCount = sdvm_aarch64_eabi_callPreservedVectorRegisterCount,
+    .callPreservedVectorRegisters = sdvm_aarch64_eabi_callPreservedVectorRegisters
+};
+
 bool sdvm_compiler_aarch64_isValidWideImmediate32(uint32_t value)
 {
     return
@@ -1745,12 +1800,12 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
     .usesCET = false,
     .closureCallNeedsScratch = true,
 
-    .defaultCC = &sdvm_aarch64_eabi_callingConvention,
-    .cdecl = &sdvm_aarch64_eabi_callingConvention,
-    .stdcall = &sdvm_aarch64_eabi_callingConvention,
-    .apicall = &sdvm_aarch64_eabi_callingConvention,
-    .thiscall = &sdvm_aarch64_eabi_callingConvention,
-    .vectorcall = &sdvm_aarch64_eabi_callingConvention,
+    .defaultCC = &sdvm_aarch64_apple_callingConvention,
+    .cdecl = &sdvm_aarch64_apple_callingConvention,
+    .stdcall = &sdvm_aarch64_apple_callingConvention,
+    .apicall = &sdvm_aarch64_apple_callingConvention,
+    .thiscall = &sdvm_aarch64_apple_callingConvention,
+    .vectorcall = &sdvm_aarch64_apple_callingConvention,
 
     .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,

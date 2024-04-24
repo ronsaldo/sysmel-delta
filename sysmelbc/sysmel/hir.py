@@ -175,6 +175,12 @@ class HIRTypeValue(HIRValue):
     def isVoidType(self):
         return False
     
+    def isVariadicFunctionType(self):
+        return False
+    
+    def getFixedArgumentCount(self):
+        return 0
+    
     def canonicalizeResult(self, resultValue: HIRValue) -> HIRValue:
         return resultValue
     
@@ -548,7 +554,15 @@ class HIRFunctionType(HIRTypeValue):
         return self.context.functionTypeSize
 
     def getType(self):
-        return self.context.getTypeUniverse(0)    
+        return self.context.getTypeUniverse(0)
+    
+    def isVariadicFunctionType(self):
+        return self.isVariadic
+    
+    def getFixedArgumentCount(self):
+        if self.isVariadic and len(self.argumentTypes) > 0:
+            return len(self.argumentTypes) - 1
+        return len(self.argumentTypes)
 
 class HIRConstant(HIRValue):
     def __init__(self, context: HIRContext, type: HIRValue) -> None:
