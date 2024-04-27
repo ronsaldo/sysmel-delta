@@ -470,7 +470,7 @@ class SDVMMemoryDescriptor(SDVMOperand):
         return 'memd:%d %s' % (self.index, str(self.descriptor))
 
     def encode(self) -> bytes:
-        return struct.pack('<QQII', self.descriptor.size, self.descriptor.alignment, 0, 0)
+        return struct.pack('<QQII', self.descriptor.alignment, self.descriptor.size, 0, 0)
     
 class SDVMConstant(SDVMOperand):
     def __init__(self, definition: SdvmConstantDef, value = None, payload: int = 0, sourcePosition = None) -> None:

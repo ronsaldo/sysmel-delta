@@ -258,6 +258,18 @@ class SDVMFunctionFrontEnd:
         else:
             storeInstruction = self.moduleFrontend.storeInstructionDictionary[instruction.value.getType()]
         return self.function.addInstruction(SDVMInstruction(storeInstruction, pointer, value, sourcePosition = instruction.sourcePosition))
+    
+    def visitMemcopyFixedInstruction(self, instruction: MIRMemcopyFixedInstruction) -> SDVMOperand:
+        sourcePointer = self.translateValue(instruction.source)
+        destinationPointer = self.translateValue(instruction.destination)
+        if instruction.destination.isGCPointer():
+            copyInstruction = self.function.addInstruction(SDVMInstruction(SdvmInstMemcopyGCFixed, destinationPointer, sourcePointer, sourcePosition = instruction.sourcePosition))
+        else:
+            copyInstruction = self.function.addInstruction(SDVMInstruction(SdvmInstMemcopyFixed, destinationPointer, sourcePointer, sourcePosition = instruction.sourcePosition))
+
+        memoryDescriptor = self.moduleFrontend.module.addMemoryDescriptor(instruction.descriptor)
+        self.function.addInstruction(SDVMInstruction(SdvmInstExtraArgumentsInfo, memoryDescriptor, sourcePosition = instruction.sourcePosition))
+        return copyInstruction
 
     def visitCallInstruction(self, instruction: MIRCallInstruction) -> SDVMOperand:
         calledFunctional = self.translateValue(instruction.functional)

@@ -103,6 +103,9 @@ typedef struct sdvm_decodedConstOrInstruction_s
     uint8_t isConstant : 1;
     uint8_t arg0IsInstruction : 1;
     uint8_t arg1IsInstruction : 1;
+    uint8_t arg2IsInstruction : 1;
+    uint8_t arg3IsInstruction : 1;
+    uint8_t isExtensionData : 1;
 
     sdvm_opcode_t opcode;
     union
@@ -118,8 +121,12 @@ typedef struct sdvm_decodedConstOrInstruction_s
         {
             sdvm_type_t arg0Type;
             sdvm_type_t arg1Type;
+            sdvm_type_t arg2Type;
+            sdvm_type_t arg3Type;
             int32_t arg0;
             int32_t arg1;
+            int32_t arg2;
+            int32_t arg3;
         } instruction;
 
         struct

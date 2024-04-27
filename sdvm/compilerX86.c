@@ -557,6 +557,28 @@ void sdvm_compiler_x86_ud2(sdvm_compiler_t *compiler)
     sdvm_compiler_x86_opcode2(compiler, 0x0F0B);
 }
 
+void sdvm_compiler_x86_movsb(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_opcode(compiler, 0xA4);
+}
+
+void sdvm_compiler_x86_movsw(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_operandPrefix(compiler);
+    sdvm_compiler_x86_opcode(compiler, 0xA5);
+}
+
+void sdvm_compiler_x86_movsd(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_opcode(compiler, 0xA5);
+}
+
+void sdvm_compiler_x86_movsq(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_x86_rex(compiler, true, false, false, false);
+    sdvm_compiler_x86_opcode(compiler, 0xA5);
+}
+
 void sdvm_compiler_x86_callGsv(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
 {
     uint32_t addressPlaceHolder = 0;
@@ -3151,6 +3173,25 @@ void sdvm_compiler_x64_computeInstructionLocationConstraints(sdvm_functionCompil
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         return;
 
+    case SdvmInstMemcopyFixed:
+    case SdvmInstMemcopyGCFixed:
+        {
+            sdvm_moduleMemoryDescriptorTableEntry_t *memoryDescriptor = state->module->memoryDescriptorTable + instruction->decoding.instruction.arg2;
+            instruction->arg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_RDI);
+            instruction->arg1Location = sdvm_compilerLocation_specificRegister(sdvm_x86_RSI);
+            instruction->implicitArg0Location = sdvm_compilerLocation_specificRegister(sdvm_x86_RCX);
+
+            uint64_t movsCount = memoryDescriptor->size;
+            if(memoryDescriptor->alignment >= 8 && memoryDescriptor->size % 8 == 0)
+                movsCount /= 8;
+            else if(memoryDescriptor->alignment >= 4 && memoryDescriptor->size % 4 == 0)
+                movsCount /= 4;
+            else if(memoryDescriptor->alignment >= 2 && memoryDescriptor->size % 2 == 0)
+                movsCount /= 2;
+            instruction->implicitArg0SourceLocation = sdvm_compilerLocation_immediateU64(movsCount);
+        }
+        return;
+
     case SdvmInstInt8_Bitcast_UInt8:
     case SdvmInstInt16_Bitcast_UInt16:
     case SdvmInstInt32_Bitcast_UInt32:
@@ -4503,6 +4544,33 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
             sdvm_compiler_x86_add64RegReg(compiler, dest->firstRegister.value, arg1->firstRegister.value);
         return true;
 
+    case SdvmInstMemcopyFixed:
+    case SdvmInstMemcopyGCFixed:
+        {
+            sdvm_moduleMemoryDescriptorTableEntry_t *descriptor = state->module->memoryDescriptorTable + instruction->decoding.instruction.arg3;
+            if(descriptor->alignment >= 8 && descriptor->size % 8 == 0)
+            {
+                sdvm_compiler_x86_rep(compiler);
+                sdvm_compiler_x86_movsq(compiler);
+            }
+            else if(descriptor->alignment >= 4 && descriptor->size % 4 == 0)
+            {
+                sdvm_compiler_x86_rep(compiler);
+                sdvm_compiler_x86_movsd(compiler);
+            }
+            else if(descriptor->alignment >= 2 && descriptor->size % 2 == 0)
+            {
+                sdvm_compiler_x86_rep(compiler);
+                sdvm_compiler_x86_movsw(compiler);
+            }
+            else
+            {
+                sdvm_compiler_x86_rep(compiler);
+                sdvm_compiler_x86_movsb(compiler);
+            }
+        }
+        return true;
+
     case SdvmInstInt8Add:
     case SdvmInstUInt8Add:
         sdvm_compiler_x64_emitMoveFromLocationInto(compiler, arg0, dest);
@@ -5334,6 +5402,9 @@ bool sdvm_compiler_x64_emitFunctionInstructionOperation(sdvm_functionCompilation
 
 void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
+    if(instruction->decoding.isExtensionData)
+        return;
+
     if(instruction->isBackwardBranchDestination || instruction->isIndirectBranchDestination)
         sdvm_compiler_x86_alignReacheableCode(state->compiler);
 
@@ -5371,7 +5442,7 @@ void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *
         sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &arg1->location, &instruction->arg1Location);
     }
 
-    // Used for variadic callouts.
+    // Used for variadic callouts, memcopy fixed.
     sdvm_compiler_x64_emitMoveFromLocationInto(state->compiler, &startInstruction->implicitArg0SourceLocation, &startInstruction->implicitArg0Location);
 
     // Emit the actual instruction operation

@@ -584,6 +584,20 @@ class MIRStoreInstruction(MIRInstruction):
     def fullPrintString(self) -> str:
         return 'store %s value %s' % (str(self.pointer), str(self.value))
 
+class MIRMemcopyFixedInstruction(MIRInstruction):
+    def __init__(self, context: MIRContext, destination: MIRValue, source: MIRValue, descriptor: MemoryDescriptor, name: str = None) -> None:
+        super().__init__(context, context.voidType, name)
+        self.destination = destination
+        self.source = source
+        self.descriptor = descriptor
+        self.isVolatile = False
+
+    def accept(self, visitor: MIRValueVisitor):
+        return visitor.visitMemcopyFixedInstruction(self)
+
+    def fullPrintString(self) -> str:
+        return 'memcopy %s from %s fixed %s' % (str(self.destination), str(self.source), str(self.descriptor))
+    
 class MIRCallInstruction(MIRInstruction):
     def __init__(self, context: MIRContext, type: MIRValue, functional: MIRValue, arguments: list[MIRValue], fixedArgumentCount: int, isVariadic: bool, name: str = None) -> None:
         super().__init__(context, type, name)
@@ -745,6 +759,9 @@ class MIRBuilder:
 
     def store(self, pointer: MIRValue, value: MIRValue) -> MIRLoadInstruction:
         return self.addInstruction(MIRStoreInstruction(self.context, pointer, value))
+    
+    def memcopyFixed(self, destination: MIRValue, source: MIRValue, descriptor: MemoryDescriptor) -> MIRMemcopyFixedInstruction:
+        return self.addInstruction(MIRMemcopyFixedInstruction(self.context, destination, source, descriptor))
 
     def pointerAddOffset(self, pointerType: MIRType, pointer: MIRValue, offset: MIRValue):
         return self.addInstruction(MIRBinaryPrimitiveInstruction(self.context, pointerType, self.context.pointerAddOffsetTable[pointerType, offset.getType()], pointer, offset))
@@ -1122,8 +1139,9 @@ class MIRFunctionFrontend:
     
     def inPointerStoreValue(self, pointer: MIRValue, hirValue: HIRValue, isVolatile: bool = False):
         if hirValue.getType().isNonTrivialAggregate():
-            ## TODO: Emit a memcpy
-            pass
+            copy = self.builder.memcopyFixed(pointer, self.translateValue(hirValue), hirValue.getType().getMemoryDescriptor())
+            copy.isVolatile = isVolatile
+            return copy
         else:
             value = self.translateValue(hirValue)
             store = self.builder.store(pointer, value)

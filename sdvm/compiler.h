@@ -392,6 +392,8 @@ struct sdvm_compilerInstruction_s
     sdvm_compilerLocation_t destinationLocation;
     sdvm_compilerLocation_t arg0Location;
     sdvm_compilerLocation_t arg1Location;
+    sdvm_compilerLocation_t arg2Location;
+    sdvm_compilerLocation_t arg3Location;
     sdvm_compilerLocation_t implicitArg0Location;
     sdvm_compilerLocation_t implicitArg0SourceLocation;
     sdvm_compilerLocation_t scratchLocation0;
@@ -400,6 +402,8 @@ struct sdvm_compilerInstruction_s
 
     uint8_t allowArg0DestinationShare : 1;
     uint8_t allowArg1DestinationShare : 1;
+    uint8_t allowArg2DestinationShare : 1;
+    uint8_t allowArg3DestinationShare : 1;
     uint8_t isBranchDestination : 1;
     uint8_t isBackwardBranchDestination : 1;
     uint8_t isIndirectBranchDestination : 1;
@@ -638,8 +642,8 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_null(void);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateLabel(uint32_t value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateS32(int32_t value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateU32(uint32_t value);
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int32_t value);
-SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateU64(uint32_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int64_t value);
+SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_immediateU64(uint64_t value);
 
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionS32(sdvm_compiler_t *compiler, int32_t value);
 SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_constSectionU32(sdvm_compiler_t *compiler, uint32_t value);

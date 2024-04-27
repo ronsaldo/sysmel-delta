@@ -570,6 +570,18 @@ void sdvm_functionCompilationState_computeLiveIntervals(sdvm_functionCompilation
             sdvm_compilerInstruction_t *arg1Instruction = state->instructions + instruction->decoding.instruction.arg1;
             sdvm_compilerLiveInterval_insertUsage(&arg1Instruction->liveInterval, i);
         }
+
+        if(instruction->decoding.arg2IsInstruction)
+        {
+            sdvm_compilerInstruction_t *arg2Instruction = state->instructions + instruction->decoding.instruction.arg2;
+            sdvm_compilerLiveInterval_insertUsage(&arg2Instruction->liveInterval, i);
+        }
+
+        if(instruction->decoding.arg3IsInstruction)
+        {
+            sdvm_compilerInstruction_t *arg3Instruction = state->instructions + instruction->decoding.instruction.arg3;
+            sdvm_compilerLiveInterval_insertUsage(&arg3Instruction->liveInterval, i);
+        }
     }
 }
 
@@ -905,21 +917,21 @@ sdvm_compilerLocation_t sdvm_compilerLocation_immediateU32(uint32_t value)
     return location;
 }
 
-sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int32_t value)
+sdvm_compilerLocation_t sdvm_compilerLocation_immediateS64(int64_t value)
 {
     sdvm_compilerLocation_t location = {
         .kind = SdvmCompLocationImmediateS32,
         .isSigned = true,
-        .immediateS32 = value
+        .immediateS64 = value
     };
     return location;
 }
 
-sdvm_compilerLocation_t sdvm_compilerLocation_immediateU64(uint32_t value)
+sdvm_compilerLocation_t sdvm_compilerLocation_immediateU64(uint64_t value)
 {
     sdvm_compilerLocation_t location = {
-        .kind = SdvmCompLocationImmediateU32,
-        .immediateS32 = value
+        .kind = SdvmCompLocationImmediateU64,
+        .immediateU64 = value
     };
     return location;
 }
@@ -2742,6 +2754,18 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
         sdvm_compilerInstruction_t *arg1 = state->instructions + startInstruction->decoding.instruction.arg1;
         sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg1Location, arg1);
     }
+
+    if(startInstruction->decoding.arg2IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg2 = state->instructions + startInstruction->decoding.instruction.arg2;
+        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg1Location, arg2);
+    }
+
+    if(startInstruction->decoding.arg3IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg3 = state->instructions + startInstruction->decoding.instruction.arg3;
+        sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg1Location, arg3);
+    }
     sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, startInstruction, &startInstruction->implicitArg0Location, NULL);
 
     if(startInstruction != endInstruction)
@@ -2756,6 +2780,18 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
         {
             sdvm_compilerInstruction_t *arg1 = state->instructions + endInstruction->decoding.instruction.arg1;
             sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg1Location, arg1);
+        }
+
+        if(endInstruction->decoding.instruction.arg2Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg2 = state->instructions + endInstruction->decoding.instruction.arg2;
+            sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg2Location, arg2);
+        }
+
+        if(endInstruction->decoding.instruction.arg3Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg3 = state->instructions + endInstruction->decoding.instruction.arg1;
+            sdvm_linearScanRegisterAllocator_allocateSpecificRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg3Location, arg3);
         }
     }
 
@@ -2776,6 +2812,18 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
         sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg1Location, arg1);
     }
 
+    if(startInstruction->decoding.arg2IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg2 = state->instructions + startInstruction->decoding.instruction.arg2;
+        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg2Location, arg2);
+    }
+
+    if(startInstruction->decoding.arg3IsInstruction)
+    {
+        sdvm_compilerInstruction_t *arg3 = state->instructions + startInstruction->decoding.instruction.arg3;
+        sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->arg2Location, arg3);
+    }
+
     if(startInstruction != endInstruction)
     {
         if(endInstruction->decoding.instruction.arg0Type == SdvmTypeLabel)
@@ -2789,6 +2837,18 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
             sdvm_compilerInstruction_t *arg1 = state->instructions + endInstruction->decoding.instruction.arg1;
             sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg1Location, arg1);
         }
+
+        if(endInstruction->decoding.instruction.arg2Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg2 = state->instructions + endInstruction->decoding.instruction.arg2;
+            sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg2Location, arg2);
+        }
+
+        if(endInstruction->decoding.instruction.arg3Type == SdvmTypeLabel)
+        {
+            sdvm_compilerInstruction_t *arg3 = state->instructions + endInstruction->decoding.instruction.arg3;
+            sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->arg1Location, arg3);
+        }
     }
 
     if(endInstruction->allowArg0DestinationShare &&
@@ -2797,6 +2857,12 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
     if(endInstruction->allowArg1DestinationShare &&
         startInstruction->decoding.arg1IsInstruction)
         sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg1Location, state->instructions + startInstruction->decoding.instruction.arg1);
+    if(endInstruction->allowArg2DestinationShare &&
+        startInstruction->decoding.arg2IsInstruction)
+        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg1Location, state->instructions + startInstruction->decoding.instruction.arg2);
+    if(endInstruction->allowArg3DestinationShare &&
+        startInstruction->decoding.arg3IsInstruction)
+        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg1Location, state->instructions + startInstruction->decoding.instruction.arg3);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->implicitArg0Location, NULL);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation0, NULL);
@@ -2998,10 +3064,19 @@ void sdvm_compiler_computeStackFrameOffsets(sdvm_functionCompilationState_t *sta
         if(instruction->decoding.arg1IsInstruction && sdvm_compilerLocation_isOnStack(&instruction->arg1Location))
         {
             sdvm_compilerInstruction_t *arg1 = state->instructions + instruction->decoding.instruction.arg1;
-            if(sdvm_compilerLocation_isOnStack(&arg1->arg0Location))
+            if(sdvm_compilerLocation_isOnStack(&arg1->arg1Location))
                 instruction->arg1Location = arg1->location;
             else
                 sdvm_compiler_computeStackFrameLocations(state, &instruction->arg1Location);
+        }
+
+        if(instruction->decoding.arg2IsInstruction && sdvm_compilerLocation_isOnStack(&instruction->arg2Location))
+        {
+            sdvm_compilerInstruction_t *arg2 = state->instructions + instruction->decoding.instruction.arg2;
+            if(sdvm_compilerLocation_isOnStack(&arg2->arg2Location))
+                instruction->arg1Location = arg2->location;
+            else
+                sdvm_compiler_computeStackFrameLocations(state, &instruction->arg2Location);
         }
     }
 }
@@ -3038,6 +3113,23 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         instruction->index = i;
         instruction->decoding = sdvm_instruction_decode(functionState.sourceInstructions[i]);
         instruction->debugSourceLineInfo = sdvm_debugSourceLineDataReader_getNextLineInfoForPC(&debugLineReader, i);
+
+        if(instruction->decoding.isExtensionData && i > 0)
+        {
+            sdvm_compilerInstruction_t *extendedInstruction = functionState.instructions + i - 1;
+            switch(instruction->decoding.baseOpcode)
+            {
+            case SdvmOpExtraArguments:
+                extendedInstruction->decoding.arg2IsInstruction = instruction->decoding.arg0IsInstruction;
+                extendedInstruction->decoding.arg3IsInstruction = instruction->decoding.arg1IsInstruction;
+                extendedInstruction->decoding.instruction.arg2Type = instruction->decoding.instruction.arg2Type;
+                extendedInstruction->decoding.instruction.arg3Type = instruction->decoding.instruction.arg3Type;
+                extendedInstruction->decoding.instruction.arg2 = instruction->decoding.instruction.arg2;
+                extendedInstruction->decoding.instruction.arg3 = instruction->decoding.instruction.arg3;
+                break;
+            default: abort();
+            }
+        }
     }
 
     // Compute the control flow.

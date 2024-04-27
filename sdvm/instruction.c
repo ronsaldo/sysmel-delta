@@ -77,6 +77,7 @@ sdvm_decodedConstOrInstruction_t sdvm_instruction_decode(sdvm_constOrInstruction
         decoded.instruction.arg1 = sdvm_intruction_decodeArg(instruction >> 44);
         decoded.arg0IsInstruction = sdvm_instruction_typeExpectsInstruction(decoded.instruction.arg0Type);
         decoded.arg1IsInstruction = sdvm_instruction_typeExpectsInstruction(decoded.instruction.arg1Type);
+        decoded.isExtensionData = decoded.baseOpcode == SdvmOpExtraArguments;
     }
 
     return decoded;

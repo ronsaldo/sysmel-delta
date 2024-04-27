@@ -111,6 +111,10 @@ SDVM_OPCODE_DEF(AllocateLocal,  49, "Allocates local only memory.")
 SDVM_OPCODE_DEF(AllocateGC,     50, "Allocates Garbage Collected memory")
 SDVM_OPCODE_DEF(AllocateManual, 51, "Allocates Manual memory")
 SDVM_OPCODE_DEF(FreeManual,     52, "Frees Manual memory")
+SDVM_OPCODE_DEF(MemcopyFixed,   53, "Fixed Size Memory Copy")
+SDVM_OPCODE_DEF(Memcopy,        53, "Variable Size Memory Copy")
+
+SDVM_OPCODE_DEF(ExtraArguments, 254, "Third and fourth extra arguments")
 
 // Common instructions
 SDVM_INSTRUCTION_DEF(Nop, Nop, Void, Void, Void, "No operation")
@@ -190,7 +194,15 @@ SDVM_INSTRUCTION_DEF(AllocateLocal, AllocateLocal, Pointer, Info, Void, "Allocat
 SDVM_INSTRUCTION_DEF(AllocateGCNoEscape, AllocateLocal, GCPointer, Info, Void, "Allocates no escape GC memory.")
 SDVM_INSTRUCTION_DEF(AllocateGC, AllocateGC, GCPointer, Info, Void, "Allocates no escape GC memory.")
 SDVM_INSTRUCTION_DEF(AllocateManual, AllocateManual, Pointer, Info, Void, "Allocates manual memory.")
-SDVM_INSTRUCTION_DEF(FreeManual, FreeManual, Pointer, Info, Void, "Frees memory.")
+SDVM_INSTRUCTION_DEF(FreeManual, FreeManual, Void, Pointer, Info, "Frees memory.")
+SDVM_INSTRUCTION_DEF(MemcopyFixed, MemcopyFixed, Void, Pointer, Pointer, "Memcopy fixed.")
+SDVM_INSTRUCTION_DEF(MemcopyGCFixed, MemcopyFixed, Void, GCPointer, Pointer, "Memcopy gc fixed.")
+
+SDVM_INSTRUCTION_DEF(ExtraArgumentsInfo,   ExtraArguments, Void, Info,   Void, "Info extra arguments.")
+SDVM_INSTRUCTION_DEF(ExtraArgumentsInt32,  ExtraArguments, Void, Int32,  Void, "Int32 extra arguments.")
+SDVM_INSTRUCTION_DEF(ExtraArgumentsUInt32, ExtraArguments, Void, UInt32, Void, "UInt32 extra arguments.")
+SDVM_INSTRUCTION_DEF(ExtraArgumentsInt64,  ExtraArguments, Void, Int64,  Void, "Int64 extra arguments.")
+SDVM_INSTRUCTION_DEF(ExtraArgumentsUInt64, ExtraArguments, Void, UInt64, Void, "UInt64 extra arguments.")
 
 // Arithmetic instructions.
 #define IntegerType Int8
