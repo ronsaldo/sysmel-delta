@@ -1890,7 +1890,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             instruction->arg0Location = arg0->destinationLocation;
         else
             instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, arg0, instruction->decoding.instruction.arg0Type);
-        instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, arg1, instruction->decoding.instruction.arg0Type);
+        instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, arg1, instruction->decoding.instruction.arg1Type);
         return;
 
 #pragma region ArgumentConstraints

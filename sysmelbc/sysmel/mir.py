@@ -47,6 +47,16 @@ class MIRContext:
         self.uint32x3Type = MIRPrimitiveVectorType(self, 'UInt32x3', self.uint32Type, 3, 16)
         self.uint32x4Type = MIRPrimitiveVectorType(self, 'UInt32x4', self.uint32Type, 4, 16)
 
+        if pointerSize == 4:
+            self.sizeType = self.uint32Type
+            self.uintPointerType = self.uint32Type
+            self.intPointerType = self.int32Type
+        else:
+            assert pointerSize == 8
+            self.sizeType = self.uint64Type
+            self.uintPointerType = self.uint64Type
+            self.intPointerType = self.int64Type
+
         self.primitiveMulTable = {
             self.int8Type   : SdvmInstInt8Mul,
             self.int16Type  : SdvmInstInt16Mul,
@@ -912,6 +922,9 @@ class MIRModuleFrontend:
         if type.isStateless():
             return type.discriminantType
         assert False
+
+    def visitProductType(self, type: HIRProductType):
+        assert False
     
     def visitConstantUnit(self, constant: HIRConstantUnit) -> MIRValue:
         return self.context.void
@@ -921,6 +934,9 @@ class MIRModuleFrontend:
 
     def visitConstantPrimitiveInteger(self, constant: HIRConstantPrimitiveInteger) -> MIRValue:
         return MIRConstantInteger(self.translateType(constant.getType()), constant.value)
+
+    def visitConstantPrimitiveFloat(self, constant: HIRConstantPrimitiveFloat) -> MIRValue:
+        return MIRConstantFloat(self.translateType(constant.getType()), constant.value)
 
     def visitFunctionalDefinitionValue(self, functional: HIRFunctionalDefinition) -> MIRValue:
         mirFunction = MIRFunction(self.context, functional.name)
@@ -1016,6 +1032,9 @@ class MIRFunctionFrontend:
 
     def translateType(self, type: HIRValue):
         return self.moduleFrontend.translateType(type)
+    
+    def translatePointerTypeForAggregateValue(self, type: HIRValue, aggregate: HIRValue):
+        return self.context.pointerType
 
     def translateArgument(self, hirArgument: HIRFunctionalArgumentValue):
         mirArgument = MIRArgument(self.context, self.translateType(hirArgument.getType()), hirArgument.name, hirArgument.sourcePosition)
@@ -1100,6 +1119,35 @@ class MIRFunctionFrontend:
         aggregate = self.translateValue(hirInstruction.aggregate)
         resultType = self.translateType(hirInstruction.getType())
         return self.translateGetElementPointerAccesses(resultType, aggregate, hirInstruction.aggregate.getType(), hirInstruction.indices)
+    
+    def inPointerStoreValue(self, pointer: MIRValue, hirValue: HIRValue, isVolatile: bool = False):
+        if hirValue.getType().isNonTrivialAggregate():
+            ## TODO: Emit a memcpy
+            pass
+        else:
+            value = self.translateValue(hirValue)
+            store = self.builder.store(pointer, value)
+            store.isVolatile = isVolatile
+            return store
+    
+    def translateAggregateResultFor(self, aggregateType, hirInstruction: HIRValue, baseAggregate: HIRValue, excludedIndices = []):
+        pointerType = self.translatePointerTypeForAggregateValue(hirInstruction.getType(), hirInstruction)
+        memoryDescriptor = aggregateType.getMemoryDescriptor()
+        if baseAggregate.isConstantUndefined():
+            return self.builder.alloca(pointerType, memoryDescriptor)
+        elif baseAggregate.canShareMemoryWithValue(hirInstruction):
+            return self.translateValue(baseAggregate)
+        else:
+            aggregatePointer = self.builder.alloca(pointerType, memoryDescriptor)
+            self.inPointerStoreValue(aggregatePointer, baseAggregate)
+            return aggregatePointer
+
+    def visitInsertValueInstruction(self, hirInstruction: HIRInsertValueInstruction):
+        resultAggregate = self.translateAggregateResultFor(hirInstruction.getType(), hirInstruction, hirInstruction.aggregate, [hirInstruction.indices])
+        elementPointer = self.translateGetElementPointerAccesses(self.context.pointerType, resultAggregate, hirInstruction.aggregate.getType(), hirInstruction.indices)
+        value = self.translateValue(hirInstruction.value)
+        self.builder.store(elementPointer, value)
+        return resultAggregate
 
     def visitBranchInstruction(self, hirInstruction: HIRBranchInstruction):
         destination = self.translateValue(hirInstruction.destination)
@@ -1119,10 +1167,7 @@ class MIRFunctionFrontend:
 
     def visitStoreInstruction(self, hirInstruction: HIRStoreInstruction):
         pointer = self.translateValue(hirInstruction.pointer)
-        value = self.translateValue(hirInstruction.value)
-        store = self.builder.store(pointer, value)
-        store.isVolatile = hirInstruction.isVolatile
-        return store
+        return self.inPointerStoreValue(pointer, hirInstruction.value, hirInstruction.isVolatile)
 
     def visitCallInstruction(self, hirInstruction: HIRCallInstruction):
         hirFunctional = hirInstruction.functional

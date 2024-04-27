@@ -1568,10 +1568,11 @@ class ASTTypedModifiedTupleNode(ASTTypedNode):
         return {'kind': 'TypedModifiedTuple', 'type': self.type.toJson(), 'baseTuple': self.baseTuple.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements)), 'elementIndices' : self.elementIndices}
     
 class ASTTypedTupleAtNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, tuple: ASTNode, index: int) -> None:
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, tuple: ASTNode, index: int, loadResult: bool) -> None:
         super().__init__(sourcePosition, type)
         self.tuple = tuple
         self.index = index
+        self.loadResult = loadResult
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitTypedTupleAtNode(self)
@@ -1580,7 +1581,7 @@ class ASTTypedTupleAtNode(ASTTypedNode):
         return True
 
     def toJson(self) -> dict:
-        return {'kind': 'TypedTupleAt', 'type': self.type.toJson(), 'tuple': self.tuple.toJson(), 'index': self.index}
+        return {'kind': 'TypedTupleAt', 'type': self.type.toJson(), 'tuple': self.tuple.toJson(), 'index': self.index, 'loadResult' : self.loadResult}
 
 class ASTTypedFromModuleImportNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, module: ASTTypedNode, name: Symbol) -> None:

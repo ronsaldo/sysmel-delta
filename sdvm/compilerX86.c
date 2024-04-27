@@ -3967,6 +3967,8 @@ void sdvm_compiler_x64_emitMoveFromLocationIntoVectorFloatRegister(sdvm_compiler
 {
     switch(sourceLocation->kind)
     {
+    case SdvmCompLocationNull:
+        return sdvm_compiler_x86_xorpsRegReg(compiler, reg->value, reg->value);
     case SdvmCompLocationRegister:
     case SdvmCompLocationRegisterPair:
         return sdvm_compiler_x86_movapsRegReg(compiler, reg->value, sourceLocation->firstRegister.value);

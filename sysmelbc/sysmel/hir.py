@@ -67,10 +67,41 @@ class HIRContext:
         self.moduleType = HIRModuleType(self, 'Module', self.gcPointerSize, self.gcPointerAlignment)
         self.importedModuleType = HIRImportedModuleType(self, 'ImportedModule', self.gcPointerSize, self.gcPointerAlignment)
 
+        self.primitiveIntegerConstants = {}
+        self.primitiveCharacterConstants = {}
+        self.primitiveFloatConstants = {}
+        self.undefinedConstants = {}
+
     def getTypeUniverse(self, index):
         if index not in self.typeUniverses:
             self.typeUniverses[index] = HIRTypeUniverse(self, index)
         return self.typeUniverses[index]
+
+    def getPrimitiveInteger(self, type, value: int):
+        key = (type, value)
+        if key in self.primitiveIntegerConstants:
+            return self.primitiveIntegerConstants[key]
+        const = HIRConstantPrimitiveInteger(self, type, value)
+        self.primitiveIntegerConstants[key] = const
+        return const
+
+    def getPrimitiveFloat(self, type, value: float):
+        key = (type, value)
+        if key in self.primitiveFloatConstants:
+            return self.primitiveFloatConstants[key]
+        const = HIRConstantPrimitiveFloat(self, type, value)
+        self.primitiveFloatConstants[key] = const
+        return const
+
+    def getUndefined(self, type):
+        if type in self.undefinedConstants:
+            return self.undefinedConstants
+        undef = HIRConstantUndefined(self, type)
+        self.undefinedConstants[type] = undef
+        return undef
+    
+    def constSize(self, value: int):
+        return self.getPrimitiveInteger(self.sizeType, value)
 
 class HIRValueVisitor(ABC):
     @abstractmethod
@@ -146,6 +177,9 @@ class HIRValue(ABC):
     def isConstantLambda(self) -> bool:
         return False
 
+    def isConstantUndefined(self) -> bool:
+        return False
+    
     def isFunctionalLocalValue(self) -> bool:
         return False
 
@@ -159,6 +193,9 @@ class HIRValue(ABC):
         return False
 
     def isImportedExternalValue(self) -> bool:
+        return False
+    
+    def canShareMemoryWithValue(self, otherValue) -> bool:
         return False
 
 class HIRTypeValue(HIRValue):
@@ -207,6 +244,9 @@ class HIRTypeValue(HIRValue):
             self.memoryDescriptor = self.buildMemoryDescriptor()
         return self.memoryDescriptor
 
+    def isNonTrivialAggregate(self) -> bool:
+        return False
+
 class HIRTypeUniverse(HIRTypeValue):
     def  __init__(self, context: HIRContext, index) -> None:
         super().__init__(context)
@@ -254,8 +294,35 @@ def alignedTo(offset, alignment):
     return (offset + alignment - 1) & (-alignment)
 
 class HIRProductType(HIRCompositeType):
+    def __init__(self, context: HIRContext, elements: list[HIRTypeValue]) -> None:
+        super().__init__(context, elements)
+        self.fieldOffsets = None
+
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitProductType(self)
+
+    def computeLayout(self):
+        self.alignment = 1
+        self.size = 0
+        self.fieldOffsets = []
+        for element in self.elements:
+            offset = alignedTo(self.size, element.getAlignment())
+            self.fieldOffsets.append(offset)
+            self.size = offset + element.getSize()
+            self.alignment = max(self.alignment, element.getAlignment())
+
+        self.size = alignedTo(self.size, self.alignment)
+
+    def computeIndexedElementAccess(self, index: HIRValue) -> tuple[HIRValue, int, tuple[HIRValue, int]]:
+        if not index.isConstantPrimitiveInteger():
+            raise Exception("Product type accesses can only have constant indices.")
+        
+        if self.fieldOffsets is None:
+            self.computeLayout()
+        return self.elements[index.value], self.fieldOffsets[index.value], None
+        
+    def isNonTrivialAggregate(self) -> bool:
+        return True
 
     def __str__(self) -> str:
         result = '('
@@ -298,6 +365,9 @@ class HIRSumType(HIRCompositeType):
     def isStateless(self) -> bool:
         return self.getVariantDataSize() == 0
     
+    def isNonTrivialAggregate(self) -> bool:
+        return not self.isStateless()
+
     def computeDiscriminantType(self):
         variantCount = len(self.elements)
         if variantCount <= 2:
@@ -571,6 +641,19 @@ class HIRConstant(HIRValue):
 
     def getType(self):
         return self.type
+
+class HIRConstantUndefined(HIRConstant):
+    def __init__(self, context: HIRContext, type: HIRValue) -> None:
+        super().__init__(context, type)
+
+    def isConstantUndefined(self) -> bool:
+        return True
+
+    def accept(self, visitor: HIRValueVisitor):
+        return visitor.visitConstantUndefined(self)
+
+    def __str__(self) -> str:
+        return 'undef %s' % (str(self.type))
 
 class HIRConstantPrimitiveFunction(HIRConstant):
     def __init__(self, context: HIRContext, type: HIRValue, name: str, compileTimeImplementation = None) -> None:
@@ -1432,7 +1515,13 @@ class HIRModuleFrontendValueTranslator:
         return HIRConstantStringData(self.context, self.translateConstantTypedValue(value.getType()), value.value, True)
 
     def visitPrimitiveIntegerValue(self, value: PrimitiveIntegerValue) -> HIRValue:
-        return HIRConstantPrimitiveInteger(self.context, self.moduleFrontend.translatedConstantValueDictionary[value.type], value.value)
+        return self.context.getPrimitiveInteger(self.moduleFrontend.translatedConstantValueDictionary[value.type], value.value)
+
+    def visitPrimitiveCharacterValue(self, value: PrimitiveCharacterValue) -> HIRValue:
+        return self.context.getPrimitiveInteger(self.moduleFrontend.translatedConstantValueDictionary[value.type], value.value)
+
+    def visitPrimitiveFloatValue(self, value: PrimitiveFloatValue) -> HIRValue:
+        return self.context.getPrimitiveFloat(self.moduleFrontend.translatedConstantValueDictionary[value.type], value.value)
 
 class HIRFunctionalDefinitionFrontend:
     def __init__(self, moduleFrontend: HIRModuleFrontend) -> None:
@@ -1612,23 +1701,32 @@ class HIRFunctionalDefinitionFrontend:
         self.builder.beginBasicBlock(mergeBlock)
         return resultType.getSingleton()
 
+    def translateAggregateAt(self, resultType: HIRValue, aggregate: HIRValue, index: HIRValue, loadResult: bool) -> HIRValue:
+        if aggregate.getType().isPointerLikeType():
+            gepIndices = [HIRConstantPrimitiveInteger(self.context, self.context.uintPointerType, 0), index]
+            if loadResult:
+                elementPointerType = HIRPointerType(self.context, resultType)
+                elementPointer = self.builder.getElementPointer(elementPointerType, aggregate, gepIndices)
+                return self.builder.load(resultType, elementPointer)
+            else:
+                return self.builder.getElementPointer(resultType, aggregate, gepIndices)
+        else:
+            if loadResult:
+                return self.builder.extractValue(resultType, aggregate, [index])
+            else:
+                return self.builder.extractValueReference(resultType, aggregate, [index])
+
     def visitArraySubscriptAtExpression(self, subscriptExpression: GHIRArraySubscriptAtExpression) -> HIRValue:
         resultType = self.translateGraphValue(subscriptExpression.getType())
         array = self.translateGraphValue(subscriptExpression.array)
         index = self.translateGraphValue(subscriptExpression.index)
-        if array.getType().isPointerLikeType():
-            gepIndices = [HIRConstantPrimitiveInteger(self.context, self.context.uintPointerType, 0), index]
-            if subscriptExpression.loadResult:
-                elementPointerType = HIRPointerType(self.context, resultType)
-                elementPointer = self.builder.getElementPointer(elementPointerType, array, gepIndices)
-                return self.builder.load(resultType, elementPointer)
-            else:
-                return self.builder.getElementPointer(resultType, array, gepIndices)
-        else:
-            if subscriptExpression.loadResult:
-                return self.builder.extractValue(resultType, array, [index])
-            else:
-                return self.builder.extractValueReference(resultType, array, [index])
+        return self.translateAggregateAt(resultType, array, index, subscriptExpression.loadResult)
+            
+    def visitTupleAtExpression(self, tupleAtExpression: GHIRTupleAtExpression) -> HIRValue:
+        resultType = self.translateGraphValue(tupleAtExpression.getType())
+        tuple = self.translateGraphValue(tupleAtExpression.tuple)
+        index = self.context.constSize(tupleAtExpression.index)
+        return self.translateAggregateAt(resultType, tuple, index, tupleAtExpression.loadResult)
 
     def visitPointerLikeLoadExpression(self, loadExpression: GHIRPointerLikeLoadExpression) -> HIRValue:
         resultType = self.translateGraphValue(loadExpression.getType())
@@ -1656,3 +1754,22 @@ class HIRFunctionalDefinitionFrontend:
         index = self.translateGraphValue(subscriptExpression.index)
 
         assert False
+
+    def visitMakeTupleExpression(self, tupleExpression: GHIRMakeTupleExpression) -> HIRValue:
+        resultType = self.translateGraphValue(tupleExpression.getType())
+        result = self.context.getUndefined(resultType)
+        for i in range(len(tupleExpression.elements)):
+            elementExpression = tupleExpression.elements[i]
+            element = self.translateGraphValue(elementExpression)
+            result = self.builder.insertValue(resultType, result, [self.context.constSize(i)], element)
+        return result
+
+    def visitModifiedTupleExpression(self, modifiedTupleExpression: GHIRModifiedTupleExpression) -> HIRValue:
+        resultType = self.translateGraphValue(modifiedTupleExpression.getType())
+        result = self.translateGraphValue(modifiedTupleExpression.baseTuple)
+        for i in range(len(modifiedTupleExpression.elementIndices)):
+            elementIndex = modifiedTupleExpression.elementIndices[i]
+            element = self.translateGraphValue(modifiedTupleExpression.elements[i])
+            result = self.builder.insertValue(resultType, result, [self.context.constSize(elementIndex)], element)
+        return result
+

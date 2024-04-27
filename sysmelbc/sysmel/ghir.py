@@ -305,6 +305,9 @@ class GHIRValue(ABC):
     def isMakeTupleExpression(self) -> bool:
         return False
 
+    def isModifiedTupleExpression(self) -> bool:
+        return True
+    
     def hasArgumentDependency(self) -> bool:
         return False
 
@@ -1451,6 +1454,7 @@ class GHIRMakeTupleExpression(GHIRValue):
         super().__init__(context, sourcePosition)
         self.type = type
         self.elements = elements
+        self.registerInUsedValues()
 
     def accept(self, visitor: GHIRVisitor):
         return visitor.visitMakeTupleExpression(self)
@@ -1512,7 +1516,7 @@ class GHIRModifiedTupleExpression(GHIRValue):
             elementList += ': '
             elementList += graphPrinter.printValue(element)
 
-        graphPrinter.printLine('%s := modifiedTuple %s [%s] : %s' % (valueName, elementList, type))
+        graphPrinter.printLine('%s := modifiedTuple %s [%s] : %s' % (valueName, baseTuple, elementList, type))
 
     def usedValues(self):
         yield self.type
@@ -1530,11 +1534,12 @@ class GHIRModifiedTupleExpression(GHIRValue):
         self.elements = self.replacedUsedValueInListWith(self.elements, usedValue, replacement)
 
 class GHIRTupleAtExpression(GHIRValue):
-    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, tuple: GHIRValue, index: int) -> None:
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, tuple: GHIRValue, index: int, loadResult: bool) -> None:
         super().__init__(context, sourcePosition)
         self.type = type
         self.tuple = tuple
         self.index = index
+        self.loadResult = loadResult
 
     def accept(self, visitor: GHIRVisitor):
         return visitor.visitTupleAtExpression(self)
@@ -1545,7 +1550,10 @@ class GHIRTupleAtExpression(GHIRValue):
     def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
         type = graphPrinter.printValue(self.type)
         tuple = graphPrinter.printValue(self.tuple)
-        graphPrinter.printLine('%s := tuple %s at %d : %s' % (valueName, tuple, self.index, type))
+        if self.loadResult:
+            graphPrinter.printLine('%s := tuple %s loadAt %d : %s' % (valueName, tuple, self.index, type))
+        else:
+            graphPrinter.printLine('%s := tuple %s at %d : %s' % (valueName, tuple, self.index, type))
 
     def usedValues(self):
         yield self.type
@@ -1559,6 +1567,22 @@ class GHIRTupleAtExpression(GHIRValue):
             self.tuple = replacement
             replacement.registerUserValue(self)
 
+    def simplify(self):
+        if self.loadResult:
+            tupleExpression = self.tuple
+            while tupleExpression.isMakeTupleExpression() or tupleExpression.isModifiedTupleExpression():
+                if tupleExpression.isMakeTupleExpression():
+                    element = tupleExpression.elements[self.index]
+                    return self.replaceWith(element)
+                else: 
+                    assert tupleExpression.isModifiedTupleExpression()
+                    if self.index in tupleExpression.elementIndices:
+                        modifiedElementIndex = tupleExpression.elementIndices.index(self.index)
+                        modifiedElement = tupleExpression.elements[modifiedElementIndex]
+                        return self.replaceWith(modifiedElement)
+                tupleExpression = tupleExpression.tuple
+        return super().simplify()
+    
 class GHIRApplicationValue(GHIRValue):
     def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
         super().__init__(context, sourcePosition)
@@ -1816,6 +1840,19 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         translatedValue.definition = self.translateFunctionalValueDefinition(value)
         return translatedValue.simplify()
 
+    def visitProductTypeValue(self, value: ProductTypeValue):
+        type = self.translateValue(value.type)
+        elements = list(map(self.translateValue, value.elements))
+        return GHIRMakeTupleExpression(self.context, None, type, elements).simplify()
+
+    def visitRecordTypeValue(self, value: ProductTypeValue):
+        type = self.translateValue(value.type)
+        recordValue = GHIRMakeTupleExpression(self.context, None, type, [])
+        self.translatedValueDictionary[value] = recordValue
+        recordValue.elements = list(map(self.translateValue, value.elements))
+        self.registerInUsedValues()
+        return recordValue.simplify()
+
     def visitPrimitiveFunction(self, value: PrimitiveFunction):
         type = self.translateValue(value.type)
         return GHIRPrimitiveFunction(self.context, None, type, self.optionalSymbolToString(value.primitiveName), value.value)
@@ -1842,8 +1879,14 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         elementTypes = list(map(self.translateValue, value.elementTypes))
         return self.context.getProductType(type, elementTypes)
     
-    def visitRecordType(self, value):
-        assert False
+    def visitRecordType(self, value: RecordType):
+        type = self.translateValue(value.getType())
+        recordType = GHIRRecordType(self.context, None, type, value.name, [], [])
+        self.translatedValueDictionary[value] = recordType
+        elementTypes = list(map(self.translateValue, value.elementTypes))
+        recordType.elements = elementTypes
+        recordType.fieldNames = list(map(self.optionalSymbolToString, value.fields))
+        return recordType.simplify()
 
     def visitSumType(self, value):
         type = self.translateValue(value.getType())
@@ -1954,7 +1997,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())
         elements = list(map(self.translateExpression, node.elementTypes))
         return GHIRProductType(self.context, node.sourcePosition, type, elements).simplify()
-
+    
     def visitRecordTypeNode(self, node: ASTRecordTypeNode):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())
         elements = list(map(self.translateExpression, node.elementTypes))
@@ -2120,7 +2163,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode) -> TypedValue:
         type = self.translateExpression(node.type)
         tuple = self.translateExpression(node.tuple)
-        return GHIRTupleAtExpression(self.context, node.sourcePosition, type, tuple, node.index).simplify()
+        return GHIRTupleAtExpression(self.context, node.sourcePosition, type, tuple, node.index, node.loadResult).simplify()
 
     def visitTypedFromModuleImportNode(self, node):
         assert False
@@ -2295,6 +2338,9 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
             if self.checkValue(element):
                 return True
         return False
+
+    def visitTupleAtExpression(self, value: GHIRTupleAtExpression):
+        return self.checkValue(value.tuple)
 
     def visitApplicationValue(self, value: GHIRApplicationValue):
         return True

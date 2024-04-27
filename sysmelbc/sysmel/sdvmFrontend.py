@@ -204,7 +204,10 @@ class SDVMFunctionFrontEnd:
     
     def visitConstantInteger(self, constant: MIRConstantInteger) -> SDVMOperand:
         return self.moduleFrontend.constantTranslationFunctions[constant.getType()](self.function, constant.value)
-    
+
+    def visitConstantFloat(self, constant: MIRConstantFloat) -> SDVMOperand:
+        return self.moduleFrontend.constantTranslationFunctions[constant.getType()](self.function, constant.value)
+
     def visitConstantStringData(self, constant: MIRConstantStringData) -> SDVMOperand:
         if constant.nullTerminated:
             return self.function.constCString(constant.value)

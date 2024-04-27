@@ -1,12 +1,21 @@
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
 
+Record: #TestRecord withFields: #{
+    first: Int32.
+    second: Int32.
+}.
+
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
-    printf("Hello World: %d\n" elements, argc).
+    let: #record with: TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
+    printf("record %d\n" elements, record first).
+    ##printf("record %d\n" elements, argc).
+
+    #*printf("Hello World: %d\n" elements, argc).
 
     let: #i mutableWith: 1i32.
     while: (i < argc) do: {
         printf("Loop body: %s\n" elements, argv at: i asSize).
-    } continueWith: (i := i + 1i32).
+    } continueWith: (i := i + 1i32).*#
 
     0i32
 }.
@@ -22,10 +31,3 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 ##Int32 pointer
 
 ##Char8 pointer[0sz]
-
-Record: #TestRecord withFields: #{
-    int32: Int32.
-    float32: Float32.
-}.
-
-TestRecord#{int32: 0i32. float32: 42f32}#{int32: 45i32}int32.

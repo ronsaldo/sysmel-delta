@@ -596,7 +596,8 @@ class SDVMFunction:
         return self.const(SdvmConstUInt64ZExt, value, value)
 
     def constFloat32(self, value: float) -> SDVMConstant:
-        assert False
+        ieee754Float, = struct.unpack('<I', struct.pack('<f', value))
+        return self.const(SdvmConstFloat32, value, ieee754Float)
 
     def constFloat64(self, value: float) -> SDVMConstant:
         assert False

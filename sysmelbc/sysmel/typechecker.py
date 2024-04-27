@@ -855,13 +855,14 @@ class Typechecker(ASTVisitor):
                 
             if analyzedReceiver is not None and not analyzedReceiver.isLiteralTypeNode():
                 analyzedReceiverType = getTypeOfAnalyzedNode(analyzedReceiver, node.sourcePosition)
-                if analyzedReceiverType.isArrayTypeNodeOrLiteral():
+                analyzedDecayedReceiverType = analyzedReceiverType
+                if analyzedDecayedReceiverType.isArrayTypeNodeOrLiteral():
                     if selector in ArrayTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, ArrayTypeMacros[selector])
-                if analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral():
+                if analyzedDecayedReceiverType.isReferenceLikeTypeNodeOrLiteral():
                     if selector in ReferenceLikeTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, ReferenceLikeTypeMacros[selector])
-                if analyzedReceiverType.isPointerTypeNodeOrLiteral():
+                if analyzedDecayedReceiverType.isPointerTypeNodeOrLiteral():
                     if selector in PointerTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, PointerTypeMacros[selector])
 
@@ -869,7 +870,7 @@ class Typechecker(ASTVisitor):
                 if len(node.arguments) == 0:
                     fieldIndex, fieldType = analyzedReceiverType.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
                     if fieldIndex is not None:
-                        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldType, analyzedReceiver, fieldIndex))
+                        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldType, analyzedReceiver, fieldIndex, not analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral()))
 
             selectorNode = ASTIdentifierReferenceNode(node.selector.sourcePosition, selector)
         else:
@@ -1089,7 +1090,7 @@ class Typechecker(ASTVisitor):
 
             fieldIndex, fieldType = recordTypeExpression.findIndexOfFieldOrNoneAt(fieldName, fieldNameExpression.sourcePosition)
             if fieldIndex is None:
-                errorNodes.append(ASTErrorNode(fieldName.sourcePosition, 'Failed to find field %s in record %s.' % (fieldName.prettyPrint(), recordTypeExpression.prettyPrint())))
+                errorNodes.append(ASTErrorNode(fieldNameExpression.sourcePosition, 'Failed to find field %s in record %s.' % (fieldName.prettyPrint(), recordTypeExpression.prettyPrint())))
                 continue
 
             fieldValue = self.visitNodeWithExpectedTypeExpression(node.fieldValues[i], fieldType)
@@ -1587,7 +1588,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
         reducedType = self.visitNode(node.type)
         reducedTuple = self.visitNode(node.tuple)
-        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, reducedType, reducedTuple))
+        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, reducedType, reducedTuple, node.loadResult))
     
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
         return reduceFromModuleImportNode(ASTTypedFromModuleImportNode(node.sourcePosition, self.visitNode(node.type), self.visitNode(node.module), node.name))
@@ -1864,10 +1865,11 @@ def reduceModifiedTupleNode(node: ASTTypedModifiedTupleNode):
     return node
 
 def reduceTupleAtNode(node: ASTTypedTupleAtNode):
-    if node.tuple.isTypedTupleNode():
-        return node.tuple.elements[node.index]
-    elif node.tuple.isTypedLiteralNode():
-        return ASTTypedLiteralNode(node.sourcePosition, node.type, node.tuple.value[node.index])
+    if node.loadResult:
+        if node.tuple.isTypedTupleNode():
+            return node.tuple.elements[node.index]
+        elif node.tuple.isTypedLiteralNode():
+            return ASTTypedLiteralNode(node.sourcePosition, node.type, node.tuple.value[node.index])
     return node
 
 def reduceFromModuleImportNode(node: ASTTypedFromModuleImportNode):

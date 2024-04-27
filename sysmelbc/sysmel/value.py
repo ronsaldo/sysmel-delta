@@ -3,6 +3,7 @@ import json
 from typing import Any
 import math
 import struct
+import os.path
 
 class TypedValueVisitor(ABC):
     @abstractmethod
@@ -1473,7 +1474,7 @@ class SourceCode:
         self.text = text
 
     def __str__(self) -> str:
-        return self.name
+        return os.path.join(self.directory, self.name)
 
 class SourcePosition:
     def __init__(self, sourceCode: SourceCode, startIndex: int, endIndex: int, startLine: int, startColumn: int, endLine: int, endColumn: int) -> None:
