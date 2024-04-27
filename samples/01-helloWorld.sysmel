@@ -20,6 +20,9 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
     0i32
 }.
 
+export: #getFirst with: (:(TestRecord ref)record :: Int32) __cdecl :=> record first.
+export: #getSecond with: (:(TestRecord ref)record :: Int32) __cdecl :=> record second.
+
 ##(:[Type]T :(T)x :: T) #[Int32].
 ##((:[Type]T :(T)x :: T) :=> x) #[Int32].
 ##(:(Int32)x :: Int32) :=> x

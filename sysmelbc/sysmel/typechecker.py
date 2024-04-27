@@ -33,10 +33,11 @@ class Typechecker(ASTVisitor):
             return self.visitNode(node)
 
         typedNode = self.visitNode(node)
+        typedNode = self.applyCoercionsToNodeFor(typedNode, expectedTypeExpression)
         typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
         if typedNodeType != expectedTypeNode and not typedNodeType.isEquivalentTo(expectedTypeNode):
-            return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNode.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
+            return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNodeType.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
     
     def visitNodeWithCurrentExpectedType(self, node: ASTNode) -> ASTNode:
@@ -855,22 +856,28 @@ class Typechecker(ASTVisitor):
                 
             if analyzedReceiver is not None and not analyzedReceiver.isLiteralTypeNode():
                 analyzedReceiverType = getTypeOfAnalyzedNode(analyzedReceiver, node.sourcePosition)
-                analyzedDecayedReceiverType = analyzedReceiverType
-                if analyzedDecayedReceiverType.isArrayTypeNodeOrLiteral():
-                    if selector in ArrayTypeMacros:
-                        return self.expandMessageSendWithMacro(node, analyzedReceiver, ArrayTypeMacros[selector])
-                if analyzedDecayedReceiverType.isReferenceLikeTypeNodeOrLiteral():
+                if analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral():
                     if selector in ReferenceLikeTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, ReferenceLikeTypeMacros[selector])
-                if analyzedDecayedReceiverType.isPointerTypeNodeOrLiteral():
+
+                if analyzedReceiverType.isArrayTypeNodeOrLiteral():
+                    if selector in ArrayTypeMacros:
+                        return self.expandMessageSendWithMacro(node, analyzedReceiver, ArrayTypeMacros[selector])
+                if analyzedReceiverType.isPointerTypeNodeOrLiteral():
                     if selector in PointerTypeMacros:
                         return self.expandMessageSendWithMacro(node, analyzedReceiver, PointerTypeMacros[selector])
 
                 ## Getter.
+                analyzedDecayedReceiverType = decayTypeExpression(analyzedReceiverType)
+                receiverIsReferenceLike = analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral()
                 if len(node.arguments) == 0:
-                    fieldIndex, fieldType = analyzedReceiverType.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
+                    fieldIndex, fieldType = analyzedDecayedReceiverType.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
                     if fieldIndex is not None:
-                        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldType, analyzedReceiver, fieldIndex, not analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral()))
+                        if receiverIsReferenceLike:
+                            fieldResultType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, fieldType))
+                        else:
+                            fieldResultType = fieldType
+                        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldResultType, analyzedReceiver, fieldIndex, not receiverIsReferenceLike))
 
             selectorNode = ASTIdentifierReferenceNode(node.selector.sourcePosition, selector)
         else:
