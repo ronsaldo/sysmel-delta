@@ -490,8 +490,8 @@ class Typechecker(ASTVisitor):
         referenceType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, ASTFormDecoratedTypeNode(node.sourcePosition, valueType, DecoratedType.Mutable)))
         return ASTTypedAllocaMutableWithValueNode(node.sourcePosition, referenceType, valueType, initialValue)
 
-    def visitArgumentNode(self, node: ASTArgumentNode):
-        assert False
+    def visitBindableNameNode(self, node: ASTBindableNameNode):
+        return self.makeSemanticError(node.sourcePosition, 'Bindable name without assignment or functional context.', node)
 
     def visitBinaryExpressionSequenceNode(self, node: ASTBinaryExpressionSequenceNode):
         if len(node.elements) == 3:
@@ -736,7 +736,7 @@ class Typechecker(ASTVisitor):
         whileNode = ASTTypedWhileNode(node.sourcePosition, type, condition, bodyExpression, continueExpression)
         return reduceWhileNode(whileNode)
 
-    def analyzeArgumentNode(self, node: ASTArgumentNode) -> ASTTypedArgumentNode:
+    def analyzeArgumentNode(self, node: ASTBindableNameNode) -> ASTTypedArgumentNode:
         assert node.isArgumentNode()
         name = self.evaluateOptionalSymbol(node.nameExpression)
         type = self.visitOptionalTypeExpression(node.typeExpression)

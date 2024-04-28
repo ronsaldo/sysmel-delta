@@ -11,7 +11,7 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitArgumentNode(self, node):
+    def visitBindableNameNode(self, node):
         pass
 
     @abstractmethod
@@ -373,19 +373,20 @@ class ASTAllocaMutableWithValueNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'AllocaMutableWithValue', 'initialValue': self.initialValue.toJson()}
 
-class ASTArgumentNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False) -> None:
+class ASTBindableNameNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False, isVariadic: bool = False) -> None:
         super().__init__(sourcePosition)
         self.typeExpression = typeExpression
         self.nameExpression = nameExpression
         self.isImplicit = isImplicit
         self.isExistential = isExistential
+        self.isVariadic = isVariadic
 
     def isArgumentNode(self) -> bool:
         return True
 
     def accept(self, visitor: ASTVisitor):
-        return visitor.visitArgumentNode(self)
+        return visitor.visitBindableNameNode(self)
 
     def toJson(self) -> dict:
         return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}
@@ -676,7 +677,7 @@ class ASTFunctionNode(ASTNode):
         return {'kind': 'Function', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
     
 class ASTLambdaNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTArgumentNode], isVariadic: bool, resultType: ASTNode, body: ASTNode, callingConvention: Symbol = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTBindableNameNode], isVariadic: bool, resultType: ASTNode, body: ASTNode, callingConvention: Symbol = None) -> None:
         super().__init__(sourcePosition)
         self.arguments = arguments
         self.isVariadic = isVariadic
@@ -1660,7 +1661,7 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.functional)
         self.visitNode(node.argument)
     
-    def visitArgumentNode(self, node: ASTArgumentNode):
+    def visitBindableNameNode(self, node: ASTBindableNameNode):
         self.visitOptionalNode(node.nameExpression)
         self.visitOptionalNode(node.typeExpression)
 
@@ -2065,7 +2066,7 @@ class ASTTypecheckedVisitor(ASTVisitor):
     def visitAllocaMutableWithValueNode(self, node):
         assert False
 
-    def visitArgumentNode(self, node):
+    def visitBindableNameNode(self, node):
         assert False
 
     def visitArgumentApplicationNode(self, node: ASTArgumentApplicationNode):

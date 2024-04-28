@@ -150,7 +150,7 @@ def scanAdvanceKeyword(state: ScannerState) -> tuple[ScannerState, Token]:
 
 def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
     state, whiteErrorToken = skipWhite(state)
-    if whiteErrorToken is not None: return whiteErrorToken
+    if whiteErrorToken is not None: return state, whiteErrorToken
 
     if state.atEnd():
         return state, state.makeToken(TokenKind.END_OF_SOURCE)
