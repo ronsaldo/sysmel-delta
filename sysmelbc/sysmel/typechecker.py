@@ -546,7 +546,8 @@ class Typechecker(ASTVisitor):
             if argument.isExistential:
                 resultType = ASTSigmaNode(argument.sourcePosition, [argument], resultType)
             else:
-                resultType = ASTPiNode(argument.sourcePosition, [argument], False, resultType)
+                resultType = ASTPiNode(argument.sourcePosition, [argument], False, resultType, None)
+        resultType.callingConvention = node.callingConvention
         return self.visitNode(resultType)
     
     def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTNode:
@@ -739,6 +740,8 @@ class Typechecker(ASTVisitor):
         assert node.isArgumentNode()
         name = self.evaluateOptionalSymbol(node.nameExpression)
         type = self.visitOptionalTypeExpression(node.typeExpression)
+        if type is None:
+            type = ASTLiteralTypeNode(node.sourcePosition, AnyType)
         binding = SymbolArgumentBinding(node.sourcePosition, name, type, isImplicit = node.isImplicit)
         return ASTTypedArgumentNode(node.sourcePosition, type, binding, node.isImplicit, node.isExistential)
 
@@ -769,7 +772,10 @@ class Typechecker(ASTVisitor):
             functionalEnvironment = functionalEnvironment.withArgumentBinding(typedArgument.binding)
             typedArguments.append(typedArgument)
 
-        body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
+        if node.body is None:
+            body = ASTLiteralTypeNode(node.sourcePosition, AnyType)
+        else:
+            body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
         typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: a.type, typedArguments)), node.sourcePosition)
         typedPi = ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, body, node.callingConvention)
         return reducePiNode(typedPi)
