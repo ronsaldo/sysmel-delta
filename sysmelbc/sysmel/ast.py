@@ -87,6 +87,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitRebindPatternNode(self, node):
+        pass
+
+    @abstractmethod
     def visitIfNode(self, node):
         pass
 
@@ -382,14 +386,17 @@ class ASTBindableNameNode(ASTNode):
         self.isExistential = isExistential
         self.isVariadic = isVariadic
 
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitBindableNameNode(self)
+
     def isBindableNameNode(self) -> bool:
         return True
     
     def parseAndUnpackArgumentsPattern(self):
         return [self], self.isExistential, self.isVariadic
-
-    def accept(self, visitor: ASTVisitor):
-        return visitor.visitBindableNameNode(self)
+    
+    def expandBindingOfValueWithAt(self, value, typechecker, sourcePosition):
+        return ASTBindingDefinitionNode(sourcePosition, self.nameExpression, self.typeExpression, value, isRebind = True)
 
     def toJson(self) -> dict:
         return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}
@@ -700,13 +707,14 @@ class ASTLambdaNode(ASTNode):
         return {'kind': 'Lambda', 'arguments': list(map(lambda x: x.toJson(), self.arguments)), 'resultType': optionalASTNodeToJson(self.resultType), 'body': self.body.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}
 
 class ASTBindingDefinitionNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, expectedTypeExpression: ASTNode, initialValueExpression: ASTNode, isMutable = False, isPublic = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, expectedTypeExpression: ASTNode, initialValueExpression: ASTNode, isMutable = False, isPublic = False, isRebind = False) -> None:
         super().__init__(sourcePosition)
         self.nameExpression = nameExpression
         self.expectedTypeExpression = expectedTypeExpression
         self.initialValueExpression = initialValueExpression
         self.isMutable = isMutable
         self.isPublic = isPublic
+        self.isRebind = isRebind
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitBindingDefinitionNode(self)
@@ -792,6 +800,18 @@ class ASTDictionaryNode(ASTNode):
 
     def toJson(self) -> dict:
         return {'kind': 'Dictionary', 'elements': list(map(optionalASTNodeToJson, self.elements))}
+
+class ASTRebindPatternNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, pattern: ASTNode, value: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.pattern = pattern
+        self.value = value
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitRebindPatternNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'RebindPattern', 'pattern': self.pattern.toJson(), 'value': self.value.toJson()}
 
 class ASTSequenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
@@ -1700,6 +1720,10 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
         pass
 
+    def visitRebindPatternNode(self, node: ASTRebindPatternNode):
+        self.visitNode(node.pattern)
+        self.visitNode(node.value)
+
     def visitIfNode(self, node: ASTIfNode):
         self.visitNode(node.condition)
         if node.trueExpression is not None:
@@ -2137,6 +2161,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitIdentifierReferenceNode(self, node):
+        assert False
+
+    def visitRebindPatternNode(self, node):
         assert False
 
     def visitIfNode(self, node):

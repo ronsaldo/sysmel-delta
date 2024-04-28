@@ -1,5 +1,3 @@
-:(Int32)x, :(Int32)y :: Int32.
-
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
 
 Record: #TestRecord withFields: #{

@@ -1634,6 +1634,10 @@ class ASTNode(TypedValue):
 
     def isTupleNode(self) -> bool:
         return False
+    
+    def expandBindingOfValueWithAt(self, value, typechecker, sourcePosition):
+        from .ast import ASTSequenceNode, ASTErrorNode
+        return ASTSequenceNode(sourcePosition, [value, ASTErrorNode(self.sourcePosition, 'Not a valid pattern expression.')] )
 
 class ASTTypeNode(ASTNode):
     def isTypeNode(self) -> bool:

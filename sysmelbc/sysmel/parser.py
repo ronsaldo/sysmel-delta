@@ -424,6 +424,10 @@ def parseAssignmentExpression(state: ParserState) -> tuple[ParserState, ASTNode]
         selector = ASTLiteralNode(operatorToken.sourcePosition, Symbol.intern(operatorToken.getStringValue()))
         state, assignedValue = parseAssignmentExpression(state)
         return state, ASTMessageSendNode(state.sourcePositionFrom(startPosition), assignedStore, selector, [assignedValue])
+    if state.peekKind() == TokenKind.REBIND_ARROW:
+        operatorToken = state.next()
+        state, boundValue = parseAssignmentExpression(state)
+        return state, ASTRebindPatternNode(state.sourcePositionFrom(startPosition), assignedStore, boundValue)
     else:
         return state, assignedStore
 
