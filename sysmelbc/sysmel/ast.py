@@ -382,8 +382,11 @@ class ASTBindableNameNode(ASTNode):
         self.isExistential = isExistential
         self.isVariadic = isVariadic
 
-    def isArgumentNode(self) -> bool:
+    def isBindableNameNode(self) -> bool:
         return True
+    
+    def parseAndUnpackArgumentsPattern(self):
+        return [self], self.isExistential, self.isVariadic
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitBindableNameNode(self)
@@ -447,11 +450,9 @@ class ASTErrorNode(ASTNode):
         return {'kind': 'Error', 'message': self.message}
 
 class ASTFunctionalDependentTypeNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTNode], tupleArguments: list[ASTNode], isVariadic: bool, resultType: ASTNode, callingConvention: Symbol) -> None:
+    def __init__(self, sourcePosition: SourcePosition, argumentPattern: ASTNode, resultType: ASTNode, callingConvention: Symbol) -> None:
         super().__init__(sourcePosition)
-        self.arguments = arguments
-        self.tupleArguments = tupleArguments
-        self.isVariadic = isVariadic
+        self.argumentPattern = argumentPattern
         self.resultType = resultType
         self.callingConvention = callingConvention
 
@@ -464,10 +465,17 @@ class ASTFunctionalDependentTypeNode(ASTNode):
     def withCallingConventionNamed(self, callingConventionName: TypedValue):
         if callingConventionName == self.callingConvention:
             return self
-        return ASTFunctionalDependentTypeNode(self.sourcePosition, self.arguments, self.tupleArguments, self.isVariadic, self.resultType, callingConventionName)
+        return ASTFunctionalDependentTypeNode(self.sourcePosition, self.argumentPattern, self.resultType, callingConventionName)
+    
+    def constructLambdaWithBody(self, body):
+        bodyOrInnerLambda = body
+        if self.resultType.isFunctionalDependentTypeNode():
+            bodyOrInnerLambda = self.resultType.constructLambdaWithBody(body)
+        argumentNodes, isExistential, isVariadic = self.argumentPattern.parseAndUnpackArgumentsPattern()
+        return ASTLambdaNode(self.sourcePosition, argumentNodes, isVariadic, self.resultType, bodyOrInnerLambda, self.callingConvention)
     
     def toJson(self) -> dict:
-        return {'kind': 'FunctionalType', 'arguments': list(map(optionalASTNodeToJson, self.arguments)), 'resultType': optionalASTNodeToJson(self.resultType)}
+        return {'kind': 'FunctionalType', 'argumentPattern': list(map(optionalASTNodeToJson, self.argumentPattern)), 'resultType': optionalASTNodeToJson(self.resultType)}
 
 class ASTIdentifierReferenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, value: Symbol) -> None:
@@ -821,6 +829,15 @@ class ASTTupleNode(ASTNode):
     def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
         return self.elements
 
+    def parseAndUnpackArgumentsPattern(self):
+        isExistential = False
+        isVariadic = False
+        if len(self.elements) == 1 and self.elements[0].isBindableNameNode():
+            isExistential = self.elements[0].isExistential
+        if len(self.elements) > 0 and self.elements[-1].isBindableNameNode():
+            isVariadic = self.elements[-1].isVariadic
+        return self.elements, isExistential, isVariadic
+    
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
@@ -1677,8 +1694,7 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.resultType)
 
     def visitFunctionalDependentTypeNode(self, node: ASTFunctionalDependentTypeNode):
-        for arg in node.arguments:
-            self.visitNode(arg)
+        self.visitOptionalNode(node.argumentPattern)
         self.visitOptionalNode(node.resultType)
 
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):

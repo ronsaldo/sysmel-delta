@@ -1,6 +1,5 @@
-##:(Int32)x, :(Int32)y :: Int32
+:(Int32)x, :(Int32)y :: Int32.
 
-#*
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
 
 Record: #TestRecord withFields: #{
@@ -39,4 +38,3 @@ export: #getSecond with: (:(TestRecord ref)record :: Int32) __cdecl :=> record s
 ##Char8 pointer[0sz]
 
 ##:x ## :<= 42i32.
-*#

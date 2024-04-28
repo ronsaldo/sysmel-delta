@@ -177,7 +177,7 @@ def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
         typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_BRACKET, typeExpression)
     elif state.peekKind() == TokenKind.LEFT_PARENT:
         state.advance()
-        state, typeExpression  = parseExpression(state)
+        state, typeExpression = parseExpression(state)
         typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, typeExpression)
 
     isVariadic = False
@@ -192,42 +192,6 @@ def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
             isVariadic = True
 
     return state, ASTBindableNameNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential, isVariadic)
-
-def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
-    startPosition = state.position
-    arguments = []
-    while state.peekKind() == TokenKind.COLON:
-        state, argument = parseBindableName(state)
-        arguments.append(argument)
-
-    remainingTupleArguments = []
-    while state.peekKind() == TokenKind.COMMA:
-        state.advance()
-        if state.peekKind() == TokenKind.COLON:
-            state, argument = parseBindableName(state)
-            remainingTupleArguments.append(argument)
-        else:
-            remainingTupleArguments.append(ASTErrorNode(state.currentSourcePosition(), 'Expected an argument.'))
-
-    isVariadic = False
-    if len(arguments) != 0:
-        isVariadic = arguments[-1].isVariadic
-    
-    resultTypeExpression = None
-    hasResultTypeExpression = state.peekKind() == TokenKind.COLON_COLON
-    if hasResultTypeExpression:
-        state.advance()
-        state, resultTypeExpression = parseUnaryPostfixExpression(state)
-    
-    if len(arguments) == 0 and len(remainingTupleArguments) == 0 and not hasResultTypeExpression:
-        return state, None
-    
-    tupleArguments = []
-    if len(remainingTupleArguments) != 0 or isVariadic:
-        tupleArguments = [arguments[-1]] + remainingTupleArguments
-        arguments = arguments[:-1]
-
-    return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), arguments, tupleArguments, isVariadic, resultTypeExpression, None)
 
 def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     # (
@@ -244,10 +208,7 @@ def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
         state.advance()
         return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [])
     
-    if state.peekKind() in [TokenKind.COLON, TokenKind.COLON_COLON]:
-        state, expression = parseFunctionalType(state)
-    else:
-        state, expression = parseExpression(state)
+    state, expression = parseExpression(state)
 
     # )
     expression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, expression)
@@ -261,7 +222,7 @@ def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
 
     functionalType = None
     if state.peekKind() in [TokenKind.COLON, TokenKind.COLON_COLON]:
-        state, functionalType = parseFunctionalType(state)
+        state, functionalType = parseStrictFunctionalType(state)
         functionalType = state.expectAddingErrorToNode(TokenKind.BAR, functionalType)
     elif state.peekKind() == TokenKind.BAR:
         functionalType = ASTFunctionalDependentTypeNode(state.currentSourcePosition(), [], None)
@@ -480,8 +441,29 @@ def parseCommaExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     
     return state, ASTTupleNode(state.sourcePositionFrom(startPosition), elements)
 
+def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
+    startPosition = state.position
+    state, argumentPatternOrExpression = parseCommaExpression(state)
+    if state.peekKind() == TokenKind.COLON_COLON:
+        state.advance()
+        state, resultTypeExpression = parseFunctionalType(state)
+        return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), argumentPatternOrExpression, resultTypeExpression, None)
+    return state, argumentPatternOrExpression
+
+def parseFunctionalTypeWithOptionalArgument(state: ParserState) -> tuple[ParserState, ASTNode]:
+    if state.peekKind() == TokenKind.COLON_COLON:
+        state.advance()
+        startPosition = state.position
+        state, resultTypeExpression = parseFunctionalType(state)
+        return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), None, resultTypeExpression, None)
+    else:
+        return parseFunctionalType(state)
+
+def parseStrictFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
+    assert False
+
 def parseExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
-    return parseCommaExpression(state)
+    return parseFunctionalTypeWithOptionalArgument(state)
 
 def parseExpressionListUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -> tuple[ParserState, list[ASTNode]]:
     elements = []

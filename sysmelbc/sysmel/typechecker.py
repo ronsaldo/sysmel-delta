@@ -504,12 +504,15 @@ class Typechecker(ASTVisitor):
         return errorNode
 
     def visitFunctionNode(self, node: ASTFunctionNode):
-        functionalTypeNode = self.visitNodeForMacroExpansionOnly(node.functionalType)
-        if not functionalTypeNode.isFunctionalDependentTypeNode():
+        functionalTypeNode: ASTFunctionalDependentTypeNode = self.visitNodeForMacroExpansionOnly(node.functionalType)
+        if not functionalTypeNode.isFunctionalDependentTypeNode() and not functionalTypeNode.isTypedErrorNode():
             functionalTypeNode = self.makeSemanticError(functionalTypeNode.sourcePosition, 'Expected a function type expression.', functionalTypeNode)
         if functionalTypeNode.isTypedErrorNode():
            return self.visitNode(ASTSequenceNode(node.sourcePosition, [functionalTypeNode, node.body]))
         
+        lambdaNode = functionalTypeNode.constructLambdaWithBody(node.body)
+        return self.visitNode(lambdaNode)
+
         if len(functionalTypeNode.arguments) == 0 and len(functionalTypeNode.tupleArguments) == 0:
             return self.visitNode(ASTLambdaNode(node.sourcePosition, [], functionalTypeNode.isVariadic, functionalTypeNode.resultType, node.body, functionalTypeNode.callingConvention))
 
@@ -534,21 +537,14 @@ class Typechecker(ASTVisitor):
         return reduceFunctionTypeNode(ASTTypedFunctionTypeNode(node.sourcePosition, typeUniverse, argumentType, resultType))
 
     def visitFunctionalDependentTypeNode(self, node: ASTFunctionalDependentTypeNode):
-        if len(node.arguments) == 0 and len(node.tupleArguments) == 0:
-            return self.visitNode(ASTPiNode(node.sourcePosition, [], node.resultType, node.callingConvention))
-
-        resultType = node.resultType
-        isVariadic = node.isVariadic
-        if len(node.tupleArguments) != 0 or isVariadic:
-            resultType = ASTPiNode(node.sourcePosition, node.tupleArguments, isVariadic, resultType, None)
-
-        for argument in reversed(node.arguments):
-            if argument.isExistential:
-                resultType = ASTSigmaNode(argument.sourcePosition, [argument], resultType)
-            else:
-                resultType = ASTPiNode(argument.sourcePosition, [argument], False, resultType, None)
-        resultType.callingConvention = node.callingConvention
-        return self.visitNode(resultType)
+        if node.argumentPattern is None:
+            return self.visitNode(ASTPiNode(node.sourcePosition, [], False, node.resultType, node.callingConvention))
+        
+        argumentNodes, isExistential, isVariadic = node.argumentPattern.parseAndUnpackArgumentsPattern()
+        if isExistential:
+            return self.visitNode(ASTSigmaNode(node.sourcePosition, argumentNodes, node.resultType))
+        else:
+            return self.visitNode(ASTPiNode(node.sourcePosition, argumentNodes, isVariadic, node.resultType, node.callingConvention))
     
     def analyzeIdentifierReferenceNodeWithBinding(self, node: ASTIdentifierReferenceNode, binding: SymbolBinding) -> ASTNode:
         if binding.isValueBinding():
@@ -737,7 +733,7 @@ class Typechecker(ASTVisitor):
         return reduceWhileNode(whileNode)
 
     def analyzeArgumentNode(self, node: ASTBindableNameNode) -> ASTTypedArgumentNode:
-        assert node.isArgumentNode()
+        assert node.isBindableNameNode()
         name = self.evaluateOptionalSymbol(node.nameExpression)
         type = self.visitOptionalTypeExpression(node.typeExpression)
         if type is None:

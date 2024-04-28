@@ -1536,6 +1536,10 @@ class ASTNode(TypedValue):
     def isEquivalentTo(self, other) -> bool:
         return self == other
     
+    def parseAndUnpackArgumentsPattern(self):
+        from .ast import ASTErrorNode
+        return [ASTErrorNode(self.sourcePosition, 'Not a valid argument spec.')], False, False
+
     def performSatisfiedByCheckInEnvironment(self, other, environment) -> bool:
         return self.performEquivalenceCheckInEnvironment(other, environment)
     
@@ -1547,7 +1551,7 @@ class ASTNode(TypedValue):
 
         return self.isEquivalentTo(other), environment
     
-    def isArgumentNode(self) -> bool:
+    def isBindableNameNode(self) -> bool:
         return False
     
     def isMessageSendNode(self) -> bool:
