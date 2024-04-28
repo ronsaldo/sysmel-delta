@@ -165,6 +165,10 @@ def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
 
     isImplicit = False
     isExistential = False
+    isMutable = False
+    if state.peekKind() == TokenKind.BANG:
+        isMutable = True
+        state.advance()
     if state.peekKind() == TokenKind.QUESTION:
         isExistential = isExistential or state.peekKind() == TokenKind.QUESTION
         state.advance()
@@ -191,7 +195,7 @@ def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
             state.advance()
             isVariadic = True
 
-    return state, ASTBindableNameNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential, isVariadic)
+    return state, ASTBindableNameNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential, isVariadic, isMutable)
 
 def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     # (
@@ -221,11 +225,16 @@ def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
     state.advance()
 
     functionalType = None
-    if state.peekKind() in [TokenKind.COLON, TokenKind.COLON_COLON]:
-        state, functionalType = parseStrictFunctionalType(state)
-        functionalType = state.expectAddingErrorToNode(TokenKind.BAR, functionalType)
-    elif state.peekKind() == TokenKind.BAR:
-        functionalType = ASTFunctionalDependentTypeNode(state.currentSourcePosition(), [], None)
+    if state.peekKind() == TokenKind.BAR:
+        state.advance()
+        if state.peekKind() == TokenKind.BAR:
+            state.advance()
+            functionalType = ASTFunctionalDependentTypeNode(state.currentSourcePosition(), None, None)
+        else:
+            state, functionalType = parseFunctionalType(state)
+            state.expectAddingErrorToNode(TokenKind.BAR, functionalType)
+            if not functionalType.isFunctionalDependentTypeNode():
+                functionalType = ASTFunctionalDependentTypeNode(state.currentSourcePosition(), functionalType, None)
 
     state, body = parseSequenceUntilEndOrDelimiter(state, TokenKind.RIGHT_CURLY_BRACKET)
 

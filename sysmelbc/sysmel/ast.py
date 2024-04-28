@@ -378,13 +378,14 @@ class ASTAllocaMutableWithValueNode(ASTNode):
         return {'kind': 'AllocaMutableWithValue', 'initialValue': self.initialValue.toJson()}
 
 class ASTBindableNameNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False, isVariadic: bool = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False, isVariadic: bool = False, isMutable: bool = False) -> None:
         super().__init__(sourcePosition)
         self.typeExpression = typeExpression
         self.nameExpression = nameExpression
         self.isImplicit = isImplicit
         self.isExistential = isExistential
         self.isVariadic = isVariadic
+        self.isMutable = isMutable
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitBindableNameNode(self)
@@ -396,7 +397,7 @@ class ASTBindableNameNode(ASTNode):
         return [self], self.isExistential, self.isVariadic
     
     def expandBindingOfValueWithAt(self, value, typechecker, sourcePosition):
-        return ASTBindingDefinitionNode(sourcePosition, self.nameExpression, self.typeExpression, value, isRebind = True)
+        return ASTBindingDefinitionNode(sourcePosition, self.nameExpression, self.typeExpression, value, isRebind = True, isMutable = self.isMutable)
 
     def toJson(self) -> dict:
         return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}

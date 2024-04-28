@@ -6,10 +6,10 @@ Record: #TestRecord withFields: #{
 }.
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
-    let: #record with: TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
+    :record :<= TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
     printf("Hello World: %d\n" elements, record first).
 
-    let: #i mutableWith: 1i32.
+    :!i :<= 1i32.
     while: (i < argc) do: {
         printf("Loop body: %s\n" elements, argv at: i asSize).
     } continueWith: (i := i + 1i32).
