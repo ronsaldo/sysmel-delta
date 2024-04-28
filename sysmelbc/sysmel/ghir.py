@@ -333,11 +333,18 @@ class GHIRValue(ABC):
         if userValue not in self.userValues:
             self.userValues.append(userValue)
 
+    def unregisterUserValue(self, userValue):
+        if userValue in self.userValues:
+            self.userValues.remove(userValue)
+
     def registerInUsedValues(self):
         for usedValue in self.usedValues():
             usedValue.registerUserValue(self)
 
     def replaceWith(self, replacement):
+        for usedValue in self.usedValues():
+            usedValue.unregisterUserValue(self)
+
         for userValue in self.userValues:
             userValue.replaceUsedValueWith(replacement)
         self.userValues = []
@@ -406,12 +413,14 @@ class GHIRConstantValue(GHIRValue):
             replacement.registerUserValue(self)
 
 class GHIRPrimitiveFunction(GHIRValue):
-    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, name: str, compileTimeImplementation = None) -> None:
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, name: str, compileTimeImplementation = None, isMacro = False, isPure = False) -> None:
         super().__init__(context, sourcePosition)
         assert type is not None
         self.type = type
         self.name = name
         self.compileTimeImplementation = compileTimeImplementation
+        self.isMacro = isMacro
+        self.isPure = isPure
         self.registerInUsedValues()
 
     def accept(self, visitor: GHIRVisitor):
@@ -1855,7 +1864,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
 
     def visitPrimitiveFunction(self, value: PrimitiveFunction):
         type = self.translateValue(value.type)
-        return GHIRPrimitiveFunction(self.context, None, type, self.optionalSymbolToString(value.primitiveName), value.value)
+        return GHIRPrimitiveFunction(self.context, None, type, self.optionalSymbolToString(value.primitiveName), value.value, isMacro = value.isMacro, isPure = value.isPure)
 
     def visitCurriedFunctionalValue(self, value: CurriedFunctionalValue):
         type = self.translateValue(value.type)

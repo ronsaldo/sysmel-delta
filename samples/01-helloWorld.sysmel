@@ -8,7 +8,6 @@ Record: #TestRecord withFields: #{
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
     let: #record with: TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
     printf("record %d\n" elements, record first).
-    ##printf("record %d\n" elements, argc).
 
     #*printf("Hello World: %d\n" elements, argc).
 
@@ -22,6 +21,9 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
 
 export: #getFirst with: (:(TestRecord ref)record :: Int32) __cdecl :=> record first.
 export: #getSecond with: (:(TestRecord ref)record :: Int32) __cdecl :=> record second.
+
+##export: #setFirst with: (:(TestRecord mutable ref)record :(Int32)value :: Void) __cdecl :=> (record first := value).
+##export: #setFirst with: (:(TestRecord ref)record :(Int32)value :: Void) __cdecl :=> record first: value.
 
 ##(:[Type]T :(T)x :: T) #[Int32].
 ##((:[Type]T :(T)x :: T) :=> x) #[Int32].

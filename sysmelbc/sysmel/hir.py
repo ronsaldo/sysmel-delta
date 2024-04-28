@@ -159,6 +159,7 @@ class HIRValueVisitor(ABC):
 class HIRValue(ABC):
     def __init__(self, context: HIRContext) -> None:
         self.context = context
+        self.userValues = []
 
     @abstractmethod
     def accept(self, visitor: HIRValueVisitor):
@@ -179,7 +180,22 @@ class HIRValue(ABC):
 
     def isConstantUndefined(self) -> bool:
         return False
-    
+
+    def isPurelyFunctionalEvaluableValue(self) -> bool:
+        return False
+
+    def isPureInstruction(self) -> bool:
+        return False
+
+    def isInstruction(self) -> bool:
+        return False
+
+    def isPhiInstruction(self) -> bool:
+        return False
+
+    def isInsertValueInstruction(self) -> bool:
+        return False
+
     def isFunctionalLocalValue(self) -> bool:
         return False
 
@@ -197,6 +213,56 @@ class HIRValue(ABC):
     
     def canShareMemoryWithValue(self, otherValue) -> bool:
         return False
+
+    @abstractmethod
+    def usedValues(self):
+        return []
+
+    @abstractmethod
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
+
+    def replacedUsedValueInListWith(self, list, usedValue, replacement):
+        newList = []
+        for element in list:
+            if element is usedValue:
+                newList.append(replacement)
+                replacement.registerUserValue(self)
+            else:
+                newList.append(element)
+        return newList
+
+    def registerUserValue(self, userValue):
+        if userValue not in self.userValues:
+            self.userValues.append(userValue)
+
+    def unregisterUserValue(self, userValue):
+        if userValue in self.userValues:
+            self.userValues.remove(userValue)
+            
+    def registerInUsedValues(self):
+        for usedValue in self.usedValues():
+            usedValue.registerUserValue(self)
+
+    def replaceWith(self, replacement):
+        for usedValue in self.usedValues():
+            usedValue.unregisterUserValue(self)
+        for userValue in self.userValues:
+            userValue.replaceUsedValueWith(replacement)
+        self.userValues = []
+        return replacement
+    
+    def getUserCount(self) -> int:
+        return len(self.userValues)
+
+    def hasInstructionUser(self) -> int:
+        for user in self.userValues:
+            if user.isInstruction():
+                return True
+        return False
+
+    def simplify(self):
+        return self
 
 class HIRTypeValue(HIRValue):
     def  __init__(self, context: HIRContext) -> None:
@@ -237,6 +303,12 @@ class HIRTypeValue(HIRValue):
 
     @abstractmethod
     def getAlignment(self) -> int:
+        pass
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
         pass
 
     def getMemoryDescriptor(self) -> MemoryDescriptor:
@@ -652,26 +724,47 @@ class HIRConstantUndefined(HIRConstant):
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitConstantUndefined(self)
 
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
+
     def __str__(self) -> str:
         return 'undef %s' % (str(self.type))
 
 class HIRConstantPrimitiveFunction(HIRConstant):
-    def __init__(self, context: HIRContext, type: HIRValue, name: str, compileTimeImplementation = None) -> None:
+    def __init__(self, context: HIRContext, type: HIRValue, name: str, compileTimeImplementation = None, isPure = False, isMacro = False) -> None:
         super().__init__(context, type)
         self.name = name
         self.compileTimeImplementation = compileTimeImplementation
+        self.isPure = isPure
+        self.isMacro = isMacro
 
     def isConstantPrimitiveFunction(self) -> bool:
         return True
 
+    def isPurelyFunctionalEvaluableValue(self) -> bool:
+        return self.isPure
+
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitConstantPrimitiveFunction(self)
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
 
     def __str__(self) -> str:
         return '%s <%s>' % (str(self.type), self.name)
 
 class HIRConstantPrimitive(HIRConstant):
-    pass
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
 
 class HIRConstantUnit(HIRConstantPrimitive):
     def accept(self, visitor: HIRValueVisitor):
@@ -791,6 +884,12 @@ class HIRImportedExternalValue(HIRImportedValue):
     def isImportedExternalValue(self) -> bool:
         return True
 
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
+
     def fullPrintString(self) -> str:
         return '%s := from external %s import "%s" : %s' % (str(self), str(self.externalName), self.valueName, str(self.type))
 
@@ -829,6 +928,17 @@ class HIRFunctionalDefinition(HIRGlobalValue):
             yield basicBlock
             for instruction in basicBlock.instructions():
                 yield instruction
+
+    def instructions(self):
+        for basicBlock in self.basicBlocks():
+            for instruction in basicBlock.instructions():
+                yield instruction
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
 
     def basicBlocks(self):
         position = self.firstBasicBlock
@@ -904,6 +1014,13 @@ class HIRFunctionalDefinition(HIRGlobalValue):
         result += '}\n'
         return result
 
+    def applyOptimizationPasses(self, passes):
+        for optimizationPass in passes:
+            optimizationPass.applyToFunctionalDefinition(self)
+
+    def optimize(self):
+        self.applyOptimizationPasses([HIRBasicSimplificationOptimizationPass(self.context)])
+
 class HIRFunctionalLocalValue(HIRValue):
     def __init__(self, context: HIRContext, type: HIRValue, name: str = None, sourcePosition: SourcePosition = None) -> None:
         super().__init__(context)
@@ -926,13 +1043,25 @@ class HIRFunctionalLocalValue(HIRValue):
 class HIRFunctionalCaptureValue(HIRFunctionalLocalValue):
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitFunctionalCaptureValue(self)
-    
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
+
     def fullPrintString(self) -> str:
         return '%s : %s' % (str(self), str(self.type)) 
 
 class HIRFunctionalArgumentValue(HIRFunctionalLocalValue):
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitFunctionalArgumentValue(self)
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
 
     def fullPrintString(self) -> str:
         return '%s : %s' % (str(self), str(self.type)) 
@@ -949,12 +1078,35 @@ class HIRBasicBlock(HIRFunctionalLocalValue):
         return visitor.visitBasicBlock(self)
 
     def addInstruction(self, instruction):
+        assert instruction.parentBlock is None
         if self.lastInstruction is None:
             self.firstInstruction = self.lastInstruction = instruction
         else:
             instruction.previousInstruction = self.lastInstruction
             self.lastInstruction.nextInstruction = instruction
             self.lastInstruction = instruction
+        instruction.parentBlock = self
+
+    def removeInstruction(self, instruction):
+        assert instruction.parentBlock is self
+        previous: HIRInstruction = instruction.previousInstruction
+        next: HIRInstruction = instruction.nextInstruction
+        if previous is None:
+            self.firstInstruction = next
+        else:
+            previous.nextInstruction = next
+
+        if next is None:
+            self.lastInstruction = previous
+        else:
+            next.previousInstruction = previous
+        instruction.parentBlock = None
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
 
     def instructions(self):
         position = self.firstInstruction
@@ -979,19 +1131,48 @@ class HIRBasicBlock(HIRFunctionalLocalValue):
 class HIRInstruction(HIRFunctionalLocalValue):
     def __init__(self, context: HIRContext, type: HIRValue, name: str = None) -> None:
         super().__init__(context, type, name)
+        self.parentBlock: HIRBasicBlock = None
         self.previousInstruction: HIRInstruction = None
         self.nextInstruction: HIRInstruction = None
 
     def successorBlocks(self) -> list[HIRBasicBlock]:
         return []
 
+    def isInstruction(self) -> bool:
+        return True
+    
+    def dominatesInstruction(self, other) -> bool:
+        ## TODO: Implement this in a much proper way.
+        return self.localValueIndex <= other.localValueIndex
+
+    def isDeadInstruction(self) -> bool:
+        return self.isPureInstruction() and not self.hasInstructionUser()
+    
+    def delete(self):
+        self.replaceWith(self.context.getUndefined(self.getType))
+
+    def replaceWith(self, replacement):
+        super().replaceWith(replacement)
+        if self.parentBlock is not None:
+            self.parentBlock.removeInstruction(self)
+
 class HIRAllocaInstruction(HIRInstruction):
     def __init__(self, context: HIRContext, type: HIRValue, valueType: HIRValue, name: str = None) -> None:
         super().__init__(context, type, name)
         self.valueType = valueType
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitAllocaInstruction(self)
+
+    def isPureInstruction(self) -> bool:
+        return True
+
+    def usedValues(self):
+        return []
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        pass
 
     def fullPrintString(self) -> str:
         return '%s : %s := alloca %s (' % (str(self), str(self.type), str(self.valueType))
@@ -1001,9 +1182,21 @@ class HIRLoadInstruction(HIRInstruction):
         super().__init__(context, type, name)
         self.pointer = pointer
         self.isVolatile = False
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitLoadInstruction(self)
+
+    def isPureInstruction(self) -> bool:
+        return not self.isVolatile
+
+    def usedValues(self):
+        yield self.pointer
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.pointer is usedValue:
+            self.pointer = replacement
+            replacement.registerUserValue(self)
 
     def fullPrintString(self) -> str:
         if self.isVolatile:
@@ -1016,9 +1209,25 @@ class HIRStoreInstruction(HIRInstruction):
         self.value = value
         self.pointer = pointer
         self.isVolatile = False
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitStoreInstruction(self)
+
+    def isPureInstruction(self) -> bool:
+        return False
+
+    def usedValues(self):
+        yield self.value
+        yield self.pointer
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.value is usedValue:
+            self.value = replacement
+            replacement.registerUserValue(self)
+        if self.pointer is usedValue:
+            self.pointer = replacement
+            replacement.registerUserValue(self)
 
     def fullPrintString(self) -> str:
         if self.isVolatile:
@@ -1030,9 +1239,24 @@ class HIRCallInstruction(HIRInstruction):
         super().__init__(context, type, name)
         self.functional = functional
         self.arguments = arguments
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitCallInstruction(self)
+
+    def isPureInstruction(self) -> bool:
+        return self.functional.isPurelyFunctionalEvaluableValue()
+
+    def usedValues(self):
+        yield self.functional
+        for argument in self.arguments:
+            yield argument
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.functional is usedValue:
+            self.functional = replacement
+            replacement.registerUserValue(self)
+        self.arguments = self.replacedUsedValueInListWith(self.arguments, usedValue, replacement)
 
     def fullPrintString(self) -> str:
         result = '%s : %s := call %s (' % (str(self), str(self.type), str(self.functional))
@@ -1051,9 +1275,24 @@ class HIRGetElementPointerInstruction(HIRInstruction):
         super().__init__(context, type, name)
         self.pointer = pointer
         self.indices = indices
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitGetElementPointerInstruction(self)
+
+    def isPureInstruction(self) -> bool:
+        return True
+
+    def usedValues(self):
+        yield self.pointer
+        for index in self.indices:
+            yield index
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.pointer is usedValue:
+            self.pointer = replacement
+            replacement.registerUserValue(self)
+        self.indices = self.replacedUsedValueInListWith(self.indices, usedValue, replacement)
 
     def fullPrintString(self) -> str:
         result = '%s : %s := getElementPointer %s (' % (str(self), str(self.type), str(self.pointer))
@@ -1072,9 +1311,24 @@ class HIRExtractValueInstruction(HIRInstruction):
         super().__init__(context, type, name)
         self.aggregate = aggregate
         self.indices = indices
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitExtractValueInstruction(self)
+
+    def isPureInstruction(self) -> bool:
+        return True
+
+    def usedValues(self):
+        yield self.aggregate
+        for index in self.indices:
+            yield index
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.aggregate is usedValue:
+            self.aggregate = replacement
+            replacement.registerUserValue(self)
+        self.indices = self.replacedUsedValueInListWith(self.indices, usedValue, replacement)
 
     def fullPrintString(self) -> str:
         result = '%s : %s := extractValue %s at (' % (str(self), str(self.type), str(self.aggregate))
@@ -1093,9 +1347,24 @@ class HIRExtractValueReferenceInstruction(HIRInstruction):
         super().__init__(context, type, name)
         self.aggregate = aggregate
         self.indices = indices
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitExtractValueReferenceInstruction(self)
+
+    def isPureInstruction(self) -> bool:
+        return True
+
+    def usedValues(self):
+        yield self.aggregate
+        for index in self.indices:
+            yield index
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.aggregate is usedValue:
+            self.aggregate = replacement
+            replacement.registerUserValue(self)
+        self.indices = self.replacedUsedValueInListWith(self.indices, usedValue, replacement)
 
     def fullPrintString(self) -> str:
         result = '%s : %s := extractValueReference %s at (' % (str(self), str(self.type), str(self.aggregate))
@@ -1115,9 +1384,46 @@ class HIRInsertValueInstruction(HIRInstruction):
         self.aggregate = aggregate
         self.indices = indices
         self.value = value
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitInsertValueInstruction(self)
+    
+    def canShareMemoryWithValue(self, otherValue) -> bool:
+        if otherValue.isPhiInstruction():
+            return False
+
+        assert otherValue.isInsertValueInstruction()
+        assert self.dominatesInstruction(otherValue)
+
+        for myUser in self.userValues:
+            assert myUser.isInstruction()
+            if myUser is not otherValue:
+                if otherValue.dominatesInstruction(myUser):
+                    return False
+
+        return True
+    
+    def isPureInstruction(self) -> bool:
+        return True
+    
+    def isInsertValueInstruction(self) -> bool:
+        return True
+
+    def usedValues(self):
+        yield self.aggregate
+        for index in self.indices:
+            yield index
+        yield self.value
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.aggregate is usedValue:
+            self.aggregate = replacement
+            replacement.registerUserValue(self)
+        self.indices = self.replacedUsedValueInListWith(self.indices, usedValue, replacement)
+        if self.value is usedValue:
+            self.value = replacement
+            replacement.registerUserValue(self)
 
     def fullPrintString(self) -> str:
         result = '%s : %s := insertValue %s in %s at (' % (str(self), str(self.type), str(self.value), str(self.aggregate))
@@ -1142,9 +1448,18 @@ class HIRBranchInstruction(HIRTerminatorInstruction):
     def __init__(self, context: HIRContext, destination: HIRBasicBlock) -> None:
         super().__init__(context)
         self.destination = destination
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitBranchInstruction(self)
+
+    def usedValues(self):
+        yield self.destination
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.destination is usedValue:
+            self.destination = replacement
+            replacement.registerUserValue(self)
 
     def successorBlocks(self) -> list[HIRBasicBlock]:
         return [self.destination]
@@ -1158,9 +1473,26 @@ class HIRCondBranchInstruction(HIRTerminatorInstruction):
         self.condition = condition
         self.trueDestination = trueDestination
         self.falseDestination = falseDestination
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitCondBranchInstruction(self)
+
+    def usedValues(self):
+        yield self.condition
+        yield self.trueDestination
+        yield self.falseDestination
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.condition is usedValue:
+            self.condition = replacement
+            replacement.registerUserValue(self)
+        if self.trueDestination is usedValue:
+            self.trueDestination = replacement
+            replacement.registerUserValue(self)
+        if self.falseDestination is usedValue:
+            self.falseDestination = replacement
+            replacement.registerUserValue(self)
 
     def successorBlocks(self) -> list[HIRBasicBlock]:
         return [self.trueDestination, self.falseDestination]
@@ -1172,9 +1504,18 @@ class HIRReturnInstruction(HIRTerminatorInstruction):
     def __init__(self, context: HIRContext, result: HIRValue) -> None:
         super().__init__(context)
         self.result = result
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitReturnInstruction(self)
+
+    def usedValues(self):
+        yield self.result
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        if self.result is usedValue:
+            self.result = replacement
+            replacement.registerUserValue(self)
 
     def fullPrintString(self) -> str:
         return 'return %s' % str(self.result)
@@ -1184,12 +1525,24 @@ class HIRConstantLambda(HIRConstant):
         super().__init__(context, type)
         self.captures = captures
         self.definition = definition
+        self.registerInUsedValues()
 
     def accept(self, visitor: HIRValueVisitor):
         return visitor.visitConstantLambda(self)
 
     def isConstantLambda(self) -> bool:
         return True
+
+    def usedValues(self):
+        for capture in self.captures:
+            yield capture
+        yield self.definition
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        self.captures = self.replacedUsedValueInListWith(self.captures, usedValue, replacement)
+        if self.definition is usedValue:
+            self.definition = replacement
+            replacement.registerUserValue(self)
 
     def __str__(self) -> str:
         result = 'lambda '
@@ -1273,6 +1626,28 @@ class HIRBuilder:
     def returnValue(self, value) -> HIRInstruction:
         return self.addInstruction(HIRReturnInstruction(self.context, value))
 
+class HIROptimizationPass(ABC):
+    def __init__(self, context: HIRContext) -> None:
+        super().__init__()
+        self.context = context
+
+    @abstractmethod
+    def applyToFunctionalDefinition(self, functionalDefinition: HIRFunctionalDefinition):
+        pass
+
+class HIRBasicSimplificationOptimizationPass(HIROptimizationPass):
+    def applyToFunctionalDefinition(self, functionalDefinition: HIRFunctionalDefinition):
+        instructionsToProcess = set()
+        for instruction in functionalDefinition.instructions():
+            instructionsToProcess.add(instruction)
+        while len(instructionsToProcess) != 0:
+            instruction = instructionsToProcess.pop()
+            if instruction.isDeadInstruction():
+                for usedValue in instruction.usedValues():
+                    if usedValue is not instruction and usedValue.isInstruction():
+                        instructionsToProcess.add(usedValue)
+                instruction.delete()
+
 class HIRModule(HIRValue):
     def __init__(self, context: HIRContext) -> None:
         super().__init__(context)
@@ -1299,6 +1674,7 @@ class HIRModule(HIRValue):
         importedModule = HIRImportedModule(self.context, self, name)
         self.importedModuleDictionary[name] = importedModule
         self.importedModules.append(importedModule)
+        importedModule.registerUserValue(self)
         return importedModule
     
     def allGlobalValues(self):
@@ -1307,8 +1683,16 @@ class HIRModule(HIRValue):
         for value in self.globalValues:
             yield value
 
+    def usedValues(self):
+        return self.allGlobalValues()
+
+    def replaceUsedValueWith(self, usedValue, replacement):
+        self.importedModules = self.replacedUsedValueInListWith(self.importedModules, usedValue, replacement)
+        self.globalValues = self.replacedUsedValueInListWith(self.globalValues, usedValue, replacement)
+
     def addGlobalValue(self, globalValue: HIRGlobalValue):
         self.globalValues.append(globalValue)
+        globalValue.registerUserValue(self)
 
     def enumerateGlobalValues(self):
         index = 0
@@ -1420,7 +1804,7 @@ class HIRModuleFrontend:
         return self.translateConstantTypedValue(graphValue.value)
 
     def visitPrimitiveFunction(self, value: GHIRPrimitiveFunction) -> HIRValue:
-        return HIRConstantPrimitiveFunction(self.context, self.translateGraphValue(value.type), value.name, value.compileTimeImplementation)
+        return HIRConstantPrimitiveFunction(self.context, self.translateGraphValue(value.type), value.name, value.compileTimeImplementation, isPure = value.isPure, isMacro = value.isMacro)
 
     def visitArrayType(self, value: GHIRArrayType) -> HIRValue:
         elementType = self.translateGraphValue(value.elementType)
@@ -1553,6 +1937,8 @@ class HIRFunctionalDefinitionFrontend:
         resultValue = self.translateGraphValue(graphFunctionalDefinition.body)
         if not self.builder.isLastTerminator():
             self.builder.returnValue(resultValue)
+
+        hirDefinition.optimize()
 
     def translateGraphValue(self, graphValue: GHIRValue) -> HIRValue:
         if graphValue in self.localBindings:

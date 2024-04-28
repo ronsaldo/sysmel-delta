@@ -380,7 +380,7 @@ class SigmaValue(FunctionalValue):
         return True
     
 class PrimitiveFunction(TypedValue):
-    def __init__(self, type: TypedValue, value, name: Symbol = None, primitiveName: Symbol = None, isMacro = False, isPure = True) -> None:
+    def __init__(self, type: TypedValue, value, name: Symbol = None, primitiveName: Symbol = None, isMacro = False, isPure = False) -> None:
         self.type = type
         self.name = name
         self.primitiveName = primitiveName
@@ -492,7 +492,7 @@ def makeUncurriedFunctionType(signature: list[TypedValue], sourcePosition: Sourc
     assert len(signature) >= 1
     return UncurriedFunctionType(signature[:-1], signature[-1])
 
-def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False):
+def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedValue], function, sourcePosition: SourcePosition = EmptySourcePosition(), isMacro = False, isPure = False):
     assert len(signature) >= 2
     nameSymbol = None
     if name is not None:
@@ -500,16 +500,17 @@ def makePrimitiveFunction(name: str, primitiveName: str, signature: list[TypedVa
 
     if len(signature) == 2:
         functionType = makeSimpleFunctionType(signature, sourcePosition)
-        return PrimitiveFunction(functionType, function, nameSymbol, Symbol.intern(primitiveName), isMacro = isMacro)
+        return PrimitiveFunction(functionType, function, nameSymbol, Symbol.intern(primitiveName), isMacro = isMacro, isPure = isPure)
     else:
-        innerFunction = makePrimitiveFunction(name, primitiveName, signature[1:], function, sourcePosition, isMacro = isMacro)
+        innerFunction = makePrimitiveFunction(name, primitiveName, signature[1:], function, sourcePosition, isMacro = isMacro, isPure = isPure)
         functionType = makeFunctionTypeFromTo(signature[0], innerFunction.getType(), sourcePosition)
         return CurryingFunctionalValue(functionType, innerFunction, nameSymbol)
 
 def addPrimitiveFunctionDefinitionsToEnvironment(definitions, environment):
     for functionName, primitiveName, signature, function, extraFlags in definitions:
         isMacro = 'macro' in extraFlags
-        environment = environment.withPrimitiveFunction(makePrimitiveFunction(functionName, primitiveName, signature, function, isMacro = isMacro))
+        isPure = 'pure' in extraFlags
+        environment = environment.withPrimitiveFunction(makePrimitiveFunction(functionName, primitiveName, signature, function, isMacro = isMacro, isPure = isPure))
     return environment
 
 def letTypeWithMacro(macroContext: MacroContext, localName: ASTNode, expectedType: ASTNode, localValue: ASTNode) -> ASTNode:
@@ -788,119 +789,119 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
 for primitiveNumberType in NumberTypes:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['negated', prefix + 'negated', [primitiveNumberType, primitiveNumberType], lambda x: -x, []],
+        ['negated', prefix + 'negated', [primitiveNumberType, primitiveNumberType], lambda x: -x, ['pure']],
 
-        ['+', prefix + '+',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x + y, []],
-        ['-', prefix + '-',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x - y, []],
-        ['*', prefix + '*',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x * y, []],
+        ['+', prefix + '+',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x + y, ['pure']],
+        ['-', prefix + '-',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x - y, ['pure']],
+        ['*', prefix + '*',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x * y, ['pure']],
 
-        ['=', prefix + '=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.equals(y), []],
-        ['~=', prefix + '~=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.notEquals(y), []],
-        ['<', prefix + '<',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.lessThan(y), []],
-        ['<=', prefix + '<=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.lessOrEquals(y), []],
-        ['>', prefix + '>',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.greaterThan(y), []],
-        ['>=', prefix + '>=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.greaterOrEquals(y), []],
+        ['=',  prefix + '=',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.equals(y),          ['pure']],
+        ['~=', prefix + '~=', [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.notEquals(y),       ['pure']],
+        ['<',  prefix + '<',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.lessThan(y),        ['pure']],
+        ['<=', prefix + '<=', [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.lessOrEquals(y),    ['pure']],
+        ['>',  prefix + '>',  [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.greaterThan(y),     ['pure']],
+        ['>=', prefix + '>=', [(primitiveNumberType, primitiveNumberType), BooleanType], lambda x, y: x.greaterOrEquals(y), ['pure']],
 
-        ['min:', prefix + 'min:',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.minWith(y), []],
-        ['max:', prefix + 'max:',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.maxWith(y), []],
+        ['min:', prefix + 'min:',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.minWith(y), ['pure']],
+        ['max:', prefix + 'max:',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.maxWith(y), ['pure']],
 
-        ['asInt8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
-        ['asInt16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
-        ['asInt32', prefix + 'asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
-        ['asInt64', prefix + 'asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+        ['asInt8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), ['pure']],
+        ['asInt16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), ['pure']],
+        ['asInt32', prefix + 'asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), ['pure']],
+        ['asInt64', prefix + 'asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), ['pure']],
 
-        ['asUInt8',  prefix + 'asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
-        ['asUInt16', prefix + 'asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
-        ['asUInt32', prefix + 'asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
-        ['asUInt64', prefix + 'asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+        ['asUInt8',  prefix + 'asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), ['pure']],
+        ['asUInt16', prefix + 'asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), ['pure']],
+        ['asUInt32', prefix + 'asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), ['pure']],
+        ['asUInt64', prefix + 'asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), ['pure']],
 
-        ['asSize',        prefix + 'asSize',        [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), []],
-        ['asSignedSize',  prefix + 'asSignedSize',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), []],
-        ['asUIntPointer', prefix + 'asUIntPointer', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), []],
-        ['asIntPointer',  prefix + 'asIntPointer',  [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), []],
+        ['asSize',        prefix + 'asSize',        [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), ['pure']],
+        ['asSignedSize',  prefix + 'asSignedSize',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), ['pure']],
+        ['asUIntPointer', prefix + 'asUIntPointer', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), ['pure']],
+        ['asIntPointer',  prefix + 'asIntPointer',  [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), ['pure']],
 
-        ['asChar8',  prefix + 'asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
-        ['asChar16', prefix + 'asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
-        ['asChar32', prefix + 'asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
+        ['asChar8',  prefix + 'asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), ['pure']],
+        ['asChar16', prefix + 'asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), ['pure']],
+        ['asChar32', prefix + 'asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), ['pure']],
 
-        ['asFloat32', prefix + 'asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
-        ['asFloat64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
+        ['asFloat32', prefix + 'asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), ['pure']],
+        ['asFloat64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), ['pure']],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['bitInvert', prefix + 'bitInvert',  [primitiveNumberType, primitiveNumberType], lambda x: ~x, []],
+        ['bitInvert', prefix + 'bitInvert',  [primitiveNumberType, primitiveNumberType], lambda x: ~x, ['pure']],
 
-        ['&', prefix + '&',  [primitiveNumberType, primitiveNumberType], lambda x, y: x & y, []],
-        ['|', prefix + '|',  [primitiveNumberType, primitiveNumberType], lambda x, y: x | y, []],
-        ['^', prefix + '|',  [primitiveNumberType, primitiveNumberType], lambda x, y: x ^ y, []],
-        ['<<', prefix + '<<',  [primitiveNumberType, primitiveNumberType], lambda x, y: x << y, []],
-        ['>>', prefix + '>>',  [primitiveNumberType, primitiveNumberType], lambda x, y: x >> y, []],
+        ['&', prefix + '&',    [primitiveNumberType, primitiveNumberType], lambda x, y: x & y,  ['pure']],
+        ['|', prefix + '|',    [primitiveNumberType, primitiveNumberType], lambda x, y: x | y,  ['pure']],
+        ['^', prefix + '|',    [primitiveNumberType, primitiveNumberType], lambda x, y: x ^ y,  ['pure']],
+        ['<<', prefix + '<<',  [primitiveNumberType, primitiveNumberType], lambda x, y: x << y, ['pure']],
+        ['>>', prefix + '>>',  [primitiveNumberType, primitiveNumberType], lambda x, y: x >> y, ['pure']],
 
-        ['//', prefix + '//',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.quotientWith(y), []],
-        ['%', prefix + '%',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.remainderWith(y), []],
+        ['//', prefix + '//',  [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.quotientWith(y),  ['pure']],
+        ['%', prefix + '%',    [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x.remainderWith(y), ['pure']],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in PrimitiveFloatTypes:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['/',         prefix + '/',         [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, []],
-        ['sqrt',      prefix + 'sqrt',      [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
-        ['rounded',   prefix + 'rounded',   [primitiveNumberType, primitiveNumberType], lambda x: x.rounded(), []],
-        ['floor',     prefix + 'floor',     [primitiveNumberType, primitiveNumberType], lambda x: x.floor(), []],
-        ['ceil',      prefix + 'ceil',      [primitiveNumberType, primitiveNumberType], lambda x: x.ceil(), []],
-        ['truncated', prefix + 'truncated', [primitiveNumberType, primitiveNumberType], lambda x: x.truncated(), []],
+        ['/',         prefix + '/',         [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, ['pure']],
+        ['sqrt',      prefix + 'sqrt',      [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(),      ['pure']],
+        ['rounded',   prefix + 'rounded',   [primitiveNumberType, primitiveNumberType], lambda x: x.rounded(),   ['pure']],
+        ['floor',     prefix + 'floor',     [primitiveNumberType, primitiveNumberType], lambda x: x.floor(),     ['pure']],
+        ['ceil',      prefix + 'ceil',      [primitiveNumberType, primitiveNumberType], lambda x: x.ceil(),      ['pure']],
+        ['truncated', prefix + 'truncated', [primitiveNumberType, primitiveNumberType], lambda x: x.truncated(), ['pure']],
     ], TopLevelEnvironment)
 
 for primitiveNumberType in [IntegerType, Char32Type, Float64Type]:
     prefix = primitiveNumberType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['i8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), []],
-        ['i16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), []],
-        ['i32', prefix + 'asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), []],
-        ['i64', prefix + 'asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), []],
+        ['i8',  prefix + 'asInt8',  [primitiveNumberType,  Int8Type], lambda x: x.castToPrimitiveIntegerType( Int8Type), ['pure']],
+        ['i16', prefix + 'asInt16', [primitiveNumberType, Int16Type], lambda x: x.castToPrimitiveIntegerType(Int16Type), ['pure']],
+        ['i32', prefix + 'asInt32', [primitiveNumberType, Int32Type], lambda x: x.castToPrimitiveIntegerType(Int32Type), ['pure']],
+        ['i64', prefix + 'asInt64', [primitiveNumberType, Int64Type], lambda x: x.castToPrimitiveIntegerType(Int64Type), ['pure']],
 
-        ['u8',  prefix + 'asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), []],
-        ['u16', prefix + 'asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), []],
-        ['u32', prefix + 'asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), []],
-        ['u64', prefix + 'asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), []],
+        ['u8',  prefix + 'asUInt8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveIntegerType( UInt8Type), ['pure']],
+        ['u16', prefix + 'asUInt16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveIntegerType(UInt16Type), ['pure']],
+        ['u32', prefix + 'asUInt32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveIntegerType(UInt32Type), ['pure']],
+        ['u64', prefix + 'asUInt64', [primitiveNumberType, UInt64Type], lambda x: x.castToPrimitiveIntegerType(UInt64Type), ['pure']],
 
-        ['sz',   prefix + 'asSize',        [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), []],
-        ['ssz',  prefix + 'asSignedSize',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), []],
-        ['uptr', prefix + 'asUIntPointer', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), []],
-        ['iptr', prefix + 'asIntPointer',  [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), []],
+        ['sz',   prefix + 'asSize',        [primitiveNumberType, SizeType       ], lambda x: x.castToPrimitiveIntegerType(       SizeType), ['pure']],
+        ['ssz',  prefix + 'asSignedSize',  [primitiveNumberType, SignedSizeType ], lambda x: x.castToPrimitiveIntegerType( SignedSizeType), ['pure']],
+        ['uptr', prefix + 'asUIntPointer', [primitiveNumberType, UIntPointerType], lambda x: x.castToPrimitiveIntegerType(UIntPointerType), ['pure']],
+        ['iptr', prefix + 'asIntPointer',  [primitiveNumberType, IntPointerType ], lambda x: x.castToPrimitiveIntegerType( IntPointerType), ['pure']],
 
-        ['c8',  prefix + 'asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), []],
-        ['c16', prefix + 'asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), []],
-        ['c32', prefix + 'asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), []],
+        ['c8',  prefix + 'asChar8',  [primitiveNumberType,  UInt8Type], lambda x: x.castToPrimitiveCharacterType( Char8Type), ['pure']],
+        ['c16', prefix + 'asChar16', [primitiveNumberType, UInt16Type], lambda x: x.castToPrimitiveCharacterType(Char16Type), ['pure']],
+        ['c32', prefix + 'asChar32', [primitiveNumberType, UInt32Type], lambda x: x.castToPrimitiveCharacterType(Char32Type), ['pure']],
 
-        ['f32', prefix + 'asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), []],
-        ['f64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), []],
+        ['f32', prefix + 'asFloat32', [primitiveNumberType, Float32Type], lambda x: x.castToPrimitiveFloatType(Float32Type), ['pure']],
+        ['f64', prefix + 'asFloat64', [primitiveNumberType, Float64Type], lambda x: x.castToPrimitiveFloatType(Float64Type), ['pure']],
     ], TopLevelEnvironment)
 
 for primitiveVectorType in PrimitiveVectorTypes:
     prefix = primitiveVectorType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['negated', prefix + 'negated', [primitiveVectorType, primitiveVectorType], lambda x: -x, []],
+        ['negated', prefix + 'negated', [primitiveVectorType, primitiveVectorType], lambda x: -x, ['pure']],
 
-        ['+', prefix + '+',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x + y, []],
-        ['-', prefix + '-',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x - y, []],
-        ['*', prefix + '*',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x * y, []],
+        ['+', prefix + '+',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x + y, ['pure']],
+        ['-', prefix + '-',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x - y, ['pure']],
+        ['*', prefix + '*',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x * y, ['pure']],
 
-        ['min:', prefix + 'min:',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x.minWith(y), []],
-        ['max:', prefix + 'max:',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x.maxWith(y), []],
+        ['min:', prefix + 'min:',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x.minWith(y), ['pure']],
+        ['max:', prefix + 'max:',  [(primitiveVectorType, primitiveVectorType), primitiveVectorType], lambda x, y: x.maxWith(y), ['pure']],
     ], TopLevelEnvironment)
 
 for primitiveVectorType in PrimitiveFloatVectorTypes:
     prefix = primitiveVectorType.name + "::"
     TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
-        ['/',         prefix + '/',         [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, []],
-        ['sqrt',      prefix + 'sqrt',      [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(), []],
-        ['rounded',   prefix + 'rounded',   [primitiveNumberType, primitiveNumberType], lambda x: x.rounded(), []],
-        ['floor',     prefix + 'floor',     [primitiveNumberType, primitiveNumberType], lambda x: x.floor(), []],
-        ['ceil',      prefix + 'ceil',      [primitiveNumberType, primitiveNumberType], lambda x: x.ceil(), []],
-        ['truncated', prefix + 'truncated', [primitiveNumberType, primitiveNumberType], lambda x: x.truncated(), []],
+        ['/',         prefix + '/',         [(primitiveNumberType, primitiveNumberType), primitiveNumberType], lambda x, y: x / y, ['pure']],
+        ['sqrt',      prefix + 'sqrt',      [primitiveNumberType, primitiveNumberType], lambda x: x.sqrt(),      ['pure']],
+        ['rounded',   prefix + 'rounded',   [primitiveNumberType, primitiveNumberType], lambda x: x.rounded(),   ['pure']],
+        ['floor',     prefix + 'floor',     [primitiveNumberType, primitiveNumberType], lambda x: x.floor(),     ['pure']],
+        ['ceil',      prefix + 'ceil',      [primitiveNumberType, primitiveNumberType], lambda x: x.ceil(),      ['pure']],
+        ['truncated', prefix + 'truncated', [primitiveNumberType, primitiveNumberType], lambda x: x.truncated(), ['pure']],
     ], TopLevelEnvironment)
 
 TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(FalseType.getSingleton())

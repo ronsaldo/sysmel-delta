@@ -828,9 +828,9 @@ class MIRModule:
         result = ''
         for name, value, externalName in self.exportedValues:
             if externalName is not None:
-                result += 'export "%s" external %s := %s' % (name, externalName, value)
+                result += 'export "%s" external %s := %s\n' % (name, externalName, value)
             else:
-                result += 'export "%s" := %s' % (name, value)
+                result += 'export "%s" := %s\n' % (name, value)
         if self.entryPoint is not None:
             result += 'entryPoint: %s\n' % (self.entryPoint)
         if self.entryPointClosure is not None:
@@ -1162,8 +1162,8 @@ class MIRFunctionFrontend:
 
     def visitInsertValueInstruction(self, hirInstruction: HIRInsertValueInstruction):
         resultAggregate = self.translateAggregateResultFor(hirInstruction.getType(), hirInstruction, hirInstruction.aggregate, [hirInstruction.indices])
-        elementPointer = self.translateGetElementPointerAccesses(self.context.pointerType, resultAggregate, hirInstruction.aggregate.getType(), hirInstruction.indices)
         value = self.translateValue(hirInstruction.value)
+        elementPointer = self.translateGetElementPointerAccesses(self.context.pointerType, resultAggregate, hirInstruction.aggregate.getType(), hirInstruction.indices)
         self.builder.store(elementPointer, value)
         return resultAggregate
 
