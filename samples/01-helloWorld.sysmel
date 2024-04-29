@@ -5,9 +5,9 @@ Record: #TestRecord withFields: #{
     second: Int32.
 }.
 
-export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
-    :record :<= TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
-    :a, :b :<= argc, argc + 1i32.
+export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :> {
+    :record :< TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
+    :a, :b :< argc, argc + 1i32.
     printf("Hello World: %d\n" elements, a).
 
     :!i :<= 1i32.
@@ -18,8 +18,8 @@ export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])arg
     0i32
 }.
 
-export: #getFirst with: (:(TestRecord ref)record :: Int32) __cdecl :=> record first.
-export: #getSecond with: (:(TestRecord ref)record :: Int32) __cdecl :=> record second.
+export: #getFirst with: (:(TestRecord ref)record :: Int32) __cdecl :> record first.
+export: #getSecond with: (:(TestRecord ref)record :: Int32) __cdecl :> record second.
 
 ##export: #setFirst with: (:(TestRecord mutable ref)record :(Int32)value :: Void) __cdecl :=> (record first := value).
 ##export: #setFirst with: (:(TestRecord ref)record :(Int32)value :: Void) __cdecl :=> record first: value.

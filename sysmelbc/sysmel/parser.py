@@ -471,7 +471,7 @@ def parseFunctionalTypeWithOptionalArgument(state: ParserState) -> tuple[ParserS
 def parseRebindExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
     state, patternExpressionOrValue = parseFunctionalTypeWithOptionalArgument(state)
-    if state.peekKind() == TokenKind.REBIND_ARROW:
+    if state.peekKind() == TokenKind.REBIND_OPERATOR:
         state.advance()
         state, boundValue = parseRebindExpression(state)
         return state, ASTRebindPatternNode(state.sourcePositionFrom(startPosition), patternExpressionOrValue, boundValue)
