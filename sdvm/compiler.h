@@ -262,6 +262,21 @@ struct sdvm_functionCompilationDebugInfo_s
     size_t endPC;
 };
 
+typedef enum sdvm_compilerDebugLineInfoTableEntryKind_e
+{
+    SdvmDebugLineInfoKindStatement = 0,
+    SdvmDebugLineInfoKindBeginPrologue,
+    SdvmDebugLineInfoKindEndPrologue,
+    SdvmDebugLineInfoKindBeginEpilogue,
+} sdvm_compilerDebugLineInfoTableEntryKind_t;
+
+typedef struct sdvm_compilerDebugLineInfoTableEntry_s
+{
+    sdvm_compilerDebugLineInfoTableEntryKind_t kind;
+    uint32_t pc;
+    sdvm_debugSourceLineInfo_t lineInfo;
+} sdvm_compilerDebugLineInfoTableEntry_t;
+
 typedef struct sdvm_moduleCompilationState_s
 {
     sdvm_compiler_t *compiler;
@@ -511,6 +526,7 @@ struct sdvm_functionCompilationState_s
     sdvm_module_t *module;
     sdvm_moduleCompilationState_t *moduleState;
     sdvm_compilerSymbolHandle_t symbol;
+    sdvm_debugFunctionTableEntry_t *debugFunctionTableEntry;
     sdvm_functionCompilationDebugInfo_t *debugInfo;
 
     const sdvm_compilerCallingConvention_t *callingConvention;
@@ -629,7 +645,7 @@ SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_windows(vo
 
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);
 SDVM_API void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state);
-SDVM_API void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t *state, sdvm_debugSourceLineInfo_t lineInfo);
+SDVM_API void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t *state, sdvm_compilerDebugLineInfoTableEntryKind_t kind, sdvm_debugSourceLineInfo_t lineInfo);
 
 SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval);
 

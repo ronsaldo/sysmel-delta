@@ -954,8 +954,8 @@ void sdvm_compiler_aarch64_emitFunctionPrologue(sdvm_functionCompilationState_t 
     sdvm_compiler_aarch64_ensureCIE(state->moduleState);
     sdvm_dwarf_cfi_beginFDE(cfi, &compiler->textSection, sdvm_compiler_getCurrentPC(compiler));
 
-    if(compiler->target->usesCET)
-        sdvm_compiler_x86_endbr64(compiler);
+    if(state->debugFunctionTableEntry)
+        sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindBeginPrologue, state->debugFunctionTableEntry->declarationLineInfo);
 
     if(!state->requiresStackFrame)
     {
@@ -1576,7 +1576,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
 
 void sdvm_compiler_aarch64_emitFunctionInstruction(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
-    sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, instruction->debugSourceLineInfo);
+    sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindStatement, instruction->debugSourceLineInfo);
 
     if(instruction->decoding.isConstant)
     {

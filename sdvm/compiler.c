@@ -273,7 +273,7 @@ void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state
     state->functionDebugInfos = calloc(module->functionTableSize, sizeof(sdvm_functionCompilationDebugInfo_t));
     state->startPC = state->endPC = compiler->textSection.contents.size;
 
-    sdvm_dynarray_initialize(&state->debugLineInfoTable, sizeof(sdvm_debugSourceLineDataTableEntry_t), 512);
+    sdvm_dynarray_initialize(&state->debugLineInfoTable, sizeof(sdvm_compilerDebugLineInfoTableEntry_t), 512);
 
     sdvm_dwarf_cfi_create(&state->cfi, &compiler->ehFrameSection);
     sdvm_dwarf_debugInfo_create(&state->dwarf, compiler);
@@ -306,7 +306,7 @@ bool sdvm_moduleCompilationState_emitDebugLineInfo(sdvm_moduleCompilationState_t
         return false;
 
     size_t lineDataTableSize = state->debugLineInfoTable.size;
-    sdvm_debugSourceLineDataTableEntry_t *lineDataTable = (sdvm_debugSourceLineDataTableEntry_t *)state->debugLineInfoTable.data;
+    sdvm_compilerDebugLineInfoTableEntry_t *lineDataTable = (sdvm_compilerDebugLineInfoTableEntry_t *)state->debugLineInfoTable.data;
 
     // Preprocessing step.
     int32_t previousLine = 1;
@@ -368,7 +368,7 @@ bool sdvm_moduleCompilationState_emitDebugLineInfo(sdvm_moduleCompilationState_t
 
     for(size_t i = 0; i < lineDataTableSize; ++i)
     {
-        sdvm_debugSourceLineDataTableEntry_t *entry = lineDataTable + i;
+        sdvm_compilerDebugLineInfoTableEntry_t *entry = lineDataTable + i;
         if(entry->lineInfo.sourceCode == 0)
             continue;
 
@@ -443,15 +443,15 @@ void sdvm_moduleCompilationState_destroy(sdvm_moduleCompilationState_t *state)
     free(state->functionDebugInfos);
 }
 
-void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t *state, sdvm_debugSourceLineInfo_t lineInfo)
+void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t *state, sdvm_compilerDebugLineInfoTableEntryKind_t kind, sdvm_debugSourceLineInfo_t lineInfo)
 {
     uint32_t pc = (uint32_t)state->compiler->textSection.contents.size;
-    sdvm_debugSourceLineDataTableEntry_t *entries = (sdvm_debugSourceLineDataTableEntry_t *)state->debugLineInfoTable.data;
+    sdvm_compilerDebugLineInfoTableEntry_t *entries = (sdvm_compilerDebugLineInfoTableEntry_t *)state->debugLineInfoTable.data;
     sdvm_debugSourceLineInfo_t lastLineInfo = {};
 
     if(state->debugLineInfoTable.size != 0)
     {
-        sdvm_debugSourceLineDataTableEntry_t *lastEntry = entries + state->debugLineInfoTable.size - 1;
+        sdvm_compilerDebugLineInfoTableEntry_t *lastEntry = entries + state->debugLineInfoTable.size - 1;
         if(lastEntry->pc == pc)
         {
             lastEntry->lineInfo = lineInfo;
@@ -464,7 +464,8 @@ void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t 
     if(memcmp(&lastLineInfo, &lineInfo, sizeof(sdvm_debugSourceLineInfo_t)) == 0)
         return;
 
-    sdvm_debugSourceLineDataTableEntry_t newEntry = {
+    sdvm_compilerDebugLineInfoTableEntry_t newEntry = {
+        .kind = kind,
         .pc = pc,
         .lineInfo = lineInfo
     };
@@ -3087,6 +3088,7 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         .compiler = moduleState->compiler,
         .module = moduleState->module,
         .moduleState = moduleState,
+        .debugFunctionTableEntry = debugFunctionTableEntry,
         .debugInfo = functionDebugInfo,
         .symbol = symbol,
         .sourceInstructions = (sdvm_constOrInstruction_t*)(moduleState->module->textSectionData + functionTableEntry->textSectionOffset),

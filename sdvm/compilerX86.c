@@ -3775,6 +3775,9 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
     sdvm_compiler_x64_ensureCIE(state->moduleState);
     sdvm_dwarf_cfi_beginFDE(cfi, &compiler->textSection, sdvm_compiler_getCurrentPC(compiler));
 
+    if(state->debugFunctionTableEntry)
+        sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindBeginPrologue, state->debugFunctionTableEntry->declarationLineInfo);
+
     if(compiler->target->usesCET)
         sdvm_compiler_x86_endbr64(compiler);
 
@@ -5408,7 +5411,7 @@ void sdvm_compiler_x64_emitFunctionInstruction(sdvm_functionCompilationState_t *
     if(instruction->isBackwardBranchDestination || instruction->isIndirectBranchDestination)
         sdvm_compiler_x86_alignReacheableCode(state->compiler);
 
-    sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, instruction->debugSourceLineInfo);
+    sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindStatement, instruction->debugSourceLineInfo);
 
     if(instruction->isIndirectBranchDestination && state->compiler->target->usesCET)
         sdvm_compiler_x86_endbr64(state->compiler);
