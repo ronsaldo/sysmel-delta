@@ -239,6 +239,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTupleAtNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedApplicationNode(self, node):
         pass
 
@@ -849,6 +853,28 @@ class ASTTupleNode(ASTNode):
 
     def attemptToUnpackTupleExpressionsAt(self, sourcePosition):
         return self.elements
+    
+    def expandBindingOfValueWithAt(self, value, typechecker, sourcePosition: SourcePosition):
+        from .typechecker import getTypeOfAnalyzedNode
+        ## Check the tuple rank.
+        typedValue = typechecker.visitNode(value)
+        tupleRank = getTypeOfAnalyzedNode(typedValue, sourcePosition).getRankOfProductTypeOrNone()
+        if tupleRank is None:
+            return ASTSequenceNode(sourcePosition, typedValue, ASTSequenceNode("Cannot unpack value without a tuple rank."))
+        elif tupleRank != len(self.elements):
+            return ASTSequenceNode(sourcePosition, typedValue, ASTSequenceNode("Cannot unpack %d values from a tuple of rank %d." % (len(self.elements, tupleRank))))
+
+        ## Bind the value in an anonymous variable.
+        bindingExpressions, bindingReferenceExpression = typechecker.bindAnonymousValueExpression(typedValue, sourcePosition)
+        sequenceExpressions = []
+        sequenceExpressions += bindingExpressions
+        for i in range(len(self.elements)):
+            tupleElement = ASTTupleAtNode(sourcePosition, bindingReferenceExpression, ASTLiteralNode(sourcePosition, IntegerValue(i)))
+            tuplePatternElement = self.elements[i].expandBindingOfValueWithAt(tupleElement, typechecker, sourcePosition)
+            sequenceExpressions.append(tuplePatternElement)
+
+        sequenceExpressions.append(bindingReferenceExpression)
+        return ASTSequenceNode(sourcePosition, sequenceExpressions)
 
     def parseAndUnpackArgumentsPattern(self):
         isExistential = False
@@ -861,6 +887,18 @@ class ASTTupleNode(ASTNode):
     
     def toJson(self) -> dict:
         return {'kind': 'Tuple', 'elements': list(map(optionalASTNodeToJson, self.elements))}
+
+class ASTTupleAtNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, tuple: ASTNode, index: ASTNode) -> None:
+        super().__init__(sourcePosition)
+        self.tuple = tuple
+        self.index = index
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTupleAtNode(self)
+
+    def toJson(self) -> dict:
+        return {'kind': 'TupleAt', 'tuple': self.tuple.toJson(), 'index': self.index.toJson()}
 
 class ASTRecordNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, fieldNames: list[ASTNode], fieldValues: list[ASTNode]) -> None:
@@ -1081,7 +1119,16 @@ class ASTProductTypeNode(ASTTypeNode):
                 self.typeUniverseIndex = max(self.typeUniverseIndex, elementType.computeTypeUniverseIndex())
         
         return self.typeUniverseIndex
-    
+
+    def getRankOfProductTypeOrNone(self):
+        return len(self.elementTypes)
+
+    def findTypeOfFieldAtIndexOrNoneAt(self, index: int, sourcePosition):
+        if index < len(self.elementTypes):
+            return self.elementTypes[index]
+        else:
+            return None
+
     def accept(self, visitor):
         return visitor.visitProductTypeNode(self)
     
@@ -1865,6 +1912,10 @@ class ASTSequentialVisitor(ASTVisitor):
         for expression in node.elements:
             self.visitOptionalNode(expression)
 
+    def visitTupleAtNode(self, node: ASTTupleAtNode):
+        self.visitNode(node.tuple)
+        self.visitNode(node.index)
+
     def visitRecordNode(self, node: ASTRecordNode):
         self.visitNode(node.type)
         for expression in node.fieldNames:
@@ -2237,6 +2288,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitTupleNode(self, node):
+        assert False
+
+    def visitTupleAtNode(self, node):
         assert False
 
     def visitRecordNode(self, node):

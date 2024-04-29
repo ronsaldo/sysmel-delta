@@ -151,6 +151,9 @@ class Typechecker(ASTVisitor):
     def evaluateString(self, node: ASTNode) -> Symbol:
         return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, StringType))
 
+    def evaluateInteger(self, node: ASTNode) -> Symbol:
+        return self.evaluateReducedLiteral(self.visitNodeWithExpectedType(node, IntegerType))
+
     def evaluateOptionalSymbol(self, node: ASTNode) -> Symbol:
         if node is None:
             return None
@@ -630,6 +633,17 @@ class Typechecker(ASTVisitor):
         typeBinding = SymbolLocalBinding(typeNode.sourcePosition, name, typeUniverse, typeNode, False)
         self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(typeBinding)
         return ASTTypedBindingDefinitionNode(typeNode.sourcePosition, typeUniverse, typeBinding, typeNode, isMutable = False, isPublic = False, module = None)
+    
+    def bindAnonymousValueExpression(self, valueExpression: ASTNode, sourcePosition: SourcePosition):
+        typedValue = self.visitNode(valueExpression)
+        if typedValue.isTypedLiteralNode() or typedValue.isLiteralTypeNode():
+            return [], valueExpression
+        
+        typeExpression = getTypeOfAnalyzedNode(typedValue, sourcePosition)
+        valueBinding = SymbolLocalBinding(sourcePosition, None, typeExpression, typedValue, False)
+        bindingDefinitionNode = ASTTypedBindingDefinitionNode(sourcePosition, typeExpression, valueBinding, typedValue, isMutable = False, isPublic = False, module = None)
+        bindingReferenceNode = ASTTypedIdentifierReferenceNode(sourcePosition, typeExpression, valueBinding)
+        return [bindingDefinitionNode], bindingReferenceNode
         
     def visitFormRecordTypeNode(self, node: ASTFormRecordTypeNode):
         name = self.evaluateOptionalSymbol(node.name)
@@ -876,15 +890,10 @@ class Typechecker(ASTVisitor):
 
                 ## Getter.
                 analyzedDecayedReceiverType = decayTypeExpression(analyzedReceiverType)
-                receiverIsReferenceLike = analyzedReceiverType.isReferenceLikeTypeNodeOrLiteral()
                 if len(node.arguments) == 0:
                     fieldIndex, fieldType = analyzedDecayedReceiverType.findIndexOfFieldOrNoneAt(selector, node.sourcePosition)
                     if fieldIndex is not None:
-                        if receiverIsReferenceLike:
-                            fieldResultType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, fieldType))
-                        else:
-                            fieldResultType = fieldType
-                        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldResultType, analyzedReceiver, fieldIndex, not receiverIsReferenceLike))
+                        return self.visitNode(ASTTupleAtNode(node.sourcePosition, analyzedReceiver, ASTLiteralNode(node.sourcePosition, IntegerValue(fieldIndex))))
 
             selectorNode = ASTIdentifierReferenceNode(node.selector.sourcePosition, selector)
         else:
@@ -1042,6 +1051,26 @@ class Typechecker(ASTVisitor):
         tupleType = reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
         return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements, False))
 
+    def visitTupleAtNode(self, node: ASTTupleAtNode):
+        tuple = self.visitNode(node.tuple)
+        indexValue, indexValueError = self.evaluateInteger(node.index)
+        if indexValueError is not None:
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, [tuple, indexValueError]))
+        index: int = indexValue.value
+
+        tupleType = getTypeOfAnalyzedNode(tuple, node.sourcePosition)
+        tupleDecayedType = decayTypeExpression(tupleType)
+        tupleIsReferenceLike = tupleType.isReferenceLikeTypeNodeOrLiteral()
+        tupleElementType = tupleDecayedType.findTypeOfFieldAtIndexOrNoneAt(index, node.sourcePosition)
+        if tupleElementType is None:
+            return self.visitNode(ASTSequenceNode(node.sourcePosition, [tuple, ASTErrorNode(node.sourcePosition, '%s does not have a field at index %d.' % (tupleType.prettyPrint(), index))]))
+
+        if tupleIsReferenceLike:
+            fieldResultType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, tupleElementType))
+        else:
+            fieldResultType = tupleElementType
+        return reduceTupleAtNode(ASTTypedTupleAtNode(node.sourcePosition, fieldResultType, tuple, index, not tupleIsReferenceLike))
+
     def visitRecordNode(self, node: ASTRecordNode):
         recordTypeExpression = self.visitTypeExpression(node.type)
         if not recordTypeExpression.isRecordTypeNodeOrLiteral():
@@ -1195,7 +1224,7 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedBindingDefinitionNode(self, node: ASTTypedBindingDefinitionNode):
-        assert False
+        return node
 
     def visitTypedOverloadedApplicationNode(self, node: ASTTypedOverloadedApplicationNode):
         return node

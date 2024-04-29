@@ -196,9 +196,15 @@ class TypedValue(ABC):
 
     def isTemporaryReferenceType(self) -> bool:
         return False
-    
-    def findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition) -> int:
+
+    def getRankOfProductTypeOrNone(self):
+        return None    
+
+    def findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition):
         return None, None
+
+    def findTypeOfFieldAtIndexOrNoneAt(self, index: int, sourcePosition):
+        return None
 
     def getBaseTypeExpressionAt(self, sourcePosition):
         assert False
@@ -963,6 +969,15 @@ class ProductType(BaseType):
     def toJson(self):
         return {'productType': list(map(lambda v: v.toJson(), self.elementTypes))}
     
+    def findTypeOfFieldAtIndexOrNoneAt(self, index: int, sourcePosition):
+        if index < len(self.elementTypes):
+            return ASTLiteralTypeNode(sourcePosition, self.elementTypes[index])
+        else:
+            return None
+    
+    def getRankOfProductTypeOrNone(self):
+        return len(self.elementTypes)
+
     @classmethod
     def makeWithElementTypes(cls, elementTypes: list[TypedValue]):
         productKey = tuple(elementTypes)
@@ -1221,6 +1236,12 @@ class DecoratedType(DerivedType):
 
     def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition) -> int:
         return self.baseType.findIndexOfFieldOrNoneAt(self, fieldName, sourcePosition)
+    
+    def findTypeOfFieldAtIndexOrNoneAt(self, index: int, sourcePosition):
+        return self.baseType.findTypeOfFieldAtIndexOrNoneAt(index, sourcePosition)
+        
+    def getRankOfProductTypeOrNone(self):
+        return self.baseType.getRankOfProductTypeOrNone()
     
     def prettyPrint(self) -> str:
         result = self.baseType.prettyPrint()
@@ -1669,6 +1690,12 @@ class ASTLiteralTypeNode(ASTTypeNode):
 
     def findIndexOfFieldOrNoneAt(self, fieldName: TypedValue, sourcePosition: SourcePosition) -> int:
         return self.value.findIndexOfFieldOrNoneAt(fieldName, sourcePosition)
+    
+    def findTypeOfFieldAtIndexOrNoneAt(self, index: int, sourcePosition):
+        return self.value.findTypeOfFieldAtIndexOrNoneAt(index, sourcePosition)
+
+    def getRankOfProductTypeOrNone(self):
+        return self.value.getRankOfProductTypeOrNone()
     
     def withCallingConventionNamed(self, callingConventionName: TypedValue):
         return ASTLiteralTypeNode(SourceCode, self.value.withCallingConventionNamed(callingConventionName))

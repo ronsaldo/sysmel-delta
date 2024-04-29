@@ -7,7 +7,8 @@ Record: #TestRecord withFields: #{
 
 export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :=> {
     :record :<= TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
-    printf("Hello World: %d\n" elements, record first).
+    :a, :b :<= argc, argc + 1i32.
+    printf("Hello World: %d\n" elements, a).
 
     :!i :<= 1i32.
     while: (i < argc) do: {
