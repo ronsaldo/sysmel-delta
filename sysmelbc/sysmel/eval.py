@@ -73,7 +73,7 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         alternativeTypes = []
         for alternativeType in node.alternativeTypes:
             alternativeTypes.append(self.visitNode(alternativeType))
-        return SumType.makeWithElementTypes(alternativeTypes)
+        return SumType.makeWithVariantTypes(alternativeTypes)
 
     def visitTypedApplicationNode(self, node: ASTTypedApplicationNode):
         for implicitBinding, implicitValueNode in node.implicitValueSubstitutions:

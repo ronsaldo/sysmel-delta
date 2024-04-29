@@ -686,6 +686,8 @@ def arraySubscriptAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, ind
 def arrayAtPutMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
     return ASTPointerLikeStoreNode(macroContext.sourcePosition, pointer, index, True)
 
+def formSumPairMacro(macroContext: MacroContext, left: ASTTypedNode, right: ASTNode):
+    return ASTFormSumTypeNode(macroContext.sourcePosition, [left, right])
 
 ArrayTypeMacros = {}
 for name, expander in [
@@ -724,6 +726,7 @@ for name, expander in [
     ('pointer', formPointerTypeMacro),
     ('ref', formReferenceTypeMacro),
     ('tempRef', formTemporaryReferenceTypeMacro),
+    ('|', formSumPairMacro),
 ]:
     TypeMacros[Symbol.intern(name)] = expander
 
@@ -835,7 +838,7 @@ for primitiveNumberType in [IntegerType] + PrimitiveIntegerTypes:
 
         ['&', prefix + '&',    [primitiveNumberType, primitiveNumberType], lambda x, y: x & y,  ['pure']],
         ['|', prefix + '|',    [primitiveNumberType, primitiveNumberType], lambda x, y: x | y,  ['pure']],
-        ['^', prefix + '|',    [primitiveNumberType, primitiveNumberType], lambda x, y: x ^ y,  ['pure']],
+        ['^', prefix + '^',    [primitiveNumberType, primitiveNumberType], lambda x, y: x ^ y,  ['pure']],
         ['<<', prefix + '<<',  [primitiveNumberType, primitiveNumberType], lambda x, y: x << y, ['pure']],
         ['>>', prefix + '>>',  [primitiveNumberType, primitiveNumberType], lambda x, y: x >> y, ['pure']],
 

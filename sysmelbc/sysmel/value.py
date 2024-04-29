@@ -164,6 +164,9 @@ class TypedValue(ABC):
     def isRecordType(self) -> bool:
         return False
 
+    def isSumType(self) -> bool:
+        return False
+
     def isEquivalentTo(self, other) -> bool:
         return self == other
 
@@ -220,11 +223,17 @@ class TypedValue(ABC):
 
     def isReferenceLikeTypeNodeOrLiteral(self) -> bool:
         return False
-    
+
     def isProductTypeNodeOrLiteral(self) -> bool:
         return False
 
     def isRecordTypeNodeOrLiteral(self) -> bool:
+        return False
+
+    def isSumTypeNodeOrLiteral(self) -> bool:
+        return False
+
+    def isSumTypeNode(self) -> bool:
         return False
 
     def isCVarArgTypeNode(self) -> bool:
@@ -1076,6 +1085,9 @@ class SumTypeValue(TypedValue):
     def interpretAsBoolean(self) -> bool:
         return self.variantIndex != 0
     
+    def isSumTypeValue(self) -> bool:
+        return True
+    
     def prettyPrint(self) -> str:
         return self.value.prettyPrint()
 
@@ -1088,6 +1100,9 @@ class SumType(BaseType):
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitSumType(self)
+    
+    def isSumType(self) -> bool:
+        return True
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         if not isinstance(other, SumType): return False
@@ -1121,6 +1136,18 @@ class SumType(BaseType):
         sumType = cls(key)
         cls.SumTypeCache[key] = sumType
         return sumType
+    
+    def prettyPrint(self) -> str:
+        if self.name is not None:
+            return self.name
+        
+        result = '('
+        for i in range(len(self.variantTypes)):
+            if i > 0:
+                result += '|'
+            result += self.variantTypes[i].prettyPrint()
+        result += ')'
+        return result
 
 class DictionaryTypeValue(TypedValue):
     def __init__(self, type: TypedValue, elements: list[TypedValue]) -> None:
@@ -1761,7 +1788,10 @@ class ASTLiteralTypeNode(ASTTypeNode):
     
     def isRecordTypeNodeOrLiteral(self) -> bool:
         return self.value.isRecordType()
-    
+
+    def isSumTypeNodeOrLiteral(self) -> bool:
+        return self.value.isSumType()
+
     def isCVarArgTypeNode(self) -> bool:
         return self.value.isCVarArgType()
     

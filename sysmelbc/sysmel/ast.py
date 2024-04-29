@@ -646,11 +646,9 @@ class ASTFormRecordTypeNode(ASTNode):
         return {'kind': 'FormRecordType', 'name' : optionalASTNodeToJson(self.name), 'fieldNames': list(map(lambda n: n.toJson(), self.fieldNames)), 'fieldTypes': list(map(lambda n: n.toJson(), self.fieldTypes))}
     
 class ASTFormSumTypeNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, name: ASTNode, elements: list[ASTNode], isRecursive: bool = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
         super().__init__(sourcePosition)
-        self.name = name
         self.elements = elements
-        self.isRecursive = isRecursive
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFormSumTypeNode(self)
@@ -1184,6 +1182,9 @@ class ASTSumTypeNode(ASTTypeNode):
         return visitor.visitSumTypeNode(self)
 
     def isSumTypeNode(self) -> bool:
+        return True
+    
+    def isSumTypeNodeOrLiteral(self) -> bool:
         return True
 
     def toJson(self) -> dict:

@@ -1883,6 +1883,25 @@ def reduceRecordTypeNode(node: ASTRecordTypeNode):
         return ASTLiteralTypeNode(node.sourcePosition, RecordType(list(map(lambda n: n.value, node.elementTypes)), node.fieldNames, nameValue))
     return node
 
+def reduceSumTypeNode(node: ASTSumTypeNode):
+    if len(node.alternativeTypes) == 0:
+        return ASTLiteralTypeNode(node.sourcePosition, AbortType)
+    elif len(node.alternativeTypes) == 1:
+        return node.alternativeTypes[0]
+    elif len(node.alternativeTypes) == 2:
+        if node.alternativeTypes[0].isSumTypeNode():
+            return reduceSumTypeNode(ASTSumTypeNode(node.sourcePosition, node.alternativeTypes[0].alternativeTypes + node.alternativeTypes[1:]))
+        elif node.alternativeTypes[0].isSumTypeNodeOrLiteral():
+            newAlternativeTypes = []
+            for alternativeType in node.alternativeTypes[0].value.variantTypes:
+                newAlternativeTypes.append(ASTLiteralTypeNode(node.sourcePosition, alternativeType))
+            newAlternativeTypes += node.alternativeTypes[1:]
+            return reduceSumTypeNode(ASTSumTypeNode(node.sourcePosition, newAlternativeTypes))
+
+    if all(alternativeType.isLiteralTypeNode() for alternativeType in node.alternativeTypes):
+        return ASTLiteralTypeNode(node.sourcePosition, SumType.makeWithVariantTypes(list(map(lambda n: n.value, node.alternativeTypes))))
+    return node
+
 def reduceDictionaryTypeNode(node: ASTDictionaryTypeNode):
     if node.keyType.isLiteralTypeNode() and node.valueType.isLiteralTypeNode():
         return ASTLiteralTypeNode(node.sourcePosition, DictionaryType.makeWithKeyAndValueType(node.keyType.value, node.valueType.value))
@@ -1928,13 +1947,6 @@ def reduceFromExternalImportNode(node: ASTTypedFromExternalImportWithTypeNode):
         type: TypedValue = node.type.value
         importedValue = ImportedExternalValue(node.externalName, node.name, type)
         return ASTTypedLiteralNode(node.sourcePosition, type, importedValue)
-    return node
-
-def reduceSumTypeNode(node: ASTSumTypeNode):
-    if len(node.alternativeTypes) == 0:
-        return ASTLiteralTypeNode(node.sourcePosition, AbortType)
-    elif len(node.alternativeTypes) == 1:
-        return node.alternativeTypes[0]
     return node
 
 def reduceIfNode(node: ASTTypedIfNode):
