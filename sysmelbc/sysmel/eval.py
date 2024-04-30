@@ -242,6 +242,11 @@ class ASTEvaluator(ASTTypecheckedVisitor):
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode) -> TypedValue:
         tuple = self.visitNode(node.tuple)
         return tuple[node.index]
+    
+    def visitTypedInjectSumNode(self, node: ASTTypedInjectSumNode) -> TypedValue:
+        type: SumType = self.visitNode(node.type)
+        value = self.visitNode(node.value)
+        return type.makeWithTypeIndexAndValue(node.variantIndex, value)
 
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
         module = self.visitNode(node.module)

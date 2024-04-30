@@ -253,6 +253,14 @@ class GHIRVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTupleAtExpression(self, value):
+        pass
+
+    @abstractmethod
+    def visitInjectSumExpression(self, value):
+        pass
+
+    @abstractmethod
     def visitApplicationValue(self, value):
         pass
 
@@ -1592,6 +1600,40 @@ class GHIRTupleAtExpression(GHIRValue):
                 tupleExpression = tupleExpression.tuple
         return super().simplify()
     
+class GHIRInjectSumExpression(GHIRValue):
+    def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, variantIndex: int, value: GHIRValue) -> None:
+        super().__init__(context, sourcePosition)
+        self.type = type
+        self.variantIndex = variantIndex
+        self.value = value
+        self.registerInUsedValues()
+
+    def accept(self, visitor: GHIRVisitor):
+        return visitor.visitInjectSumExpression(self)
+
+    def getType(self) -> GHIRValue:
+        return self.type
+
+    def isInjectSumExpression(self) -> bool:
+        return True
+
+    def fullPrintGraph(self, graphPrinter: GHIRGraphPrinter, valueName: str):
+        type = graphPrinter.printValue(self.type)
+        value = graphPrinter.printValue(self.type)
+        graphPrinter.printLine('%s := injectSumAt %d with %s : %s' % (valueName, self.variantIndex, value, type))
+
+    def usedValues(self):
+        yield self.type
+        yield self.value
+
+    def replaceUsedValueWith(self, usedValue: GHIRValue, replacement: GHIRValue):
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+        if self.type is usedValue:
+            self.type = replacement
+            replacement.registerUserValue(self)
+
 class GHIRApplicationValue(GHIRValue):
     def __init__(self, context: GHIRContext, sourcePosition: SourcePosition, type: GHIRValue, functional: GHIRValue, arguments: list[GHIRValue]) -> None:
         super().__init__(context, sourcePosition)
@@ -2174,6 +2216,11 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         tuple = self.translateExpression(node.tuple)
         return GHIRTupleAtExpression(self.context, node.sourcePosition, type, tuple, node.index, node.loadResult).simplify()
 
+    def visitTypedInjectSumNode(self, node: ASTTypedInjectSumNode) -> TypedValue:
+        type = self.translateExpression(node.type)
+        value = self.translateExpression(node.value)
+        return GHIRInjectSumExpression(self.context, node.sourcePosition, type, node.variantIndex, value).simplify()
+
     def visitTypedFromModuleImportNode(self, node):
         assert False
 
@@ -2350,6 +2397,9 @@ class GHIRRuntimeDependencyChecker(GHIRVisitor):
 
     def visitTupleAtExpression(self, value: GHIRTupleAtExpression):
         return self.checkValue(value.tuple)
+
+    def visitInjectSumExpression(self, value: GHIRInjectSumExpression):
+        return self.checkValue(value.value)
 
     def visitApplicationValue(self, value: GHIRApplicationValue):
         return True

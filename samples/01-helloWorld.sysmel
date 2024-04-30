@@ -1,3 +1,5 @@
+let: #test type: Int32 | Float32 with: 42i32.
+
 #*
 let: #printf with: (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
 
@@ -39,4 +41,3 @@ export: #getSecond with: (:(TestRecord ref)record :: Int32) __cdecl :> record se
 
 ##:x ## :<= 42i32.
 *#
-(Int32 | Int64) | Float32

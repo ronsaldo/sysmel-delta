@@ -355,6 +355,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitTypedInjectSumNode(self, node):
+        pass
+
+    @abstractmethod
     def visitTypedFromModuleImportNode(self, node):
         pass
 
@@ -1186,6 +1190,12 @@ class ASTSumTypeNode(ASTTypeNode):
     
     def isSumTypeNodeOrLiteral(self) -> bool:
         return True
+    
+    def findIndexOfSumVariantOrNoneAt(self, valueTypeExpression, sourcePosition):
+        for i in range(len(self.alternativeTypes)):
+            if self.alternativeTypes[i].isEquivalentTo(valueTypeExpression):
+                return i
+        return None
 
     def toJson(self) -> dict:
         return {'kind': 'SumType', 'alternativeTypes': list(map(optionalASTNodeToJson, self.alternativeTypes))}
@@ -1619,6 +1629,22 @@ class ASTTypedDictionaryNode(ASTTypedNode):
     def toJson(self) -> dict:
         return {'kind': 'TypedDictionary', 'type': self.type.toJson(), 'elements': list(map(optionalASTNodeToJson, self.elements))}
     
+class ASTTypedInjectSumNode(ASTTypedNode):
+    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, variantIndex: int, value: ASTNode) -> None:
+        super().__init__(sourcePosition, type)
+        self.variantIndex = variantIndex
+        self.value = value
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitTypedInjectSumNode(self)
+
+    def isTypedInjectSumNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'TypedInjectSum', 'type': self.type.toJson(), 'variantIndex' : self.variantIndex, 'value': self.value.toJson()}
+
+
 class ASTTypedTupleNode(ASTTypedNode):
     def __init__(self, sourcePosition: SourcePosition, type: ASTNode, elements: list[ASTNode], isRecord: bool) -> None:
         super().__init__(sourcePosition, type)
@@ -2121,6 +2147,10 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
         self.visitNode(node.type)
         self.visitNode(node.tuple)
+
+    def visitTypedInjectSumNode(self, node: ASTTypedInjectSumNode):
+        self.visitNode(node.type)
+        self.visitNode(node.value)
 
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
         self.visitNode(node.type)

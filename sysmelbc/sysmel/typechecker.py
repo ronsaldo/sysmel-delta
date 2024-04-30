@@ -33,9 +33,9 @@ class Typechecker(ASTVisitor):
             return self.visitNode(node)
 
         typedNode = self.visitNode(node)
-        typedNode = self.applyCoercionsToNodeFor(typedNode, expectedTypeExpression)
-        typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         expectedTypeNode = self.visitTypeExpression(expectedTypeExpression)
+        typedNode = self.applyCoercionsToNodeFor(typedNode, expectedTypeNode)
+        typedNodeType = getTypeOfAnalyzedNode(typedNode, typedNode.sourcePosition)
         if typedNodeType != expectedTypeNode and not typedNodeType.isEquivalentTo(expectedTypeNode):
             return self.makeSemanticError(node.sourcePosition, "Type checking failure. Value has type '%s' instead of expected type of '%s'." % (typedNodeType.prettyPrint(), expectedTypeNode.prettyPrint()), typedNode, expectedTypeNode)
         return typedNode
@@ -76,6 +76,11 @@ class Typechecker(ASTVisitor):
                     if hasDoneCoercion:
                        coercedNode = self.visitNode(ASTTupleNode(node.sourcePosition, coercedTupleElements))
                        return self.applyCoercionsToNodeFor(coercedNode, targetTypeExpression)
+
+        if targetTypeExpression.isSumTypeNodeOrLiteral():
+            injectionIndexOrNode = targetTypeExpression.findIndexOfSumVariantOrNoneAt(nodeType, node.sourcePosition)
+            if injectionIndexOrNode is not None:
+                return reduceInjectSumNode(ASTTypedInjectSumNode(node.sourcePosition, targetTypeExpression, injectionIndexOrNode, node))
 
         if not targetTypeExpression.isReferenceLikeTypeNodeOrLiteral() and nodeType.isReferenceLikeTypeNodeOrLiteral():
             coercedNode = self.visitNode(ASTPointerLikeLoadNode(node.sourcePosition, node))
@@ -960,7 +965,7 @@ class Typechecker(ASTVisitor):
             if i + 1 < expressionCount and (typedExpression.isTypedLiteralNode() or typedExpression.isLiteralTypeNode()):
                 continue
 
-            resultType = typedExpression.type
+            resultType = getTypeOfAnalyzedNode(typedExpression, node.sourcePosition)
             typedElements.append(typedExpression)
 
         if len(typedElements) == 1:
@@ -1260,6 +1265,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitTypedTupleAtNode(self, node: ASTTypedTupleAtNode):
+        return node
+
+    def visitTypedInjectSumNode(self, node: ASTTypedTupleNode):
         return node
 
     def visitTypedFromModuleImportNode(self, node: ASTTypedFromModuleImportNode):
@@ -1619,6 +1627,11 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
             reducedElements.append(self.visitNode(element))
         return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, reducedType, reducedElements, node.isRecord))
 
+    def visitTypedInjectSumNode(self, node: ASTTypedInjectSumNode):
+        reducedType = self.visitNode(node.type)
+        reducedValue = self.visitNode(node.value)
+        return reduceInjectSumNode(ASTTypedInjectSumNode(node.sourcePosition, reducedType, node.variantIndex, reducedValue))
+
     def visitTypedModifiedTupleNode(self, node: ASTTypedModifiedTupleNode):
         reducedType = self.visitNode(node.type)
         baseType = self.visitNode(node.baseTuple)
@@ -1912,7 +1925,7 @@ def reduceDictionaryNode(node: ASTTypedDictionaryNode):
 
 def reduceTupleNode(node: ASTTypedTupleNode):
     if not node.isRecord:
-        if  len(node.elements) == 0:
+        if len(node.elements) == 0:
             return ASTLiteralNode(node.sourcePosition, node.type, VoidType.getSingleton())
         elif len(node.elements) == 1:
             return node.elements[0]
@@ -1921,6 +1934,12 @@ def reduceTupleNode(node: ASTTypedTupleNode):
         productType: ProductType = node.type.value
         tuple = productType.makeWithElements(list(map(lambda n: n.value, node.elements)))
         return ASTTypedLiteralNode(node.sourcePosition, node.type, tuple)
+    return node
+
+def reduceInjectSumNode(node: ASTTypedInjectSumNode):
+    if node.type.isLiteralTypeNode() and node.value.isTypedLiteralNode():
+        sumValue = node.type.value.makeWithTypeIndexAndValue(node.variantIndex, node.value.value)
+        return ASTTypedLiteralNode(node.sourcePosition, node.type, sumValue)
     return node
 
 def reduceModifiedTupleNode(node: ASTTypedModifiedTupleNode):

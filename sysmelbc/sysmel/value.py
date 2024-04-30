@@ -208,6 +208,9 @@ class TypedValue(ABC):
 
     def findTypeOfFieldAtIndexOrNoneAt(self, index: int, sourcePosition):
         return None
+    
+    def findIndexOfSumVariantOrNoneAt(self, index: int, sourcePosition):
+        return None
 
     def getBaseTypeExpressionAt(self, sourcePosition):
         assert False
@@ -1089,7 +1092,7 @@ class SumTypeValue(TypedValue):
         return True
     
     def prettyPrint(self) -> str:
-        return self.value.prettyPrint()
+        return self.type.prettyPrint() + '(' + self.value.prettyPrint() + ')'
 
 class SumType(BaseType):
     SumTypeCache = dict()
@@ -1113,6 +1116,17 @@ class SumType(BaseType):
                 return False
 
         return True
+    
+    def findIndexOfSumVariantOrNoneAt(self, valueTypeExpression, sourcePosition):
+        if not valueTypeExpression.isLiteralTypeNode():
+            return False
+        
+        valueType = valueTypeExpression.value
+        for i in range(len(self.variantTypes)):
+            if self.variantTypes[i].isEquivalentTo(valueType):
+                return i
+
+        return None
     
     def makeWithTypeIndexAndValue(self, variantIndex: int, value: TypedValue) -> SumTypeValue:
         return SumTypeValue(self, variantIndex, value)
@@ -1720,6 +1734,9 @@ class ASTLiteralTypeNode(ASTTypeNode):
     
     def findTypeOfFieldAtIndexOrNoneAt(self, index: int, sourcePosition):
         return self.value.findTypeOfFieldAtIndexOrNoneAt(index, sourcePosition)
+    
+    def findIndexOfSumVariantOrNoneAt(self, elementTypeExpression, sourcePosition):
+        return self.value.findIndexOfSumVariantOrNoneAt(elementTypeExpression, sourcePosition)
 
     def getRankOfProductTypeOrNone(self):
         return self.value.getRankOfProductTypeOrNone()
