@@ -11,7 +11,7 @@ TokenKind = Enum('TokenKind', [
     'LESS_THAN', 'GREATER_THAN', 'STAR', 'QUESTION', 'BANG',
     'COLON', 'COLON_COLON', 'BAR',
     'ASSIGNMENT', 'ASSIGNMENT_ARROW', 'SEMICOLON', 'COMMA', 'DOT', 'ELLIPSIS',
-    'REBIND_OPERATOR',
+    'BIND_OPERATOR',
     'QUOTE', 'QUASI_QUOTE', 'QUASI_UNQUOTE', 'SPLICE',
     'BYTE_ARRAY_START', 'DICTIONARY_START', 'LITERAL_ARRAY_START'
 ])
@@ -306,9 +306,6 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
         elif state.peek(0) == b'>'[0]:
             state.advanceCount(2)
             return state, state.makeTokenStartingFrom(TokenKind.ASSIGNMENT_ARROW, initialState)
-        elif state.peek(0) == b'<'[0]:
-            state.advanceCount(2)
-            return state, state.makeTokenStartingFrom(TokenKind.REBIND_OPERATOR, initialState)
         return state, state.makeTokenStartingFrom(TokenKind.COLON, initialState)
     elif c == b'`'[0]:
         if state.peek(1) == b'\''[0]:
@@ -345,6 +342,8 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
             token.kind = TokenKind.QUESTION
         elif tokenValue == b'!':
             token.kind = TokenKind.BANG
+        elif tokenValue == b'<-':
+            token.kind = TokenKind.BIND_OPERATOR
         return state, token
 
     state.advance()

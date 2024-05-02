@@ -87,7 +87,7 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitRebindPatternNode(self, node):
+    def visitBindPatternNode(self, node):
         pass
 
     @abstractmethod
@@ -808,17 +808,17 @@ class ASTDictionaryNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'Dictionary', 'elements': list(map(optionalASTNodeToJson, self.elements))}
 
-class ASTRebindPatternNode(ASTNode):
+class ASTBindPatternNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, pattern: ASTNode, value: ASTNode) -> None:
         super().__init__(sourcePosition)
         self.pattern = pattern
         self.value = value
 
     def accept(self, visitor: ASTVisitor):
-        return visitor.visitRebindPatternNode(self)
+        return visitor.visitBindPatternNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'RebindPattern', 'pattern': self.pattern.toJson(), 'value': self.value.toJson()}
+        return {'kind': 'BindPattern', 'pattern': self.pattern.toJson(), 'value': self.value.toJson()}
 
 class ASTSequenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
@@ -1795,7 +1795,7 @@ class ASTSequentialVisitor(ASTVisitor):
     def visitIdentifierReferenceNode(self, node: ASTIdentifierReferenceNode):
         pass
 
-    def visitRebindPatternNode(self, node: ASTRebindPatternNode):
+    def visitBindPatternNode(self, node: ASTBindPatternNode):
         self.visitNode(node.pattern)
         self.visitNode(node.value)
 
@@ -2246,7 +2246,7 @@ class ASTTypecheckedVisitor(ASTVisitor):
     def visitIdentifierReferenceNode(self, node):
         assert False
 
-    def visitRebindPatternNode(self, node):
+    def visitBindPatternNode(self, node):
         assert False
 
     def visitIfNode(self, node):

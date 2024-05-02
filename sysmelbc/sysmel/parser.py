@@ -468,18 +468,18 @@ def parseFunctionalTypeWithOptionalArgument(state: ParserState) -> tuple[ParserS
     else:
         return parseFunctionalType(state)
 
-def parseRebindExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseBindExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
     state, patternExpressionOrValue = parseFunctionalTypeWithOptionalArgument(state)
-    if state.peekKind() == TokenKind.REBIND_OPERATOR:
+    if state.peekKind() == TokenKind.BIND_OPERATOR:
         state.advance()
-        state, boundValue = parseRebindExpression(state)
-        return state, ASTRebindPatternNode(state.sourcePositionFrom(startPosition), patternExpressionOrValue, boundValue)
+        state, boundValue = parseBindExpression(state)
+        return state, ASTBindPatternNode(state.sourcePositionFrom(startPosition), patternExpressionOrValue, boundValue)
     else:
         return state, patternExpressionOrValue
 
 def parseExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
-    return parseRebindExpression(state)
+    return parseBindExpression(state)
 
 def parseExpressionListUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -> tuple[ParserState, list[ASTNode]]:
     elements = []

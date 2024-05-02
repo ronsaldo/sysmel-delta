@@ -855,7 +855,7 @@ class Typechecker(ASTVisitor):
         self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(localBinding)
         return ASTTypedBindingDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue, isMutable = node.isMutable, isPublic = node.isPublic, module = module)
     
-    def visitRebindPatternNode(self, node: ASTRebindPatternNode):
+    def visitBindPatternNode(self, node: ASTBindPatternNode):
         value = self.visitNode(node.value)
         expandedNode = node.pattern.expandBindingOfValueWithAt(value, self, node.sourcePosition)
         return self.visitNode(expandedNode)
