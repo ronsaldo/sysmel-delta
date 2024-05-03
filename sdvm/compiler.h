@@ -643,6 +643,8 @@ SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_linux(void
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_macosx(void);
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_aarch64_windows(void);
 
+SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_riscv32_linux(void);
+
 SDVM_API const sdvm_compilerTarget_t *sdvm_compilerTarget_get_riscv64_linux(void);
 
 SDVM_API void sdvm_moduleCompilationState_initialize(sdvm_moduleCompilationState_t *state, sdvm_compiler_t *compiler, sdvm_module_t *module);

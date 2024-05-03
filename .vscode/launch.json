@@ -60,5 +60,13 @@
             "args": ["-v", "-target", "aarch64-apple-macosx", "-o", "test.aarch.macho", "test.sdvm"],
             "cwd": "${workspaceFolder}"
         },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch (Linux RISC-V 64 target)",
+            "program": "${workspaceFolder}/build/bin/sdvm",
+            "args": ["-v", "-target", "riscv64-linux-gnu", "-o", "test.riscv64.o", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
    ]
 }
