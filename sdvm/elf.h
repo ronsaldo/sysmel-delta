@@ -139,6 +139,13 @@ enum {
     SDVM_R_AARCH64_CALL26 = 283,
 };
 
+enum {
+    SDVM_R_RISCV_NONE = 0,
+    SDVM_R_RISCV_32 = 1,
+    SDVM_R_RISCV_64 = 2,
+    SDVM_R_RISCV_32_PCREL = 57,
+};
+
 #define SDVM_ELF64_SYM_INFO(type, binding) (((binding) << 4) | (type))
 
 typedef struct sdvm_elf64_header_s
