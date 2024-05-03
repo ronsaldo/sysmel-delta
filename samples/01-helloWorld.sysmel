@@ -1,7 +1,7 @@
 ##let: #test type: Int32 | Float32 with: 42i32.
-:printf <- (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
+fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl.
 
-Record: #TestRecord withFields: #{
+:TestRecord <- RecordWithFields: #{
     first: Int32.
     second: Int32.
 }.

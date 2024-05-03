@@ -599,10 +599,20 @@ def importModuleMacro(macroContext: MacroContext, name: ASTNode) -> ASTNode:
     return ASTImportModuleNode(macroContext.sourcePosition, name)
 
 def fromModuleImportWithType(macroContext: MacroContext, module: ASTNode, name: ASTNode, type: ASTNode) -> ASTNode:
-    return ASTFromModuleImportWithTypeNode(macroContext.sourcePosition, module, name, type)
+    return fromModuleImportAsWithType(macroContext, module, name, name, type)
+
+def fromModuleImportAsWithType(macroContext: MacroContext, module: ASTNode, name: ASTNode, importedName: ASTNode, type: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, importedName, None, 
+        ASTFromModuleImportWithTypeNode(macroContext.sourcePosition, module, name, type)
+    )
 
 def fromExternalImportWithType(macroContext: MacroContext, externalName: ASTNode, name: ASTNode, type: ASTNode) -> ASTNode:
-    return ASTFromExternalImportWithTypeNode(macroContext.sourcePosition, externalName, name, type)
+    return fromExternalImportAsWithType(macroContext, externalName, name, name, type)
+
+def fromExternalImportAsWithType(macroContext: MacroContext, externalName: ASTNode, name: ASTNode, importedName: ASTNode, type: ASTNode) -> ASTNode:
+    return ASTBindingDefinitionNode(macroContext.sourcePosition, importedName, None, 
+        ASTFromExternalImportWithTypeNode(macroContext.sourcePosition, externalName, name, type)
+    )
 
 def moduleExportWithMacro(macroContext: MacroContext, name: ASTNode, value: ASTNode) -> ASTNode:
     return ASTModuleExportValueNode(macroContext.sourcePosition, None, name, value)
@@ -781,7 +791,9 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
 
     ['importModule:', 'Macro::importModule:', [(MacroContextType, ASTNodeType), ASTNodeType], importModuleMacro, ['macro']],
     ['fromModule:import:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromModuleImportWithType, ['macro']],
+    ['fromModule:import:as:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromModuleImportAsWithType, ['macro']],
     ['fromExternal:import:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromExternalImportWithType, ['macro']],
+    ['fromExternal:import:as:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromExternalImportAsWithType, ['macro']],
     ['export:with:', 'Macro::export:with:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExportWithMacro, ['macro']],
     ['export:external:with:', 'Macro::export:external:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExportExternalWithMacro, ['macro']],
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [(MacroContextType, ASTNodeType), ASTNodeType], moduleEntryPointMacro, ['macro']],
