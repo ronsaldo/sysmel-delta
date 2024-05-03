@@ -8,19 +8,28 @@ class FrontEndDriver:
     def __init__(self) -> None:
         self.module = None
         self.moduleName = None
+        self.topFolder = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
         self.inputSourceFiles = []
-        self.includeDirectories = []
+        self.includeDirectories = [
+            os.path.join(self.topFolder, 'module-sources')
+        ]
         self.typecheckedSources = []
         self.outputFileName = 'a.out'
         self.verbose = False
         self.isDone = False
         self.emitSdvm = False
         self.emitObjectFile = False
-        self.targetTriple = ''
+        self.targetTriple = None
         self.ghirModule = None
         self.hirModule = None
         self.mhirModule = None
         self.sdvmModule = None
+        self.keepIntermediates = False
+        if sys.platform.startswith('win32'):
+            self.sdvmPath = os.path.join(self.topFolder, 'build/bin/sdvm.exe')
+        else:
+            self.sdvmPath = os.path.join(self.topFolder, 'build/bin/sdvm')
+        self.linkerCommand = 'clang'
 
     def printHelp(self):
         print(
@@ -34,6 +43,7 @@ class FrontEndDriver:
 -I<Dir>                     Adds an include directory.
 -c                          Emits object file.
 -o                          Sets the output file name.
+-keep-intermediate         Keep the intermediate files.
 """
         )
 
@@ -56,6 +66,8 @@ class FrontEndDriver:
                     return True
                 elif arg in ['-v']:
                     self.verbose = True
+                elif arg in ['-keep-intermediate']:
+                    self.keepIntermediates = True
                 elif arg in ['-c']:
                     self.emitObjectFile = True
                 elif arg in ['-emit-sdvm']:
@@ -180,8 +192,41 @@ class FrontEndDriver:
             return False
         if not self.compileSDVMModule():
             return False
-        
-        self.sdvmModule.saveToFileNamed(self.outputFileName)
+
+        # Save the sdvm module.
+        sdvmModuleFile = self.outputFileName + '.sdvm'
+        objectFileName = self.outputFileName + '.o'
+        if self.emitSdvm:
+            self.sdvmModule.saveToFileNamed(self.outputFileName)
+            return True
+
+        self.sdvmModule.saveToFileNamed(sdvmModuleFile)
+        # Compile the sdvm module into an object file.
+        if self.emitObjectFile:
+            objectFileName = self.outputFileName
+
+        if self.targetTriple is not None:
+            sdvmCommand = '%s -target %s -o %s %s' % (self.sdvmPath, self.targetTriple, objectFileName, sdvmModuleFile)
+        else:
+            sdvmCommand = '%s -o %s %s' % (self.sdvmPath, objectFileName, sdvmModuleFile)
+        sdvmExitCode = os.system(sdvmCommand)
+        if not self.keepIntermediates:
+            os.unlink(sdvmModuleFile)
+        if sdvmExitCode != 0:
+            return False
+
+        if self.emitObjectFile:
+            return True
+
+        # Link the executable.
+        linkCommand = '%s -o %s %s' % (self.linkerCommand, self.outputFileName, objectFileName)
+        sdvmExitCode = os.system(linkCommand)
+
+        if not self.keepIntermediates:
+            os.unlink(objectFileName)
+        if sdvmExitCode != 0:
+            return False
+
         return True
     
     def main(self, argv):

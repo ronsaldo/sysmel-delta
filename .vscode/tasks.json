@@ -18,7 +18,19 @@
         {
             "label": "Build Hello World Sample",
             "type": "shell",
-            "command": "./sysmelbc/sysmelbc.py -c -o test.o samples/01-helloWorld.sysmel",
+            "command": "./sysmelbc/sysmelbc.py -o 01-helloWorld samples/01-helloWorld.sysmel",
+            "problemMatcher": ["$sysmelc"],
+            "group": "build",
+            "presentation": {
+                "echo": false,
+                "showReuseMessage": false,
+                "clear": true
+            }
+        },
+        {
+            "label": "Build Sysmelc (Component)",
+            "type": "shell",
+            "command": "./sysmelbc/sysmelbc.py -o sysmelc-scanner sysmelc/scanner.sysmel",
             "problemMatcher": ["$sysmelc"],
             "group": "build",
             "presentation": {
