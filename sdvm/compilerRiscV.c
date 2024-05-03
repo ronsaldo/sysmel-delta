@@ -228,6 +228,76 @@ void sdvm_compiler_riscv_jalr(sdvm_compiler_t *compiler, sdvm_riscv_registerInde
     sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x67, rd, 0, rs, imm));
 }
 
+void sdvm_compiler_riscv_beq(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_B_encode(0x63, rd, 0, rs, imm));
+}
+
+void sdvm_compiler_riscv_bne(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_B_encode(0x63, rd, 1, rs, imm));
+}
+
+void sdvm_compiler_riscv_blt(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_B_encode(0x63, rd, 4, rs, imm));
+}
+
+void sdvm_compiler_riscv_bge(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_B_encode(0x63, rd, 5, rs, imm));
+}
+
+void sdvm_compiler_riscv_bltu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_B_encode(0x63, rd, 6, rs, imm));
+}
+
+void sdvm_compiler_riscv_bgeu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_B_encode(0x63, rd, 7, rs, imm));
+}
+
+void sdvm_compiler_riscv_lb(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 0, rs, imm));
+}
+
+void sdvm_compiler_riscv_lh(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 1, rs, imm));
+}
+
+void sdvm_compiler_riscv_lw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 2, rs, imm));
+}
+
+void sdvm_compiler_riscv_lbu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 4, rs, imm));
+}
+
+void sdvm_compiler_riscv_lhu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 5, rs, imm));
+}
+
+void sdvm_compiler_riscv_sb(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 0, rs1, rs2, imm));
+}
+
+void sdvm_compiler_riscv_sh(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 1, rs1, rs2, imm));
+}
+
+void sdvm_compiler_riscv_sw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 2, rs1, rs2, imm));
+}
+
 void sdvm_compiler_riscv_addi_noOpt(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
 {
     sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x13, rd, 0, rs, imm));
@@ -240,6 +310,272 @@ void sdvm_compiler_riscv_addi(sdvm_compiler_t *compiler, sdvm_riscv_registerInde
 
     sdvm_compiler_riscv_addi_noOpt(compiler, rd, rs, imm);
 }
+
+void sdvm_compiler_riscv_slti(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x13, rd, 2, rs, imm));
+}
+
+void sdvm_compiler_riscv_sltiu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x13, rd, 3, rs, imm));
+}
+
+void sdvm_compiler_riscv_xori(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x13, rd, 4, rs, imm));
+}
+
+void sdvm_compiler_riscv_ori(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x13, rd, 6, rs, imm));
+}
+
+void sdvm_compiler_riscv_andi(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x13, rd, 7, rs, imm));
+}
+
+void sdvm_compiler_riscv_slli(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x13, rd, 1, rs, shift, 0));
+}
+
+void sdvm_compiler_riscv_srli(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x13, rd, 5, rs, shift, 0));
+}
+
+void sdvm_compiler_riscv_srai(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x13, rd, 5, rs, shift, 0x20));
+}
+
+void sdvm_compiler_riscv_add(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 0, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_sub(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 0, rs1, rs2, 0x20));
+}
+
+void sdvm_compiler_riscv_sll(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 1, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_slt(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 2, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_sltu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 3, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_xor(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 4, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_srl(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 5, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_sra(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 5, rs1, rs2, 0x20));
+}
+
+void sdvm_compiler_riscv_or(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 6, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_and(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 7, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_ebreak(sdvm_compiler_t *compiler)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, 0x100073);
+}
+
+void sdvm_compiler_riscv_mul(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 0, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_mulh(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 1, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_mulhsu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 2, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_mulhu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 3, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_div(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 4, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_divu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 5, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_rem(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 6, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_remu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x33, rd, 7, rs1, rs2, 1));
+}
+
+#pragma endregion GeneralPurposeInstructions
+
+#pragma region RV64
+bool sdvm_compiler_isRiscV32(sdvm_compiler_t *compiler)
+{
+    return compiler->target->pointerSize == 4;
+}
+
+void sdvm_compiler_riscv_lwu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_lw(compiler, rd, rs, imm);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 6, rs, imm));
+}
+
+void sdvm_compiler_riscv_ld(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_lw(compiler, rd, rs, imm);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 3, rs, imm));
+}
+
+void sdvm_compiler_riscv_sd(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_sw(compiler, rs1, rs2, imm);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 3, rs1, rs2, imm));
+}
+
+void sdvm_compiler_riscv_slliw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_slli(compiler, rd, rs, shift);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 1, rs, shift, 0));
+}
+
+void sdvm_compiler_riscv_srliw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_srli(compiler, rd, rs, shift);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 5, rs, shift, 0));
+}
+
+void sdvm_compiler_riscv_sraiw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_srai(compiler, rd, rs, shift);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 5, rs, shift, 0x20));
+}
+
+void sdvm_compiler_riscv_addiw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_addi(compiler, rd, rs, imm);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x1B, rd, 0, rs, imm));
+}
+
+void sdvm_compiler_riscv_addw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_add(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_subw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_sub(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 0x20));
+}
+
+void sdvm_compiler_riscv_sllw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_sllw(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 1, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_srlw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_srlw(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 0));
+}
+
+void sdvm_compiler_riscv_sraw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_sraw(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 0x20));
+}
+
+void sdvm_compiler_riscv_mulw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_mul(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_divw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_div(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 4, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_divuw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_divu(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_remw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_rem(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 6, rs1, rs2, 1));
+}
+
+void sdvm_compiler_riscv_remuw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
+{
+    if(sdvm_compiler_isRiscV32(compiler))
+        return sdvm_compiler_riscv_remu(compiler, rd, rs1, rs2);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 7, rs1, rs2, 1));
+}
+
+#pragma endregion RV64
+
+#pragma region PseudoInstructions
 
 void sdvm_compiler_riscv_nop(sdvm_compiler_t *compiler)
 {
@@ -257,8 +593,7 @@ void sdvm_compiler_riscv_ret(sdvm_compiler_t *compiler)
 {
     sdvm_compiler_riscv_jalr(compiler, SDVM_RISCV_ZERO, SDVM_RISCV_RA, 0);
 }
-
-#pragma endregion GeneralPurposeInstructions
+#pragma endregion
 
 static sdvm_compilerInstructionPatternTable_t sdvm_riscv_instructionPatternTable = {
 };
