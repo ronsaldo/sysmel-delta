@@ -674,14 +674,20 @@ def pointerLikeAtPutMacro(macroContext: MacroContext, pointer: ASTTypedNode, ind
 def pointerLikeSubscriptAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
     return ASTPointerLikeSubscriptAtNode(macroContext.sourcePosition, pointer, index, True)
 
+def pointerLikePlusMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
+    return ASTPointerLikeSubscriptAtNode(macroContext.sourcePosition, pointer, index, False)
+
 def referenceLikeAssignmentMacro(macroContext: MacroContext, reference: ASTTypedNode, value: ASTNode):
     return ASTPointerLikeStoreNode(macroContext.sourcePosition, reference, value, True)
 
 def arrayAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
-    return ASTArraySubscriptAtNode(macroContext.sourcePosition, pointer, index, False)
+    return ASTArraySubscriptAtNode(macroContext.sourcePosition, pointer, index, False, False)
 
 def arraySubscriptAtMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
-    return ASTArraySubscriptAtNode(macroContext.sourcePosition, pointer, index, True)
+    return ASTArraySubscriptAtNode(macroContext.sourcePosition, pointer, index, True, False)
+
+def arrayPlusMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
+    return ASTArraySubscriptAtNode(macroContext.sourcePosition, pointer, index, False, True)
 
 def arrayAtPutMacro(macroContext: MacroContext, pointer: ASTTypedNode, index: ASTNode):
     return ASTPointerLikeStoreNode(macroContext.sourcePosition, pointer, index, True)
@@ -693,6 +699,7 @@ ArrayTypeMacros = {}
 for name, expander in [
     ('at:', arrayAtMacro),
     ('at:put:', arrayAtPutMacro),
+    ('+', arrayPlusMacro),
     ('[]:', arraySubscriptAtMacro),
 ]:
     ArrayTypeMacros[Symbol.intern(name)] = expander
@@ -704,6 +711,7 @@ for name, expander in [
     ('at:', pointerLikeAtMacro),
     ('at:put:', pointerLikeAtPutMacro),
     ('[]:', pointerLikeSubscriptAtMacro),
+    ('+', pointerLikePlusMacro),
     ('_', pointerLikeAsRefMacro),
 ]:
     PointerTypeMacros[Symbol.intern(name)] = expander

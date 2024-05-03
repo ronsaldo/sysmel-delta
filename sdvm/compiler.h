@@ -7,7 +7,7 @@
 #include "dwarf.h"
 #include <stdbool.h>
 
-#define SDVM_COMPILER_SECTION_COUNT 10
+#define SDVM_COMPILER_SECTION_COUNT 11
 
 typedef struct sdvm_module_s sdvm_module_t;
 
@@ -21,6 +21,7 @@ typedef enum sdvm_compilerSectionFlags_e
     SdvmCompSectionFlagUnwind = 1<<4,
     SdvmCompSectionFlagDebug = 1<<5,
     SdvmCompSectionFlagCStrings = 1<<6,
+    SdvmCompSectionFlagTargetSpecificAttributes = 1<<7,
 } sdvm_compilerSectionFlags_t;
 
 typedef enum sdvm_compilerSymbolKind_e
@@ -64,8 +65,14 @@ typedef enum sdvm_compilerRelocationKind_e
     SdvmCompRelocationAArch64Jump19,
     SdvmCompRelocationAArch64Jump26,
 
+    SdvmCompRelocationRiscVBranch,
+    SdvmCompRelocationRiscVJal,
     SdvmCompRelocationRiscVRelativeHi20,
     SdvmCompRelocationRiscVRelativeLo12I,
+    SdvmCompRelocationRiscVRelativeLo12S,
+    SdvmCompRelocationRiscVAbsoluteHi20,
+    SdvmCompRelocationRiscVAbsoluteLo12I,
+    SdvmCompRelocationRiscVAbsoluteLo12S,
     SdvmCompRelocationRiscVRelax,
     SdvmCompRelocationRiscVCallPLT,
 } sdvm_compilerRelocationKind_t;
@@ -209,6 +216,9 @@ typedef struct sdvm_compiler_s
             sdvm_compilerObjectSection_t bssSection;
 
             sdvm_compilerObjectSection_t ehFrameSection;
+
+            sdvm_compilerObjectSection_t targetSpecificAttributes;
+
             sdvm_compilerObjectSection_t debugAbbrevSection;
             sdvm_compilerObjectSection_t debugInfoSection;
             sdvm_compilerObjectSection_t debugLineSection;
@@ -254,6 +264,7 @@ struct sdvm_compilerTarget_s
     uint16_t (*mapCoffRelocationApplyingAddend) (sdvm_compilerRelocation_t *relocation, uint8_t *target);
     size_t (*countMachORelocations) (sdvm_compilerRelocationKind_t kind);
     size_t (*mapMachORelocation) (sdvm_compilerRelocation_t *relocation, int64_t symbolAddend, uint64_t symbolSectionAddend, uint64_t relocatedSectionOffset, uint8_t *target, sdvm_macho_relocation_info_t *machRelocations);
+    void (*setupAttributesSection) (sdvm_compiler_t *compiler);
 
     sdvm_compilerInstructionPatternTable_t *instructionPatterns;
 };
@@ -662,6 +673,7 @@ SDVM_API void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilatio
 SDVM_API bool sdvm_compilerLiveInterval_hasUsage(sdvm_compilerLiveInterval_t *interval);
 
 SDVM_API bool sdvm_compilerLocationKind_isRegister(sdvm_compilerLocationKind_t kind);
+SDVM_API bool sdvm_compilerLocationKind_isRegisterPair(sdvm_compilerLocationKind_t kind);
 SDVM_API bool sdvm_compilerLocationKind_isImmediate(sdvm_compilerLocationKind_t kind);
 
 SDVM_API void sdvm_compilerLocation_print(sdvm_compiler_t *compiler, sdvm_compilerLocation_t *location);

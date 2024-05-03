@@ -673,6 +673,8 @@ sdvm_compilerLocation_t sdvm_compilerLocation_aarch64_immediateU64(sdvm_compiler
 
 void sdvm_compiler_aarch64_computeInstructionLocationConstraints(sdvm_functionCompilationState_t *state, sdvm_compilerInstruction_t *instruction)
 {
+    sdvm_compiler_t *compiler = state->compiler;
+
     if(instruction->decoding.isConstant)
     {
         switch(instruction->decoding.opcode)
@@ -752,6 +754,61 @@ void sdvm_compiler_aarch64_computeInstructionLocationConstraints(sdvm_functionCo
         instruction->arg0Location = sdvm_compilerLocation_integerRegister(8);
         instruction->arg1Location = sdvm_compilerLocation_integerRegister(8);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(8);
+        instruction->allowArg0DestinationShare = true;
+        instruction->allowArg1DestinationShare = true;
+        return;
+
+    case SdvmInstInt8Equals:
+    case SdvmInstInt8NotEquals:
+    case SdvmInstInt8LessThan:
+    case SdvmInstInt8LessOrEquals:
+    case SdvmInstInt8GreaterThan:
+    case SdvmInstInt8GreaterOrEquals:
+    case SdvmInstInt16Equals:
+    case SdvmInstInt16NotEquals:
+    case SdvmInstInt16LessThan:
+    case SdvmInstInt16LessOrEquals:
+    case SdvmInstInt16GreaterThan:
+    case SdvmInstInt16GreaterOrEquals:
+    case SdvmInstInt32Equals:
+    case SdvmInstInt32NotEquals:
+    case SdvmInstInt32LessThan:
+    case SdvmInstInt32LessOrEquals:
+    case SdvmInstInt32GreaterThan:
+    case SdvmInstInt32GreaterOrEquals:
+    case SdvmInstInt64Equals:
+    case SdvmInstInt64NotEquals:
+    case SdvmInstInt64LessThan:
+    case SdvmInstInt64LessOrEquals:
+    case SdvmInstInt64GreaterThan:
+    case SdvmInstInt64GreaterOrEquals:
+    case SdvmInstUInt8Equals:
+    case SdvmInstUInt8NotEquals:
+    case SdvmInstUInt8LessThan:
+    case SdvmInstUInt8LessOrEquals:
+    case SdvmInstUInt8GreaterThan:
+    case SdvmInstUInt8GreaterOrEquals:
+    case SdvmInstUInt16Equals:
+    case SdvmInstUInt16NotEquals:
+    case SdvmInstUInt16LessThan:
+    case SdvmInstUInt16LessOrEquals:
+    case SdvmInstUInt16GreaterThan:
+    case SdvmInstUInt16GreaterOrEquals:
+    case SdvmInstUInt32Equals:
+    case SdvmInstUInt32NotEquals:
+    case SdvmInstUInt32LessThan:
+    case SdvmInstUInt32LessOrEquals:
+    case SdvmInstUInt32GreaterThan:
+    case SdvmInstUInt32GreaterOrEquals:
+    case SdvmInstUInt64Equals:
+    case SdvmInstUInt64NotEquals:
+    case SdvmInstUInt64LessThan:
+    case SdvmInstUInt64LessOrEquals:
+    case SdvmInstUInt64GreaterThan:
+    case SdvmInstUInt64GreaterOrEquals:
+        instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, NULL, instruction->decoding.instruction.arg0Type);
+        instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, NULL, instruction->decoding.instruction.arg0Type);
+        instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         instruction->allowArg0DestinationShare = true;
         instruction->allowArg1DestinationShare = true;
         return;
@@ -1188,7 +1245,6 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     sdvm_compilerLocation_t *dest = &instruction->destinationLocation;
     sdvm_compilerLocation_t *arg0 = &instruction->arg0Location;
     sdvm_compilerLocation_t *arg1 = &instruction->arg1Location;
-    sdvm_compilerLocation_t *scratch0 = &instruction->scratchLocation0;
 
     switch(instruction->decoding.opcode)
     {
@@ -1312,8 +1368,8 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstCallClosureInt32x4:
     case SdvmInstCallClosureUInt32x2:
     case SdvmInstCallClosureUInt32x4:
-        sdvm_compiler_aarch64_ldr_offset(compiler, true, scratch0->firstRegister.value, arg0->firstRegister.value, 0);
-        sdvm_compiler_aarch64_blr(compiler, scratch0->firstRegister.value);
+        sdvm_compiler_aarch64_ldr_offset(compiler, true, SDVM_AARCH64_LR, arg0->firstRegister.value, 0);
+        sdvm_compiler_aarch64_blr(compiler, SDVM_AARCH64_LR);
         return true;
 
     case SdvmInstLoadInt8:
@@ -1356,15 +1412,16 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
             sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadGCPointer:
+        SDVM_ASSERT(dest->kind == SdvmCompLocationRegisterPair);
         if(arg0->kind == SdvmCompLocationStackAddress)
         {
             sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
-            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8);
         }
         else
         {
             sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, 0);
-            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, 8);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->secondRegister.value, arg0->firstRegister.value, 8);
         }
         return true;
 
@@ -1825,7 +1882,6 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_linux = {
     .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_ARM_ALL,
     .usesUnderscorePrefix = false,
     .usesCET = false,
-    .closureCallNeedsScratch = true,
     .usesPIC = true,
 
     .defaultCC = &sdvm_aarch64_eabi_callingConvention,
@@ -1858,7 +1914,6 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
     .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_ARM_ALL,
     .usesUnderscorePrefix = true,
     .usesCET = false,
-    .closureCallNeedsScratch = true,
     .usesPIC = true,
 
     .defaultCC = &sdvm_aarch64_apple_callingConvention,
@@ -1891,7 +1946,6 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_windows = {
     .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_ARM_ALL,
     .usesUnderscorePrefix = false,
     .usesCET = false,
-    .closureCallNeedsScratch = true,
     .usesPIC = false,
 
     .defaultCC = &sdvm_aarch64_eabi_callingConvention,

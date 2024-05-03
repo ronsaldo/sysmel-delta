@@ -238,6 +238,16 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
             elfSection->type = SDVM_SHT_NOBITS;
         if(section->flags & SdvmCompSectionFlagCStrings)
             elfSection->flags = SDVM_SHF_MERGE | SDVM_SHF_STRINGS;
+        if(section->flags & SdvmCompSectionFlagUnwind)
+        {
+            if(compiler->target->elfMachine == SDVM_EM_X86_64)
+                elfSection->type = SDVM_SHT_X86_64_UNWIND;
+        }
+        if(section->flags & SdvmCompSectionFlagTargetSpecificAttributes)
+        {
+            if(compiler->target->elfMachine == SDVM_EM_RISCV)
+                elfSection->type = SDVM_SHT_RISCV_ATTRIBUTES;
+        }
 
         if((section->flags & SdvmCompSectionFlagNoBits) == 0)
             memcpy(objectFile->data + layout.sectionContents[i], section->contents.data, section->contents.size);

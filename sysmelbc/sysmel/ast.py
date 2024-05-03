@@ -1262,11 +1262,12 @@ class ASTModuleEntryPointNode(ASTNode):
         return {'kind': 'ModuleEntryPoint', 'entryPoint': self.entryPoint.toJson()}
 
 class ASTArraySubscriptAtNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, array: ASTNode, index: ASTNode, resultAsReference: bool) -> None:
+    def __init__(self, sourcePosition: SourcePosition, array: ASTNode, index: ASTNode, resultAsReference: bool, resultAsPointer: bool) -> None:
         super().__init__(sourcePosition)
         self.array = array
         self.index = index
         self.resultAsReference = resultAsReference
+        self.resultAsPointer = resultAsPointer
     
     def accept(self, visitor):
         return visitor.visitArraySubscriptAtNode(self)

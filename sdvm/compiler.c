@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
+uint32_t sdvm_compiler_riscv_32_J_encodeImmediate(int32_t imm);
+uint32_t sdvm_compiler_riscv_32_B_encodeImmediate(int16_t imm);
+
 void sdvm_compilerSymbolTable_initialize(sdvm_compilerSymbolTable_t *symbolTable)
 {
     sdvm_dynarray_initialize(&symbolTable->strings, 1, 4096);
@@ -140,6 +143,8 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     compiler->bssSection.relSectionName = ".bss.rel";
     compiler->bssSection.relaSectionName = ".bss.rela";
 
+    sdvm_compilerObjectSection_initialize(&compiler->targetSpecificAttributes);
+
     sdvm_compilerObjectSection_initialize(&compiler->debugAbbrevSection);
     compiler->debugAbbrevSection.symbolIndex = sdvm_compilerSymbolTable_createSectionSymbol(&compiler->symbolTable, 6);
     compiler->debugAbbrevSection.flags = SdvmCompSectionFlagDebug;
@@ -177,6 +182,9 @@ sdvm_compiler_t *sdvm_compiler_create(const sdvm_compilerTarget_t *target)
     compiler->debugStrSection.relSectionName = ".debug_str.rel";
     compiler->debugStrSection.relaSectionName = ".debug_str.rela";
 
+    if(target->setupAttributesSection)
+        target->setupAttributesSection(compiler);
+
     return compiler;
 }
 
@@ -190,6 +198,7 @@ void sdvm_compiler_destroy(sdvm_compiler_t *compiler)
     sdvm_compilerObjectSection_destroy(&compiler->dataSection);
     sdvm_compilerObjectSection_destroy(&compiler->bssSection);
     sdvm_compilerObjectSection_destroy(&compiler->ehFrameSection);
+    sdvm_compilerObjectSection_destroy(&compiler->targetSpecificAttributes);
     sdvm_compilerObjectSection_destroy(&compiler->debugAbbrevSection);
     sdvm_compilerObjectSection_destroy(&compiler->debugInfoSection);
     sdvm_compilerObjectSection_destroy(&compiler->debugLineSection);
@@ -858,6 +867,20 @@ void sdvm_compiler_applyPendingLabelRelocationsInSection(sdvm_compiler_t *compil
 
         switch(relocation->kind)
         {
+        case SdvmCompRelocationRiscVBranch:
+            {
+                uint32_t *relocatedInstruction = (uint32_t *)(section->contents.data + relocation->offset);
+                *relocatedInstruction &= ~sdvm_compiler_riscv_32_B_encodeImmediate(-1);
+                *relocatedInstruction |= sdvm_compiler_riscv_32_B_encodeImmediate(label->value - relocation->offset + relocation->addend);
+            }
+            break;
+        case SdvmCompRelocationRiscVJal:
+            {
+                uint32_t *relocatedInstruction = (uint32_t *)(section->contents.data + relocation->offset);
+                *relocatedInstruction &= ~sdvm_compiler_riscv_32_J_encodeImmediate(-1);
+                *relocatedInstruction |= sdvm_compiler_riscv_32_J_encodeImmediate(label->value - relocation->offset + relocation->addend);
+            }
+            break;
         case SdvmCompRelocationAArch64Jump19:
             {
                 uint32_t *relocatedInstruction = (uint32_t *)(section->contents.data + relocation->offset);
@@ -2436,6 +2459,11 @@ bool sdvm_compilerLocationKind_isRegister(sdvm_compilerLocationKind_t kind)
     return kind == SdvmCompLocationRegister || kind == SdvmCompLocationRegisterPair;
 }
 
+bool sdvm_compilerLocationKind_isRegisterPair(sdvm_compilerLocationKind_t kind)
+{
+    return kind == SdvmCompLocationRegisterPair;
+}
+
 void sdvm_linearScanRegisterAllocatorFile_addAllocatedInterval(sdvm_linearScanRegisterAllocatorFile_t *registerFile, sdvm_compilerInstruction_t *instruction, uint8_t registerValue)
 {
     sdvm_linearScanActiveInterval_t interval = {
@@ -3231,6 +3259,18 @@ SDVM_API void sdvm_compiler_addInstruction32WithLabelValue(sdvm_compiler_t *comp
     {
         switch(relocationKind)
         {
+        case SdvmCompRelocationRiscVBranch:
+            {
+                relocatedInstruction &= ~sdvm_compiler_riscv_32_B_encodeImmediate(-1);
+                relocatedInstruction |= sdvm_compiler_riscv_32_B_encodeImmediate(label->value - compiler->textSection.contents.size + addend);
+            }
+            break;
+        case SdvmCompRelocationRiscVJal:
+            {
+                relocatedInstruction &= ~sdvm_compiler_riscv_32_J_encodeImmediate(-1);
+                relocatedInstruction |= sdvm_compiler_riscv_32_J_encodeImmediate(label->value - compiler->textSection.contents.size + addend);
+            }
+            break;
         case SdvmCompRelocationAArch64Jump19:
             {
                 const uint32_t mask = ((1<<19) - 1);

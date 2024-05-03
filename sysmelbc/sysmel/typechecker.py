@@ -979,9 +979,11 @@ class Typechecker(ASTVisitor):
         elementType = arrayType.getElementTypeExpressionAt(node.sourcePosition)
         if node.resultAsReference:
             resultType = self.visitNode(ASTFormReferenceTypeNode(node.sourcePosition, elementType))
+        elif node.resultAsPointer:
+            resultType = self.visitNode(ASTFormPointerTypeNode(node.sourcePosition, elementType))
         else:
             resultType = decayTypeExpression(elementType)
-        return reduceArraySubscriptAtNode(ASTTypedArraySubscriptAtNode(node.sourcePosition, resultType, array, index, not node.resultAsReference))
+        return reduceArraySubscriptAtNode(ASTTypedArraySubscriptAtNode(node.sourcePosition, resultType, array, index, not (node.resultAsReference or node.resultAsPointer)))
 
     def visitPointerLikeLoadNode(self, node: ASTPointerLikeLoadNode):
         pointer = self.visitNode(node.pointer)
