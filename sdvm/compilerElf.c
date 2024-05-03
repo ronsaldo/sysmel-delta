@@ -196,6 +196,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
     header->ident[SDVM_EI_VERSION] = SDVM_ELFCURRENT_VERSION;
     header->type = SDVM_ET_REL;
     header->machine = compiler->target->elfMachine;
+    header->flags = compiler->target->elfFlags;
     header->elfHeaderSize = sizeof(sdvm_elf64_header_t);
     header->version = SDVM_ELFCURRENT_VERSION;
     header->sectionHeaderEntrySize = sizeof(sdvm_elf64_sectionHeader_t);

@@ -144,6 +144,11 @@ enum {
     SDVM_R_RISCV_32 = 1,
     SDVM_R_RISCV_64 = 2,
     SDVM_R_RISCV_32_PCREL = 57,
+
+    SDVM_R_RISCV_CALL_PLT = 19,
+    SDVM_R_RISCV_PCREL_HI20 = 23,
+    SDVM_R_RISCV_PCREL_LO12_I = 24,
+    SDVM_R_RISCV_RELAX = 51,
 };
 
 #define SDVM_ELF64_SYM_INFO(type, binding) (((binding) << 4) | (type))

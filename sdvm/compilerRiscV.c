@@ -174,7 +174,7 @@ uint32_t sdvm_compiler_riscv_32_R_encode(uint8_t opcode, sdvm_riscv_registerInde
 
 uint32_t sdvm_compiler_riscv_32_I_encode(uint8_t opcode, sdvm_riscv_registerIndex_t rd, uint8_t funct3, sdvm_riscv_registerIndex_t rs1, int16_t imm)
 {
-    return opcode | (rd << 7) | (funct3 << 12) | (rs1 << 15) | (imm << 11);
+    return opcode | (rd << 7) | (funct3 << 12) | (rs1 << 15) | (imm << 20);
 }
 
 uint32_t sdvm_compiler_riscv_32_S_encode(uint8_t opcode, uint8_t funct3, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
@@ -283,19 +283,19 @@ void sdvm_compiler_riscv_lhu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex
     sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 5, rs, imm));
 }
 
-void sdvm_compiler_riscv_sb(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+void sdvm_compiler_riscv_sb(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t src, sdvm_riscv_registerIndex_t base, int16_t imm)
 {
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 0, rs1, rs2, imm));
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 0, base, src, imm));
 }
 
-void sdvm_compiler_riscv_sh(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+void sdvm_compiler_riscv_sh(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t src, sdvm_riscv_registerIndex_t base, int16_t imm)
 {
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 1, rs1, rs2, imm));
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 1, base, src, imm));
 }
 
-void sdvm_compiler_riscv_sw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+void sdvm_compiler_riscv_sw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t src, sdvm_riscv_registerIndex_t base, int16_t imm)
 {
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 2, rs1, rs2, imm));
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 2, base, src, imm));
 }
 
 void sdvm_compiler_riscv_addi_noOpt(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
@@ -468,11 +468,11 @@ void sdvm_compiler_riscv_ld(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_
     sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 3, rs, imm));
 }
 
-void sdvm_compiler_riscv_sd(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2, int16_t imm)
+void sdvm_compiler_riscv_sd(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t src, sdvm_riscv_registerIndex_t base, int16_t imm)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_sw(compiler, rs1, rs2, imm);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 3, rs1, rs2, imm));
+        return sdvm_compiler_riscv_sw(compiler, src, base, imm);
+    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 3, base, src, imm));
 }
 
 void sdvm_compiler_riscv_slliw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
@@ -593,6 +593,48 @@ void sdvm_compiler_riscv_ret(sdvm_compiler_t *compiler)
 {
     sdvm_compiler_riscv_jalr(compiler, SDVM_RISCV_ZERO, SDVM_RISCV_RA, 0);
 }
+
+void sdvm_compiler_riscv_la(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerSymbolHandle_t symbolHandle)
+{
+    if(compiler->target->usesPIC)
+    {
+        sdvm_compiler_riscv_auipc(compiler, Rd, 0);
+        sdvm_compiler_riscv_ld(compiler, Rd, Rd, 0);
+    }
+    else
+    {
+        sdvm_compiler_riscv_auipc(compiler, Rd, 0);
+        sdvm_compiler_riscv_addi(compiler, Rd, Rd, 0);
+    }
+}
+
+void sdvm_compiler_riscv_call_plt(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle)
+{
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVCallPLT, symbolHandle, 0);
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
+    sdvm_compiler_riscv_auipc(compiler, SDVM_RISCV_RA, 0);
+    sdvm_compiler_riscv_jalr(compiler, SDVM_RISCV_RA, SDVM_RISCV_RA, 0);
+}
+
+void sdvm_compiler_riscv_call_local(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
+{
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVCallPLT, symbolHandle, addend);
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
+    sdvm_compiler_riscv_auipc(compiler, SDVM_RISCV_RA, 0);
+    sdvm_compiler_riscv_jalr(compiler, SDVM_RISCV_RA, SDVM_RISCV_RA, 0);
+}
+
+void sdvm_compiler_riscv_lla(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
+{
+    sdvm_compilerSymbolHandle_t relocSymbol = sdvm_compiler_addReferencedInstructionRelocation(compiler, SdvmCompRelocationRiscVRelativeHi20, symbolHandle, addend);
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
+    sdvm_compiler_riscv_auipc(compiler, Rd, 0);
+
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelativeLo12I, relocSymbol, 0);
+    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
+    sdvm_compiler_riscv_addi_noOpt(compiler, Rd, Rd, 0);
+}
+
 #pragma endregion
 
 static sdvm_compilerInstructionPatternTable_t sdvm_riscv_instructionPatternTable = {
@@ -858,7 +900,7 @@ void sdvm_compiler_riscv_computeFunctionStackLayout(sdvm_functionCompilationStat
 
     if(state->requiresStackFrame)
     {
-        // Frame pointer.
+        // Frame pointer and return address register.
         state->prologueStackSegment.size += pointerSize*2;
     }
 
@@ -869,16 +911,6 @@ void sdvm_compiler_riscv_computeFunctionStackLayout(sdvm_functionCompilationStat
         {
             if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, convention->callPreservedIntegerRegisters[i]))
                 state->prologueStackSegment.size += pointerSize;
-        }
-
-        // Preserved vector registers.
-        for(uint32_t i = 0; i < convention->callPreservedVectorRegisterCount; ++i)
-        {
-            if(sdvm_registerSet_includes(&state->usedCallPreservedVectorRegisterSet, convention->callPreservedVectorRegisters[i]))
-            {
-                state->vectorCallPreservedRegisterStackSegment.alignment = 16;
-                state->vectorCallPreservedRegisterStackSegment.size += 16;
-            }
         }
     }
 
@@ -920,6 +952,7 @@ void sdvm_compiler_riscv_emitFunctionPrologue(sdvm_functionCompilationState_t *s
     const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
+    uint32_t pointerSize = state->compiler->pointerSize;
 
     sdvm_compiler_riscv_ensureCIE(state->moduleState);
     sdvm_dwarf_cfi_beginFDE(cfi, &compiler->textSection, sdvm_compiler_getCurrentPC(compiler));
@@ -933,7 +966,17 @@ void sdvm_compiler_riscv_emitFunctionPrologue(sdvm_functionCompilationState_t *s
         return;
     }
 
-    abort();
+    int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset;
+    SDVM_ASSERT(stackSubtractionAmount >= (int32_t)pointerSize*2);
+    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_SP, SDVM_RISCV_SP, -stackSubtractionAmount);
+    sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
+
+    sdvm_compiler_riscv_sd(compiler, SDVM_RISCV_RA, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize);
+
+    sdvm_compiler_riscv_sd(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize*2);
+
+    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, stackSubtractionAmount);
+
     sdvm_dwarf_cfi_endPrologue(cfi);
 }
 
@@ -951,6 +994,8 @@ void sdvm_compiler_riscv_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t
     case SdvmCompLocationRegister:
     case SdvmCompLocationRegisterPair:
         return sdvm_compiler_riscv_mv(compiler, reg->value, sourceLocation->firstRegister.value);
+    case SdvmCompLocationLocalSymbolValue:
+        return sdvm_compiler_riscv_lla(compiler, reg->value, sourceLocation->symbolHandle, sourceLocation->symbolOffset);
     default: return abort();
     }
 }
@@ -1137,6 +1182,32 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
         sdvm_compiler_riscv_ret(compiler);
         return false;
 
+    // Call instruction differences are handled by the register allocator.
+    case SdvmInstCallVoid:
+    case SdvmInstCallInt8:
+    case SdvmInstCallInt16:
+    case SdvmInstCallInt32:
+    case SdvmInstCallInt64:
+    case SdvmInstCallPointer:
+    case SdvmInstCallProcedureHandle:
+    case SdvmInstCallGCPointer:
+    case SdvmInstCallFloat32:
+    case SdvmInstCallFloat64:
+        if(arg0->kind == SdvmCompLocationGlobalSymbolValue)
+        {
+            SDVM_ASSERT(arg0->symbolOffset == 0);
+            sdvm_compiler_riscv_call_plt(compiler, arg0->symbolHandle);
+        }
+        else if(arg0->kind == SdvmCompLocationLocalSymbolValue)
+        {
+            sdvm_compiler_riscv_call_local(compiler, arg0->symbolHandle, arg0->symbolOffset);
+        }
+        else
+        {
+            sdvm_compiler_riscv_jalr(compiler, SDVM_RISCV_RA, arg0->firstRegister.value, 0);
+        }
+        return true;
+
     default:
         abort();
     }
@@ -1220,9 +1291,19 @@ void sdvm_compiler_riscv_emitFunctionEpilogue(sdvm_functionCompilationState_t *s
 
     sdvm_compiler_t *compiler = state->compiler;
     sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
+    uint32_t pointerSize = state->compiler->pointerSize;
     sdvm_dwarf_cfi_beginEpilogue(cfi);
 
-    abort();
+
+    int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset;
+    SDVM_ASSERT(stackSubtractionAmount >= (int32_t)pointerSize*2);
+
+    sdvm_compiler_riscv_ld(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize*2);
+
+    sdvm_compiler_riscv_ld(compiler, SDVM_RISCV_RA, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize);
+
+    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_SP, SDVM_RISCV_SP, stackSubtractionAmount);
+    sdvm_dwarf_cfi_stackSizeRestore(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
 
     sdvm_dwarf_cfi_endEpilogue(cfi);
 }
@@ -1271,6 +1352,10 @@ uint32_t sdvm_compiler_riscv_mapElfRelocation(sdvm_compilerRelocationKind_t kind
     case SdvmCompRelocationAbsolute64: return SDVM_R_RISCV_64;
     case SdvmCompRelocationRelative32: return SDVM_R_RISCV_32_PCREL;
     case SdvmCompRelocationSectionRelative32: return SDVM_R_RISCV_32;
+    case SdvmCompRelocationRiscVRelativeHi20: return SDVM_R_RISCV_PCREL_HI20;
+    case SdvmCompRelocationRiscVRelativeLo12I: return SDVM_R_RISCV_PCREL_LO12_I;
+    case SdvmCompRelocationRiscVRelax: return SDVM_R_RISCV_RELAX;
+    case SdvmCompRelocationRiscVCallPLT: return SDVM_R_RISCV_CALL_PLT;
     default: abort();
     }
 }
@@ -1279,10 +1364,12 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_riscv32_linux = {
     .pointerSize = 4,
     .objectFileType = SdvmObjectFileTypeElf,
     .elfMachine = SDVM_EM_RISCV,
+    .elfFlags = SDVM_EF_RISCV_RVC | SDVM_EF_RISCV_FLOAT_ABI_DOUBLE,
     .coffMachine = SDVM_IMAGE_FILE_MACHINE_RISCV32,
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .closureCallNeedsScratch = true,
+    .usesPIC = true,
 
     .defaultCC = &sdvm_riscv32_abi_callingConvention,
     .cdecl = &sdvm_riscv32_abi_callingConvention,
@@ -1306,10 +1393,12 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_riscv64_linux = {
     .pointerSize = 8,
     .objectFileType = SdvmObjectFileTypeElf,
     .elfMachine = SDVM_EM_RISCV,
+    .elfFlags = SDVM_EF_RISCV_RVC | SDVM_EF_RISCV_FLOAT_ABI_DOUBLE,
     .coffMachine = SDVM_IMAGE_FILE_MACHINE_RISCV64,
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .closureCallNeedsScratch = true,
+    .usesPIC = true,
 
     .defaultCC = &sdvm_riscv64_abi_callingConvention,
     .cdecl = &sdvm_riscv64_abi_callingConvention,

@@ -5650,6 +5650,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pic = {
     .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_X86_ALL,
     .usesUnderscorePrefix = false,
     .usesCET = true,
+    .usesPIC = true,
 
     .defaultCC = &sdvm_x64_sysv_callingConvention,
     .cdecl = &sdvm_x64_sysv_callingConvention,
@@ -5679,6 +5680,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_macosx = {
     .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_X86_ALL,
     .usesUnderscorePrefix = true,
     .usesCET = false,
+    .usesPIC = true,
 
     .defaultCC = &sdvm_x64_sysv_callingConvention,
     .cdecl = &sdvm_x64_sysv_callingConvention,
@@ -5708,6 +5710,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_windows = {
     .machoCpuSubtype = SDVM_MACHO_CPU_SUBTYPE_X86_ALL,
     .usesUnderscorePrefix = true,
     .usesCET = false,
+    .usesPIC = false,
 
     .defaultCC = &sdvm_x64_win64_callingConvention,
     .cdecl = &sdvm_x64_win64_callingConvention,

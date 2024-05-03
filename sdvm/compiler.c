@@ -3189,6 +3189,17 @@ void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_comp
     sdvm_dynarray_add(&compiler->textSection.relocations, &relocation);
 }
 
+sdvm_compilerSymbolHandle_t sdvm_compiler_addReferencedInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend)
+{
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), ".LR%u", compiler->anonRelocationSymbolCount++);
+
+    sdvm_compilerSymbolHandle_t localAnonSymbol = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, buffer, SdvmCompSymbolKindNull, SdvmCompSymbolBindingLocal);
+    sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(&compiler->symbolTable, localAnonSymbol, compiler->textSection.symbolIndex, compiler->textSection.contents.size);
+    sdvm_compiler_addInstructionRelocation(compiler, kind, symbol, addend);
+    return localAnonSymbol;
+}
+
 void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler, uint32_t labelIndex, int32_t addend)
 {
     uint32_t addressValue = 0;

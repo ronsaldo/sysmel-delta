@@ -63,6 +63,11 @@ typedef enum sdvm_compilerRelocationKind_e
     SdvmCompRelocationAArch64Call26,
     SdvmCompRelocationAArch64Jump19,
     SdvmCompRelocationAArch64Jump26,
+
+    SdvmCompRelocationRiscVRelativeHi20,
+    SdvmCompRelocationRiscVRelativeLo12I,
+    SdvmCompRelocationRiscVRelax,
+    SdvmCompRelocationRiscVCallPLT,
 } sdvm_compilerRelocationKind_t;
 
 typedef enum sdvm_compilerLocationKind_e
@@ -151,7 +156,7 @@ typedef struct sdvm_compilerRelocation_s
 
 typedef struct sdvm_compilerObjectSection_s
 {
-    uint32_t symbolIndex;
+    sdvm_compilerSymbolHandle_t symbolIndex;
     uint32_t alignment;
     uint32_t flags;
     uint32_t entrySize;
@@ -192,6 +197,7 @@ typedef struct sdvm_compiler_s
     const sdvm_compilerTarget_t *target;
     sdvm_compilerSymbolTable_t symbolTable;
     sdvm_dynarray_t labels;
+    uint32_t anonRelocationSymbolCount;
     bool verbose;
 
     union {
@@ -226,6 +232,7 @@ struct sdvm_compilerTarget_s
     uint32_t pointerSize;
     sdvm_compilerObjectFileType_t objectFileType;
     uint32_t elfMachine;
+    uint32_t elfFlags;
     uint16_t coffMachine;
     uint32_t machoCpuType;
     uint32_t machoCpuSubtype;
@@ -233,6 +240,7 @@ struct sdvm_compilerTarget_s
     bool hasSeparateFloatFromVectorRegisters;
     bool usesCET;
     bool closureCallNeedsScratch;
+    bool usesPIC;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
     const sdvm_compilerCallingConvention_t *cdecl;
@@ -720,6 +728,7 @@ SDVM_API void sdvm_compiler_applyPendingLabelRelocations(sdvm_compiler_t *compil
 SDVM_API size_t sdvm_compiler_addInstructionBytes(sdvm_compiler_t *compiler, size_t instructionSize, const void *instruction);
 SDVM_API size_t sdvm_compiler_addInstructionByte(sdvm_compiler_t *compiler, uint8_t byte);
 SDVM_API void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend);
+SDVM_API sdvm_compilerSymbolHandle_t sdvm_compiler_addReferencedInstructionRelocation(sdvm_compiler_t *compiler, sdvm_compilerRelocationKind_t kind, sdvm_compilerSymbolHandle_t symbol, int64_t addend);
 SDVM_API void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler, uint32_t labelIndex, int32_t addend);
 SDVM_API void sdvm_compiler_addInstruction32WithLabelValue(sdvm_compiler_t *compiler, uint32_t instruction, sdvm_compilerRelocationKind_t relocationKind, uint32_t labelIndex, int32_t addend);
 SDVM_API size_t sdvm_compiler_getCurrentPC(sdvm_compiler_t *compiler);
