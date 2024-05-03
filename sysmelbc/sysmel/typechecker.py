@@ -12,7 +12,7 @@ class ErrorAccumulator:
         if len(self.errorList) == 0: return True
         
         for error in self.errorList:
-            print('%s: %s' % (error.sourcePosition, error.message))
+            print('%s: error: %s' % (error.sourcePosition, error.message))
         return False
 
 class Typechecker(ASTVisitor):

@@ -4,10 +4,22 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build",
+            "label": "Build SDVM",
             "type": "shell",
             "command": "./build.sh",
-            "problemMatcher": [],
+            "problemMatcher": ["$gcc"],
+            "group": "build",
+            "presentation": {
+                "echo": false,
+                "showReuseMessage": false,
+                "clear": true
+            }
+        },
+        {
+            "label": "Build Hello World Sample",
+            "type": "shell",
+            "command": "./sysmelbc/sysmelbc.py -c -o test.o samples/01-helloWorld.sysmel",
+            "problemMatcher": ["$sysmelc"],
             "group": "build",
             "presentation": {
                 "echo": false,
