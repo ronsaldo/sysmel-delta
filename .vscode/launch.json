@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",
             "console": "integratedTerminal",
-            "args": ["samples/01-helloWorld.sysmel"]
+            "args": ["-v", "-emit-sdvm", "-c", "-o", "test.sdvm", "samples/01-helloWorld.sysmel"]
         },
         {
             "type": "lldb",
