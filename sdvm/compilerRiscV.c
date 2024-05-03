@@ -626,7 +626,6 @@ void sdvm_compiler_riscv_la(sdvm_compiler_t *compiler, sdvm_compilerRegisterValu
 void sdvm_compiler_riscv_call_plt(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle)
 {
     sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVCallPLT, symbolHandle, 0);
-    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
     sdvm_compiler_riscv_auipc(compiler, SDVM_RISCV_RA, 0);
     sdvm_compiler_riscv_jalr(compiler, SDVM_RISCV_RA, SDVM_RISCV_RA, 0);
 }
@@ -634,7 +633,6 @@ void sdvm_compiler_riscv_call_plt(sdvm_compiler_t *compiler, sdvm_compilerSymbol
 void sdvm_compiler_riscv_call_local(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
 {
     sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVCallPLT, symbolHandle, addend);
-    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
     sdvm_compiler_riscv_auipc(compiler, SDVM_RISCV_RA, 0);
     sdvm_compiler_riscv_jalr(compiler, SDVM_RISCV_RA, SDVM_RISCV_RA, 0);
 }
@@ -642,11 +640,9 @@ void sdvm_compiler_riscv_call_local(sdvm_compiler_t *compiler, sdvm_compilerSymb
 void sdvm_compiler_riscv_lla(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerSymbolHandle_t symbolHandle, int32_t addend)
 {
     sdvm_compilerSymbolHandle_t relocSymbol = sdvm_compiler_addReferencedInstructionRelocation(compiler, SdvmCompRelocationRiscVRelativeHi20, symbolHandle, addend);
-    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
     sdvm_compiler_riscv_auipc(compiler, Rd, 0);
 
     sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelativeLo12I, relocSymbol, 0);
-    sdvm_compiler_addInstructionRelocation(compiler, SdvmCompRelocationRiscVRelax, 0, 0);
     sdvm_compiler_riscv_addi_noOpt(compiler, Rd, Rd, 0);
 }
 

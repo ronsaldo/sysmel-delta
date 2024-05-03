@@ -1486,7 +1486,7 @@ SDVM_API bool sdvm_compilerLocation_isOnStack(const sdvm_compilerLocation_t *loc
 
 SDVM_API bool sdvm_compilerStackLocation_matches(const sdvm_compilerStackLocation_t *first, const sdvm_compilerStackLocation_t *second)
 {
-    return first->size == second->size && first->segment == first->segment && first->isValid == second->isValid && (!first->isValid || first->segmentOffset == second->segmentOffset);
+    return first->size == second->size && first->segment == second->segment && first->isValid == second->isValid && (!first->isValid || first->segmentOffset == second->segmentOffset);
 }
 
 SDVM_API bool sdvm_compilerLocation_matchesStackLocation(const sdvm_compilerLocation_t *firstLocation, const sdvm_compilerLocation_t *secondLocation)

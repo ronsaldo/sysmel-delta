@@ -69,7 +69,7 @@ class SDVMString:
         return self.value.decode('utf-8')
     
 class SDVMModule:
-    def __init__(self, pointerSize = 8) -> None:
+    def __init__(self, pointerSize: int = 8) -> None:
         self.pointerSize = pointerSize
         self.constantSection = SDVMConstantSection()
         self.dataSection = SDVMDataSection()
