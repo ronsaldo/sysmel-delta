@@ -30,6 +30,8 @@ typedef struct sdvm_compilerElfFileLayout_s
     size_t symbolTableSectionIndex;
     size_t symbolCount;
     size_t localSymbolCount;
+
+    size_t noteGnuStackSectionIndex;
 } sdvm_compilerElfFileLayout_t;
 
 typedef struct sdvm_compilerElfStringSectionState_s
@@ -139,6 +141,10 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
 
         layout.size += sizeof(sdvm_elf64_symbol_t)*layout.symbolCount;
     }
+
+    // .note.GNU-stack No executable stack flag.
+    layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(".note.GNU-stack");
+    layout.noteGnuStackSectionIndex = layout.sectionHeaderCount++;
 
     // Section header strings
     layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(".shstrtab");
@@ -306,6 +312,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         symbolStringTableSection->type = SDVM_SHT_STRTAB;
         symbolStringTableSection->offset = layout.symbolStringTable;
         symbolStringTableSection->size = compiler->symbolTable.strings.size;
+        symbolStringTableSection->addressAlignment = 1;
         memcpy(objectFile->data + layout.symbolStringTable, compiler->symbolTable.strings.data, compiler->symbolTable.strings.size);
 
         sdvm_elf64_sectionHeader_t *symbolTableSection = sectionHeaders + layout.symbolTableSectionIndex;
@@ -316,6 +323,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         symbolTableSection->entrySize = sizeof(sdvm_elf64_symbol_t);
         symbolTableSection->info = layout.localSymbolCount;
         symbolTableSection->link = layout.symbolStringTableSectionIndex;
+        symbolTableSection->addressAlignment = 1;
 
         sdvm_elf64_symbol_t *elfSymbols = (sdvm_elf64_symbol_t*)(objectFile->data + layout.symbolTable);
         
@@ -336,12 +344,19 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         }
     }
 
+    // Extra sections.
+    sdvm_elf64_sectionHeader_t *noteGnuStackSection = sectionHeaders + layout.noteGnuStackSectionIndex;
+    noteGnuStackSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".note.GNU-stack");
+    noteGnuStackSection->type = SDVM_SHT_PROGBITS;
+    noteGnuStackSection->addressAlignment = 1;
+
     // Section header strings
     sdvm_elf64_sectionHeader_t *sectionHeaderStringsSection = sectionHeaders + header->sectionHeaderNameStringTableIndex;
     sectionHeaderStringsSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".shstrtab");
     sectionHeaderStringsSection->type = SDVM_SHT_STRTAB;
     sectionHeaderStringsSection->offset = layout.sectionHeaderStrings;
     sectionHeaderStringsSection->size = layout.sectionHeaderStringsSize;
+    sectionHeaderStringsSection->addressAlignment = 1;
 
     return objectFile;
 }
