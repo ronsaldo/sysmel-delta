@@ -403,7 +403,10 @@ class ASTBindableNameNode(ASTNode):
     
     def parseAndUnpackArgumentsPattern(self):
         return [self], self.isExistential, self.isVariadic
-    
+
+    def parseAsExportedNameSymbol(self):
+        return self.nameExpression
+
     def expandBindingOfValueWithAt(self, value, typechecker, sourcePosition):
         return ASTBindingDefinitionNode(sourcePosition, self.nameExpression, self.typeExpression, value, isRebind = True, isMutable = self.isMutable)
 
@@ -500,6 +503,9 @@ class ASTIdentifierReferenceNode(ASTNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitIdentifierReferenceNode(self)
+
+    def parseAsExportedNameSymbol(self):
+        return ASTLiteralNode(self.sourcePosition, self.value)
 
     def toJson(self) -> dict:
         return {'kind': 'Identifier', 'value': repr(self.value)}
@@ -817,6 +823,9 @@ class ASTBindPatternNode(ASTNode):
     def accept(self, visitor: ASTVisitor):
         return visitor.visitBindPatternNode(self)
 
+    def parseAsExportedNameSymbol(self):
+        return self.pattern.parseAsExportedNameSymbol()
+
     def toJson(self) -> dict:
         return {'kind': 'BindPattern', 'pattern': self.pattern.toJson(), 'value': self.value.toJson()}
 
@@ -827,6 +836,9 @@ class ASTSequenceNode(ASTNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitSequenceNode(self)
+    
+    def isSequenceNode(self):
+        return True
 
     def toJson(self):
         return {'kind': 'Sequence', 'elements': list(map(optionalASTNodeToJson, self.elements))}

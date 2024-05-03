@@ -212,7 +212,7 @@ def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
         state.advance()
         return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [])
     
-    state, expression = parseExpression(state)
+    state, expression = parseSequenceUntilEndOrDelimiter(state, TokenKind.RIGHT_PARENT)
 
     # )
     expression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, expression)
@@ -508,6 +508,8 @@ def parseExpressionListUntilEndOrDelimiter(state: ParserState, delimiter: TokenK
 def parseSequenceUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -> tuple[ParserState, ASTNode]:
     initialPosition = state.position
     state, elements = parseExpressionListUntilEndOrDelimiter(state, delimiter)
+    if len(elements) == 1:
+        return state, elements[0]
     return state, ASTSequenceNode(state.sourcePositionFrom(initialPosition), elements)
 
 def parseTopLevelExpression(state: ParserState) -> tuple[ParserState, ASTNode]:

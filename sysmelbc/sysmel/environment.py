@@ -110,7 +110,7 @@ class ChildEnvironment(AbstractEnvironment):
         return self.parent.lookSymbolRecursively(symbol)
 
     def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
-        parentResult = parentResult = self.parent.lookSymbolBindingListRecursively(symbol)
+        parentResult = self.parent.lookSymbolBindingListRecursively(symbol)
 
         binding = self.lookLocalSymbol(symbol)
         if binding is not None:
@@ -617,8 +617,19 @@ def fromExternalImportAsWithType(macroContext: MacroContext, externalName: ASTNo
 def moduleExportWithMacro(macroContext: MacroContext, name: ASTNode, value: ASTNode) -> ASTNode:
     return ASTModuleExportValueNode(macroContext.sourcePosition, None, name, value)
 
-def moduleExportExternalWithMacro(macroContext: MacroContext, name: ASTNode, externalName: ASTNode, value: ASTNode) -> ASTNode:
+def moduleExportMacro(macroContext: MacroContext, value: ASTNode) -> ASTNode:
+    if value.isSequenceNode():
+        return ASTSequenceNode(macroContext.sourcePosition, list(map(lambda n: moduleExportMacro(macroContext, n), value.elements)))
+
+    return ASTModuleExportValueNode(macroContext.sourcePosition, None, value.parseAsExportedNameSymbol(), value)
+
+def moduleExternalExportWithMacro(macroContext: MacroContext, externalName: ASTNode, name: ASTNode, value: ASTNode) -> ASTNode:
     return ASTModuleExportValueNode(macroContext.sourcePosition, externalName, name, value)
+
+def moduleExternalExportMacro(macroContext: MacroContext, externalName: ASTNode, value: ASTNode) -> ASTNode:
+    if value.isSequenceNode():
+        return ASTSequenceNode(macroContext.sourcePosition, list(map(lambda n: moduleExternalExportWithMacro(macroContext, externalName, n), value.elements)))
+    return ASTModuleExportValueNode(macroContext.sourcePosition, externalName, value.parseAsExportedNameSymbol(), value)
 
 def moduleEntryPointMacro(macroContext: MacroContext, entryPointValue: ASTNode) -> ASTNode:
     return ASTModuleEntryPointNode(macroContext.sourcePosition, entryPointValue)
@@ -795,7 +806,9 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['fromExternal:import:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromExternalImportWithType, ['macro']],
     ['fromExternal:import:as:withType:', 'Macro::fromModule:import:withType:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], fromExternalImportAsWithType, ['macro']],
     ['export:with:', 'Macro::export:with:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExportWithMacro, ['macro']],
-    ['export:external:with:', 'Macro::export:external:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExportExternalWithMacro, ['macro']],
+    ['export:', 'Macro::export:', [(MacroContextType, ASTNodeType), ASTNodeType], moduleExportMacro, ['macro']],
+    ['external:export:with:', 'Macro::external:export:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExternalExportWithMacro, ['macro']],
+    ['external:export:', 'Macro::external:export:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], moduleExternalExportMacro, ['macro']],
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [(MacroContextType, ASTNodeType), ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['=>', 'Type::=>', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], arrowMacro, ['macro']],

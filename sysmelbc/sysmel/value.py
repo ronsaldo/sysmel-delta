@@ -115,7 +115,10 @@ class TypedValue(ABC):
     
     def isASTNode(self):
         return False
-    
+
+    def isSequenceNode(self):
+        return False
+
     def isSymbolBinding(self):
         return False
 
@@ -1601,6 +1604,10 @@ class ASTNode(TypedValue):
     def parseAndUnpackArgumentsPattern(self):
         from .ast import ASTErrorNode
         return [ASTErrorNode(self.sourcePosition, 'Not a valid argument spec.')], False, False
+    
+    def parseAsExportedNameSymbol(self):
+        from .ast import ASTErrorNode
+        return ASTErrorNode(self.sourcePosition, 'Not an identifier or binding assignment.')
 
     def performSatisfiedByCheckInEnvironment(self, other, environment) -> bool:
         return self.performEquivalenceCheckInEnvironment(other, environment)
