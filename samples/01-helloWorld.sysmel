@@ -5,6 +5,14 @@ fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)..
     second: Int32.
 }.
 
+export: (
+    :getFirst <- (:(TestRecord ref)record :: Int32) __cdecl
+        :> record first.
+
+    :getSecond <- (:(TestRecord ref)record :: Int32) __cdecl
+        :> record second.
+).
+
 external: #C export: (
     :main <- (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :> {
         :record <- TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
@@ -18,12 +26,4 @@ external: #C export: (
 
         0i32
     }.
-).
-
-export: (
-    :getFirst <- (:(TestRecord ref)record :: Int32) __cdecl
-        :> record first.
-
-    :getSecond <- (:(TestRecord ref)record :: Int32) __cdecl
-        :> record second.
 ).

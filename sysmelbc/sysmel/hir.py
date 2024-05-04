@@ -1892,7 +1892,7 @@ class HIRModuleFrontendValueTranslator:
         baseType = self.translateConstantTypedValue(value.baseType)
         return HIRPointerType(self.context, baseType)
 
-    def visitVoidTypeValue(self, value: VoidTypeValue) -> HIRValue:
+    def visitUnitTypeValue(self, value: UnitTypeValue) -> HIRValue:
         return self.translateConstantTypedValue(value.type).getSingleton()
     
     def visitStringDataValue(self, value: StringDataValue):

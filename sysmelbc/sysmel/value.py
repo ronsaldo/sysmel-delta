@@ -11,7 +11,7 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
-    def visitVoidTypeValue(self, value):
+    def visitUnitTypeValue(self, value):
         pass
 
     @abstractmethod
@@ -320,14 +320,14 @@ class BaseType(TypedValue):
 class AbortTypeClass(BaseType):
     pass
 
-class VoidTypeValue(TypedValue):
+class UnitTypeValue(TypedValue):
     def __init__(self, type: BaseType, name: str) -> None:
         super().__init__()
         self.type = type
         self.name = name
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
-        return visitor.visitVoidTypeValue(self)
+        return visitor.visitUnitTypeValue(self)
 
     def isEquivalentTo(self, other: TypedValue) -> bool:
         return self.type.isEquivalentTo(other.getType())
@@ -343,9 +343,9 @@ class VoidTypeValue(TypedValue):
 class VoidTypeClass(BaseType):
     def __init__(self, name: str, valueName: str) -> None:
         super().__init__(name)
-        self.singleton = VoidTypeValue(self, valueName)
+        self.singleton = UnitTypeValue(self, valueName)
 
-    def getSingleton(self) -> VoidTypeValue:
+    def getSingleton(self) -> UnitTypeValue:
         return self.singleton
 
 class CVarArgTypeClass(BaseType):

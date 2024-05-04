@@ -4,10 +4,6 @@ import os.path
 import copy
 
 class AbstractEnvironment(ABC):
-    @abstractmethod
-    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
-        pass
-
     def lookScriptDirectory(self) -> str:
         return None
 
@@ -28,21 +24,23 @@ class AbstractEnvironment(ABC):
 
     def withBaseType(self, baseType: BaseType, sourcePosition: SourcePosition = None):
         assert baseType.name is not None
-        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, Symbol.intern(baseType.name), baseType))
+        return self.withSymbolValueBinding(Symbol.intern(baseType.name), baseType, sourcePosition)
 
-    def withVoidTypeValue(self, unitTypeValue: VoidTypeValue, sourcePosition: SourcePosition = None):
+    def withUnitTypeValue(self, unitTypeValue: UnitTypeValue, sourcePosition: SourcePosition = None):
         assert unitTypeValue.name is not None
-        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, Symbol.intern(unitTypeValue.name), unitTypeValue))
+        return self.withSymbolValueBinding(Symbol.intern(unitTypeValue.name), unitTypeValue, sourcePosition)
 
     def withPrimitiveFunction(self, primitiveFunction, sourcePosition: SourcePosition = None):
         assert primitiveFunction.name is not None
-        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, primitiveFunction.name, primitiveFunction))
+        return self.withSymbolValueBinding(primitiveFunction.name, primitiveFunction, sourcePosition)
 
     def withSymbolBinding(self, symbolBinding: SymbolBinding):
-        return ChildEnvironmentWithBinding(self, symbolBinding)
+        childEnvironment = ChildEnvironmentWithBindings(self)
+        childEnvironment.addBinding(symbolBinding)
+        return childEnvironment
 
     def withSymbolValueBinding(self, symbol: Symbol, value: TypedValue, sourcePosition: SourcePosition = None):
-        return ChildEnvironmentWithBinding(self, SymbolValueBinding(sourcePosition, symbol, value))
+        return self.withSymbolBinding(SymbolValueBinding(sourcePosition, symbol, value))
 
     def withImplicitValueBindingSubstitution(self, binding: SymbolValueBinding, substitution: ASTNode):
         return ChildEnvironmentWithBindingSubstitution(self, binding, substitution)
@@ -70,9 +68,6 @@ class AbstractEnvironment(ABC):
 
 class EmptyEnvironment(AbstractEnvironment):
     Singleton = None
-
-    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
-        return None
 
     def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
         return []
@@ -102,13 +97,6 @@ class ChildEnvironment(AbstractEnvironment):
     def lookModule(self) -> Module:
         return self.parent.lookModule()
 
-    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
-        binding = self.lookLocalSymbol(symbol)
-        if binding is not None:
-            return binding
-
-        return self.parent.lookSymbolRecursively(symbol)
-
     def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
         parentResult = self.parent.lookSymbolBindingListRecursively(symbol)
 
@@ -134,15 +122,36 @@ class ChildEnvironment(AbstractEnvironment):
     def isValidContextForContinue(self) -> bool:
         return self.parent.isValidContextForContinue()
 
-class ChildEnvironmentWithBinding(ChildEnvironment):
-    def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding) -> None:
+class ChildEnvironmentWithBindings(ChildEnvironment):
+    def __init__(self, parent: AbstractEnvironment) -> None:
         super().__init__(parent)
-        self.binding = binding
+        self.bindings: dict[Symbol, list[SymbolBinding]] = {}
+
+    def getLocalBindingListForSymbol(self, symbol: Symbol):
+        return self.bindings.get(symbol, [])
+
+    def addBinding(self, binding: SymbolBinding):
+        assert binding.name is not None
+        self.bindings[binding.name] = [binding] + self.getLocalBindingListForSymbol(binding.name)
+
+    def copy(self):
+        newEnvironment = ChildEnvironmentWithBindings(self.parent)
+        newEnvironment.bindings = dict(self.bindings)
+        return newEnvironment
+
+    def withSymbolBinding(self, symbolBinding: SymbolBinding):
+        childEnvironment = self.copy()
+        childEnvironment.addBinding(symbolBinding)
+        return childEnvironment
 
     def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
-        if symbol == self.binding.name:
-            return self.binding
-        return None
+        if symbol not in self.bindings:
+            return None
+        
+        return self.bindings[symbol][0]
+
+    def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
+        return self.getLocalBindingListForSymbol(symbol) + self.parent.lookSymbolBindingListRecursively(symbol)
 
 class ChildEnvironmentWithBindingSubstitution(ChildEnvironment):
     def __init__(self, parent: AbstractEnvironment, binding: SymbolBinding, substitution: ASTNode) -> None:
@@ -247,13 +256,6 @@ class FunctionalAnalysisEnvironment(LexicalEnvironment):
         self.capturedBindingMap[binding] = capturedBinding
         self.captureBindings.append(capturedBinding)
         return capturedBinding
-
-    def lookSymbolRecursively(self, symbol: Symbol) -> SymbolBinding:
-        binding = self.lookLocalSymbol(symbol)
-        if binding is not None:
-            return binding
-
-        return self.getOrCreateCaptureForBinding(self.parent.lookSymbolRecursively(symbol))
 
     def lookSymbolBindingListRecursively(self, symbol: Symbol) -> list[Symbol]:
         parentResult = list(map(self.getOrCreateCaptureForBinding, self.parent.lookSymbolBindingListRecursively(symbol)))
@@ -778,7 +780,7 @@ for baseType in [
         ASTNodeType, 
     ]:
     TopLevelEnvironment = TopLevelEnvironment.withBaseType(baseType)
-TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(VoidType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(VoidType.getSingleton())
 
 TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['let:type:with:', 'Macro::let:type:with:', [(MacroContextType, ASTNodeType, ASTNodeType, ASTNodeType), ASTNodeType], letTypeWithMacro, ['macro']],
@@ -940,8 +942,8 @@ for primitiveVectorType in PrimitiveFloatVectorTypes:
         ['truncated', prefix + 'truncated', [primitiveNumberType, primitiveNumberType], lambda x: x.truncated(), ['pure']],
     ], TopLevelEnvironment)
 
-TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(FalseType.getSingleton())
-TopLevelEnvironment = TopLevelEnvironment.withVoidTypeValue(TrueType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(FalseType.getSingleton())
+TopLevelEnvironment = TopLevelEnvironment.withUnitTypeValue(TrueType.getSingleton())
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Boolean"), BooleanType)
 TopLevelEnvironment = TopLevelEnvironment.withSymbolValueBinding(Symbol.intern("Type"), TypeType)
 

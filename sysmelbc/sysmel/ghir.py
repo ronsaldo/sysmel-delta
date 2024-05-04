@@ -1832,7 +1832,7 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
     def visitGenericTypedValue(self, value: TypedValue):
         return self.context.getConstantValue(value)
 
-    def visitVoidTypeValue(self, value):
+    def visitUnitTypeValue(self, value):
         return self.context.getConstantValue(value)
 
     def visitIntegerValue(self, value):
