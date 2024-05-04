@@ -1,11 +1,11 @@
 fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl.
 
-:TestRecord <- RecordWithFields: #{
-    first: Int32.
-    second: Int32.
-}.
-
 export: (
+    :TestRecord <- RecordWithFields: #{
+        first: Int32.
+        second: Int32.
+    }.
+
     :getFirst <- (:(TestRecord ref)record :: Int32) __cdecl
         :> record first.
 

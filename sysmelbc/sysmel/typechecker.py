@@ -483,7 +483,8 @@ class Typechecker(ASTVisitor):
         if len(errorNodes) != 0:
             return self.visitNode(ASTSequenceNode(node.sourcePosition, [value] + errorNodes))
         
-        return ASTTypedModuleExportValueNode(node.sourcePosition, value.type, externalName, name, value, self.lexicalEnvironment.lookModule())
+        valueType = getTypeOfAnalyzedNode(value, node.sourcePosition)
+        return ASTTypedModuleExportValueNode(node.sourcePosition, valueType, externalName, name, value, self.lexicalEnvironment.lookModule())
 
     def visitModuleEntryPointNode(self, node: ASTModuleEntryPointNode):
         entryPoint = self.visitNode(node.entryPoint)
@@ -772,7 +773,7 @@ class Typechecker(ASTVisitor):
 
         ## Compute the lambda type.
         bodyType = getTypeOfAnalyzedNode(body, node.sourcePosition)
-        typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: a.type, typedArguments)), node.sourcePosition)
+        typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: getTypeOfAnalyzedNode(a, node.sourcePosition), typedArguments)), node.sourcePosition)
         typedPi = reducePiNode(ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, bodyType, node.callingConvention))
 
         ## Make the lambda node.
@@ -791,7 +792,7 @@ class Typechecker(ASTVisitor):
             body = ASTLiteralTypeNode(node.sourcePosition, AnyType)
         else:
             body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
-        typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: a.type, typedArguments)), node.sourcePosition)
+        typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: getTypeOfAnalyzedNode(a, node.sourcePosition), typedArguments)), node.sourcePosition)
         typedPi = ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, body, node.callingConvention)
         return reducePiNode(typedPi)
 
@@ -804,7 +805,7 @@ class Typechecker(ASTVisitor):
             typedArguments.append(typedArgument)
 
         body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
-        typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: a.type, typedArguments)), node.sourcePosition)
+        typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: getTypeOfAnalyzedNode(a, node.sourcePosition), typedArguments)), node.sourcePosition)
         typedSigma = ASTTypedSigmaNode(node.sourcePosition, typeUniverse, typedArguments, False, functionalEnvironment.captureBindings, body, node.callingConvention)
         return reduceSigmaNode(typedSigma)
 
@@ -1389,13 +1390,15 @@ class ASTCaptureBindingFinder(ASTSequentialVisitor):
 
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
         self.visitNode(node.type)
-        self.visitNode(node.argumentBinding.typeExpression)
+        for argument in node.arguments:
+            self.visitNode(argument.type)
         for captureBinding in node.captureBindings:
             self.context.getOrCreateCaptureForBinding(captureBinding.capturedBinding)
 
     def visitTypedPiNode(self, node: ASTTypedPiNode):
         self.visitNode(node.type)
-        self.visitNode(node.argumentBinding.typeExpression)
+        for argument in node.arguments:
+            self.visitNode(argument.type)
         for captureBinding in node.captureBindings:
             self.context.getOrCreateCaptureForBinding(captureBinding.capturedBinding)
     

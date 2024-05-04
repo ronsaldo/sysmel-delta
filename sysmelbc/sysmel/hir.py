@@ -214,6 +214,9 @@ class HIRValue(ABC):
     def canShareMemoryWithValue(self, otherValue) -> bool:
         return False
 
+    def isType(self):
+        return False
+
     @abstractmethod
     def usedValues(self):
         return []

@@ -890,7 +890,8 @@ class MIRModuleFrontend:
             self.translateValue(globalValue)
 
         for name, value, externalName in hirModule.exportedValues:
-            self.module.exportValue(name, self.translateValue(value), externalName)
+            if not value.isType(): 
+                self.module.exportValue(name, self.translateValue(value), externalName)
 
         if hirModule.entryPoint is not None:
             assert hirModule.entryPoint.isConstantLambda()
