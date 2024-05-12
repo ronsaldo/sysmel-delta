@@ -253,11 +253,11 @@ struct sdvm_compilerTarget_s
     bool usesPIC;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
-    const sdvm_compilerCallingConvention_t *cdecl;
-    const sdvm_compilerCallingConvention_t *stdcall;
+    const sdvm_compilerCallingConvention_t *cdeclCC;
+    const sdvm_compilerCallingConvention_t *stdcallCC;
     const sdvm_compilerCallingConvention_t *apicall;
-    const sdvm_compilerCallingConvention_t *thiscall;
-    const sdvm_compilerCallingConvention_t *vectorcall;
+    const sdvm_compilerCallingConvention_t *thiscallCC;
+    const sdvm_compilerCallingConvention_t *vectorcallCC;
 
     bool (*compileModuleFunction) (sdvm_functionCompilationState_t *state);
     uint32_t (*mapElfRelocation) (sdvm_compilerRelocationKind_t kind);

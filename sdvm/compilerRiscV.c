@@ -33,19 +33,16 @@ static const sdvm_compilerRegister_t *sdvm_riscv32_abi_integerPassingRegisters[]
     &sdvm_riscv32_A0, &sdvm_riscv32_A1, &sdvm_riscv32_A2, &sdvm_riscv32_A3,
     &sdvm_riscv32_A4, &sdvm_riscv32_A5, &sdvm_riscv32_A6, &sdvm_riscv32_A7,
 };
-static const uint32_t sdvm_riscv32_abi_integerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv32_abi_integerPassingRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_riscv64_abi_integerPassingRegisters[] = {
     &sdvm_riscv64_A0, &sdvm_riscv64_A1, &sdvm_riscv64_A2, &sdvm_riscv64_A3,
     &sdvm_riscv64_A4, &sdvm_riscv64_A5, &sdvm_riscv64_A6, &sdvm_riscv64_A7,
 };
-static const uint32_t sdvm_riscv64_abi_integerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv64_abi_integerPassingRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_riscv64_abi_integerPassingDwordRegisters[] = {
     &sdvm_riscv64_A0W, &sdvm_riscv64_A1W, &sdvm_riscv64_A2W, &sdvm_riscv64_A3W,
     &sdvm_riscv64_A4W, &sdvm_riscv64_A5W, &sdvm_riscv64_A6W, &sdvm_riscv64_A7W,
 };
-static const uint32_t sdvm_riscv64_abi_integerPassingDwordRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv64_abi_integerPassingDwordRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_riscv_abi_allocatableIntegerRegisters[] = {
     // Temporary registers
@@ -65,7 +62,6 @@ static const sdvm_compilerRegisterValue_t sdvm_riscv_abi_allocatableIntegerRegis
     SDVM_RISCV_S9, SDVM_RISCV_S10, SDVM_RISCV_S11,
     
 };
-static const uint32_t sdvm_riscv_abi_allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_allocatableIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_riscv_abi_callPreservedIntegerRegisters[] = {
     SDVM_RISCV_S1, SDVM_RISCV_S2, SDVM_RISCV_S3, SDVM_RISCV_S4,
@@ -74,7 +70,6 @@ static const sdvm_compilerRegisterValue_t sdvm_riscv_abi_callPreservedIntegerReg
 
     SDVM_RISCV_FP, SDVM_RISCV_RA, SDVM_RISCV_SP,
 };
-static const uint32_t sdvm_riscv_abi_callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_callPreservedIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_riscv_abi_callTouchedIntegerRegisters[] = {
     SDVM_RISCV_X0, SDVM_RISCV_X1, SDVM_RISCV_X2, SDVM_RISCV_X3,
@@ -83,7 +78,6 @@ static const sdvm_compilerRegisterValue_t sdvm_riscv_abi_callTouchedIntegerRegis
     SDVM_RISCV_X12, SDVM_RISCV_X13, SDVM_RISCV_X14, SDVM_RISCV_X15,
     SDVM_RISCV_X16, SDVM_RISCV_X17,
 };
-static const uint32_t sdvm_riscv_abi_callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_callTouchedIntegerRegisters);
 
 const sdvm_compilerCallingConvention_t sdvm_riscv32_abi_callingConvention = {
     .supportsLocalSymbolValueCall = true,
@@ -94,7 +88,7 @@ const sdvm_compilerCallingConvention_t sdvm_riscv32_abi_callingConvention = {
     .calloutShadowSpace = 0,
 
     .integerRegisterSize = 4,
-    .integerRegisterCount = sdvm_riscv32_abi_integerPassingRegisterCount,
+    .integerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv32_abi_integerPassingRegisters),
 
     .integer32Registers = sdvm_riscv32_abi_integerPassingRegisters,
     .integerRegisters = sdvm_riscv32_abi_integerPassingRegisters,
@@ -107,13 +101,13 @@ const sdvm_compilerCallingConvention_t sdvm_riscv32_abi_callingConvention = {
     .secondInteger32ResultRegister = &sdvm_riscv32_A1,
     .secondIntegerResultRegister = &sdvm_riscv32_A1,
 
-    .allocatableIntegerRegisterCount = sdvm_riscv_abi_allocatableIntegerRegisterCount,
+    .allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_allocatableIntegerRegisters),
     .allocatableIntegerRegisters = sdvm_riscv_abi_allocatableIntegerRegisters,
     
-    .callPreservedIntegerRegisterCount = sdvm_riscv_abi_callPreservedIntegerRegisterCount,
+    .callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_callPreservedIntegerRegisters),
     .callPreservedIntegerRegisters = sdvm_riscv_abi_callPreservedIntegerRegisters,
     
-    .callTouchedIntegerRegisterCount = sdvm_riscv_abi_callTouchedIntegerRegisterCount,
+    .callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_callTouchedIntegerRegisters),
     .callTouchedIntegerRegisters = sdvm_riscv_abi_callTouchedIntegerRegisters,
 };
 
@@ -126,7 +120,7 @@ const sdvm_compilerCallingConvention_t sdvm_riscv64_abi_callingConvention = {
     .calloutShadowSpace = 0,
 
     .integerRegisterSize = 8,
-    .integerRegisterCount = sdvm_riscv64_abi_integerPassingRegisterCount,
+    .integerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv64_abi_integerPassingRegisters),
 
     .integer32Registers = sdvm_riscv64_abi_integerPassingDwordRegisters,
     .integer64Registers = sdvm_riscv64_abi_integerPassingRegisters,
@@ -142,13 +136,13 @@ const sdvm_compilerCallingConvention_t sdvm_riscv64_abi_callingConvention = {
     .secondInteger64ResultRegister = &sdvm_riscv64_A1,
     .secondIntegerResultRegister = &sdvm_riscv64_A1,
 
-    .allocatableIntegerRegisterCount = sdvm_riscv_abi_allocatableIntegerRegisterCount,
+    .allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_allocatableIntegerRegisters),
     .allocatableIntegerRegisters = sdvm_riscv_abi_allocatableIntegerRegisters,
     
-    .callPreservedIntegerRegisterCount = sdvm_riscv_abi_callPreservedIntegerRegisterCount,
+    .callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_callPreservedIntegerRegisters),
     .callPreservedIntegerRegisters = sdvm_riscv_abi_callPreservedIntegerRegisters,
     
-    .callTouchedIntegerRegisterCount = sdvm_riscv_abi_callTouchedIntegerRegisterCount,
+    .callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_riscv_abi_callTouchedIntegerRegisters),
     .callTouchedIntegerRegisters = sdvm_riscv_abi_callTouchedIntegerRegisters,
 };
 
@@ -472,120 +466,137 @@ bool sdvm_compiler_isRiscV32(sdvm_compiler_t *compiler)
 void sdvm_compiler_riscv_lwu(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_lw(compiler, rd, rs, imm);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 6, rs, imm));
+        sdvm_compiler_riscv_lw(compiler, rd, rs, imm);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 6, rs, imm));
 }
 
 void sdvm_compiler_riscv_ld(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_lw(compiler, rd, rs, imm);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 3, rs, imm));
+        sdvm_compiler_riscv_lw(compiler, rd, rs, imm);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x03, rd, 3, rs, imm));
 }
 
 void sdvm_compiler_riscv_sd(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t src, sdvm_riscv_registerIndex_t base, int16_t imm)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_sw(compiler, src, base, imm);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 3, base, src, imm));
+        sdvm_compiler_riscv_sw(compiler, src, base, imm);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_S_encode(0x23, 3, base, src, imm));
 }
 
 void sdvm_compiler_riscv_slliw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_slli(compiler, rd, rs, shift);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 1, rs, shift, 0));
+        sdvm_compiler_riscv_slli(compiler, rd, rs, shift);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 1, rs, shift, 0));
 }
 
 void sdvm_compiler_riscv_srliw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_srli(compiler, rd, rs, shift);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 5, rs, shift, 0));
+        sdvm_compiler_riscv_srli(compiler, rd, rs, shift);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 5, rs, shift, 0));
 }
 
 void sdvm_compiler_riscv_sraiw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, uint8_t shift)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_srai(compiler, rd, rs, shift);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 5, rs, shift, 0x20));
+        sdvm_compiler_riscv_srai(compiler, rd, rs, shift);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x1B, rd, 5, rs, shift, 0x20));
 }
 
 void sdvm_compiler_riscv_addiw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs, int16_t imm)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_addi(compiler, rd, rs, imm);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x1B, rd, 0, rs, imm));
+        sdvm_compiler_riscv_addi(compiler, rd, rs, imm);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_I_encode(0x1B, rd, 0, rs, imm));
 }
 
 void sdvm_compiler_riscv_addw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_add(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 0));
+        sdvm_compiler_riscv_add(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 0));
 }
 
 void sdvm_compiler_riscv_subw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_sub(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 0x20));
+        sdvm_compiler_riscv_sub(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 0x20));
 }
 
 void sdvm_compiler_riscv_sllw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_sllw(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 1, rs1, rs2, 0));
+        sdvm_compiler_riscv_sllw(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 1, rs1, rs2, 0));
 }
 
 void sdvm_compiler_riscv_srlw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_srlw(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 0));
+        sdvm_compiler_riscv_srlw(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 0));
 }
 
 void sdvm_compiler_riscv_sraw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_sraw(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 0x20));
+        sdvm_compiler_riscv_sraw(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 0x20));
 }
 
 void sdvm_compiler_riscv_mulw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_mul(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 1));
+        sdvm_compiler_riscv_mul(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 0, rs1, rs2, 1));
 }
 
 void sdvm_compiler_riscv_divw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_div(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 4, rs1, rs2, 1));
+        sdvm_compiler_riscv_div(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 4, rs1, rs2, 1));
 }
 
 void sdvm_compiler_riscv_divuw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_divu(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 1));
+        sdvm_compiler_riscv_divu(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 5, rs1, rs2, 1));
 }
 
 void sdvm_compiler_riscv_remw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_rem(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 6, rs1, rs2, 1));
+        sdvm_compiler_riscv_rem(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 6, rs1, rs2, 1));
 }
 
 void sdvm_compiler_riscv_remuw(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, sdvm_riscv_registerIndex_t rs1, sdvm_riscv_registerIndex_t rs2)
 {
     if(sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_remu(compiler, rd, rs1, rs2);
-    sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 7, rs1, rs2, 1));
+        sdvm_compiler_riscv_remu(compiler, rd, rs1, rs2);
+    else
+        sdvm_compiler_riscv_addInstruction(compiler, sdvm_compiler_riscv_32_R_encode(0x3B, rd, 7, rs1, rs2, 1));
 }
 
 #pragma endregion RV64
@@ -677,23 +688,29 @@ bool sdvm_compiler_riscv_isImm12(int32_t imm)
 void sdvm_compiler_riscv_li32(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, int32_t imm32)
 {
     if(imm32 == 0)
-        return sdvm_compiler_riscv_mv(compiler, rd, SDVM_RISCV_ZERO);
+    {
+        sdvm_compiler_riscv_mv(compiler, rd, SDVM_RISCV_ZERO);
+    }
     else if(sdvm_compiler_riscv_isImm12(imm32))
-        return sdvm_compiler_riscv_addi(compiler, rd, SDVM_RISCV_ZERO, imm32);
-
-    sdvm_compiler_riscv_lui(compiler, rd, imm32);
-    sdvm_compiler_riscv_addi(compiler, rd, rd, imm32);
+    {
+        sdvm_compiler_riscv_addi(compiler, rd, SDVM_RISCV_ZERO, (int16_t)imm32);
+    }
+    else
+    {
+        sdvm_compiler_riscv_lui(compiler, rd, imm32);
+        sdvm_compiler_riscv_addi(compiler, rd, rd, (int16_t)imm32);
+    }
 }
 
-void sdvm_compiler_riscv_li32_neg(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, int32_t imm32)
+void sdvm_compiler_riscv_li32_neg(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, int64_t imm32)
 {
-    sdvm_compiler_riscv_li32(compiler, rd, ~imm32);
+    sdvm_compiler_riscv_li32(compiler, rd, ~(int32_t)imm32);
     sdvm_compiler_riscv_xori(compiler, rd, rd, -1);
 }
 
-void sdvm_compiler_riscv_li32_shifted(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, int32_t imm32, int8_t shift)
+void sdvm_compiler_riscv_li32_shifted(sdvm_compiler_t *compiler, sdvm_riscv_registerIndex_t rd, int64_t imm32, int8_t shift)
 {
-    sdvm_compiler_riscv_li32(compiler, rd, ~imm32);
+    sdvm_compiler_riscv_li32(compiler, rd, (uint32_t)((uint64_t)imm32 >> shift));
     sdvm_compiler_riscv_slli(compiler, rd, rd, shift);
 }
 
@@ -701,23 +718,41 @@ void sdvm_compiler_riscv_li64(sdvm_compiler_t *compiler, sdvm_riscv_registerInde
 {
     SDVM_ASSERT(sdvm_compiler_riscv_isSupportedImm64(imm64));
     if(sdvm_compiler_riscv_isImm32(imm64))
-        return sdvm_compiler_riscv_li32(compiler, rd, imm64);
+    {
+        sdvm_compiler_riscv_li32(compiler, rd, (int32_t)imm64);
+    }
     else if(sdvm_compiler_riscv_isImm32(~imm64))
-        return sdvm_compiler_riscv_li32_neg(compiler, rd, imm64);
+    {
+        sdvm_compiler_riscv_li32_neg(compiler, rd, imm64);
+    }
     else if(sdvm_compiler_riscv_isShiftedConstant(imm64, 8))
-        return sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 8);
+    {
+        sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 8);
+    }
     else if(sdvm_compiler_riscv_isShiftedConstant(imm64, 16))
-        return sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 16);
+    {
+        sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 16);
+    }
     else if(sdvm_compiler_riscv_isShiftedConstant(imm64, 32))
-        return sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 32);
+    {
+        sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 32);
+    }
     else if(sdvm_compiler_riscv_isShiftedConstant(imm64, 40))
-        return sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 40);
+    {
+        sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 40);
+    }
     else if(sdvm_compiler_riscv_isShiftedConstant(imm64, 48))
-        return sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 48);
+    {
+        sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 48);
+    }
     else if(sdvm_compiler_riscv_isShiftedConstant(imm64, 56))
-        return sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 56);
-
-    abort();
+    {
+        sdvm_compiler_riscv_li32_shifted(compiler, rd, imm64, 56);
+    }
+    else
+    {
+        abort();
+    }
 }
 
 void sdvm_compiler_riscv_sext_b(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rs)
@@ -751,8 +786,7 @@ void sdvm_compiler_riscv_sext_h(sdvm_compiler_t *compiler, sdvm_compilerRegister
 void sdvm_compiler_riscv_sext_w(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rs)
 {
     if (sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_mv(compiler, Rd, Rs);
-
+        sdvm_compiler_riscv_mv(compiler, Rd, Rs);
     sdvm_compiler_riscv_addiw(compiler, Rd, Rs, 0);
 }
 
@@ -778,10 +812,14 @@ void sdvm_compiler_riscv_zext_h(sdvm_compiler_t *compiler, sdvm_compilerRegister
 void sdvm_compiler_riscv_zext_w(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rs)
 {
     if (sdvm_compiler_isRiscV32(compiler))
-        return sdvm_compiler_riscv_mv(compiler, Rd, Rs);
-
-    sdvm_compiler_riscv_slli(compiler, Rd, Rs, 32);
-    sdvm_compiler_riscv_srli(compiler, Rd, Rd, 32);
+    {
+        sdvm_compiler_riscv_mv(compiler, Rd, Rs);
+    }
+    else
+    {
+        sdvm_compiler_riscv_slli(compiler, Rd, Rs, 32);
+        sdvm_compiler_riscv_srli(compiler, Rd, Rd, 32);
+    }
 }
 
 void sdvm_compiler_riscv_seqz(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t Rd, sdvm_compilerRegisterValue_t Rs)
@@ -865,9 +903,10 @@ void sdvm_compiler_riscv_sgeu(sdvm_compiler_t *compiler, sdvm_compilerRegisterVa
 #pragma endregion
 
 static sdvm_compilerInstructionPatternTable_t sdvm_riscv_instructionPatternTable = {
+    0
 };
 
-sdvm_compilerLocation_t sdvm_compilerLocation_riscv_immediateS32(sdvm_compiler_t *compiler, int32_t value)
+sdvm_compilerLocation_t sdvm_compilerLocation_riscv_immediateS32(int32_t value)
 {
     if(value == 0)
         return sdvm_compilerLocation_null();
@@ -875,7 +914,7 @@ sdvm_compilerLocation_t sdvm_compilerLocation_riscv_immediateS32(sdvm_compiler_t
         return sdvm_compilerLocation_immediateS32(value);
 }
 
-sdvm_compilerLocation_t sdvm_compilerLocation_riscv_immediateU32(sdvm_compiler_t *compiler, int32_t value)
+sdvm_compilerLocation_t sdvm_compilerLocation_riscv_immediateU32(int32_t value)
 {
     if(value == 0)
         return sdvm_compilerLocation_null();
@@ -912,10 +951,10 @@ void sdvm_compiler_riscv_computeInstructionLocationConstraints(sdvm_functionComp
         switch(instruction->decoding.opcode)
         {
         case SdvmConstInt32:
-            instruction->location = sdvm_compilerLocation_riscv_immediateS32(state->compiler, instruction->decoding.constant.signedPayload);
+            instruction->location = sdvm_compilerLocation_riscv_immediateS32((int32_t)instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstUInt32:
-            instruction->location = sdvm_compilerLocation_riscv_immediateU32(state->compiler, instruction->decoding.constant.unsignedPayload);
+            instruction->location = sdvm_compilerLocation_riscv_immediateU32((uint32_t)instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstInt64SExt:
         case SdvmConstUInt64SExt:
@@ -929,13 +968,13 @@ void sdvm_compiler_riscv_computeInstructionLocationConstraints(sdvm_functionComp
             if(pointerSize == 8)
                 instruction->location = sdvm_compilerLocation_riscv_immediateS64(state->compiler, instruction->decoding.constant.signedPayload);
             else
-                instruction->location = sdvm_compilerLocation_riscv_immediateS32(state->compiler, instruction->decoding.constant.signedPayload);
+                instruction->location = sdvm_compilerLocation_riscv_immediateS32((int32_t)instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstPointerZExt:
             if(pointerSize == 8)
                 instruction->location = sdvm_compilerLocation_riscv_immediateU64(state->compiler, instruction->decoding.constant.signedPayload);
             else
-                instruction->location = sdvm_compilerLocation_riscv_immediateU32(state->compiler, instruction->decoding.constant.signedPayload);
+                instruction->location = sdvm_compilerLocation_riscv_immediateU32((uint32_t)instruction->decoding.constant.signedPayload);
             break;
         default:
             sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
@@ -1096,7 +1135,8 @@ void sdvm_compiler_riscv_computeInstructionLocationConstraints(sdvm_functionComp
         instruction->allowArg0DestinationShare = true;
         return;
     default:
-        return sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
+        sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
+        return;
     }
 }
 
@@ -1200,7 +1240,7 @@ void sdvm_compiler_riscv_ensureCIE(sdvm_moduleCompilationState_t *state)
         return;
 
     sdvm_dwarf_cfi_builder_t *cfi = &state->cfi;
-    uint8_t pointerSize = state->compiler->target->pointerSize;
+    uint8_t pointerSize = (uint8_t)state->compiler->target->pointerSize;
 
     sdvm_dwarf_cie_t ehCie = {0};
     ehCie.codeAlignmentFactor = 2;
@@ -1239,14 +1279,14 @@ void sdvm_compiler_riscv_emitFunctionPrologue(sdvm_functionCompilationState_t *s
 
     int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset;
     SDVM_ASSERT(stackSubtractionAmount >= (int32_t)pointerSize*2);
-    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_SP, SDVM_RISCV_SP, -stackSubtractionAmount);
+    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_SP, SDVM_RISCV_SP, (int16_t)-stackSubtractionAmount);
     sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
 
-    sdvm_compiler_riscv_sd(compiler, SDVM_RISCV_RA, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize);
+    sdvm_compiler_riscv_sd(compiler, SDVM_RISCV_RA, SDVM_RISCV_SP, (int16_t)(stackSubtractionAmount - pointerSize));
 
-    sdvm_compiler_riscv_sd(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize*2);
+    sdvm_compiler_riscv_sd(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, (int16_t)(stackSubtractionAmount - pointerSize*2));
 
-    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, stackSubtractionAmount);
+    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, (int16_t)stackSubtractionAmount);
 
     sdvm_dwarf_cfi_endPrologue(cfi);
 }
@@ -1261,42 +1301,53 @@ void sdvm_compiler_riscv_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler_t
     switch(sourceLocation->kind)
     {
     case SdvmCompLocationNull:
-        return sdvm_compiler_riscv_mv(compiler, reg->value, SDVM_RISCV_ZERO);
+        sdvm_compiler_riscv_mv(compiler, reg->value, SDVM_RISCV_ZERO);
+        return;
     case SdvmCompLocationImmediateS32:
     case SdvmCompLocationImmediateU32:
-        return sdvm_compiler_riscv_li32(compiler, reg->value, sourceLocation->immediateS32);
+        sdvm_compiler_riscv_li32(compiler, reg->value, sourceLocation->immediateS32);
+        return;
     case SdvmCompLocationImmediateS64:
     case SdvmCompLocationImmediateU64:
-        return sdvm_compiler_riscv_li64(compiler, reg->value, sourceLocation->immediateS64);
+        sdvm_compiler_riscv_li64(compiler, reg->value, sourceLocation->immediateS64);
+        return;
     case SdvmCompLocationRegister:
     case SdvmCompLocationRegisterPair:
-        return sdvm_compiler_riscv_mv(compiler, reg->value, sourceLocation->firstRegister.value);
+        sdvm_compiler_riscv_mv(compiler, reg->value, sourceLocation->firstRegister.value);
+        return;
     case SdvmCompLocationStack:
     case SdvmCompLocationStackPair:
         switch(reg->size)
         {
         case 1:
             if(sourceLocation->isSigned)
-                return sdvm_compiler_riscv_lb(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_lb(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (int16_t)sourceLocation->firstStackLocation.framePointerOffset);
             else
-                return sdvm_compiler_riscv_lbu(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_lbu(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (int16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
         case 2:
             if(sourceLocation->isSigned)
-                return sdvm_compiler_riscv_lh(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_lh(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (int16_t)sourceLocation->firstStackLocation.framePointerOffset);
             else
-                return sdvm_compiler_riscv_lhu(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_lhu(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (int16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
         case 4:
             if(sourceLocation->isSigned)
-                return sdvm_compiler_riscv_lw(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_lw(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (int16_t)sourceLocation->firstStackLocation.framePointerOffset);
             else
-                return sdvm_compiler_riscv_lwu(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_lwu(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (int16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
         case 8:
-            return sdvm_compiler_riscv_ld(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
-        default: return abort();
+            sdvm_compiler_riscv_ld(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (int16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
+        default:
+            abort();
         }
     case SdvmCompLocationLocalSymbolValue:
-        return sdvm_compiler_riscv_lla(compiler, reg->value, sourceLocation->symbolHandle, sourceLocation->symbolOffset);
-    default: return abort();
+        sdvm_compiler_riscv_lla(compiler, reg->value, sourceLocation->symbolHandle, (int32_t)sourceLocation->symbolOffset);
+        return;
+    default:
+        abort();
     }
 }
 
@@ -1304,7 +1355,8 @@ void sdvm_compiler_riscv_emitMoveFromLocationIntoFloatRegister(sdvm_compiler_t *
 {
     switch(sourceLocation->kind)
     {
-    default: return abort();
+    default:
+        abort();
     }
 }
 
@@ -1313,9 +1365,11 @@ void sdvm_compiler_riscv_emitMoveFromLocationIntoRegister(sdvm_compiler_t *compi
     switch(reg->kind)
     {
     case SdvmCompRegisterKindInteger:
-        return sdvm_compiler_riscv_emitMoveFromLocationIntoIntegerRegister(compiler, sourceLocation, reg);
+        sdvm_compiler_riscv_emitMoveFromLocationIntoIntegerRegister(compiler, sourceLocation, reg);
+        return;
     case SdvmCompRegisterKindFloat:
-        return sdvm_compiler_riscv_emitMoveFromLocationIntoFloatRegister(compiler, sourceLocation, reg);
+        sdvm_compiler_riscv_emitMoveFromLocationIntoFloatRegister(compiler, sourceLocation, reg);
+        return;
     default: abort();
     }
 }
@@ -1327,15 +1381,23 @@ void sdvm_compiler_riscv_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t *
     case SdvmCompRegisterKindInteger:
         switch(sourceRegister->size)
         {
-        case 1: return sdvm_compiler_riscv_sb(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
-        case 2: return sdvm_compiler_riscv_sh(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
-        case 4: return sdvm_compiler_riscv_sw(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
-        case 8: return sdvm_compiler_riscv_sd(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
+        case 1:
+            sdvm_compiler_riscv_sb(compiler, sourceRegister->value, stackLocation->framePointerRegister, (int16_t)stackLocation->framePointerOffset);
+            return;
+        case 2:
+            sdvm_compiler_riscv_sh(compiler, sourceRegister->value, stackLocation->framePointerRegister, (int16_t)stackLocation->framePointerOffset);
+            return;
+        case 4:
+            sdvm_compiler_riscv_sw(compiler, sourceRegister->value, stackLocation->framePointerRegister, (int16_t)stackLocation->framePointerOffset);
+            return;
+        case 8:
+            sdvm_compiler_riscv_sd(compiler, sourceRegister->value, stackLocation->framePointerRegister, (int16_t)stackLocation->framePointerOffset);
+            return;
         default:
-            return abort();
+            abort();
         }
     default:
-        return abort();
+        abort();
     }
 }
 
@@ -1344,7 +1406,8 @@ void sdvm_compiler_riscv_emitMoveFromLocationIntoStack(sdvm_compiler_t *compiler
     switch(sourceLocation->kind)
     {
     case SdvmCompLocationRegister:
-        return sdvm_compiler_riscv_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+        sdvm_compiler_riscv_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+        return;
     case SdvmCompLocationRegisterPair:
         {
             sdvm_compiler_riscv_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
@@ -1353,16 +1416,19 @@ void sdvm_compiler_riscv_emitMoveFromLocationIntoStack(sdvm_compiler_t *compiler
             nextLocation.segmentOffset += sourceLocation->firstRegister.size;
             nextLocation.framePointerOffset += sourceLocation->firstRegister.size;
 
-            return sdvm_compiler_riscv_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->secondRegister, &nextLocation);
+            sdvm_compiler_riscv_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->secondRegister, &nextLocation);
+            return;
         }
     case SdvmCompLocationStack:
         SDVM_ASSERT(destinationLocation->scratchMoveRegister.isValid);
-        return sdvm_compiler_riscv_emitMemoryToMemoryFixedSizedAlignedMove(compiler,
+        sdvm_compiler_riscv_emitMemoryToMemoryFixedSizedAlignedMove(compiler,
             sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset,
             destinationLocation->firstStackLocation.framePointerRegister, destinationLocation->firstStackLocation.framePointerOffset,
             sourceLocation->firstStackLocation.size <= destinationLocation->firstStackLocation.size ? sourceLocation->firstStackLocation.size : destinationLocation->firstStackLocation.size,
             &destinationLocation->scratchMoveRegister);
-    default: return abort();
+        return;
+    default:
+        abort();
     }
 }
 
@@ -1374,14 +1440,16 @@ void sdvm_compiler_riscv_emitMoveFromLocationInto(sdvm_compiler_t *compiler, sdv
         // Ignored.
         return;
     case SdvmCompLocationRegister:
-        return sdvm_compiler_riscv_emitMoveFromLocationIntoRegister(compiler, sourceLocation, &destinationLocation->firstRegister);
+        sdvm_compiler_riscv_emitMoveFromLocationIntoRegister(compiler, sourceLocation, &destinationLocation->firstRegister);
+        return;
     case SdvmCompLocationRegisterPair:
         // TODO:
-        return abort();
+        abort();
     case SdvmCompLocationStack:
-        return sdvm_compiler_riscv_emitMoveFromLocationIntoStack(compiler, sourceLocation, destinationLocation, &destinationLocation->firstStackLocation);
+        sdvm_compiler_riscv_emitMoveFromLocationIntoStack(compiler, sourceLocation, destinationLocation, &destinationLocation->firstStackLocation);
+        return;
     case SdvmCompLocationStackPair:
-        return abort();
+        abort();
     case SdvmCompLocationImmediateS32:
     case SdvmCompLocationImmediateU32:
     case SdvmCompLocationImmediateS64:
@@ -1395,7 +1463,7 @@ void sdvm_compiler_riscv_emitMoveFromLocationInto(sdvm_compiler_t *compiler, sdv
     case SdvmCompLocationStackAddress:
         return;
     default:
-        return abort();
+        abort();
     }
 }
 
@@ -1505,7 +1573,7 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
         }
         else if(arg0->kind == SdvmCompLocationLocalSymbolValue)
         {
-            sdvm_compiler_riscv_call_local(compiler, arg0->symbolHandle, arg0->symbolOffset);
+            sdvm_compiler_riscv_call_local(compiler, arg0->symbolHandle, (int32_t)arg0->symbolOffset);
         }
         else
         {
@@ -1530,37 +1598,37 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
 
     case SdvmInstLoadInt8:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_lb(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_lb(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_lb(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadUInt8:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_lbu(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_lbu(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_lbu(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadInt16:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_lh(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_lh(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_lh(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadUInt16:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_lhu(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_lhu(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_lb(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadInt32:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_lwu(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_lwu(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_lwu(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadUInt32:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_lw(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_lw(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_lw(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1569,7 +1637,7 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
         if(pointerSize == 8)
         {
             if(arg0->kind == SdvmCompLocationStackAddress)
-                sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
             else
                 sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         }
@@ -1578,8 +1646,8 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
             SDVM_ASSERT(sdvm_compilerLocationKind_isRegisterPair(dest->kind));
             if(arg0->kind == SdvmCompLocationStackAddress)
             {
-                sdvm_compiler_riscv_lw(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
-                sdvm_compiler_riscv_lw(compiler, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 4);
+                sdvm_compiler_riscv_lw(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_lw(compiler, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset + 4);
             }
             else
             {
@@ -1590,7 +1658,7 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
         return true;
     case SdvmInstLoadPointer:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1599,20 +1667,20 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
         SDVM_ASSERT(sdvm_compilerLocationKind_isRegisterPair(dest->kind));
         if(arg0->kind == SdvmCompLocationStackAddress)
         {
-            sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
-            sdvm_compiler_riscv_ld(compiler, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + pointerSize);
+            sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_ld(compiler, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)(arg0->firstStackLocation.framePointerOffset + pointerSize));
         }
         else
         {
             sdvm_compiler_riscv_ld(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
-            sdvm_compiler_riscv_ld(compiler, dest->secondRegister.value, arg0->firstRegister.value, pointerSize);
+            sdvm_compiler_riscv_ld(compiler, dest->secondRegister.value, arg0->firstRegister.value, (int16_t)pointerSize);
         }
         return true;
 
     case SdvmInstStoreInt8:
     case SdvmInstStoreUInt8:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_sb(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_sb(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_sb(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1620,7 +1688,7 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
     case SdvmInstStoreInt16:
     case SdvmInstStoreUInt16:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_sh(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_sh(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_sh(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1628,7 +1696,7 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
     case SdvmInstStoreInt32:
     case SdvmInstStoreUInt32:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_sw(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_sw(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_sw(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1638,7 +1706,7 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
         if(pointerSize == 8)
         {
             if(arg0->kind == SdvmCompLocationStackAddress)
-                sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
             else
                 sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         }
@@ -1647,20 +1715,20 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
             SDVM_ASSERT(arg1->kind == SdvmCompLocationRegisterPair);
             if(arg0->kind == SdvmCompLocationStackAddress)
             {
-                sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
-                sdvm_compiler_riscv_sd(compiler, arg1->secondRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + pointerSize);
+                sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
+                sdvm_compiler_riscv_sd(compiler, arg1->secondRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)(arg0->firstStackLocation.framePointerOffset + pointerSize));
             }
             else
             {
                 sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
-                sdvm_compiler_riscv_sd(compiler, arg1->secondRegister.value, arg0->firstRegister.value, pointerSize);
+                sdvm_compiler_riscv_sd(compiler, arg1->secondRegister.value, arg0->firstRegister.value, (int16_t)pointerSize);
             }
         }
         return true;
 
     case SdvmInstStorePointer:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1669,13 +1737,13 @@ bool sdvm_compiler_riscv_emitFunctionInstructionOperation(sdvm_functionCompilati
         SDVM_ASSERT(arg1->kind == SdvmCompLocationRegisterPair);
         if(arg0->kind == SdvmCompLocationStackAddress)
         {
-            sdvm_compiler_riscv_sd(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
-            sdvm_compiler_riscv_sd(compiler, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + pointerSize, arg1->secondRegister.value);
+            sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_riscv_sd(compiler, arg1->secondRegister.value, arg0->firstStackLocation.framePointerRegister, (int16_t)(arg0->firstStackLocation.framePointerOffset + pointerSize));
         }
         else
         {
-            sdvm_compiler_riscv_sd(compiler, arg0->firstRegister.value, 0, arg1->firstRegister.value);
-            sdvm_compiler_riscv_sd(compiler, arg0->firstRegister.value, pointerSize, arg1->secondRegister.value);
+            sdvm_compiler_riscv_sd(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
+            sdvm_compiler_riscv_sd(compiler, arg1->secondRegister.value, arg0->firstRegister.value, (int16_t)pointerSize);
         }
         return true;
 
@@ -2171,11 +2239,11 @@ void sdvm_compiler_riscv_emitFunctionEpilogue(sdvm_functionCompilationState_t *s
     int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset;
     SDVM_ASSERT(stackSubtractionAmount >= (int32_t)pointerSize*2);
 
-    sdvm_compiler_riscv_ld(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize*2);
+    sdvm_compiler_riscv_ld(compiler, SDVM_RISCV_FP, SDVM_RISCV_SP, (int16_t)(stackSubtractionAmount - pointerSize*2));
 
-    sdvm_compiler_riscv_ld(compiler, SDVM_RISCV_RA, SDVM_RISCV_SP, stackSubtractionAmount - pointerSize);
+    sdvm_compiler_riscv_ld(compiler, SDVM_RISCV_RA, SDVM_RISCV_SP, (int16_t)(stackSubtractionAmount - pointerSize));
 
-    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_SP, SDVM_RISCV_SP, stackSubtractionAmount);
+    sdvm_compiler_riscv_addi(compiler, SDVM_RISCV_SP, SDVM_RISCV_SP, (int16_t)stackSubtractionAmount);
     sdvm_dwarf_cfi_stackSizeRestore(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
 
     sdvm_dwarf_cfi_endEpilogue(cfi);
@@ -2266,11 +2334,11 @@ void sdvm_riscv_setupTargetAttributesWithArchString(sdvm_compiler_t *compiler, c
     sdvm_dwarf_encodeCString(sectionContents, archString);
 
     size_t subsectionEnd = sectionContents->size;
-    uint32_t subsectionSize = subsectionEnd - subsectionStart;
+    uint32_t subsectionSize = (uint32_t)(subsectionEnd - subsectionStart);
     memcpy(sectionContents->data + subsectionStart, &subsectionSize, 4);
 
     size_t attributesEnd = sectionContents->size;
-    uint32_t attributesSize = attributesEnd - attributesStart;
+    uint32_t attributesSize = (uint32_t)(attributesEnd - attributesStart);
     memcpy(sectionContents->data + attributesStart, &attributesSize, 4);
 }
 
@@ -2296,11 +2364,11 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_riscv32_linux = {
     .usesPIC = true,
 
     .defaultCC = &sdvm_riscv32_abi_callingConvention,
-    .cdecl = &sdvm_riscv32_abi_callingConvention,
-    .stdcall = &sdvm_riscv32_abi_callingConvention,
+    .cdeclCC = &sdvm_riscv32_abi_callingConvention,
+    .stdcallCC = &sdvm_riscv32_abi_callingConvention,
     .apicall = &sdvm_riscv32_abi_callingConvention,
-    .thiscall = &sdvm_riscv32_abi_callingConvention,
-    .vectorcall = &sdvm_riscv32_abi_callingConvention,
+    .thiscallCC = &sdvm_riscv32_abi_callingConvention,
+    .vectorcallCC = &sdvm_riscv32_abi_callingConvention,
 
     .compileModuleFunction = sdvm_compiler_riscv_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_riscv_mapElfRelocation,
@@ -2326,11 +2394,11 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_riscv64_linux = {
     .usesPIC = true,
 
     .defaultCC = &sdvm_riscv64_abi_callingConvention,
-    .cdecl = &sdvm_riscv64_abi_callingConvention,
-    .stdcall = &sdvm_riscv64_abi_callingConvention,
+    .cdeclCC = &sdvm_riscv64_abi_callingConvention,
+    .stdcallCC = &sdvm_riscv64_abi_callingConvention,
     .apicall = &sdvm_riscv64_abi_callingConvention,
-    .thiscall = &sdvm_riscv64_abi_callingConvention,
-    .vectorcall = &sdvm_riscv64_abi_callingConvention,
+    .thiscallCC = &sdvm_riscv64_abi_callingConvention,
+    .vectorcallCC = &sdvm_riscv64_abi_callingConvention,
 
     .compileModuleFunction = sdvm_compiler_riscv_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_riscv_mapElfRelocation,

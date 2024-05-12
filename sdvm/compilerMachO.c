@@ -62,7 +62,7 @@ int sdvm_compilerMachOSymbol_sortCompare(const void *a, const void *b)
         return left->category - right->category;
     
     if(!left->name && !right->name)
-        return left->index - right->index;
+        return (int)(left->index - right->index);
     return strcmp(left->name, right->name);
 }
 
@@ -108,7 +108,7 @@ static sdvm_compilerMachOFileLayout_t sdvm_compilerMachO64_computeObjectFileLayo
         if(section->contents.size == 0)
             continue;
 
-        layout.sectionIndices[i] = ++layout.sectionHeaderCount;
+        layout.sectionIndices[i] = (uint16_t)++layout.sectionHeaderCount;
         layout.writtenSections[i] = true;
         layout.sectionHeaders[i] = layout.size;
         layout.size += sizeof(sdvm_macho64_section_t);
@@ -236,12 +236,12 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
     header->cpusubtype = target->machoCpuSubtype;
     header->filetype = SDVM_MH_OBJECT;
     header->ncmds = 1;
-    header->sizeofcmds = layout.commandsSize;
+    header->sizeofcmds = (uint32_t)layout.commandsSize;
 
     sdvm_macho64_segment_command_t *objectSegment = (sdvm_macho64_segment_command_t *)(objectFile->data + layout.objectSegment);
     objectSegment->cmd = SDVM_MACHO_LC_SEGMENT_64;
-    objectSegment->cmdsize = layout.objectSegmentCommandSize;
-    objectSegment->nsects = layout.sectionHeaderCount;
+    objectSegment->cmdsize = (uint32_t)layout.objectSegmentCommandSize;
+    objectSegment->nsects = (uint32_t)layout.sectionHeaderCount;
     objectSegment->vmaddr = layout.objectSegmentAddress;
     objectSegment->vmsize = layout.objectSegmentAddressSize;
     objectSegment->fileoff = layout.objectSegmentOffset;
@@ -260,8 +260,8 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
         machoSection->addr = layout.sectionAddresses[i];
         machoSection->size = section->contents.size;
         machoSection->align = sdvm_uint32_log2(section->alignment);
-        machoSection->nreloc = layout.sectionRelocationCount[i];
-        machoSection->reloff = layout.sectionRelocations[i];
+        machoSection->nreloc = (uint32_t)layout.sectionRelocationCount[i];
+        machoSection->reloff = (uint32_t)layout.sectionRelocations[i];
         strncpy(machoSection->sectname, section->machoSectionName, sizeof(objectSegment->segname));
         strncpy(machoSection->segname, section->machoSegmentName, sizeof(objectSegment->segname));
 
@@ -278,7 +278,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
         }
         else
         {
-            machoSection->offset = layout.sectionContents[i];
+            machoSection->offset = (uint32_t)layout.sectionContents[i];
             memcpy(objectFile->data + layout.sectionContents[i], section->contents.data, section->contents.size);
         }
 
@@ -332,10 +332,10 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
         sdvm_symtab_command_t *symtabCommand = (sdvm_symtab_command_t*)(objectFile->data + layout.symbolTableCommand);
         symtabCommand->cmd = SDVM_MACHO_LC_SYMTAB;
         symtabCommand->cmdsize = sizeof(sdvm_symtab_command_t);
-        symtabCommand->nsyms = layout.symbolCount;
-        symtabCommand->symoff = layout.symbolTable;
-        symtabCommand->stroff = layout.stringTable;
-        symtabCommand->strsize = layout.stringTableSize;
+        symtabCommand->nsyms = (uint32_t)layout.symbolCount;
+        symtabCommand->symoff = (uint32_t)layout.symbolTable;
+        symtabCommand->stroff = (uint32_t)layout.stringTable;
+        symtabCommand->strsize = (uint32_t)layout.stringTableSize;
 
         sdvm_dysymtab_command_t *dySymtabCommand = (sdvm_dysymtab_command_t*)(objectFile->data + layout.dySymbolTableCommand);
         dySymtabCommand->cmd = SDVM_MACHO_LC_DYSYMTAB;
@@ -358,17 +358,17 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
             if(symbol->section)
             {
                 machoSymbol->n_value += layout.sectionAddresses[symbol->section];
-                machoSymbol->n_sect = layout.sectionIndices[symbol->section];
+                machoSymbol->n_sect = (uint8_t)layout.sectionIndices[symbol->section];
                 machoSymbol->n_type |= SDVM_MACHO_N_SECT;
             }
-            symbol->objectSymbolIndex = i;
-            machoSymbol->n_strx = sdvm_compilerMachOStringTable_write(&stringTable, sortingSymbol->name);
+            symbol->objectSymbolIndex = (uint32_t)i;
+            machoSymbol->n_strx = (uint32_t)sdvm_compilerMachOStringTable_write(&stringTable, sortingSymbol->name);
             switch(sortingSymbol->category)
             {
             case SdvmCompMachOSymbolCategoryLocal:
                 if(!hasSeenFirstLocal)
                 {
-                    dySymtabCommand->ilocalsym = i;
+                    dySymtabCommand->ilocalsym = (uint32_t)i;
                     hasSeenFirstLocal = true;
                 }
                 ++dySymtabCommand->nlocalsym;
@@ -376,7 +376,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
             case SdvmCompMachOSymbolCategoryExternalDefined:
                 if(!hasSeenFirstExternalDefined)
                 {
-                    dySymtabCommand->iextdefsym = i;
+                    dySymtabCommand->iextdefsym = (uint32_t)i;
                     hasSeenFirstExternalDefined = true;
                 }
                 ++dySymtabCommand->nextdefsym;
@@ -384,7 +384,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerMachO64_encode(sdvm_compiler_t *compiler
             case SdvmCompMachOSymbolCategoryExternalUndefined:
                 if(!hasSeenFirstExternalUndefined)
                 {
-                    dySymtabCommand->iundefsym = i;
+                    dySymtabCommand->iundefsym = (uint32_t)i;
                     hasSeenFirstExternalUndefined = true;
                 }
                 ++dySymtabCommand->nundefsym;

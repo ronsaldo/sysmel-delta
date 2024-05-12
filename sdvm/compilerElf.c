@@ -69,7 +69,7 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
             continue;
 
         layout.sectionHeaderStringsSize += sdvm_compilerElf_computeNameStringSize(section->name);
-        layout.sectionIndices[i] = layout.sectionHeaderCount;
+        layout.sectionIndices[i] = (uint16_t)layout.sectionHeaderCount;
         layout.writtenSections[i] = true;
         ++layout.sectionHeaderCount;
 
@@ -126,7 +126,7 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
             if(symbol->binding == SdvmCompSymbolBindingLocal)
             {
                 if(symbol->section && layout.writtenSections[symbol->section])
-                    symbol->objectSymbolIndex = layout.localSymbolCount++;
+                    symbol->objectSymbolIndex = (uint32_t)layout.localSymbolCount++;
             }
         }
 
@@ -136,7 +136,7 @@ static sdvm_compilerElfFileLayout_t sdvm_compilerElf64_computeObjectFileLayout(s
         {
             sdvm_compilerSymbol_t *symbol = symbols + i;
             if(symbol->binding != SdvmCompSymbolBindingLocal)
-                symbol->objectSymbolIndex = layout.symbolCount++;
+                symbol->objectSymbolIndex = (uint32_t)layout.symbolCount++;
         }
 
         layout.size += sizeof(sdvm_elf64_symbol_t)*layout.symbolCount;
@@ -201,13 +201,13 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
     header->ident[SDVM_EI_DATA] = SDVM_ELFDATA2LSB;
     header->ident[SDVM_EI_VERSION] = SDVM_ELFCURRENT_VERSION;
     header->type = SDVM_ET_REL;
-    header->machine = compiler->target->elfMachine;
+    header->machine = (sdvm_elf64_half_t)compiler->target->elfMachine;
     header->flags = compiler->target->elfFlags;
     header->elfHeaderSize = sizeof(sdvm_elf64_header_t);
     header->version = SDVM_ELFCURRENT_VERSION;
     header->sectionHeaderEntrySize = sizeof(sdvm_elf64_sectionHeader_t);
-    header->sectionHeaderNum = layout.sectionHeaderCount;
-    header->sectionHeaderNameStringTableIndex = layout.sectionHeaderCount - 1;
+    header->sectionHeaderNum = (sdvm_elf64_half_t)layout.sectionHeaderCount;
+    header->sectionHeaderNameStringTableIndex = (sdvm_elf64_half_t)(layout.sectionHeaderCount - 1);
     header->sectionHeadersOffset = layout.sectionHeaders;
 
     sdvm_compilerElfStringSectionState_t sectionHeaderStrings = {
@@ -227,7 +227,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
             continue;
 
         sdvm_elf64_sectionHeader_t *elfSection = sectionHeaders + writtenSectionHeaderCount++;
-        elfSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, section->name);
+        elfSection->name = (sdvm_elf64_word_t)sdvm_compilerElfStringSection_write(&sectionHeaderStrings, section->name);
         elfSection->type = SDVM_SHT_PROGBITS;
         elfSection->addressAlignment = section->alignment;
         elfSection->offset = layout.sectionContents[i];
@@ -273,12 +273,12 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
             continue;
 
         sdvm_elf64_sectionHeader_t *elfSection = sectionHeaders + writtenSectionHeaderCount++;
-        elfSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, useRela ? section->relaSectionName : section->relSectionName);
+        elfSection->name = (sdvm_elf64_word_t)sdvm_compilerElfStringSection_write(&sectionHeaderStrings, useRela ? section->relaSectionName : section->relSectionName);
         elfSection->type = useRela ? SDVM_SHT_RELA : SDVM_SHT_REL;
         elfSection->addressAlignment = section->alignment;
         elfSection->offset = layout.relocationSectionContents[i];
-        elfSection->info = relocatedSectionHeaderIndex - 1;
-        elfSection->link = layout.symbolTableSectionIndex;
+        elfSection->info = (sdvm_elf64_word_t)relocatedSectionHeaderIndex - 1;
+        elfSection->link = (sdvm_elf64_word_t)layout.symbolTableSectionIndex;
         elfSection->entrySize = useRela ? sizeof(sdvm_elf64_rela_t) : sizeof(sdvm_elf64_rel_t);
         elfSection->size = section->relocations.size * elfSection->entrySize;
 
@@ -287,10 +287,10 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         if(useRela)
         {
             sdvm_elf64_rela_t *relaTable = (sdvm_elf64_rela_t*) (objectFile->data + layout.relocationSectionContents[i]);
-            for(size_t i = 0; i < section->relocations.size; ++i)
+            for(size_t j = 0; j < section->relocations.size; ++j)
             {
-                sdvm_compilerRelocation_t *relocationEntry = relocationTable + i;
-                sdvm_elf64_rela_t *relaEntry = relaTable + i;
+                sdvm_compilerRelocation_t *relocationEntry = relocationTable + j;
+                sdvm_elf64_rela_t *relaEntry = relaTable + j;
                 uint32_t mappedRelocationType = compiler->target->mapElfRelocation(relocationEntry->kind);
                 relaEntry->info = SDVM_ELF64_R_INFO(relocationEntry->symbol ? symbols[relocationEntry->symbol - 1].objectSymbolIndex : 0, mappedRelocationType);
                 relaEntry->offset = relocationEntry->offset;
@@ -308,7 +308,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
     if(compiler->symbolTable.symbols.size != 0)
     {
         sdvm_elf64_sectionHeader_t *symbolStringTableSection = sectionHeaders + layout.symbolStringTableSectionIndex;
-        symbolStringTableSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".strtab");
+        symbolStringTableSection->name = (sdvm_elf64_word_t)sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".strtab");
         symbolStringTableSection->type = SDVM_SHT_STRTAB;
         symbolStringTableSection->offset = layout.symbolStringTable;
         symbolStringTableSection->size = compiler->symbolTable.strings.size;
@@ -316,13 +316,13 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
         memcpy(objectFile->data + layout.symbolStringTable, compiler->symbolTable.strings.data, compiler->symbolTable.strings.size);
 
         sdvm_elf64_sectionHeader_t *symbolTableSection = sectionHeaders + layout.symbolTableSectionIndex;
-        symbolTableSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".symtab");
+        symbolTableSection->name = (sdvm_elf64_word_t)sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".symtab");
         symbolTableSection->type = SDVM_SHT_SYMTAB;
         symbolTableSection->offset = layout.symbolTable;
         symbolTableSection->size = layout.symbolCount * sizeof(sdvm_elf64_symbol_t);
         symbolTableSection->entrySize = sizeof(sdvm_elf64_symbol_t);
-        symbolTableSection->info = layout.localSymbolCount;
-        symbolTableSection->link = layout.symbolStringTableSectionIndex;
+        symbolTableSection->info = (sdvm_elf64_word_t)layout.localSymbolCount;
+        symbolTableSection->link = (sdvm_elf64_word_t)layout.symbolStringTableSectionIndex;
         symbolTableSection->addressAlignment = 1;
 
         sdvm_elf64_symbol_t *elfSymbols = (sdvm_elf64_symbol_t*)(objectFile->data + layout.symbolTable);
@@ -335,7 +335,7 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
                 continue;
 
             sdvm_elf64_symbol_t *elfSymbol = elfSymbols + symbol->objectSymbolIndex;
-            elfSymbol->info = SDVM_ELF64_SYM_INFO(sdvm_compilerElf64_mapSymbolKind(symbol->kind), sdvm_compilerElf64_mapSymbolBinding(symbol->binding));
+            elfSymbol->info = (uint8_t)(SDVM_ELF64_SYM_INFO(sdvm_compilerElf64_mapSymbolKind(symbol->kind), sdvm_compilerElf64_mapSymbolBinding(symbol->binding)));
             if(symbol->section && symbol->section < SDVM_COMPILER_SECTION_COUNT)
                 elfSymbol->sectionHeaderIndex = layout.sectionIndices[symbol->section];
             elfSymbol->value = symbol->value;
@@ -346,13 +346,13 @@ sdvm_compilerObjectFile_t *sdvm_compilerElf64_encode(sdvm_compiler_t *compiler)
 
     // Extra sections.
     sdvm_elf64_sectionHeader_t *noteGnuStackSection = sectionHeaders + layout.noteGnuStackSectionIndex;
-    noteGnuStackSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".note.GNU-stack");
+    noteGnuStackSection->name = (sdvm_elf64_word_t)sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".note.GNU-stack");
     noteGnuStackSection->type = SDVM_SHT_PROGBITS;
     noteGnuStackSection->addressAlignment = 1;
 
     // Section header strings
     sdvm_elf64_sectionHeader_t *sectionHeaderStringsSection = sectionHeaders + header->sectionHeaderNameStringTableIndex;
-    sectionHeaderStringsSection->name = sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".shstrtab");
+    sectionHeaderStringsSection->name = (sdvm_elf64_word_t)sdvm_compilerElfStringSection_write(&sectionHeaderStrings, ".shstrtab");
     sectionHeaderStringsSection->type = SDVM_SHT_STRTAB;
     sectionHeaderStringsSection->offset = layout.sectionHeaderStrings;
     sectionHeaderStringsSection->size = layout.sectionHeaderStringsSize;

@@ -23,13 +23,11 @@ static const sdvm_compilerRegister_t *sdvm_aarch64_eabi_integerPassingRegisters[
     &sdvm_aarch64_X0, &sdvm_aarch64_X1, &sdvm_aarch64_X2, &sdvm_aarch64_X3,
     &sdvm_aarch64_X4, &sdvm_aarch64_X5, &sdvm_aarch64_X6, &sdvm_aarch64_X7,
 };
-static const uint32_t sdvm_aarch64_eabi_integerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_integerPassingRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_aarch64_eabi_integerPassingDwordRegisters[] = {
     &sdvm_aarch64_W0, &sdvm_aarch64_W1, &sdvm_aarch64_W2, &sdvm_aarch64_W3,
     &sdvm_aarch64_W4, &sdvm_aarch64_W5, &sdvm_aarch64_W6, &sdvm_aarch64_W7,
 };
-static const uint32_t sdvm_aarch64_eabi_integerPassingDwordRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_integerPassingDwordRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_allocatableIntegerRegisters[] = {
     // Temporary registers
@@ -51,19 +49,16 @@ static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_allocatableIntegerRe
     SDVM_AARCH64_X27, SDVM_AARCH64_X28,
     
 };
-static const uint32_t sdvm_aarch64_eabi_allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_allocatableIntegerRegisters);
 
 static const sdvm_compilerRegister_t *sdvm_aarch64_eabi_vectorFloatPassingRegister[] = {
     &sdvm_aarch64_V0,  &sdvm_aarch64_V1,  &sdvm_aarch64_V2,  &sdvm_aarch64_V3,
     &sdvm_aarch64_V4,  &sdvm_aarch64_V5,  &sdvm_aarch64_V6,  &sdvm_aarch64_V7,
 };
-static const uint32_t sdvm_aarch64_eabi_vectorFloatPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_vectorFloatPassingRegister);
 
 static const sdvm_compilerRegister_t *sdvm_aarch64_eabi_vectorIntegerPassingRegister[] = {
     &sdvm_aarch64_VI0,  &sdvm_aarch64_VI1,  &sdvm_aarch64_VI2,  &sdvm_aarch64_VI3,
     &sdvm_aarch64_VI4,  &sdvm_aarch64_VI5,  &sdvm_aarch64_VI6,  &sdvm_aarch64_VI7,
 };
-static const uint32_t sdvm_aarch64_eabi_vectorIntegerPassingRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_vectorIntegerPassingRegister);
 
 static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callPreservedIntegerRegisters[] = {
     SDVM_AARCH64_X19, SDVM_AARCH64_X20, SDVM_AARCH64_X21, SDVM_AARCH64_X22,
@@ -72,7 +67,6 @@ static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callPreservedInteger
 
     SDVM_AARCH64_FP, SDVM_AARCH64_LR, SDVM_AARCH64_SP,
 };
-static const uint32_t sdvm_aarch64_eabi_callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callPreservedIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callTouchedIntegerRegisters[] = {
     SDVM_AARCH64_X0, SDVM_AARCH64_X1, SDVM_AARCH64_X2, SDVM_AARCH64_X3,
@@ -81,7 +75,6 @@ static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callTouchedIntegerRe
     SDVM_AARCH64_X12, SDVM_AARCH64_X13, SDVM_AARCH64_X14, SDVM_AARCH64_X15,
     SDVM_AARCH64_X16, SDVM_AARCH64_X17,
 };
-static const uint32_t sdvm_aarch64_eabi_callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callTouchedIntegerRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callTouchedVectorRegisters[] = {
     SDVM_AARCH64_V0,  SDVM_AARCH64_V1,  SDVM_AARCH64_V2,  SDVM_AARCH64_V3,
@@ -91,13 +84,11 @@ static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callTouchedVectorReg
     SDVM_AARCH64_V24, SDVM_AARCH64_V25, SDVM_AARCH64_V26, SDVM_AARCH64_V27,
     SDVM_AARCH64_V28, SDVM_AARCH64_V29, SDVM_AARCH64_V30, SDVM_AARCH64_V31,
 };
-static const uint32_t sdvm_aarch64_eabi_callTouchedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callTouchedVectorRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_aarch64_eabi_callPreservedVectorRegisters[] = {
     SDVM_AARCH64_V8,  SDVM_AARCH64_V9,  SDVM_AARCH64_V10, SDVM_AARCH64_V11,
     SDVM_AARCH64_V12, SDVM_AARCH64_V13, SDVM_AARCH64_V14, SDVM_AARCH64_V15,
 };
-static const uint32_t sdvm_aarch64_eabi_callPreservedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callPreservedVectorRegisters);
 
 static const sdvm_compilerRegisterValue_t sdvm_aarch64_allocatableVectorRegisters[] = {
     SDVM_AARCH64_V0,  SDVM_AARCH64_V1,  SDVM_AARCH64_V2,  SDVM_AARCH64_V3,
@@ -109,7 +100,6 @@ static const sdvm_compilerRegisterValue_t sdvm_aarch64_allocatableVectorRegister
     SDVM_AARCH64_V24, SDVM_AARCH64_V25, SDVM_AARCH64_V26, SDVM_AARCH64_V27,
     SDVM_AARCH64_V28, SDVM_AARCH64_V29, SDVM_AARCH64_V30, SDVM_AARCH64_V31,
 };
-static const uint32_t sdvm_aarch64_allocatableVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_allocatableVectorRegisters);
 
 const sdvm_compilerCallingConvention_t sdvm_aarch64_eabi_callingConvention = {
     .supportsLocalSymbolValueCall = true,
@@ -120,7 +110,7 @@ const sdvm_compilerCallingConvention_t sdvm_aarch64_eabi_callingConvention = {
     .calloutShadowSpace = 0,
 
     .integerRegisterSize = 8,
-    .integerRegisterCount = sdvm_aarch64_eabi_integerPassingRegisterCount,
+    .integerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_integerPassingRegisters),
 
     .integer32Registers = sdvm_aarch64_eabi_integerPassingDwordRegisters,
     .integer64Registers = sdvm_aarch64_eabi_integerPassingRegisters,
@@ -137,7 +127,7 @@ const sdvm_compilerCallingConvention_t sdvm_aarch64_eabi_callingConvention = {
     .secondIntegerResultRegister = &sdvm_aarch64_X1,
 
     .vectorRegisterSize = 16,
-    .vectorRegisterCount = sdvm_aarch64_eabi_vectorFloatPassingRegisterCount,
+    .vectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_vectorFloatPassingRegister),
     .vectorFloatRegisters = sdvm_aarch64_eabi_vectorFloatPassingRegister,
     .vectorIntegerRegisters = sdvm_aarch64_eabi_vectorIntegerPassingRegister,
 
@@ -146,22 +136,22 @@ const sdvm_compilerCallingConvention_t sdvm_aarch64_eabi_callingConvention = {
     .secondVectorFloatResultRegister = &sdvm_aarch64_V1,
     .secondVectorIntegerResultRegister = &sdvm_aarch64_VI1,
 
-    .allocatableIntegerRegisterCount = sdvm_aarch64_eabi_allocatableIntegerRegisterCount,
+    .allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_allocatableIntegerRegisters),
     .allocatableIntegerRegisters = sdvm_aarch64_eabi_allocatableIntegerRegisters,
     
-    .allocatableVectorRegisterCount = sdvm_aarch64_allocatableVectorRegisterCount,
+    .allocatableVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_allocatableVectorRegisters),
     .allocatableVectorRegisters = sdvm_aarch64_allocatableVectorRegisters,
 
-    .callPreservedIntegerRegisterCount = sdvm_aarch64_eabi_callPreservedIntegerRegisterCount,
+    .callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callPreservedIntegerRegisters),
     .callPreservedIntegerRegisters = sdvm_aarch64_eabi_callPreservedIntegerRegisters,
     
-    .callTouchedIntegerRegisterCount = sdvm_aarch64_eabi_callTouchedIntegerRegisterCount,
+    .callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callTouchedIntegerRegisters),
     .callTouchedIntegerRegisters = sdvm_aarch64_eabi_callTouchedIntegerRegisters,
 
-    .callTouchedVectorRegisterCount = sdvm_aarch64_eabi_callTouchedVectorRegisterCount,
+    .callTouchedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callTouchedVectorRegisters),
     .callTouchedVectorRegisters = sdvm_aarch64_eabi_callTouchedVectorRegisters,
 
-    .callPreservedVectorRegisterCount = sdvm_aarch64_eabi_callPreservedVectorRegisterCount,
+    .callPreservedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callPreservedVectorRegisters),
     .callPreservedVectorRegisters = sdvm_aarch64_eabi_callPreservedVectorRegisters
 };
 
@@ -175,7 +165,7 @@ const sdvm_compilerCallingConvention_t sdvm_aarch64_apple_callingConvention = {
     .calloutShadowSpace = 0,
 
     .integerRegisterSize = 8,
-    .integerRegisterCount = sdvm_aarch64_eabi_integerPassingRegisterCount,
+    .integerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_integerPassingRegisters),
 
     .integer32Registers = sdvm_aarch64_eabi_integerPassingDwordRegisters,
     .integer64Registers = sdvm_aarch64_eabi_integerPassingRegisters,
@@ -192,7 +182,7 @@ const sdvm_compilerCallingConvention_t sdvm_aarch64_apple_callingConvention = {
     .secondIntegerResultRegister = &sdvm_aarch64_X1,
 
     .vectorRegisterSize = 16,
-    .vectorRegisterCount = sdvm_aarch64_eabi_vectorFloatPassingRegisterCount,
+    .vectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_vectorFloatPassingRegister),
     .vectorFloatRegisters = sdvm_aarch64_eabi_vectorFloatPassingRegister,
     .vectorIntegerRegisters = sdvm_aarch64_eabi_vectorIntegerPassingRegister,
 
@@ -201,22 +191,22 @@ const sdvm_compilerCallingConvention_t sdvm_aarch64_apple_callingConvention = {
     .secondVectorFloatResultRegister = &sdvm_aarch64_V1,
     .secondVectorIntegerResultRegister = &sdvm_aarch64_VI1,
 
-    .allocatableIntegerRegisterCount = sdvm_aarch64_eabi_allocatableIntegerRegisterCount,
+    .allocatableIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_allocatableIntegerRegisters),
     .allocatableIntegerRegisters = sdvm_aarch64_eabi_allocatableIntegerRegisters,
     
-    .allocatableVectorRegisterCount = sdvm_aarch64_allocatableVectorRegisterCount,
+    .allocatableVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_allocatableVectorRegisters),
     .allocatableVectorRegisters = sdvm_aarch64_allocatableVectorRegisters,
 
-    .callPreservedIntegerRegisterCount = sdvm_aarch64_eabi_callPreservedIntegerRegisterCount,
+    .callPreservedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callPreservedIntegerRegisters),
     .callPreservedIntegerRegisters = sdvm_aarch64_eabi_callPreservedIntegerRegisters,
     
-    .callTouchedIntegerRegisterCount = sdvm_aarch64_eabi_callTouchedIntegerRegisterCount,
+    .callTouchedIntegerRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callTouchedIntegerRegisters),
     .callTouchedIntegerRegisters = sdvm_aarch64_eabi_callTouchedIntegerRegisters,
 
-    .callTouchedVectorRegisterCount = sdvm_aarch64_eabi_callTouchedVectorRegisterCount,
+    .callTouchedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callTouchedVectorRegisters),
     .callTouchedVectorRegisters = sdvm_aarch64_eabi_callTouchedVectorRegisters,
 
-    .callPreservedVectorRegisterCount = sdvm_aarch64_eabi_callPreservedVectorRegisterCount,
+    .callPreservedVectorRegisterCount = SDVM_C_ARRAY_SIZE(sdvm_aarch64_eabi_callPreservedVectorRegisters),
     .callPreservedVectorRegisters = sdvm_aarch64_eabi_callPreservedVectorRegisters
 };
 
@@ -247,11 +237,11 @@ bool sdvm_compiler_aarch64_isValidWideImmediate64(uint64_t value)
         value == (value & 0xFFFF000000000000);
 }
 
-uint8_t sdvm_compiler_aarch64_computeWideImmediate64HW(uint32_t value)
+uint8_t sdvm_compiler_aarch64_computeWideImmediate64HW(uint64_t value)
 {
     if(value == (value & 0x000000000000FFFF)) return 0;
-    if(value == (value & 0x00000000FFFF0000)) return 0;
-    if(value == (value & 0x0000FFFF00000000)) return 0;
+    if(value == (value & 0x00000000FFFF0000)) return 1;
+    if(value == (value & 0x0000FFFF00000000)) return 2;
     return 3;
 }
 
@@ -400,7 +390,7 @@ void sdvm_compiler_aarch64_cmp_shifted(sdvm_compiler_t *compiler, bool sf, sdvm_
 
 void sdvm_compiler_aarch64_cset(sdvm_compiler_t *compiler, bool sf, sdvm_compilerRegisterValue_t Rd, sdvm_aarch64_condition_t condition)
 {
-    uint8_t invertedCondition = condition ^ 1;
+    uint8_t invertedCondition = (uint8_t)condition ^ 1;
     sdvm_compiler_aarch64_addInstruction(compiler, 0x1A9F07E0 | Rd | (invertedCondition << 12) | (sf ? (1<<31) : 0));
 }
 
@@ -448,7 +438,10 @@ void sdvm_compiler_aarch64_mov_invertedWideImmediate(sdvm_compiler_t *compiler, 
 void sdvm_compiler_aarch64_mov_imm32(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t destination, uint32_t value)
 {
     if(value == 0)
-        return sdvm_compiler_aarch64_mov(compiler, false, destination, SDVM_AARCH64_WZR);
+    {
+        sdvm_compiler_aarch64_mov(compiler, false, destination, SDVM_AARCH64_WZR);
+        return;
+    }
 
     if(sdvm_compiler_aarch64_isValidWideImmediate32(value))
     {
@@ -468,10 +461,12 @@ void sdvm_compiler_aarch64_mov_imm32(sdvm_compiler_t *compiler, sdvm_compilerReg
     abort();
 }
 
-void sdvm_compiler_aarch64_movImm64(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t destination, uint32_t value)
+void sdvm_compiler_aarch64_movImm64(sdvm_compiler_t *compiler, sdvm_compilerRegisterValue_t destination, uint64_t value)
 {
     if(value == 0)
-        return sdvm_compiler_aarch64_mov(compiler, false, destination, SDVM_AARCH64_XZR);
+    {
+        sdvm_compiler_aarch64_mov(compiler, false, destination, SDVM_AARCH64_XZR);
+    }
 
     if(sdvm_compiler_aarch64_isValidWideImmediate64(value))
     {
@@ -482,7 +477,7 @@ void sdvm_compiler_aarch64_movImm64(sdvm_compiler_t *compiler, sdvm_compilerRegi
 
     if(sdvm_compiler_aarch64_isValidWideImmediate64(~value))
     {
-        uint32_t invertedValue = ~value;
+        uint64_t invertedValue = ~value;
         uint8_t hw = sdvm_compiler_aarch64_computeWideImmediate64HW(invertedValue);
         sdvm_compiler_aarch64_mov_wideImmediate(compiler, true, destination, hw, (uint16_t) (invertedValue >> (hw*16)));
         return;
@@ -629,6 +624,7 @@ void sdvm_compiler_aarch64_simd_mov_vector(sdvm_compiler_t *compiler, bool Q, sd
 #pragma endregion SIMDInstructions
 
 static sdvm_compilerInstructionPatternTable_t sdvm_aarch64_instructionPatternTable = {
+    0
 };
 
 sdvm_compilerLocation_t sdvm_compilerLocation_aarch64_immediateS32(sdvm_compiler_t *compiler, int32_t value)
@@ -680,10 +676,10 @@ void sdvm_compiler_aarch64_computeInstructionLocationConstraints(sdvm_functionCo
         switch(instruction->decoding.opcode)
         {
         case SdvmConstInt32:
-            instruction->location = sdvm_compilerLocation_aarch64_immediateS32(state->compiler, instruction->decoding.constant.signedPayload);
+            instruction->location = sdvm_compilerLocation_aarch64_immediateS32(state->compiler, (int32_t)instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstUInt32:
-            instruction->location = sdvm_compilerLocation_aarch64_immediateU32(state->compiler, instruction->decoding.constant.unsignedPayload);
+            instruction->location = sdvm_compilerLocation_aarch64_immediateU32(state->compiler, (uint32_t)instruction->decoding.constant.unsignedPayload);
             break;
         case SdvmConstInt64SExt:
         case SdvmConstUInt64SExt:
@@ -870,7 +866,8 @@ void sdvm_compiler_aarch64_computeInstructionLocationConstraints(sdvm_functionCo
         instruction->allowArg0DestinationShare = true;
         return;
     default:
-        return sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
+        sdvm_functionCompilationState_computeInstructionLocationConstraints(state, instruction);
+        return;
     }
 }
 
@@ -1032,7 +1029,7 @@ void sdvm_compiler_aarch64_emitFunctionPrologue(sdvm_functionCompilationState_t 
     SDVM_ASSERT((stackSubtractionAmount % 16) == 0);
     if(stackSubtractionAmount != 0)
     {
-        sdvm_compiler_aarch64_sub_immediate(compiler, true, SDVM_AARCH64_SP, SDVM_AARCH64_SP, stackSubtractionAmount, SDVM_AARCH64_LSL_0);
+        sdvm_compiler_aarch64_sub_immediate(compiler, true, SDVM_AARCH64_SP, SDVM_AARCH64_SP, (uint16_t)stackSubtractionAmount, SDVM_AARCH64_LSL_0);
         sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
     }
     
@@ -1056,8 +1053,8 @@ void sdvm_compiler_aarch64_emitMemoryToMemoryFixedSizedAlignedMove(sdvm_compiler
         {
             SDVM_ASSERT(sourcePointerOffset % 8 == 0);
             SDVM_ASSERT(destinationPointerOffset % 8 == 0);
-            sdvm_compiler_aarch64_ldr_offset(compiler, true, scratchRegister, sourcePointer, sourcePointerOffset + offset);
-            sdvm_compiler_aarch64_str_offset(compiler, true, scratchRegister, destinationPointer, destinationPointerOffset + offset);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, scratchRegister, sourcePointer, (uint16_t)(sourcePointerOffset + offset));
+            sdvm_compiler_aarch64_str_offset(compiler, true, scratchRegister, destinationPointer, (uint16_t)(destinationPointerOffset + offset));
             offset += 8;
         }
         else if(remainingSize >= 4)
@@ -1066,8 +1063,8 @@ void sdvm_compiler_aarch64_emitMemoryToMemoryFixedSizedAlignedMove(sdvm_compiler
             SDVM_ASSERT(destinationPointerOffset % 4 == 0);
             SDVM_ASSERT((sourcePointerOffset + copySize) / 4 < 4096);
             SDVM_ASSERT((destinationPointerOffset + copySize) / 4 < 4096);
-            sdvm_compiler_aarch64_ldr_offset(compiler, false, scratchRegister, sourcePointer, sourcePointerOffset + offset);
-            sdvm_compiler_aarch64_str_offset(compiler, false, scratchRegister, destinationPointer, destinationPointerOffset + offset);
+            sdvm_compiler_aarch64_ldr_offset(compiler, false, scratchRegister, sourcePointer, (uint16_t)(sourcePointerOffset + offset));
+            sdvm_compiler_aarch64_str_offset(compiler, false, scratchRegister, destinationPointer, (uint16_t)(destinationPointerOffset + offset));
             offset += 4;
         }
         else if(remainingSize >= 2)
@@ -1076,16 +1073,16 @@ void sdvm_compiler_aarch64_emitMemoryToMemoryFixedSizedAlignedMove(sdvm_compiler
             SDVM_ASSERT(destinationPointerOffset % 2 == 0);
             SDVM_ASSERT((sourcePointerOffset + copySize) / 2 < 4096);
             SDVM_ASSERT((destinationPointerOffset + copySize) / 2 < 4096);
-            sdvm_compiler_aarch64_ldrh_offset(compiler, scratchRegister, sourcePointer, sourcePointerOffset + offset);
-            sdvm_compiler_aarch64_strh_offset(compiler, scratchRegister, destinationPointer, destinationPointerOffset + offset);
+            sdvm_compiler_aarch64_ldrh_offset(compiler, scratchRegister, sourcePointer, (uint16_t)(sourcePointerOffset + offset));
+            sdvm_compiler_aarch64_strh_offset(compiler, scratchRegister, destinationPointer, (uint16_t)(destinationPointerOffset + offset));
             offset += 2;
         }
         else
         {
             SDVM_ASSERT((sourcePointerOffset + copySize) < 4096);
             SDVM_ASSERT((destinationPointerOffset + copySize) < 4096);
-            sdvm_compiler_aarch64_ldrb_offset(compiler, scratchRegister, sourcePointer, sourcePointerOffset + offset);
-            sdvm_compiler_aarch64_strb_offset(compiler, scratchRegister, destinationPointer, destinationPointerOffset + offset);
+            sdvm_compiler_aarch64_ldrb_offset(compiler, scratchRegister, sourcePointer, (uint16_t)(sourcePointerOffset + offset));
+            sdvm_compiler_aarch64_strb_offset(compiler, scratchRegister, destinationPointer, (uint16_t)(destinationPointerOffset + offset));
             offset += 1;
         }
     }
@@ -1097,40 +1094,55 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(sdvm_compiler
     {
     case SdvmCompLocationNull:
         if(sourceLocation->firstRegister.size <= 4)
-            return sdvm_compiler_aarch64_mov(compiler, false, reg->value, SDVM_AARCH64_WZR);
-        return sdvm_compiler_aarch64_mov(compiler, true, reg->value, SDVM_AARCH64_XZR);
+            sdvm_compiler_aarch64_mov(compiler, false, reg->value, SDVM_AARCH64_WZR);
+        else
+            sdvm_compiler_aarch64_mov(compiler, true, reg->value, SDVM_AARCH64_XZR);
+        return;
     case SdvmCompLocationImmediateS32:
     case SdvmCompLocationImmediateU32:
-        return sdvm_compiler_aarch64_mov_imm32(compiler, reg->value, sourceLocation->immediateS32);
+        sdvm_compiler_aarch64_mov_imm32(compiler, reg->value, sourceLocation->immediateS32);
+        return;
     case SdvmCompLocationImmediateS64:
     case SdvmCompLocationImmediateU64:
-        return sdvm_compiler_aarch64_movImm64(compiler, reg->value, sourceLocation->immediateS64);
+        sdvm_compiler_aarch64_movImm64(compiler, reg->value, sourceLocation->immediateS64);
+        return;
     case SdvmCompLocationRegister:
     case SdvmCompLocationRegisterPair:
         if(sourceLocation->firstRegister.size <= 4)
-            return sdvm_compiler_aarch64_mov(compiler, false, reg->value, sourceLocation->firstRegister.value);
-        return sdvm_compiler_aarch64_mov(compiler, true, reg->value, sourceLocation->firstRegister.value);
+            sdvm_compiler_aarch64_mov(compiler, false, reg->value, sourceLocation->firstRegister.value);
+        else
+            sdvm_compiler_aarch64_mov(compiler, true, reg->value, sourceLocation->firstRegister.value);
+        return;
     case SdvmCompLocationStack:
     case SdvmCompLocationStackPair:
         switch(reg->size)
         {
         case 1:
             if(sourceLocation->isSigned)
-                return sdvm_compiler_aarch64_ldrsb_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_aarch64_ldrsb_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (uint16_t)sourceLocation->firstStackLocation.framePointerOffset);
             else
-                return sdvm_compiler_aarch64_ldrb_offset(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_aarch64_ldrb_offset(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (uint16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
         case 2:
             if(sourceLocation->isSigned)
-                return sdvm_compiler_aarch64_ldrsh_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
+                sdvm_compiler_aarch64_ldrsh_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (uint16_t)sourceLocation->firstStackLocation.framePointerOffset);
             else
-                return sdvm_compiler_aarch64_ldrh_offset(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
-        case 4: return sdvm_compiler_aarch64_ldr_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
-        case 8: return sdvm_compiler_aarch64_ldr_offset(compiler, true, reg->value, sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset);
-        default: return abort();
+                sdvm_compiler_aarch64_ldrh_offset(compiler, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (uint16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
+        case 4:
+            sdvm_compiler_aarch64_ldr_offset(compiler, false, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (uint16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
+        case 8:
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, reg->value, sourceLocation->firstStackLocation.framePointerRegister, (uint16_t)sourceLocation->firstStackLocation.framePointerOffset);
+            return;
+        default:
+            abort();
         }
     case SdvmCompLocationLocalSymbolValue:
-        return sdvm_compiler_aarch64_adrl_sv(compiler, reg->value, sourceLocation->symbolHandle, sourceLocation->symbolOffset);
-    default: return abort();
+        sdvm_compiler_aarch64_adrl_sv(compiler, reg->value, sourceLocation->symbolHandle, (uint16_t)sourceLocation->symbolOffset);
+        return;
+    default:
+        abort();
     }
 }
 
@@ -1140,8 +1152,10 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorRegister(sdvm_compiler_
     {
     case SdvmCompLocationRegister:
     case SdvmCompLocationRegisterPair:
-        return sdvm_compiler_aarch64_simd_mov_vector(compiler, true, reg->value, sourceLocation->firstRegister.value);
-    default: return abort();
+        sdvm_compiler_aarch64_simd_mov_vector(compiler, true, reg->value, sourceLocation->firstRegister.value);
+        return;
+    default:
+        abort();
     }
 }
 
@@ -1150,12 +1164,15 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoRegister(sdvm_compiler_t *com
     switch(reg->kind)
     {
     case SdvmCompRegisterKindInteger:
-        return sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(compiler, sourceLocation, reg);
+        sdvm_compiler_aarch64_emitMoveFromLocationIntoIntegerRegister(compiler, sourceLocation, reg);
+        return;
     case SdvmCompRegisterKindFloat:
     case SdvmCompRegisterKindVectorFloat:
     case SdvmCompRegisterKindVectorInteger:
-        return sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorRegister(compiler, sourceLocation, reg);
-    default: abort();
+        sdvm_compiler_aarch64_emitMoveFromLocationIntoVectorRegister(compiler, sourceLocation, reg);
+        return;
+    default:
+        abort();
     }
 }
 
@@ -1166,15 +1183,23 @@ void sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t
     case SdvmCompRegisterKindInteger:
         switch(sourceRegister->size)
         {
-        case 1: return sdvm_compiler_aarch64_strb_offset(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
-        case 2: return sdvm_compiler_aarch64_strh_offset(compiler, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
-        case 4: return sdvm_compiler_aarch64_str_offset(compiler, false, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
-        case 8: return sdvm_compiler_aarch64_str_offset(compiler, true, sourceRegister->value, stackLocation->framePointerRegister, stackLocation->framePointerOffset);
+        case 1:
+            sdvm_compiler_aarch64_strb_offset(compiler, sourceRegister->value, stackLocation->framePointerRegister, (uint16_t)stackLocation->framePointerOffset);
+            return;
+        case 2: 
+            sdvm_compiler_aarch64_strh_offset(compiler, sourceRegister->value, stackLocation->framePointerRegister, (uint16_t)stackLocation->framePointerOffset);
+            return;
+        case 4:
+            sdvm_compiler_aarch64_str_offset(compiler, false, sourceRegister->value, stackLocation->framePointerRegister, (uint16_t)stackLocation->framePointerOffset);
+            return;
+        case 8: 
+            sdvm_compiler_aarch64_str_offset(compiler, true, sourceRegister->value, stackLocation->framePointerRegister, (uint16_t)stackLocation->framePointerOffset);
+            return;
         default:
-            return abort();
+            abort();
         }
     default:
-        return abort();
+        abort();
     }
 }
 
@@ -1183,7 +1208,8 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoStack(sdvm_compiler_t *compil
     switch(sourceLocation->kind)
     {
     case SdvmCompLocationRegister:
-        return sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+        sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
+        return;
     case SdvmCompLocationRegisterPair:
         {
             sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->firstRegister, stackLocation);
@@ -1192,16 +1218,19 @@ void sdvm_compiler_aarch64_emitMoveFromLocationIntoStack(sdvm_compiler_t *compil
             nextLocation.segmentOffset += sourceLocation->firstRegister.size;
             nextLocation.framePointerOffset += sourceLocation->firstRegister.size;
 
-            return sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->secondRegister, &nextLocation);
+            sdvm_compiler_aarch64_emitMoveFromRegisterIntoStackLocation(compiler, &sourceLocation->secondRegister, &nextLocation);
+            return;
         }
     case SdvmCompLocationStack:
         SDVM_ASSERT(destinationLocation->scratchMoveRegister.isValid);
-        return sdvm_compiler_aarch64_emitMemoryToMemoryFixedSizedAlignedMove(compiler,
+        sdvm_compiler_aarch64_emitMemoryToMemoryFixedSizedAlignedMove(compiler,
             sourceLocation->firstStackLocation.framePointerRegister, sourceLocation->firstStackLocation.framePointerOffset,
             destinationLocation->firstStackLocation.framePointerRegister, destinationLocation->firstStackLocation.framePointerOffset,
             sourceLocation->firstStackLocation.size <= destinationLocation->firstStackLocation.size ? sourceLocation->firstStackLocation.size : destinationLocation->firstStackLocation.size,
             &destinationLocation->scratchMoveRegister);
-    default: return abort();
+        return;
+    default:
+        abort();
     }
 }
 
@@ -1213,14 +1242,17 @@ void sdvm_compiler_aarch64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, s
         // Ignored.
         return;
     case SdvmCompLocationRegister:
-        return sdvm_compiler_aarch64_emitMoveFromLocationIntoRegister(compiler, sourceLocation, &destinationLocation->firstRegister);
+        sdvm_compiler_aarch64_emitMoveFromLocationIntoRegister(compiler, sourceLocation, &destinationLocation->firstRegister);
+        return;
     case SdvmCompLocationRegisterPair:
         // TODO:
-        return abort();
+        abort();
     case SdvmCompLocationStack:
-        return sdvm_compiler_aarch64_emitMoveFromLocationIntoStack(compiler, sourceLocation, destinationLocation, &destinationLocation->firstStackLocation);
+        sdvm_compiler_aarch64_emitMoveFromLocationIntoStack(compiler, sourceLocation, destinationLocation, &destinationLocation->firstStackLocation);
+        return;
     case SdvmCompLocationStackPair:
-        return abort();
+        // TODO:
+        abort();
     case SdvmCompLocationImmediateS32:
     case SdvmCompLocationImmediateU32:
     case SdvmCompLocationImmediateS64:
@@ -1234,7 +1266,7 @@ void sdvm_compiler_aarch64_emitMoveFromLocationInto(sdvm_compiler_t *compiler, s
     case SdvmCompLocationStackAddress:
         return;
     default:
-        return abort();
+        abort();
     }
 }
 
@@ -1374,32 +1406,32 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
 
     case SdvmInstLoadInt8:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_ldrsb_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldrsb_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_ldrsb_offset(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadUInt8:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_ldrb_offset(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldrb_offset(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_ldrb_offset(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadInt16:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_ldrsh_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldrsh_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_ldrsh_offset(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadUInt16:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_ldrh_offset(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldrh_offset(compiler, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_ldrh_offset(compiler, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
     case SdvmInstLoadInt32:
     case SdvmInstLoadUInt32:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_ldr_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldr_offset(compiler, false, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_ldr_offset(compiler, false, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1407,7 +1439,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstLoadUInt64:
     case SdvmInstLoadPointer:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1415,8 +1447,8 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
         SDVM_ASSERT(dest->kind == SdvmCompLocationRegisterPair);
         if(arg0->kind == SdvmCompLocationStackAddress)
         {
-            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
-            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_ldr_offset(compiler, true, dest->secondRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)(arg0->firstStackLocation.framePointerOffset + 8));
         }
         else
         {
@@ -1428,7 +1460,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstStoreInt8:
     case SdvmInstStoreUInt8:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_strb_offset(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_strb_offset(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_strb_offset(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1436,7 +1468,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstStoreInt16:
     case SdvmInstStoreUInt16:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_strh_offset(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_strh_offset(compiler, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_strh_offset(compiler, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1444,7 +1476,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstStoreInt32:
     case SdvmInstStoreUInt32:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_str_offset(compiler, false, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_str_offset(compiler, false, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_str_offset(compiler, false, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1453,7 +1485,7 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstStoreUInt64:
     case SdvmInstStorePointer:
         if(arg0->kind == SdvmCompLocationStackAddress)
-            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
         else
             sdvm_compiler_aarch64_str_offset(compiler, true, arg1->firstRegister.value, arg0->firstRegister.value, 0);
         return true;
@@ -1461,13 +1493,13 @@ bool sdvm_compiler_aarch64_emitFunctionInstructionOperation(sdvm_functionCompila
     case SdvmInstStoreGCPointer:
         if(arg0->kind == SdvmCompLocationStackAddress)
         {
-            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset, arg1->firstRegister.value);
-            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstStackLocation.framePointerRegister, arg0->firstStackLocation.framePointerOffset + 8, arg1->secondRegister.value);
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->firstRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)arg0->firstStackLocation.framePointerOffset);
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->secondRegister.value, arg0->firstStackLocation.framePointerRegister, (uint16_t)(arg0->firstStackLocation.framePointerOffset + 8));
         }
         else
         {
-            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstRegister.value, 0, arg1->firstRegister.value);
-            sdvm_compiler_aarch64_str_offset(compiler, true, arg0->firstRegister.value, 8, arg1->secondRegister.value);
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->firstRegister.value, arg0->firstRegister.value, 0);
+            sdvm_compiler_aarch64_str_offset(compiler, true, arg1->secondRegister.value, arg0->firstRegister.value, 8);
         }
         return true;
 
@@ -1715,7 +1747,7 @@ void sdvm_compiler_aarch64_emitFunctionEpilogue(sdvm_functionCompilationState_t 
     SDVM_ASSERT((stackSubtractionAmount % 16) == 0);
     if(stackSubtractionAmount != 0)
     {
-        sdvm_compiler_aarch64_add_immediate(compiler, true, SDVM_AARCH64_SP, SDVM_AARCH64_SP, stackSubtractionAmount, SDVM_AARCH64_LSL_0);
+        sdvm_compiler_aarch64_add_immediate(compiler, true, SDVM_AARCH64_SP, SDVM_AARCH64_SP, (uint16_t)stackSubtractionAmount, SDVM_AARCH64_LSL_0);
         sdvm_dwarf_cfi_stackSizeRestore(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
     }
 
@@ -1843,19 +1875,19 @@ size_t sdvm_compiler_aarch64_mapMachORelocation(sdvm_compilerRelocation_t *reloc
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_BRANCH26;
         return 1;
     case SdvmCompRelocationRelative32:
-        *instruction = relocation->addend + symbolAddend - (relocatedSectionOffset + relocation->offset);
+        *instruction = (uint32_t)(relocation->addend + symbolAddend - (relocatedSectionOffset + relocation->offset));
         machRelocations->r_pcrel = true;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
         return 1;
     case SdvmCompRelocationSectionRelative32:
-        *instruction = relocation->addend + symbolAddend;
+        *instruction = (uint32_t)(relocation->addend + symbolAddend);
         machRelocations->r_pcrel = false;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
         return 1;
     case SdvmCompRelocationAbsolute32:
-        *instruction = relocation->addend + symbolAddend + symbolSectionAddend;
+        *instruction = (uint32_t)(relocation->addend + symbolAddend + symbolSectionAddend);
         machRelocations->r_pcrel = false;
         machRelocations->r_length = 2;
         machRelocations->r_type = SDVM_MACHO_ARM64_RELOC_UNSIGNED;
@@ -1885,11 +1917,11 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_linux = {
     .usesPIC = true,
 
     .defaultCC = &sdvm_aarch64_eabi_callingConvention,
-    .cdecl = &sdvm_aarch64_eabi_callingConvention,
-    .stdcall = &sdvm_aarch64_eabi_callingConvention,
+    .cdeclCC = &sdvm_aarch64_eabi_callingConvention,
+    .stdcallCC = &sdvm_aarch64_eabi_callingConvention,
     .apicall = &sdvm_aarch64_eabi_callingConvention,
-    .thiscall = &sdvm_aarch64_eabi_callingConvention,
-    .vectorcall = &sdvm_aarch64_eabi_callingConvention,
+    .thiscallCC = &sdvm_aarch64_eabi_callingConvention,
+    .vectorcallCC = &sdvm_aarch64_eabi_callingConvention,
 
     .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,
@@ -1917,11 +1949,11 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
     .usesPIC = true,
 
     .defaultCC = &sdvm_aarch64_apple_callingConvention,
-    .cdecl = &sdvm_aarch64_apple_callingConvention,
-    .stdcall = &sdvm_aarch64_apple_callingConvention,
+    .cdeclCC = &sdvm_aarch64_apple_callingConvention,
+    .stdcallCC = &sdvm_aarch64_apple_callingConvention,
     .apicall = &sdvm_aarch64_apple_callingConvention,
-    .thiscall = &sdvm_aarch64_apple_callingConvention,
-    .vectorcall = &sdvm_aarch64_apple_callingConvention,
+    .thiscallCC = &sdvm_aarch64_apple_callingConvention,
+    .vectorcallCC = &sdvm_aarch64_apple_callingConvention,
 
     .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,
@@ -1949,11 +1981,11 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_windows = {
     .usesPIC = false,
 
     .defaultCC = &sdvm_aarch64_eabi_callingConvention,
-    .cdecl = &sdvm_aarch64_eabi_callingConvention,
-    .stdcall = &sdvm_aarch64_eabi_callingConvention,
+    .cdeclCC = &sdvm_aarch64_eabi_callingConvention,
+    .stdcallCC = &sdvm_aarch64_eabi_callingConvention,
     .apicall = &sdvm_aarch64_eabi_callingConvention,
-    .thiscall = &sdvm_aarch64_eabi_callingConvention,
-    .vectorcall = &sdvm_aarch64_eabi_callingConvention,
+    .thiscallCC = &sdvm_aarch64_eabi_callingConvention,
+    .vectorcallCC = &sdvm_aarch64_eabi_callingConvention,
 
     .compileModuleFunction = sdvm_compiler_aarch64_compileModuleFunction,
     .mapElfRelocation = sdvm_compiler_aarch64_mapElfRelocation,

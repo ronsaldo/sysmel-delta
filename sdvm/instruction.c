@@ -73,7 +73,7 @@ sdvm_decodedConstOrInstruction_t sdvm_instruction_decode(sdvm_constOrInstruction
         decoded.destType = (decoded.opcode >> 9) & SDVM_TYPE_MASK;
         decoded.instruction.arg0Type = (decoded.opcode >> 14) & SDVM_TYPE_MASK;
         decoded.instruction.arg1Type = (decoded.opcode >> 19) & SDVM_TYPE_MASK;
-        decoded.instruction.arg0 = sdvm_intruction_decodeArg(instruction >> 24);
+        decoded.instruction.arg0 = sdvm_intruction_decodeArg((uint32_t)(instruction >> 24));
         decoded.instruction.arg1 = sdvm_intruction_decodeArg(instruction >> 44);
         decoded.arg0IsInstruction = sdvm_instruction_typeExpectsInstruction(decoded.instruction.arg0Type);
         decoded.arg1IsInstruction = sdvm_instruction_typeExpectsInstruction(decoded.instruction.arg1Type);

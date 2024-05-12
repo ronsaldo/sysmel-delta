@@ -22,7 +22,7 @@ SDVM_API size_t sdvm_dwarf_encodeDwarfPointerSectionRelative(sdvm_compilerObject
         .kind = SdvmCompRelocationSectionRelative32,
         .symbol = targetSection->symbolIndex,
         .addend = value,
-        .offset = offset
+        .offset = (uint32_t)offset
     };
 
     sdvm_dynarray_add(&section->relocations, &relocation);
@@ -138,7 +138,7 @@ SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer32(sdvm_compilerObjectSection
         .kind = SdvmCompRelocationAbsolute32,
         .symbol = targetSection->symbolIndex,
         .addend = value,
-        .offset = offset
+        .offset = (uint32_t)offset
     };
     sdvm_dynarray_add(&section->relocations, &relocation);
     return offset;
@@ -154,7 +154,7 @@ SDVM_API size_t sdvm_dwarf_encodeRelocatablePointer64(sdvm_compilerObjectSection
         .kind = SdvmCompRelocationAbsolute64,
         .symbol = targetSection->symbolIndex,
         .addend = value,
-        .offset = offset
+        .offset = (uint32_t)offset
     };
     sdvm_dynarray_add(&section->relocations, &relocation);
     return offset;
@@ -179,7 +179,7 @@ SDVM_API size_t sdvm_dwarf_encodeSectionRelative32(sdvm_compilerObjectSection_t 
         .kind = SdvmCompRelocationSectionRelative32,
         .symbol = targetSection->symbolIndex,
         .addend = value,
-        .offset = offset
+        .offset = (uint32_t)offset
     };
     sdvm_dynarray_add(&section->relocations, &relocation);
     return offset;
@@ -196,7 +196,7 @@ SDVM_API size_t sdvm_dwarf_encodeRelocatableRelativePointer32(sdvm_compilerObjec
             .kind = SdvmCompRelocationRelative32,
             .symbol = targetSection->symbolIndex,
             .addend = value,
-            .offset = offset
+            .offset = (uint32_t)offset
         };
         sdvm_dynarray_add(&section->relocations, &relocation);
     }
@@ -226,7 +226,7 @@ SDVM_API void sdvm_dwarf_cfi_beginCIE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_dwarf_
     sdvm_dwarf_encodeCString(&cfi->section->contents, cfi->isEhFrame ? "zR" : ""); // Argumentation
     if(!cfi->isEhFrame)
     {
-        sdvm_dwarf_encodeByte(&cfi->section->contents, cfi->pointerSize); // Address size
+        sdvm_dwarf_encodeByte(&cfi->section->contents, (uint8_t)cfi->pointerSize); // Address size
         sdvm_dwarf_encodeByte(&cfi->section->contents, 0); // Segment size
     }
     sdvm_dwarf_encodeULEB128(&cfi->section->contents, cie->codeAlignmentFactor);
@@ -284,7 +284,7 @@ SDVM_API void sdvm_dwarf_cfi_endFDE(sdvm_dwarf_cfi_builder_t *cfi, size_t pc)
     {
         if(cfi->pointerSize == 4)
         {
-            uint32_t pcRange = pc - cfi->fdeInitialPC;
+            uint32_t pcRange = (uint32_t)(pc - cfi->fdeInitialPC);
             memcpy(cfi->section->contents.data + cfi->fdeAddressingRangeOffset, &pcRange, sizeof(uint32_t));
         }
         else
@@ -493,9 +493,9 @@ SDVM_API void sdvm_dwarf_debugInfo_create(sdvm_dwarf_debugInfo_builder_t *builde
 
     // Info header
     sdvm_dwarf_encodeDwarfPointer(&builder->infoSection->contents, 0);
-    sdvm_dwarf_encodeWord(&builder->infoSection->contents, builder->version);
+    sdvm_dwarf_encodeWord(&builder->infoSection->contents, (uint16_t)builder->version);
     sdvm_dwarf_encodeDwarfPointerSectionRelative(builder->infoSection, builder->abbrevSection, 0); // Debug abbrev offset
-    sdvm_dwarf_encodeByte(&builder->infoSection->contents, builder->pointerSize); // Address size.
+    sdvm_dwarf_encodeByte(&builder->infoSection->contents, (uint8_t)builder->pointerSize); // Address size.
 }
 
 SDVM_API void sdvm_dwarf_debugInfo_destroy(sdvm_dwarf_debugInfo_builder_t *builder)
@@ -518,10 +518,10 @@ SDVM_API void sdvm_dwarf_debugInfo_finish(sdvm_dwarf_debugInfo_builder_t *builde
 SDVM_API void sdvm_dwarf_debugInfo_beginLineInformation(sdvm_dwarf_debugInfo_builder_t *builder)
 {
     sdvm_dwarf_encodeDWord(&builder->lineSection->contents, 0);
-    sdvm_dwarf_encodeWord(&builder->lineSection->contents, builder->version);
+    sdvm_dwarf_encodeWord(&builder->lineSection->contents, (uint16_t)builder->version);
     builder->lineHeaderLengthOffset = (uint32_t)sdvm_dwarf_encodeDWord(&builder->lineSection->contents, 0); // Header length
-    sdvm_dwarf_encodeByte(&builder->lineSection->contents, builder->lineProgramHeader.minimumInstructionLength);
-    sdvm_dwarf_encodeByte(&builder->lineSection->contents, builder->lineProgramHeader.maximumOperationsPerInstruction);
+    sdvm_dwarf_encodeByte(&builder->lineSection->contents, (uint8_t)builder->lineProgramHeader.minimumInstructionLength);
+    sdvm_dwarf_encodeByte(&builder->lineSection->contents, (uint8_t)builder->lineProgramHeader.maximumOperationsPerInstruction);
     sdvm_dwarf_encodeByte(&builder->lineSection->contents, builder->lineProgramHeader.defaultIsStatement);
     sdvm_dwarf_encodeByte(&builder->lineSection->contents, builder->lineProgramHeader.lineBase);
     sdvm_dwarf_encodeByte(&builder->lineSection->contents, builder->lineProgramHeader.lineRange);
@@ -659,7 +659,7 @@ SDVM_API void sdvm_dwarf_debugInfo_line_advanceLineAndPC(sdvm_dwarf_debugInfo_bu
         && (deltaLine - builder->lineProgramHeader.lineBase < builder->lineProgramHeader.lineRange)
         && (deltaLine >= builder->lineProgramHeader.lineBase) )
     {
-        sdvm_dwarf_encodeByte(&builder->lineSection->contents, opcode);
+        sdvm_dwarf_encodeByte(&builder->lineSection->contents, (uint8_t)opcode);
         builder->lineProgramState.regLine += deltaLine;
         builder->lineProgramState.regAddress += deltaPC;
     }
@@ -727,7 +727,7 @@ SDVM_API void sdvm_dwarf_debugInfo_attribute_string(sdvm_dwarf_debugInfo_builder
     sdvm_dwarf_encodeULEB128(&builder->abbrevSection->contents, DW_FORM_strp);
 
     size_t stringOffset = sdvm_dwarf_encodeCString(&builder->strSection->contents, value);
-    sdvm_dwarf_encodeSectionRelative32(builder->infoSection, builder->strSection, stringOffset);
+    sdvm_dwarf_encodeSectionRelative32(builder->infoSection, builder->strSection, (uint32_t)stringOffset);
 }
 
 SDVM_API void sdvm_dwarf_debugInfo_attribute_moduleString(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_module_t *module, sdvm_moduleString_t string)
@@ -738,7 +738,7 @@ SDVM_API void sdvm_dwarf_debugInfo_attribute_moduleString(sdvm_dwarf_debugInfo_b
     size_t stringOffset = builder->strSection->contents.size;
     sdvm_dynarray_addAll(&builder->strSection->contents, string.stringSectionSize, module->stringSectionData + string.stringSectionOffset);
     sdvm_dwarf_encodeByte(&builder->strSection->contents, 0);
-    sdvm_dwarf_encodeSectionRelative32(builder->infoSection, builder->strSection, stringOffset);
+    sdvm_dwarf_encodeSectionRelative32(builder->infoSection, builder->strSection, (uint32_t)stringOffset);
 }
 
 SDVM_API void sdvm_dwarf_debugInfo_attribute_optionalModuleString(sdvm_dwarf_debugInfo_builder_t *builder, uint64_t attribute, sdvm_module_t *module, sdvm_moduleString_t string)

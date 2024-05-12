@@ -33,7 +33,7 @@ sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createSectionSymbol(sdvm_co
         .section = sectionIndex
     };
 
-    return sdvm_dynarray_add(&symbolTable->symbols, &symbol);
+    return (sdvm_compilerSymbolHandle_t)sdvm_dynarray_add(&symbolTable->symbols, &symbol);
 }
 
 uint32_t sdvm_compilerSymbolTable_addName(sdvm_compilerSymbolTable_t *symbolTable, const char *name)
@@ -41,7 +41,7 @@ uint32_t sdvm_compilerSymbolTable_addName(sdvm_compilerSymbolTable_t *symbolTabl
     if(!name || !*name)
         return 0;
 
-    uint32_t nameIndex = symbolTable->strings.size;
+    uint32_t nameIndex = (uint32_t)symbolTable->strings.size;
     size_t nameLength = strlen(name);
     sdvm_dynarray_addAll(&symbolTable->strings, nameLength + 1, name);
     return nameIndex;
@@ -55,7 +55,7 @@ sdvm_compilerSymbolHandle_t sdvm_compilerSymbolTable_createUndefinedSymbol(sdvm_
         .binding = binding
     };
 
-    return sdvm_dynarray_add(&symbolTable->symbols, &symbol);
+    return (sdvm_compilerSymbolHandle_t)sdvm_dynarray_add(&symbolTable->symbols, &symbol);
 }
 
 void sdvm_compilerSymbolTable_setSymbolValueToSectionOffset(sdvm_compilerSymbolTable_t *symbolTable, sdvm_compilerSymbolHandle_t symbolHandle, uint32_t sectionSymbolIndex, int64_t offset)
@@ -359,11 +359,11 @@ bool sdvm_moduleCompilationState_emitDebugLineInfo(sdvm_moduleCompilationState_t
     int32_t lineRange = maxLineAdvance - minLineAdvance;
     if(lineRange < 1)
         lineRange = 1;
-    dwarf->lineProgramHeader.lineBase = lineBase;
-    dwarf->lineProgramHeader.lineRange = lineRange;
+    dwarf->lineProgramHeader.lineBase = (int8_t)lineBase;
+    dwarf->lineProgramHeader.lineRange = (int8_t)lineRange;
 
     // Dwarf debug line info program header.
-    *lineInfoOffset = compiler->debugLineSection.contents.size;
+    *lineInfoOffset = (uint32_t)compiler->debugLineSection.contents.size;
     sdvm_dwarf_debugInfo_beginLineInformation(dwarf);
     for(uint32_t i = 0; i < module->debugSourceDirectoryTableSize; ++i)
     {
@@ -385,7 +385,7 @@ bool sdvm_moduleCompilationState_emitDebugLineInfo(sdvm_moduleCompilationState_t
 
     // Emit the source positions.
     previousLine = 1;
-    uint32_t pc = state->startPC;
+    uint32_t pc = (uint32_t)state->startPC;
     uint32_t currentSource = 0;
     sdvm_dwarf_debugInfo_line_setAddress(dwarf, &compiler->textSection, pc);
 
@@ -470,7 +470,7 @@ void sdvm_moduleCompilationState_addDebugLineInfo(sdvm_moduleCompilationState_t 
 {
     uint32_t pc = (uint32_t)state->compiler->textSection.contents.size;
     sdvm_compilerDebugLineInfoTableEntry_t *entries = (sdvm_compilerDebugLineInfoTableEntry_t *)state->debugLineInfoTable.data;
-    sdvm_debugSourceLineInfo_t lastLineInfo = {};
+    sdvm_debugSourceLineInfo_t lastLineInfo = {0};
 
     if(state->debugLineInfoTable.size != 0)
     {
@@ -839,7 +839,7 @@ void sdvm_functionCompilationState_dump(sdvm_functionCompilationState_t *state)
 uint32_t sdvm_compiler_makeLabel(sdvm_compiler_t *compiler)
 {
     sdvm_compilerLabel_t label = {0};
-    uint32_t labelIndex = compiler->labels.size;
+    uint32_t labelIndex = (uint32_t)compiler->labels.size;
     sdvm_dynarray_add(&compiler->labels, &label);
     return labelIndex;
 }
@@ -871,14 +871,14 @@ void sdvm_compiler_applyPendingLabelRelocationsInSection(sdvm_compiler_t *compil
             {
                 uint32_t *relocatedInstruction = (uint32_t *)(section->contents.data + relocation->offset);
                 *relocatedInstruction &= ~sdvm_compiler_riscv_32_B_encodeImmediate(-1);
-                *relocatedInstruction |= sdvm_compiler_riscv_32_B_encodeImmediate(label->value - relocation->offset + relocation->addend);
+                *relocatedInstruction |= sdvm_compiler_riscv_32_B_encodeImmediate((int16_t)(label->value - relocation->offset + relocation->addend));
             }
             break;
         case SdvmCompRelocationRiscVJal:
             {
                 uint32_t *relocatedInstruction = (uint32_t *)(section->contents.data + relocation->offset);
                 *relocatedInstruction &= ~sdvm_compiler_riscv_32_J_encodeImmediate(-1);
-                *relocatedInstruction |= sdvm_compiler_riscv_32_J_encodeImmediate(label->value - relocation->offset + relocation->addend);
+                *relocatedInstruction |= sdvm_compiler_riscv_32_J_encodeImmediate((int16_t)(label->value - relocation->offset + relocation->addend));
             }
             break;
         case SdvmCompRelocationAArch64Jump19:
@@ -900,7 +900,7 @@ void sdvm_compiler_applyPendingLabelRelocationsInSection(sdvm_compiler_t *compil
             break;
         case SdvmCompRelocationRelative32:
             {
-                int32_t value = label->value - relocation->offset + relocation->addend;
+                int32_t value = (int32_t)(label->value - relocation->offset + relocation->addend);
                 memcpy(section->contents.data + relocation->offset, &value, 4);
             }
             break;
@@ -1411,10 +1411,10 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_forOperandType(sdvm_compi
     case SdvmTypeLabel:
         if(argument && argument->location.kind == SdvmCompLocationImmediateLabel)
             return argument->location;
-        return sdvm_compilerLocation_integerRegister(compiler->pointerSize);
+        return sdvm_compilerLocation_integerRegister((uint8_t)compiler->pointerSize);
 
     case SdvmTypeGCPointer:
-        return sdvm_compilerLocation_integerRegisterPair(compiler->pointerSize, compiler->pointerSize);
+        return sdvm_compilerLocation_integerRegisterPair((uint8_t)compiler->pointerSize, (uint8_t)compiler->pointerSize);
 
     default:
         abort();
@@ -1547,11 +1547,11 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_memory(sdvm_compiler
     size_t alignedValueSize = sdvm_size_alignedTo(valueSize, requiredAlignment);
 
     if(state->usedStackSpaceAlignment < requiredAlignment)
-        state->usedStackSpaceAlignment = requiredAlignment;
+        state->usedStackSpaceAlignment = (uint32_t)requiredAlignment;
     uint32_t calloutOffset = sdvm_uint32_alignedTo(state->usedStackSpace, (uint32_t)requiredAlignment);
-    state->usedStackSpace = calloutOffset + alignedValueSize;
+    state->usedStackSpace = (uint32_t)(calloutOffset + alignedValueSize);
     ++state->usedArgumentCount;
-    return sdvm_compilerLocation_specificStack(valueSize, valueAlignment, state->isCallout ? SdvmFunctionStackSegmentCallout : SdvmFunctionStackSegmentArgumentPassing, calloutOffset);
+    return sdvm_compilerLocation_specificStack((uint32_t)valueSize, (uint32_t)valueAlignment, state->isCallout ? SdvmFunctionStackSegmentCallout : SdvmFunctionStackSegmentArgumentPassing, calloutOffset);
 }
 
 bool sdvm_compilerCallingConventionState_isMemoryVariadic(sdvm_compilerCallingConventionState_t *state)
@@ -1698,7 +1698,7 @@ sdvm_compilerLocation_t sdvm_compilerCallingConventionState_calledFunction(sdvm_
     if(state->convention->supportsGlobalSymbolValueCall && operand->location.kind == SdvmCompLocationGlobalSymbolValue)
         return operand->location;
 
-    return sdvm_compilerLocation_integerRegister(state->convention->integerRegisterSize);
+    return sdvm_compilerLocation_integerRegister((uint8_t)state->convention->integerRegisterSize);
 }
 
 sdvm_compilerLocation_t sdvm_compilerCallingConventionState_implicitArg0Location(sdvm_functionCompilationState_t *functionState, sdvm_compilerCallingConventionState_t *state)
@@ -1766,7 +1766,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         switch(instruction->decoding.opcode)
         {
         case SdvmConstInt32:
-            instruction->location = sdvm_compilerLocation_constSectionS32(compiler, instruction->decoding.constant.signedPayload);
+            instruction->location = sdvm_compilerLocation_constSectionS32(compiler, (int32_t)instruction->decoding.constant.signedPayload);
             break;
         case SdvmConstInt64SExt:
         case SdvmConstUInt64SExt:
@@ -1807,7 +1807,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         case SdvmConstImportPointer:
         case SdvmConstImportProcedureHandle:
             {
-                uint32_t importValueIndex = instruction->decoding.constant.unsignedPayload;
+                uint32_t importValueIndex = (uint32_t)instruction->decoding.constant.unsignedPayload;
                 SDVM_ASSERT(importValueIndex <= state->module->importValueTableSize);
                 if(importValueIndex > 0)
                 {
@@ -1822,7 +1822,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             break;
         case SdvmConstLocalProcedureHandle:
             {
-                uint32_t functionIndex = instruction->decoding.constant.unsignedPayload;
+                uint32_t functionIndex = (uint32_t)instruction->decoding.constant.unsignedPayload;
                 SDVM_ASSERT(functionIndex <= state->module->functionTableSize);
                 if(functionIndex > 0)
                 {
@@ -1885,7 +1885,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         {
             SDVM_ASSERT(0 < instruction->decoding.instruction.arg0 && (size_t)instruction->decoding.instruction.arg0 <= state->module->memoryDescriptorTableSize);
             sdvm_moduleMemoryDescriptorTableEntry_t *descriptor = state->module->memoryDescriptorTable + instruction->decoding.instruction.arg0 - 1;
-            instruction->destinationLocation = sdvm_compilerLocation_stackAddress(descriptor->size, descriptor->alignment);        
+            instruction->destinationLocation = sdvm_compilerLocation_stackAddress((uint32_t)descriptor->size, (uint32_t)descriptor->alignment);        
         }
         return;
 
@@ -2241,7 +2241,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->implicitArg0SourceLocation = sdvm_compilerCallingConventionState_implicitArg0SourceLocation(state, &state->currentCallCallingConventionState);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
 
     case SdvmInstCallClosureInt8:
@@ -2253,7 +2253,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificSignedRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
 
     case SdvmInstCallClosureInt64:
@@ -2268,7 +2268,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
             instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstInteger32ResultRegister, *state->currentCallCallingConvention->secondInteger32ResultRegister);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
 
     case SdvmInstCallClosureUInt8:
@@ -2280,7 +2280,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstInteger32ResultRegister);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
 
     case SdvmInstCallClosurePointer:
@@ -2291,7 +2291,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegister(*state->currentCallCallingConvention->firstIntegerResultRegister);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
 
     case SdvmInstCallClosureGCPointer:
@@ -2301,7 +2301,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstIntegerResultRegister, *state->currentCallCallingConvention->secondIntegerResultRegister);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureFloat32:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
@@ -2310,7 +2310,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterWithSize(*state->currentCallCallingConvention->firstVectorFloatResultRegister, 4);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureFloat32x2:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
@@ -2319,7 +2319,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterWithSize(*state->currentCallCallingConvention->firstVectorFloatResultRegister, 8);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureFloat32x4:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
@@ -2328,14 +2328,14 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterWithSize(*state->currentCallCallingConvention->firstVectorFloatResultRegister, 16);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureFloat64:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterWithSize(*state->currentCallCallingConvention->firstVectorFloatResultRegister, 8);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureFloat64x2:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
@@ -2344,7 +2344,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterWithSize(*state->currentCallCallingConvention->firstVectorFloatResultRegister, 16);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureFloat64x4:
         instruction->arg0Location = sdvm_compilerCallingConventionState_calledClosure(state, &state->currentCallCallingConventionState);
@@ -2353,7 +2353,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterPair(*state->currentCallCallingConvention->firstVectorFloatResultRegister, *state->currentCallCallingConvention->secondVectorFloatResultRegister);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureInt32x2:
     case SdvmInstCallClosureUInt32x2:
@@ -2363,7 +2363,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterWithSize(*state->currentCallCallingConvention->firstVectorIntegerResultRegister, 8);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
     case SdvmInstCallClosureInt32x4:
     case SdvmInstCallClosureUInt32x4:
@@ -2373,7 +2373,7 @@ void sdvm_functionCompilationState_computeInstructionLocationConstraints(sdvm_fu
         instruction->destinationLocation = sdvm_compilerLocation_specificRegisterWithSize(*state->currentCallCallingConvention->firstVectorIntegerResultRegister, 16);
         instruction->clobberSets = sdvm_compilerCallingConventionState_getClobberSets(state->currentCallCallingConventionState.convention);
         if(target->closureCallNeedsScratch)
-            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister(target->pointerSize);
+            instruction->scratchLocation0 = sdvm_compilerLocation_integerRegister((uint8_t)target->pointerSize);
         return;
 #pragma endregion CallClosureConstraints
 
@@ -3142,7 +3142,7 @@ static bool sdvm_compiler_compileModuleFunction(sdvm_moduleCompilationState_t *m
         functionState.stackSegments[i].alignment = 1;
 
     // Decode the line info.
-    sdvm_debugSourceLineDataReader_t debugLineReader = {};
+    sdvm_debugSourceLineDataReader_t debugLineReader = {0};
     if(debugFunctionTableEntry)
     {
         debugLineReader.entryCount = debugFunctionTableEntry->sourceLineInfoEntryCount;
@@ -3211,7 +3211,7 @@ void sdvm_compiler_addInstructionRelocation(sdvm_compiler_t *compiler, sdvm_comp
         .kind = kind,
         .symbol = symbol,
         .addend = addend,
-        .offset = compiler->textSection.contents.size
+        .offset = (uint32_t)compiler->textSection.contents.size
     };
 
     sdvm_dynarray_add(&compiler->textSection.relocations, &relocation);
@@ -3242,7 +3242,7 @@ void sdvm_compiler_addInstructionLabelValueRelative32(sdvm_compiler_t *compiler,
             .kind = SdvmCompRelocationRelative32,
             .labelIndex = labelIndex,
             .addend = addend,
-            .offset = compiler->textSection.contents.size
+            .offset = (uint32_t)compiler->textSection.contents.size
         };
 
         sdvm_dynarray_add(&compiler->textSection.pendingLabelRelocations, &pendingRelocation);
@@ -3262,13 +3262,13 @@ SDVM_API void sdvm_compiler_addInstruction32WithLabelValue(sdvm_compiler_t *comp
         case SdvmCompRelocationRiscVBranch:
             {
                 relocatedInstruction &= ~sdvm_compiler_riscv_32_B_encodeImmediate(-1);
-                relocatedInstruction |= sdvm_compiler_riscv_32_B_encodeImmediate(label->value - compiler->textSection.contents.size + addend);
+                relocatedInstruction |= sdvm_compiler_riscv_32_B_encodeImmediate((int16_t)(label->value - compiler->textSection.contents.size + addend));
             }
             break;
         case SdvmCompRelocationRiscVJal:
             {
                 relocatedInstruction &= ~sdvm_compiler_riscv_32_J_encodeImmediate(-1);
-                relocatedInstruction |= sdvm_compiler_riscv_32_J_encodeImmediate(label->value - compiler->textSection.contents.size + addend);
+                relocatedInstruction |= sdvm_compiler_riscv_32_J_encodeImmediate((int16_t)(label->value - compiler->textSection.contents.size + addend));
             }
             break;
         case SdvmCompRelocationAArch64Jump19:
@@ -3295,7 +3295,7 @@ SDVM_API void sdvm_compiler_addInstruction32WithLabelValue(sdvm_compiler_t *comp
             .kind = relocationKind,
             .labelIndex = labelIndex,
             .addend = addend,
-            .offset = compiler->textSection.contents.size
+            .offset = (uint32_t)compiler->textSection.contents.size
         };
 
         sdvm_dynarray_add(&compiler->textSection.pendingLabelRelocations, &pendingRelocation);
@@ -3433,7 +3433,7 @@ bool sdvm_compiler_compileModule(sdvm_compiler_t *compiler, sdvm_module_t *modul
             continue;
 
         char functionName[32];
-        sprintf(functionName, "module.fun%04d", (int)i);
+        snprintf(functionName, sizeof(functionName), "module.fun%04d", (int)i);
         if(module->header->entryPoint && !module->header->entryPointClosure && module->header->entryPoint == i + 1)
             state.functionTableSymbols[i] = sdvm_compilerSymbolTable_createUndefinedSymbol(&compiler->symbolTable, "moduleEntry", SdvmCompSymbolKindFunction, SdvmCompSymbolBindingGlobal);
         else

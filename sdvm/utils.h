@@ -5,6 +5,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
 #define SDVM_C_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #define SDVM_TARGET_TRIPLE_COMPONENTS 4
@@ -65,13 +69,46 @@ static inline bool sdvm_uint32_isPowerOfTwo(uint32_t x)
     return x != 0 && ((x & (x - 1)) == 0);
 }
 
-static inline bool sdvm_uint64_isPowerOfTwo(int32_t x)
+static inline bool sdvm_uint64_isPowerOfTwo(uint64_t x)
 {
     return x != 0 && ((x & (x - 1)) == 0);
 }
 
 #ifdef _MSC_VER
-#error TODO
+static inline int sdvm_uint32_log2(uint32_t x)
+{
+    unsigned long index;
+    _BitScanReverse(&index, x);
+    return 31 - index;
+}
+
+static inline int sdvm_uint64_log2(uint64_t x)
+{
+    unsigned long index;
+    _BitScanReverse64(&index, x);
+    return 31 - index;
+}
+
+static inline int sdvm_uint32_ctz(uint32_t x)
+{
+    if(x == 0)
+        return 32;
+
+    unsigned long index;
+    _BitScanForward(&index, x);
+    return index;
+}
+
+static inline int sdvm_uint64_ctz(uint64_t x)
+{
+    if(x == 0)
+        return 64;
+
+    unsigned long index;
+    _BitScanForward64(&index, x);
+    return index;
+}
+
 #else
 static inline int sdvm_uint32_log2(uint32_t x)
 {

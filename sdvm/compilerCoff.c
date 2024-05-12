@@ -91,7 +91,7 @@ static sdvm_compilerCoffFileLayout_t sdvm_compilerCoff_computeObjectFileLayout(s
         if(section->contents.size == 0)
             continue;
 
-        layout.sectionIndices[i] = ++layout.sectionHeaderCount;
+        layout.sectionIndices[i] = (uint16_t)++layout.sectionHeaderCount;
         layout.writtenSections[i] = true;
         layout.size += sizeof(sdvm_coff_sectionHeader_t);
 
@@ -139,7 +139,7 @@ static sdvm_compilerCoffFileLayout_t sdvm_compilerCoff_computeObjectFileLayout(s
 
             if(symbol->name)
                 layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize((char*)compiler->symbolTable.strings.data + symbol->name);
-            symbol->objectSymbolIndex = layout.symbolCount++;
+            symbol->objectSymbolIndex = (uint32_t)layout.symbolCount++;
         }
 
         layout.size += sizeof(sdvm_coff_symbol_t)*layout.symbolCount;
@@ -184,9 +184,9 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
 
     sdvm_coff_header_t *header = (sdvm_coff_header_t *)(objectFile->data + layout.header);
     header->machine = target->coffMachine;
-    header->numberOfSections = layout.sectionHeaderCount;
-    header->numberOfSymbols = layout.symbolCount;
-    header->pointerToSymbolTable = layout.symbolTable;
+    header->numberOfSections = (uint16_t)layout.sectionHeaderCount;
+    header->numberOfSymbols = (uint32_t)layout.symbolCount;
+    header->pointerToSymbolTable = (uint32_t)layout.symbolTable;
 
     sdvm_compilerCoffStringTableState_t stringTable = {
         .size = 4,
@@ -205,8 +205,8 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
 
         sdvm_coff_sectionHeader_t *coffSection = sectionHeaders + writtenSectionHeaderCount++;
         sdvm_compilerCoffSectionNameWrite(coffSection, &stringTable, section->name);
-        coffSection->pointerToRawData = layout.sectionContents[i];
-        coffSection->sizeOfRawData = section->contents.size;
+        coffSection->pointerToRawData = (uint32_t)layout.sectionContents[i];
+        coffSection->sizeOfRawData = (uint32_t)section->contents.size;
         coffSection->characteristics |= sdvm_uint32_log2(section->alignment)*SDVM_IMAGE_SCN_ALIGN_1BYTES;
 
         if(section->flags & SdvmCompSectionFlagWrite)
@@ -231,16 +231,16 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
         // Relocations
         if(section->relocations.size != 0)
         {
-            coffSection->numberOfRelocations = section->relocations.size;
-            coffSection->pointerToRelocations = layout.sectionRelocations[i];
+            coffSection->numberOfRelocations = (uint16_t)section->relocations.size;
+            coffSection->pointerToRelocations = (uint32_t)layout.sectionRelocations[i];
 
             sdvm_coff_relocation_t *coffRelocations = (sdvm_coff_relocation_t*)(objectFile->data + coffSection->pointerToRelocations);
             sdvm_compilerRelocation_t *relocationTable = (sdvm_compilerRelocation_t *)section->relocations.data;
             sdvm_compilerSymbol_t *symbols = (sdvm_compilerSymbol_t*)compiler->symbolTable.symbols.data;
-            for(size_t i = 0; i < section->relocations.size; ++i)
+            for(size_t j = 0; j < section->relocations.size; ++j)
             {
-                sdvm_compilerRelocation_t *relocation = relocationTable + i;
-                sdvm_coff_relocation_t *coffRelocation = coffRelocations + i;
+                sdvm_compilerRelocation_t *relocation = relocationTable + j;
+                sdvm_coff_relocation_t *coffRelocation = coffRelocations + j;
                 coffRelocation->virtualAddress = relocation->offset;
                 if(relocation->symbol)
                     coffRelocation->symbolTableIndex = symbols[relocation->symbol - 1].objectSymbolIndex;
