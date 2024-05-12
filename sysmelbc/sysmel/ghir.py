@@ -1925,6 +1925,10 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         valueType = self.translateValue(value.valueType)
         return self.context.getDictionaryType(type, keyType, valueType)
 
+    def visitInductiveType(self, value: InductiveType):
+        type = self.translateValue(value.getType())
+        assert False
+
     def visitProductType(self, value: ProductType):
         type = self.translateValue(value.getType())
         elementTypes = list(map(self.translateValue, value.elementTypes))
@@ -2043,6 +2047,10 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         keyType = self.translateExpression(node.keyType)
         valueType = self.translateExpression(node.valueType)
         return GHIRDictionaryType(self.context, node.sourcePosition, type, keyType, valueType).simplify()
+
+    def visitInductiveTypeNode(self, node: ASTInductiveTypeNode):
+        type = self.context.getUniverse(node.computeTypeUniverseIndex())
+        assert False
 
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         type = self.context.getUniverse(node.computeTypeUniverseIndex())

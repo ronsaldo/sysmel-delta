@@ -75,6 +75,10 @@ class TypedValueVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitInductiveType(self, value):
+        pass
+
+    @abstractmethod
     def visitSumType(self, value):
         pass
 
@@ -337,10 +341,10 @@ class UnitTypeValue(TypedValue):
 
     def toJson(self):
         if self.name is None:
-            return str(self.type) + ".value"
+            return str(self.type) + "()"
         return self.name
     
-class VoidTypeClass(BaseType):
+class UnitTypeClass(BaseType):
     def __init__(self, name: str, valueName: str) -> None:
         super().__init__(name)
         self.singleton = UnitTypeValue(self, valueName)
@@ -441,7 +445,7 @@ class ModuleTypeClass(BaseType):
     pass
 
 AbortType = AbortTypeClass("Abort")
-VoidType = VoidTypeClass("Void", "void")
+VoidType = UnitTypeClass("Void", "void")
 AnyType = AnyTypeClass("Any")
 
 CVarArgType = CVarArgTypeClass("CVarArg")
@@ -1065,7 +1069,7 @@ class RecordType(ProductType):
     def prettyPrint(self) -> str:
         if self.name is not None:
             return self.name
-        result = '(RecordWithFields: #{'
+        result = '(RecordWith: #{'
         for i in range(len(self.fields)):
             if i > 0:
                 result += '. '
@@ -1166,6 +1170,31 @@ class SumType(BaseType):
         result += ')'
         return result
 
+class InductiveType(BaseType):
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.content = None
+
+    def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
+        return visitor.visitInductiveType(self)
+    
+    def isInductiveType(self) -> bool:
+        return True
+
+    def isEquivalentTo(self, other: TypedValue) -> bool:
+        if not isinstance(other, InductiveType): return False
+
+        return self.content.isEquivalentTo(other)
+
+    def getType(self):
+        return TypeType
+
+    def toJson(self):
+        return {'inductiveType': self.name}
+
+    def prettyPrint(self) -> str:
+        return self.name
+    
 class DictionaryTypeValue(TypedValue):
     def __init__(self, type: TypedValue, elements: list[TypedValue]) -> None:
         super().__init__()
@@ -1232,8 +1261,8 @@ class DictionaryType(BaseType):
         return dictionaryType
     
 ## Boolean :: False | True.
-FalseType = VoidTypeClass("False", "false")
-TrueType = VoidTypeClass("True", "true")
+FalseType = UnitTypeClass("False", "false")
+TrueType = UnitTypeClass("True", "true")
 BooleanType = SumType.makeNamedWithVariantTypes("Boolean", [FalseType, TrueType])
 FalseValue = BooleanType.makeWithTypeIndexAndValue(0, FalseType.getSingleton())
 TrueValue = BooleanType.makeWithTypeIndexAndValue(1, TrueType.getSingleton())
@@ -2032,6 +2061,23 @@ class SymbolArgumentBinding(SymbolBinding):
     def toJson(self):
         return {'argument': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
+class SymbolRecursiveBinding(SymbolBinding):
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTNode) -> None:
+        super().__init__(sourcePosition, name)
+        self.typeExpression = typeExpression
+
+    def getTypeExpression(self) -> ASTNode:
+        return self.typeExpression
+
+    def getCaptureNestingLevel(self) -> int:
+        return 0
+    
+    def hasTypeOf(self, expectedType: TypedValue):
+        return self.typeExpression.isLiteralTypeNode() and self.typeExpression.value.isEquivalentTo(expectedType)
+
+    def toJson(self):
+        return {'recursive': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
+    
 class SymbolImplicitValueBinding(SymbolBinding):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTNode) -> None:
         super().__init__(sourcePosition, name)

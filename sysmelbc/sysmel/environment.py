@@ -566,6 +566,19 @@ def callingConventionMacro(macroContext: MacroContext, functionNode: ASTNode, co
     else:
         return macroContext.typechecker.visitNode(functionNode).withCallingConventionNamed(conventionName)
 
+def formNamedUnitMacro(macroContext: MacroContext, name: ASTNode) -> ASTNode:
+    return ASTFormProductTypeNode(macroContext.sourcePosition, name, [])
+
+def formNamedProductWithMacro(macroContext: MacroContext, name: ASTNode, elements: ASTNode) -> ASTNode:
+    elementTypes, errorNode = macroContext.typechecker.unpackTypeListNode(elements)
+    if errorNode is not None:
+        return ASTFormProductTypeNode(macroContext.sourcePosition, name, [errorNode])
+
+    return ASTFormProductTypeNode(macroContext.sourcePosition, name, elementTypes)
+
+def formInductiveWithMacro(macroContext: MacroContext, name: ASTNode, content: ASTNode) -> ASTNode:
+    return ASTFormInductiveTypeNode(macroContext.sourcePosition, name, content)
+
 def formNamedRecordWithFieldsMacro(macroContext: MacroContext, name: ASTNode, fields: ASTNode) -> ASTNode:
     keyAndFields, errorNode = macroContext.typechecker.expandAndUnpackDictionaryNodeWithElements(fields)
     if errorNode is not None:
@@ -814,8 +827,11 @@ TopLevelEnvironment = addPrimitiveFunctionDefinitionsToEnvironment([
     ['moduleEntryPoint:', 'Macro::moduleEntryPoint:', [(MacroContextType, ASTNodeType), ASTNodeType], moduleEntryPointMacro, ['macro']],
 
     ['=>', 'Type::=>', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], arrowMacro, ['macro']],
-    ['RecordWithFields:', 'Type::RecordWithFields:', [(MacroContextType, ASTNodeType), ASTNodeType], formRecordWithFieldsMacro, ['macro']],
-    ['Record:withFields:', 'Type::Record:withFields:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], formNamedRecordWithFieldsMacro, ['macro']],
+    ['Inductive:with:', 'Type::Inductive:with:', [(MacroContextType, ASTNodeType), ASTNodeType], formInductiveWithMacro, ['macro']],
+    ['Product:with:', 'Type::ProductWith:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], formNamedProductWithMacro, ['macro']],
+    ['RecordWith:', 'Type::RecordWith:', [(MacroContextType, ASTNodeType), ASTNodeType], formRecordWithFieldsMacro, ['macro']],
+    ['Record:with:', 'Type::Record:with:', [(MacroContextType, ASTNodeType, ASTNodeType), ASTNodeType], formNamedRecordWithFieldsMacro, ['macro']],
+    ['Unit:', 'Type::Unit:', [(MacroContextType, ASTNodeType), ASTNodeType], formNamedUnitMacro, ['macro']],
 
     ['__cdecl', 'Type::__cdecl', [(MacroContextType, ASTNodeType), ASTNodeType], cdeclMacro, ['macro']],
     ['__stdcall', 'Type::__stdcall', [(MacroContextType, ASTNodeType), ASTNodeType], stdcallMacro, ['macro']],

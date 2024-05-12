@@ -47,11 +47,23 @@ class ASTEvaluator(ASTTypecheckedVisitor):
         size = self.visitNode(node.size)
         return ArrayType.makeWithElementTypeAndSize(elementType, size)
     
+    def visitInductiveTypeNode(self, node: ASTInductiveTypeNode):
+        inductiveType = InductiveType(node.name.value)
+        self.activationEnvironment.setBindingValue(node.recursiveBinding, inductiveType)
+        inductiveType.content = self.visitNode(node.content)
+        return inductiveType
+    
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         elementTypes = []
         for elementType in node.elementTypes:
             elementTypes.append(self.visitNode(elementType))
-        return ProductType.makeWithElementTypes(elementTypes)
+        if node.name is not None:
+            if len(elementTypes) == 0:
+                return UnitTypeClass(node.name.value, None)
+            else:
+                return ProductType(elementTypes, node.name.value)
+        else:
+            return ProductType.makeWithElementTypes(elementTypes)
 
     def visitRecordTypeNode(self, node: ASTRecordTypeNode):
         assert not node.isRecursive

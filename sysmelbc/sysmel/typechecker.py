@@ -588,11 +588,27 @@ class Typechecker(ASTVisitor):
         valueType = self.visitNode(node.valueType)
         return reduceDictionaryTypeNode(ASTDictionaryTypeNode(node.sourcePosition, keyType, valueType))
 
+    def visitFormInductiveTypeNode(self, node: ASTFormInductiveTypeNode):
+        name = self.evaluateOptionalSymbol(node.name)
+        if name is None:
+            return self.visitNode(node.content)
+        
+        recursiveBinding = SymbolRecursiveBinding(node.sourcePosition, name, ASTLiteralTypeNode(node.sourcePosition, TypeUniverse.getWithIndex(0)))
+        recursiveEnvironment = self.lexicalEnvironment.withSymbolBinding(recursiveBinding)
+        analyzedContent = self.withEnvironment(recursiveEnvironment).visitTypeExpression(node.content)
+        analyzedContentType = getTypeOfAnalyzedNode(analyzedContent, node.sourcePosition)
+        assert analyzedContentType.isLiteralTypeNode() and analyzedContentType.value.isTypeUniverse()
+
+        recursiveBinding.typeExpression = analyzedContentType
+        analyzedNode = ASTInductiveTypeNode(node.sourcePosition, name, recursiveBinding, analyzedContent)
+        return self.makeBindingForTypeNode(name, analyzedNode)
+
     def visitFormProductTypeNode(self, node: ASTFormProductTypeNode):
+        name = self.evaluateOptionalSymbol(node.name)
         elementTypes = []
         for expression in node.elements:
             elementTypes.append(self.visitTypeExpression(expression))
-        return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypes))
+        return self.makeBindingForTypeNode(name, reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, name, elementTypes)))
 
     def unpackAssociationNode(self, node: ASTNode):
         if not node.isTupleNode() and not node.isTypedTupleNode():
@@ -602,6 +618,12 @@ class Typechecker(ASTVisitor):
         if len(tupleElements) != 2:
             return ASTErrorNode(node.sourcePosition, 'Expected a tuple with two elements.'), ASTErrorNode(node.sourcePosition, 'Expected a tuple with two elements.')
         return tupleElements[0], tupleElements[1]
+
+    def unpackTypeListNode(self, node: ASTNode):
+        if not node.isTupleNode() and not node.isTypedTupleNode():
+            return [node], None
+
+        return node.elements, None
 
     def expandAndUnpackDictionaryNodeWithElements(self, node: ASTNode):
         expandedNode = self.visitNodeForMacroExpansionOnly(node)
@@ -943,7 +965,7 @@ class Typechecker(ASTVisitor):
         keyType = self.mergeListOfTypes(keyTypes, anyTypeLiteral, node.sourcePosition)
         valueType = self.mergeListOfTypes(valueTypes, anyTypeLiteral, node.sourcePosition)
         dictionaryType = self.visitNode(ASTFormDictionaryTypeNode(node.sourcePosition, keyType, valueType))
-        associationType = self.visitNode(ASTFormProductTypeNode(node.sourcePosition, [keyType, valueType]))
+        associationType = self.visitNode(ASTFormProductTypeNode(node.sourcePosition, None, [keyType, valueType]))
 
         coercedElements = []
         for element in elements:
@@ -1054,9 +1076,9 @@ class Typechecker(ASTVisitor):
             typedElements.append(typedExpression)
 
         if all(isLiteralTypeOfTypeNode(elementType) for elementType in elementTypeExpressions):
-            return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, typedElements))
+            return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, None, typedElements))
         
-        tupleType = reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, elementTypeExpressions))
+        tupleType = reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, None, elementTypeExpressions))
         return reduceTupleNode(ASTTypedTupleNode(node.sourcePosition, tupleType, typedElements, False))
 
     def visitTupleAtNode(self, node: ASTTupleAtNode):
@@ -1169,6 +1191,9 @@ class Typechecker(ASTVisitor):
         return node
 
     def visitArrayTypeNode(self, node: ASTArrayTypeNode):
+        return node
+
+    def visitInductiveTypeNode(self, node: ASTInductiveTypeNode):
         return node
 
     def visitProductTypeNode(self, node: ASTProductTypeNode):
@@ -1599,7 +1624,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         reducedElementTypes = []
         for element in node.elementTypes:
             reducedElementTypes.append(self.visitNode(element))
-        return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, reducedElementTypes))
+        return reduceProductTypeNode(ASTProductTypeNode(node.sourcePosition, node.name, reducedElementTypes))
 
     def visitRecordTypeNode(self, node: ASTRecordTypeNode):
         reducedElementTypes = []
@@ -1884,13 +1909,20 @@ def reduceArrayType(node: ASTArrayTypeNode):
     return node
 
 def reduceProductTypeNode(node: ASTProductTypeNode):
-    if len(node.elementTypes) == 0:
-        return ASTLiteralTypeNode(node.sourcePosition, VoidType)
-    elif len(node.elementTypes) == 1:
-        return node.elementTypes[0]
+    if node.name is None:
+        if len(node.elementTypes) == 0:
+            return ASTLiteralTypeNode(node.sourcePosition, VoidType)
+        elif len(node.elementTypes) == 1:
+            return node.elementTypes[0]
+    elif len(node.elementTypes) == 0:
+        return ASTLiteralTypeNode(node.sourcePosition, UnitTypeClass(node.name.value, None))
 
     if all(elementType.isLiteralTypeNode() for elementType in node.elementTypes):
-        return ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(list(map(lambda n: n.value, node.elementTypes))))
+        elementTypes = list(map(lambda n: n.value, node.elementTypes))
+        if node.name is not None:
+            return ASTLiteralTypeNode(node.sourcePosition, ProductType(elementTypes, node.name.value))
+        else:
+            return ASTLiteralTypeNode(node.sourcePosition, ProductType.makeWithElementTypes(elementTypes))
     return node
 
 def reduceRecordTypeNode(node: ASTRecordTypeNode):

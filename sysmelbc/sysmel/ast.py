@@ -67,6 +67,10 @@ class ASTVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitFormInductiveTypeNode(self, node):
+        pass
+
+    @abstractmethod
     def visitFormProductTypeNode(self, node):
         pass
 
@@ -204,6 +208,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visitDictionaryTypeNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitInductiveTypeNode(self, node):
         pass
 
     @abstractmethod
@@ -630,16 +638,29 @@ class ASTFormDictionaryTypeNode(ASTNode):
     def toJson(self) -> dict:
         return {'kind': 'FormDictionaryType', 'key' : self.keyType.toJson(), 'value' : self.valueType.toJson()}
     
-class ASTFormProductTypeNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:
+class ASTFormInductiveTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, name: ASTNode, content: ASTNode) -> None:
         super().__init__(sourcePosition)
+        self.name = name
+        self.content = content
+
+    def accept(self, visitor: ASTVisitor):
+        return visitor.visitFormInductiveTypeNode(self)
+    
+    def toJson(self) -> dict:
+        return {'kind': 'FormInductiveType', 'name' : optionalASTNodeToJson(self.name), 'content': self.content.toJson()}
+
+class ASTFormProductTypeNode(ASTNode):
+    def __init__(self, sourcePosition: SourcePosition, name: ASTNode, elements: list[ASTNode]) -> None:
+        super().__init__(sourcePosition)
+        self.name = name
         self.elements = elements
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFormProductTypeNode(self)
     
     def toJson(self) -> dict:
-        return {'kind': 'FormProductType', 'elements': list(map(lambda n: n.toJson(), self.elements))}
+        return {'kind': 'FormProductType', 'name' : optionalASTNodeToJson(self.name), 'elements': list(map(lambda n: n.toJson(), self.elements))}
 
 class ASTFormRecordTypeNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, name: ASTNode, fieldNames: list[ASTNode], fieldTypes: list[ASTNode], isRecursive: bool = False) -> None:
@@ -1119,10 +1140,30 @@ class ASTDictionaryTypeNode(ASTTypeNode):
 
     def toJson(self) -> dict:
         return {'kind': 'DictionaryType', 'key': self.keyType.toJson(), 'value': self.valueType.toJson()}
+
+class ASTInductiveTypeNode(ASTTypeNode):
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, recursiveBinding: SymbolRecursiveBinding, content: ASTTypeNode) -> None:
+        super().__init__(sourcePosition)
+        self.name = name
+        self.recursiveBinding = recursiveBinding
+        self.content = content
+
+    def accept(self, visitor):
+        return visitor.visitInductiveTypeNode(self)
+    
+    def computeTypeUniverseIndex(self) -> int:
+        return self.content.computeTypeUniverseIndex()
+    
+    def isInductiveTypeNode(self) -> bool:
+        return True
+
+    def toJson(self) -> dict:
+        return {'kind': 'InductiveType', 'name' : self.name, 'content': self.content.toJson()}
     
 class ASTProductTypeNode(ASTTypeNode):
-    def __init__(self, sourcePosition: SourcePosition, elementTypes: list[ASTTypeNode]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, elementTypes: list[ASTTypeNode]) -> None:
         super().__init__(sourcePosition)
+        self.name = name
         self.elementTypes = elementTypes
         self.typeUniverseIndex = None
 
@@ -1156,12 +1197,11 @@ class ASTProductTypeNode(ASTTypeNode):
         return True
 
     def toJson(self) -> dict:
-        return {'kind': 'ProductType', 'elementTypes': list(map(optionalASTNodeToJson, self.elementTypes))}
+        return {'kind': 'ProductType', 'name' : optionalToJson(self.name), 'elementTypes': list(map(optionalASTNodeToJson, self.elementTypes))}
     
 class ASTRecordTypeNode(ASTProductTypeNode):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, elementTypes: list[ASTTypeNode], fieldNames: list[Symbol], isRecursive: bool) -> None:
-        super().__init__(sourcePosition, elementTypes)
-        self.name = name
+        super().__init__(sourcePosition, name, elementTypes)
         self.fieldNames = fieldNames
         self.isRecursive = isRecursive
     
@@ -1874,7 +1914,15 @@ class ASTSequentialVisitor(ASTVisitor):
         self.visitNode(node.keyType)
         self.visitNode(node.valueType)
 
+    def visitFormInductiveTypeNode(self, node: ASTFormInductiveTypeNode):
+        if node.name is not None:
+            self.visitNode(node.name)
+        self.visitNode(node.content)
+
     def visitFormProductTypeNode(self, node: ASTFormProductTypeNode):
+        if node.name is not None:
+            self.visitNode(node.name)
+
         for element in node.elements:
             self.visitNode(element)
 
@@ -1993,7 +2041,10 @@ class ASTSequentialVisitor(ASTVisitor):
 
     def visitTemporaryReferenceTypeNode(self, node: ASTTemporaryReferenceTypeNode):
         self.visitNode(node.baseType)
-            
+
+    def visitInductiveTypeNode(self, node: ASTInductiveTypeNode):
+        self.visitNode(node.content)
+
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         for expression in node.elementTypes:
             self.visitNode(expression)
@@ -2236,6 +2287,9 @@ class ASTTypecheckedVisitor(ASTVisitor):
         assert False
 
     def visitFormDictionaryTypeNode(self, node):
+        assert False
+
+    def visitFormInductiveTypeNode(self, node):
         assert False
 
     def visitFormProductTypeNode(self, node):
