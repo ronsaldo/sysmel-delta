@@ -1,7 +1,7 @@
 fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl.
 
 Inductive: #Nat with: (Unit: #Zero)
-                    | (Product: #Succ with: Nat).
+                | (Product: #Succ with: Nat).
 
 export: (
     :TestRecord <- RecordWith: #{

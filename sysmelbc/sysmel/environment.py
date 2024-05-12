@@ -636,7 +636,8 @@ def moduleExportMacro(macroContext: MacroContext, value: ASTNode) -> ASTNode:
     if value.isSequenceNode():
         return ASTSequenceNode(macroContext.sourcePosition, list(map(lambda n: moduleExportMacro(macroContext, n), value.elements)))
 
-    return ASTModuleExportValueNode(macroContext.sourcePosition, None, value.parseAsExportedNameSymbol(), value)
+    expandedValue = macroContext.typechecker.visitNodeForMacroExpansionOnly(value)
+    return ASTModuleExportValueNode(macroContext.sourcePosition, None, expandedValue.parseAsExportedNameSymbol(), expandedValue)
 
 def moduleExternalExportWithMacro(macroContext: MacroContext, externalName: ASTNode, name: ASTNode, value: ASTNode) -> ASTNode:
     return ASTModuleExportValueNode(macroContext.sourcePosition, externalName, name, value)

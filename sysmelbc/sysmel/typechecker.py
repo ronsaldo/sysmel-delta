@@ -1620,6 +1620,10 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         size = self.visitNode(node.size)
         return reduceArrayType(ASTArrayTypeNode(node.sourcePosition, elementType, size))
     
+    def visitInductiveTypeNode(self, node: ASTInductiveTypeNode):
+        reducedContent = self.visitNode(node.content)
+        return ASTInductiveTypeNode(node.sourcePosition, node.name, node.recursiveBinding, reducedContent)
+    
     def visitProductTypeNode(self, node: ASTProductTypeNode):
         reducedElementTypes = []
         for element in node.elementTypes:

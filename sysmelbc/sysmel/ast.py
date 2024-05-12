@@ -646,7 +646,10 @@ class ASTFormInductiveTypeNode(ASTNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFormInductiveTypeNode(self)
-    
+
+    def parseAsExportedNameSymbol(self):
+        return self.name
+
     def toJson(self) -> dict:
         return {'kind': 'FormInductiveType', 'name' : optionalASTNodeToJson(self.name), 'content': self.content.toJson()}
 
@@ -658,6 +661,9 @@ class ASTFormProductTypeNode(ASTNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFormProductTypeNode(self)
+    
+    def parseAsExportedNameSymbol(self):
+        return self.name
     
     def toJson(self) -> dict:
         return {'kind': 'FormProductType', 'name' : optionalASTNodeToJson(self.name), 'elements': list(map(lambda n: n.toJson(), self.elements))}
@@ -672,6 +678,9 @@ class ASTFormRecordTypeNode(ASTNode):
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFormRecordTypeNode(self)
+    
+    def parseAsExportedNameSymbol(self):
+        return self.name
     
     def toJson(self) -> dict:
         return {'kind': 'FormRecordType', 'name' : optionalASTNodeToJson(self.name), 'fieldNames': list(map(lambda n: n.toJson(), self.fieldNames)), 'fieldTypes': list(map(lambda n: n.toJson(), self.fieldTypes))}
