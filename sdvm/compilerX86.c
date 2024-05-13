@@ -3798,7 +3798,7 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
     sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
 
     sdvm_compiler_x64_ensureCIE(state->moduleState);
-    sdvm_dwarf_cfi_beginFDE(cfi, &compiler->textSection, sdvm_compiler_getCurrentPC(compiler));
+    sdvm_dwarf_cfi_beginFDE(cfi, state->symbol, sdvm_compiler_getCurrentPC(compiler));
 
     if(state->debugFunctionTableEntry)
         sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindBeginPrologue, state->debugFunctionTableEntry->declarationLineInfo);

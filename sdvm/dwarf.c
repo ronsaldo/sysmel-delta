@@ -185,17 +185,17 @@ SDVM_API size_t sdvm_dwarf_encodeSectionRelative32(sdvm_compilerObjectSection_t 
     return offset;
 }
 
-SDVM_API size_t sdvm_dwarf_encodeRelocatableRelativePointer32(sdvm_compilerObjectSection_t *section, sdvm_compilerObjectSection_t *targetSection, int32_t value)
+SDVM_API size_t sdvm_dwarf_encodeRelocatableRelativePointer32(sdvm_compilerObjectSection_t *section, sdvm_compilerSymbolHandle_t symbol, int32_t addend)
 {
     size_t offset = section->contents.size;
-    sdvm_dynarray_addAll(&section->contents, 4, &value);
+    sdvm_dynarray_addAll(&section->contents, 4, &addend);
 
-    if(targetSection)
+    if(symbol)
     {
         sdvm_compilerRelocation_t relocation = {
             .kind = SdvmCompRelocationRelative32,
-            .symbol = targetSection->symbolIndex,
-            .addend = value,
+            .symbol = symbol,
+            .addend = addend,
             .offset = (uint32_t)offset
         };
         sdvm_dynarray_add(&section->relocations, &relocation);
@@ -249,21 +249,23 @@ SDVM_API void sdvm_dwarf_cfi_endCIE(sdvm_dwarf_cfi_builder_t *cfi)
     memcpy(cfi->section->contents.data + cfi->cieOffset, &cieSize, 4);
 }
 
-SDVM_API void sdvm_dwarf_cfi_beginFDE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_compilerObjectSection_t *targetSection, size_t pc)
+SDVM_API void sdvm_dwarf_cfi_beginFDE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_compilerSymbolHandle_t symbol, size_t pc)
 {
     cfi->fdeOffset = sdvm_dwarf_encodeDWord(&cfi->section->contents, 0);
     cfi->fdeContentOffset = sdvm_dwarf_encodeDwarfPointerPCRelative(&cfi->section->contents, (uint32_t)cfi->cieOffset);
     cfi->fdeInitialPC = pc;
     if(cfi->isEhFrame)
     {
-        cfi->fdeInitialLocationOffset = sdvm_dwarf_encodeRelocatableRelativePointer32(cfi->section, targetSection, (int32_t)pc);
+        cfi->fdeInitialLocationOffset = sdvm_dwarf_encodeRelocatableRelativePointer32(cfi->section, symbol, 0);
         cfi->fdeAddressingRangeOffset = sdvm_dwarf_encodeDWord(&cfi->section->contents, 0);
         sdvm_dwarf_encodeULEB128(&cfi->section->contents, 0);
     }
     else
     {
-        cfi->fdeInitialLocationOffset = sdvm_dwarf_encodeRelocatablePointer(cfi->section, cfi->pointerSize, targetSection, pc);
-        cfi->fdeAddressingRangeOffset = sdvm_dwarf_encodeRelocatablePointer(cfi->section, cfi->pointerSize, NULL, 0);
+        // TODO: refactor this part.
+        abort();
+        //cfi->fdeInitialLocationOffset = sdvm_dwarf_encodeRelocatablePointer(cfi->section, cfi->pointerSize, targetSection, pc);
+        //cfi->fdeAddressingRangeOffset = sdvm_dwarf_encodeRelocatablePointer(cfi->section, cfi->pointerSize, NULL, 0);
     }
     cfi->currentPC = cfi->fdeInitialPC;
     cfi->stackFrameSize = cfi->initialStackFrameSize;

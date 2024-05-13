@@ -1266,7 +1266,7 @@ void sdvm_compiler_riscv_emitFunctionPrologue(sdvm_functionCompilationState_t *s
     uint32_t pointerSize = state->compiler->pointerSize;
 
     sdvm_compiler_riscv_ensureCIE(state->moduleState);
-    sdvm_dwarf_cfi_beginFDE(cfi, &compiler->textSection, sdvm_compiler_getCurrentPC(compiler));
+    sdvm_dwarf_cfi_beginFDE(cfi, state->symbol, sdvm_compiler_getCurrentPC(compiler));
 
     if(state->debugFunctionTableEntry)
         sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindBeginPrologue, state->debugFunctionTableEntry->declarationLineInfo);

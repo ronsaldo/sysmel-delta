@@ -505,6 +505,7 @@ enum dwarf_riscv_register_e {
 
 typedef struct sdvm_compiler_s sdvm_compiler_t;
 typedef struct sdvm_compilerObjectSection_s sdvm_compilerObjectSection_t;
+typedef uint32_t sdvm_compilerSymbolHandle_t;
 
 typedef struct sdvm_dwarf_cie_s {
     uint8_t pointerSize;
@@ -609,7 +610,7 @@ SDVM_API void sdvm_dwarf_cfi_destroy(sdvm_dwarf_cfi_builder_t *cfi);
 SDVM_API void sdvm_dwarf_cfi_beginCIE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_dwarf_cie_t *cie);
 SDVM_API void sdvm_dwarf_cfi_endCIE(sdvm_dwarf_cfi_builder_t *cfi);
 
-SDVM_API void sdvm_dwarf_cfi_beginFDE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_compilerObjectSection_t *section, size_t pc);
+SDVM_API void sdvm_dwarf_cfi_beginFDE(sdvm_dwarf_cfi_builder_t *cfi, sdvm_compilerSymbolHandle_t symbol, size_t pc);
 SDVM_API void sdvm_dwarf_cfi_endFDE(sdvm_dwarf_cfi_builder_t *cfi, size_t pc);
 SDVM_API void sdvm_dwarf_cfi_finish(sdvm_dwarf_cfi_builder_t *cfi);
 
