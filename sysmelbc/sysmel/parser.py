@@ -158,12 +158,24 @@ def parseNameExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     else:
         return state, ASTErrorNode(state.currentSourcePosition(), 'Expected a bindable name.')
 
+def parseOptionalBindableNameType(state: ParserState) -> tuple[ParserState, ASTNode]:
+    if state.peekKind() == TokenKind.LEFT_BRACKET:
+        state.advance()
+        state, typeExpression  = parseExpression(state)
+        typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_BRACKET, typeExpression)
+        return True, state, typeExpression
+    elif state.peekKind() == TokenKind.LEFT_PARENT:
+        state.advance()
+        state, typeExpression = parseExpression(state)
+        typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, typeExpression)
+        return False, state, typeExpression
+    return False, state, None
+
 def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
     assert state.peekKind() == TokenKind.COLON
     state.advance()
 
-    isImplicit = False
     isExistential = False
     isMutable = False
     if state.peekKind() == TokenKind.BANG:
@@ -173,16 +185,8 @@ def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
         isExistential = isExistential or state.peekKind() == TokenKind.QUESTION
         state.advance()
 
-    typeExpression = None
-    if state.peekKind() == TokenKind.LEFT_BRACKET:
-        state.advance()
-        isImplicit = True
-        state, typeExpression  = parseExpression(state)
-        typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_BRACKET, typeExpression)
-    elif state.peekKind() == TokenKind.LEFT_PARENT:
-        state.advance()
-        state, typeExpression = parseExpression(state)
-        typeExpression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, typeExpression)
+    isImplicit, state, typeExpression = parseOptionalBindableNameType(state)
+    hasPostTypeExpression = False
 
     isVariadic = False
     if state.peekKind() == TokenKind.ELLIPSIS:
@@ -191,11 +195,15 @@ def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
         nameExpression = None
     else:
         state, nameExpression = parseNameExpression(state)
+        if typeExpression is None:
+            isImplicit, state, typeExpression = parseOptionalBindableNameType(state)
+            hasPostTypeExpression = typeExpression is not None
+
         if state.peekKind() == TokenKind.ELLIPSIS:
             state.advance()
             isVariadic = True
 
-    return state, ASTBindableNameNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential, isVariadic, isMutable)
+    return state, ASTBindableNameNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential, isVariadic, isMutable, hasPostTypeExpression)
 
 def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     # (

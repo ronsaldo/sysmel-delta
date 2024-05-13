@@ -394,7 +394,7 @@ class ASTAllocaMutableWithValueNode(ASTNode):
         return {'kind': 'AllocaMutableWithValue', 'initialValue': self.initialValue.toJson()}
 
 class ASTBindableNameNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False, isVariadic: bool = False, isMutable: bool = False) -> None:
+    def __init__(self, sourcePosition: SourcePosition, typeExpression: ASTNode, nameExpression: ASTNode, isImplicit: bool = False, isExistential: bool = False, isVariadic: bool = False, isMutable: bool = False, hasPostTypeExpression: bool = False) -> None:
         super().__init__(sourcePosition)
         self.typeExpression = typeExpression
         self.nameExpression = nameExpression
@@ -402,6 +402,7 @@ class ASTBindableNameNode(ASTNode):
         self.isExistential = isExistential
         self.isVariadic = isVariadic
         self.isMutable = isMutable
+        self.hasPostTypeExpression = hasPostTypeExpression
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitBindableNameNode(self)
@@ -419,7 +420,13 @@ class ASTBindableNameNode(ASTNode):
         return ASTBindingDefinitionNode(sourcePosition, self.nameExpression, self.typeExpression, value, isRebind = True, isMutable = self.isMutable)
 
     def toJson(self) -> dict:
-        return {'kind': 'Argument', 'typeExpression': optionalASTNodeToJson(self.typeExpression), 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'isImplicit': self.isImplicit, 'isExistential': self.isExistential}
+        return {'kind': 'Argument',
+                'typeExpression': optionalASTNodeToJson(self.typeExpression),
+                'nameExpression': optionalASTNodeToJson(self.nameExpression),
+                'isImplicit': self.isImplicit,
+                'isExistential': self.isExistential,
+                'hasPostTypeExpression': self.hasPostTypeExpression
+        }
 
 class ASTArgumentApplicationNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, functional: ASTNode, argument: ASTNode, isImplicit = False) -> None:
