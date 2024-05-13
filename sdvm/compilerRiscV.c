@@ -2362,6 +2362,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_riscv32_linux = {
     .usesCET = false,
     .closureCallNeedsScratch = true,
     .usesPIC = true,
+    .usesEHFrame = true,
 
     .defaultCC = &sdvm_riscv32_abi_callingConvention,
     .cdeclCC = &sdvm_riscv32_abi_callingConvention,
@@ -2392,6 +2393,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_riscv64_linux = {
     .usesCET = false,
     .closureCallNeedsScratch = true,
     .usesPIC = true,
+    .usesEHFrame = true,
 
     .defaultCC = &sdvm_riscv64_abi_callingConvention,
     .cdeclCC = &sdvm_riscv64_abi_callingConvention,

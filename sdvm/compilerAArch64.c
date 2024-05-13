@@ -1915,6 +1915,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_linux = {
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .usesPIC = true,
+    .usesEHFrame = false,
 
     .defaultCC = &sdvm_aarch64_eabi_callingConvention,
     .cdeclCC = &sdvm_aarch64_eabi_callingConvention,
@@ -1947,6 +1948,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_macosx = {
     .usesUnderscorePrefix = true,
     .usesCET = false,
     .usesPIC = true,
+    .usesEHFrame = false,
 
     .defaultCC = &sdvm_aarch64_apple_callingConvention,
     .cdeclCC = &sdvm_aarch64_apple_callingConvention,
@@ -1979,6 +1981,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_aarch64_windows = {
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .usesPIC = false,
+    .usesEHFrame = false,
 
     .defaultCC = &sdvm_aarch64_eabi_callingConvention,
     .cdeclCC = &sdvm_aarch64_eabi_callingConvention,

@@ -3768,6 +3768,9 @@ static sdvm_compilerInstructionPatternTable_t sdvm_x64_instructionPatternTable =
 
 void sdvm_compiler_x64_ensureCIE(sdvm_moduleCompilationState_t *state)
 {
+    if(!state->compiler->target->usesEHFrame)
+        return;
+
     if(state->hasEmittedCIE)
         return;
 
@@ -3795,10 +3798,15 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
 {
     const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
+
+    bool usesDwarfEH = compiler->target->usesEHFrame;
     sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
 
-    sdvm_compiler_x64_ensureCIE(state->moduleState);
-    sdvm_dwarf_cfi_beginFDE(cfi, state->symbol, sdvm_compiler_getCurrentPC(compiler));
+    if(usesDwarfEH)
+    {
+        sdvm_compiler_x64_ensureCIE(state->moduleState);
+        sdvm_dwarf_cfi_beginFDE(cfi, state->symbol, sdvm_compiler_getCurrentPC(compiler));
+    }
 
     if(state->debugFunctionTableEntry)
         sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindBeginPrologue, state->debugFunctionTableEntry->declarationLineInfo);
@@ -3808,17 +3816,24 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
 
     if(!state->requiresStackFrame)
     {
-        sdvm_dwarf_cfi_endPrologue(cfi);
+        if(usesDwarfEH)
+            sdvm_dwarf_cfi_endPrologue(cfi);
         return;
     }
 
     sdvm_compiler_x86_push(compiler, SDVM_X86_RBP);
-    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
-    sdvm_dwarf_cfi_pushRegister(cfi, DW_X64_REG_RBP);
+    if(usesDwarfEH)
+    {
+        sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+        sdvm_dwarf_cfi_pushRegister(cfi, DW_X64_REG_RBP);
+    }
 
     sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RBP, SDVM_X86_RSP);
-    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
-    sdvm_dwarf_cfi_saveFramePointerInRegister(cfi, DW_X64_REG_RBP, 0);
+    if(usesDwarfEH)
+    {
+        sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+        sdvm_dwarf_cfi_saveFramePointerInRegister(cfi, DW_X64_REG_RBP, 0);
+    }
 
     // Preserved integer registers.
     for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
@@ -3827,13 +3842,15 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
         if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, reg))
         {
             sdvm_compiler_x86_push(compiler, reg);
-            sdvm_dwarf_cfi_pushRegister(cfi, sdvm_compiler_x64_mapIntegerRegisterToDwarf(reg));
+            if(usesDwarfEH)
+                sdvm_dwarf_cfi_pushRegister(cfi, sdvm_compiler_x64_mapIntegerRegisterToDwarf(reg));
         }
     }
 
     int32_t stackSubtractionAmount = state->calloutStackSegment.endOffset - state->prologueStackSegment.endOffset;
     sdvm_compiler_x86_sub64RegImmS32(compiler, SDVM_X86_RSP, stackSubtractionAmount);
-    sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
+    if(usesDwarfEH)
+        sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
 
     // Preserved vector registers.
     int32_t vectorOffset = state->stackFramePointerAnchorOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
@@ -3847,26 +3864,33 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
         }
     }
     
-    sdvm_dwarf_cfi_endPrologue(cfi);
+    if(usesDwarfEH)
+        sdvm_dwarf_cfi_endPrologue(cfi);
 }
 
 void sdvm_compiler_x64_emitFunctionEnding(sdvm_functionCompilationState_t *state)
 {
     sdvm_compiler_t *compiler = state->compiler;
-    sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
-    sdvm_dwarf_cfi_endFDE(cfi, sdvm_compiler_getCurrentPC(compiler));
+    if(compiler->target->usesEHFrame)
+    {
+        sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
+        sdvm_dwarf_cfi_endFDE(cfi, sdvm_compiler_getCurrentPC(compiler));
+    }
 }
 
 void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *state)
 {
     const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
+
+    bool usesDwarfEH = compiler->target->usesEHFrame;
     sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
 
     if(!state->requiresStackFrame)
         return;
 
-    sdvm_dwarf_cfi_beginEpilogue(cfi);
+    if(usesDwarfEH)
+        sdvm_dwarf_cfi_beginEpilogue(cfi);
 
     // Preserved vector registers.
     int32_t vectorOffset = state->stackFramePointerAnchorOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
@@ -3885,8 +3909,11 @@ void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *sta
     {
         int32_t restoreOffset = state->stackFramePointerAnchorOffset - state->prologueStackSegment.endOffset;
         sdvm_compiler_x86_lea64RegRmo(compiler, SDVM_X86_RSP, SDVM_X86_RBP, restoreOffset);
-        sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
-        sdvm_dwarf_cfi_restoreFramePointer(cfi, restoreOffset);
+        if(usesDwarfEH)
+        {
+            sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+            sdvm_dwarf_cfi_restoreFramePointer(cfi, restoreOffset);
+        }
 
         for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
         {
@@ -3894,23 +3921,33 @@ void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *sta
             if(sdvm_registerSet_includes(&state->usedCallPreservedIntegerRegisterSet, reg))
             {
                 sdvm_compiler_x86_pop(compiler, reg);
-                sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
-                sdvm_dwarf_cfi_popRegister(cfi, sdvm_compiler_x64_mapIntegerRegisterToDwarf(reg));
+                if(usesDwarfEH)
+                {
+                    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+                    sdvm_dwarf_cfi_popRegister(cfi, sdvm_compiler_x64_mapIntegerRegisterToDwarf(reg));
+                }
             }
         }
     }
     else
     {
         sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RSP, SDVM_X86_RBP);
-        sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
-        sdvm_dwarf_cfi_restoreFramePointer(cfi, 0);
+        if(usesDwarfEH)
+        {
+            sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+            sdvm_dwarf_cfi_restoreFramePointer(cfi, 0);
+        }
     }
 
     sdvm_compiler_x86_pop(compiler, SDVM_X86_RBP);
-    sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
-    sdvm_dwarf_cfi_popRegister(cfi, DW_X64_REG_RBP);
 
-    sdvm_dwarf_cfi_endEpilogue(cfi);
+    if(usesDwarfEH)
+    {
+        sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
+        sdvm_dwarf_cfi_popRegister(cfi, DW_X64_REG_RBP);
+
+        sdvm_dwarf_cfi_endEpilogue(cfi);
+    }
 }
 
 void sdvm_compiler_x64_emitMemoryToMemoryFixedSizedMove(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t sourcePointer, int32_t sourcePointerOffset, sdvm_x86_registerIndex_t destinationPointer, int32_t destinationPointerOffset, size_t copySize, const sdvm_compilerScratchMoveRegisters_t *scratchMoveRegister)
@@ -5745,6 +5782,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_linux_pic = {
     .usesUnderscorePrefix = false,
     .usesCET = true,
     .usesPIC = true,
+    .usesEHFrame = true,
 
     .defaultCC = &sdvm_x64_sysv_callingConvention,
     .cdeclCC = &sdvm_x64_sysv_callingConvention,
@@ -5775,6 +5813,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_macosx = {
     .usesUnderscorePrefix = true,
     .usesCET = false,
     .usesPIC = true,
+    .usesEHFrame = true,
 
     .defaultCC = &sdvm_x64_sysv_callingConvention,
     .cdeclCC = &sdvm_x64_sysv_callingConvention,
@@ -5805,6 +5844,8 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_windows = {
     .usesUnderscorePrefix = false,
     .usesCET = false,
     .usesPIC = false,
+    .usesEHFrame = false,
+    .usesWin64Exceptions = true,
 
     .defaultCC = &sdvm_x64_win64_callingConvention,
     .cdeclCC = &sdvm_x64_win64_callingConvention,

@@ -251,6 +251,8 @@ struct sdvm_compilerTarget_s
     bool usesCET;
     bool closureCallNeedsScratch;
     bool usesPIC;
+    bool usesEHFrame;
+    bool usesWin64Exceptions;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
     const sdvm_compilerCallingConvention_t *cdeclCC;
