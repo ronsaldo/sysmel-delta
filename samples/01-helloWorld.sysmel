@@ -9,7 +9,7 @@ Inductive: #Nat with: (Unit: #Zero)
         then: 1i32
         else: fibonacci(n - 2i32) + fibonacci(n - 1i32).
 *#
-    
+
 export: (
     :TestRecord <- RecordWith: #{
         first: Int32.
@@ -17,14 +17,14 @@ export: (
     }.
 
     :getFirst <- (:(TestRecord ref)record :: Int32) __cdecl
-        :> record first.
+        := record first.
 
     :getSecond <- (:(TestRecord ref)record :: Int32) __cdecl
-        :> record second.
+        := record second.
 ).
 
 external: #C export: (
-    :main <- (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :> {
+    :main <- (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl := {
         :record <- TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
         :a, :b <- argc, argc + 1i32.
         printf("Hello World: %d\n" elements, a).

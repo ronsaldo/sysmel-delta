@@ -375,16 +375,6 @@ def parseAssociationExpression(state: ParserState) -> tuple[ParserState, ASTNode
     state.advance()
     state, value = parseAssociationExpression(state)
     return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [key, value])
-
-def parseFunctionExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
-    startPosition = state.position
-    state, assignedStore = parseAssociationExpression(state)
-    if state.peekKind() == TokenKind.ASSIGNMENT_ARROW:
-        state.advance()
-        state, functionalBody = parseFunctionExpression(state)
-        return state, ASTFunctionNode(state.sourcePositionFrom(startPosition), assignedStore, functionalBody)
-    else:
-        return state, assignedStore
     
 def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
     assert state.peekKind() == TokenKind.KEYWORD
@@ -399,7 +389,7 @@ def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
         lastKeywordSourcePosition = keywordToken.sourcePosition
         symbolValue += keywordToken.getStringValue()
         
-        state, argument = parseFunctionExpression(state)
+        state, argument = parseAssociationExpression(state)
         arguments.append(argument)
 
     functionIdentifier = ASTIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
@@ -409,7 +399,7 @@ def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
 
 def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ASTNode]:
     startPosition = state.position
-    state, receiver = parseFunctionExpression(state)
+    state, receiver = parseAssociationExpression(state)
     if state.peekKind() != TokenKind.KEYWORD:
         return state, receiver
 
@@ -422,7 +412,7 @@ def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ASTNode]:
         lastKeywordSourcePosition = keywordToken.sourcePosition
         symbolValue += keywordToken.getStringValue()
         
-        state, argument = parseFunctionExpression(state)
+        state, argument = parseAssociationExpression(state)
         arguments.append(argument)
 
     selector = ASTLiteralNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
@@ -438,9 +428,8 @@ def parseAssignmentExpression(state: ParserState) -> tuple[ParserState, ASTNode]
     state, assignedStore = parseLowPrecedenceExpression(state)
     if state.peekKind() == TokenKind.ASSIGNMENT:
         operatorToken = state.next()
-        selector = ASTLiteralNode(operatorToken.sourcePosition, Symbol.intern(operatorToken.getStringValue()))
         state, assignedValue = parseAssignmentExpression(state)
-        return state, ASTMessageSendNode(state.sourcePositionFrom(startPosition), assignedStore, selector, [assignedValue])
+        return state, ASTAssignmentNode(state.sourcePositionFrom(startPosition), assignedStore, assignedValue)
     else:
         return state, assignedStore
 

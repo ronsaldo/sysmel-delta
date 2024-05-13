@@ -521,23 +521,6 @@ class Typechecker(ASTVisitor):
         
         lambdaNode = functionalTypeNode.constructLambdaWithBody(node.body)
         return self.visitNode(lambdaNode)
-
-        if len(functionalTypeNode.arguments) == 0 and len(functionalTypeNode.tupleArguments) == 0:
-            return self.visitNode(ASTLambdaNode(node.sourcePosition, [], functionalTypeNode.isVariadic, functionalTypeNode.resultType, node.body, functionalTypeNode.callingConvention))
-
-        resultType = functionalTypeNode.resultType
-        body = node.body
-        if len(functionalTypeNode.tupleArguments) != 0:
-            body = ASTLambdaNode(node.sourcePosition, functionalTypeNode.tupleArguments, functionalTypeNode.isVariadic, resultType, body)
-            resultType = None
-
-        for argument in reversed(functionalTypeNode.arguments):
-            body = ASTLambdaNode(argument.sourcePosition, [argument], False, resultType, body)
-            resultType = None
-
-        ## Set the calling convention on the last lambda.
-        body.callingConvention = functionalTypeNode.callingConvention
-        return self.visitNode(body)
     
     def visitFunctionTypeNode(self, node: ASTFunctionTypeNode):
         argumentType = self.visitTypeExpression(node.argumentType)
@@ -877,6 +860,16 @@ class Typechecker(ASTVisitor):
             module.exportBinding(localBinding)
         self.lexicalEnvironment = self.lexicalEnvironment.withSymbolBinding(localBinding)
         return ASTTypedBindingDefinitionNode(node.sourcePosition, bindingTypeExpression, localBinding, typecheckedValue, isMutable = node.isMutable, isPublic = node.isPublic, module = module)
+    
+    def visitAssignmentNode(self, node: ASTAssignmentNode):
+        expandedStore = self.visitNodeForMacroExpansionOnly(node.store)
+        if expandedStore.isFunctionalDependentTypeNode():
+            return self.visitNode(ASTFunctionNode(node.sourcePosition, expandedStore, node.value))
+        elif expandedStore.isBindableNameNode():
+            assert False
+        
+        selector = ASTLiteralNode(node.sourcePosition, Symbol.intern(':='))
+        return self.visitNode(ASTMessageSendNode(node.sourcePosition, expandedStore, selector, [node.value]))
     
     def visitBindPatternNode(self, node: ASTBindPatternNode):
         value = self.visitNode(node.value)
