@@ -2061,6 +2061,23 @@ class SymbolArgumentBinding(SymbolBinding):
     def toJson(self):
         return {'argument': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
 
+class SymbolFixpointBinding(SymbolBinding):
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTNode) -> None:
+        super().__init__(sourcePosition, name)
+        self.typeExpression = typeExpression
+
+    def getTypeExpression(self) -> ASTNode:
+        return self.typeExpression
+
+    def getCaptureNestingLevel(self) -> int:
+        return 0
+    
+    def hasTypeOf(self, expectedType: TypedValue):
+        return self.typeExpression.isLiteralTypeNode() and self.typeExpression.value.isEquivalentTo(expectedType)
+
+    def toJson(self):
+        return {'recursive': repr(self.name), 'typeExpression': self.typeExpression.toJson()}
+    
 class SymbolRecursiveBinding(SymbolBinding):
     def __init__(self, sourcePosition: SourcePosition, name: Symbol, typeExpression: ASTNode) -> None:
         super().__init__(sourcePosition, name)

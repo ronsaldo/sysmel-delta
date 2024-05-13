@@ -15,6 +15,22 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Launch (Windows x64 - Default target)",
+            "program": "${workspaceFolder}/build/windows/x64/bin/sdvm.exe",
+            "args": ["-v", "-o", "test.obj", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch (Windows x64 - Linux target)",
+            "program": "${workspaceFolder}/build/windows/x64/bin/sdvm.exe",
+            "args": ["-v", "-target", "x86_64-linux-gnu", "-o", "test.o", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Launch (Default target)",
             "program": "${workspaceFolder}/build/bin/sdvm",
             "args": ["-v", "-o", "test.o", "test.sdvm"],

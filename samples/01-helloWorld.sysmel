@@ -4,16 +4,26 @@ Inductive: #Nat with: (Unit: #Zero)
                     | (Product: #Succ with: Nat)
                     .
 
-#*:fibonacci(n: Int32 :: Int32) __cdecl
-    <- if: n = 0i32
-        then: 1i32
-        else: fibonacci(n - 2i32) + fibonacci(n - 1i32).
-*#
-
 export: (
     :TestRecord := RecordWith: #{
         first: Int32.
         second: Int32.
+    }.
+
+    #*
+    :fibonacci(:(Int32)n :: Int32) __cdecl
+        := if: n <= 0i32
+            then: 1i32
+            else: fibonacci(n - 2i32) + fibonacci(n - 1i32).
+    *#
+    :fibonacci(:(Int32)n :: Int32) __cdecl := {
+        :!result := 1i32.
+        if: n >= 2i32 then: {
+            result := fibonacci(n - 2i32) + fibonacci(n - 1i32).
+            void
+        }.
+
+        result
     }.
 
     :getFirst(:(TestRecord ref)record :: Int32) __cdecl
@@ -34,6 +44,7 @@ external: #C export: (
         :!i := 1i32.
         while: (i < argc) do: {
             printf("%d loop body: %s\n" elements, i, argv[i asSize]).
+            ##printf("fib(%d): %d\n" elements, i, fibonacci(i)).
         } continueWith: (i := i + 1i32).
 
         0i32

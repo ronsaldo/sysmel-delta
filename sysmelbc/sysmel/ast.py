@@ -1525,8 +1525,9 @@ class ASTTypedFunctionTypeNode(ASTTypedNode):
         return {'kind': 'TypedFunctionTypeNode', 'type': self.type.toJson(), 'argumentType': self.argumentType.toJson(), 'resultType': self.resultType.toJson()}
 
 class ASTTypedFunctionalNode(ASTTypedNode):
-    def __init__(self, sourcePosition: SourcePosition, type: ASTNode, arguments: list[ASTTypedArgumentNode], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], body: ASTTypedNode, callingConvention: Symbol) -> None:
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, type: ASTNode, arguments: list[ASTTypedArgumentNode], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], body: ASTTypedNode, callingConvention: Symbol) -> None:
         super().__init__(sourcePosition, type)
+        self.name = name
         self.arguments = arguments
         self.isVariadic = isVariadic
         self.captureBindings = captureBindings
@@ -1610,6 +1611,10 @@ class ASTTypedSigmaNode(ASTTypedFunctionalNode):
         return {'kind': 'TypedSigma', 'type': self.type.toJson(), 'arguments': list(map(lambda n: n.toJson(), self.arguments)), 'body': self.body.toJson()}
 
 class ASTTypedLambdaNode(ASTTypedFunctionalNode):
+    def __init__(self, sourcePosition: SourcePosition, name: Symbol, type: ASTNode, arguments: list[ASTTypedArgumentNode], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], fixpointBinding: SymbolFixpointBinding, body: ASTTypedNode, callingConvention: Symbol) -> None:
+        super().__init__(sourcePosition, name, type, arguments, isVariadic, captureBindings, body, callingConvention)
+        self.fixpointBinding = fixpointBinding
+
     def isTypedLambdaNode(self) -> bool:
         return True
 

@@ -703,6 +703,7 @@ class GHIRFunctionalValue(GHIRValue):
         self.definition = definition
         self.captures = captures
         self.callingConvention = callingConvention
+        self.registerInUsedValues()
 
     def getType(self) -> GHIRValue:
         return self.type
@@ -718,13 +719,19 @@ class GHIRFunctionalValue(GHIRValue):
 
         graphPrinter.printLine('%s := %s %s captures [%s] : %s' % (valueName, self.getFunctionalValueKindName(), definition, captureList, type))
 
+    def setDefinition(self, newDefinition: GHIRValue):
+        assert self.definition is None
+        self.definition = newDefinition
+        newDefinition.registerUserValue(self)
+        
     @abstractmethod
     def getFunctionalValueKindName(self) -> str:
         pass
 
     def usedValues(self):
         yield self.type
-        yield self.definition
+        if self.definition is not None:
+            yield self.definition
         for capture in self.captures:
             yield capture
 
@@ -732,7 +739,7 @@ class GHIRFunctionalValue(GHIRValue):
         if self.type is usedValue:
             self.type = replacement
             replacement.registerUserValue(self)
-        if self.definition is usedValue:
+        if self.definition is not None and self.definition is usedValue:
             self.definition = replacement
             replacement.registerUserValue(self)
         self.captures = self.replacedUsedValueInListWith(self.captures, usedValue, replacement)
@@ -1858,8 +1865,12 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         translatedValue = GHIRLambdaValue(self.context, value.sourcePosition, type)
         if value.type.callingConvention is not None:
             translatedValue.callingConvention = value.type.callingConvention.value
+
         self.translatedValueDictionary[value] = translatedValue
-        translatedValue.definition = self.translateFunctionalValueDefinition(value)
+        if value.fixpointBinding is not None:
+            self.translatedBindingValueDictionary[value.fixpointBinding] = translatedValue
+
+        translatedValue.setDefinition(self.translateFunctionalValueDefinition(value))
         return translatedValue.simplify()
 
     def visitPiValue(self, value: PiValue):
@@ -2150,10 +2161,16 @@ class GHIRModuleFrontend(TypedValueVisitor, ASTTypecheckedVisitor):
         type = self.translateExpression(node.type)
         captureBindings = list(map(self.translateCaptureBinding, node.captureBindings))
         argumentBindings = list(map(self.translateArgumentNode, node.arguments))
+        capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
+        result = GHIRLambdaValue(self.context, node.sourcePosition, type, None, capturedValues)
+        self.translatedValueDictionary[node] = result
+        if node.fixpointBinding is not None:
+            self.translatedBindingValueDictionary[node.fixpointBinding] = result
+
         body = self.translateExpression(node.body)
         functionDefinition = GHIRFunctionalDefinitionValue(self.context, node.sourcePosition, captureBindings, argumentBindings, node.isVariadic, body).simplify()
-        capturedValues = list(map(lambda capture: self.translatedBindingValueDictionary[capture.capturedBinding], node.captureBindings))
-        return GHIRLambdaValue(self.context, node.sourcePosition, type, functionDefinition, capturedValues).simplify()
+        result.setDefinition(functionDefinition)
+        return result.simplify()
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode) -> TypedValue:
         return self.translateValue(node.value)

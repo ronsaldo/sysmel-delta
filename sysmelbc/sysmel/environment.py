@@ -214,17 +214,18 @@ class FunctionalAnalysisEnvironment(LexicalEnvironment):
     def __init__(self, parent: AbstractEnvironment, arguments: list[SymbolArgumentBinding], sourcePosition: SourcePosition = None) -> None:
         super().__init__(parent, sourcePosition)
         self.arguments = arguments
-        self.argumentBindingMap = dict()
+        self.localBindingMap = dict()
+        self.fixpointBinding: SymbolFixpointBinding = None
 
         self.captureBindings = []
         self.capturedBindingMap = dict()
         for argument in arguments:
             if argument.name is not None:
-                self.argumentBindingMap[argument.name] = argument
+                self.localBindingMap[argument.name] = argument
 
     def postCopy(self):
         self.arguments = list(self.arguments)
-        self.argumentBindingMap = dict(self.argumentBindingMap)
+        self.localBindingMap = dict(self.localBindingMap)
 
         self.captureBindings = list(self.captureBindings)
         self.capturedBindingMap = dict(self.capturedBindingMap)
@@ -235,15 +236,23 @@ class FunctionalAnalysisEnvironment(LexicalEnvironment):
         result.postCopy()
         result.arguments.append(newBinding)
         if newBinding.name is not None:
-            result.argumentBindingMap[newBinding.name] = newBinding
+            result.localBindingMap[newBinding.name] = newBinding
+        return result
+
+    def withFixpointBinding(self, newBinding: SymbolFixpointBinding):
+        result = copy.copy(self)
+        result.postCopy()
+        result.fixpointBinding = newBinding
+        if newBinding.name is not None and newBinding.name not in result.localBindingMap:
+            result.localBindingMap[newBinding.name] = newBinding
         return result
 
     def lookFunctionalAnalysisEnvironment(self):
         return self
 
     def lookLocalSymbol(self, symbol: Symbol) -> SymbolBinding:
-        if symbol in self.argumentBindingMap:
-            return self.argumentBindingMap[symbol]
+        if symbol in self.localBindingMap:
+            return self.localBindingMap[symbol]
         return None
     
     def getOrCreateCaptureForBinding(self, binding: SymbolBinding) -> SymbolBinding:
@@ -280,7 +289,8 @@ class FunctionalActivationEnvironment:
         raise Exception('%s: Binding for %s does not have an active value.' % (str(sourcePosition), repr(binding.name)))
     
 class FunctionalValue(TypedValue):
-    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None) -> None:
+    def __init__(self, name: Symbol, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None) -> None:
+        self.name = name
         self.type = type
         self.argumentBindings = argumentBindings
         self.isVariadic = isVariadic
@@ -294,11 +304,18 @@ class FunctionalValue(TypedValue):
 
     def isFunctionalValue(self) -> bool:
         return True
+    
+    def isCompileTimeReducible(self) -> bool:
+        return self.isPurelyFunctional()
 
     def getType(self):
         return self.type
 
 class LambdaValue(FunctionalValue):
+    def __init__(self, name: Symbol, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], fixpointBinding: SymbolFixpointBinding, body, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(name, type, argumentBindings, isVariadic, captureBindings, captureBindingValues, body, sourcePosition)
+        self.fixpointBinding = fixpointBinding
+
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
         return visitor.visitLambdaValue(self)
     
@@ -308,6 +325,10 @@ class LambdaValue(FunctionalValue):
     def isReducibleFunctionalValue(self) -> bool:
         return True
     
+    def isCompileTimeReducible(self) -> bool:
+        # TODO: Implement this in a more appropiate way.
+        return False
+
     def prettyPrint(self) -> str:
         assert self.type.isPi()
         result = '('
@@ -323,8 +344,8 @@ class LambdaValue(FunctionalValue):
         return {'lambda': list(map(lambda n: n.toJson(), self.argumentBindings)), 'body': self.body.toJson(), 'type': self.type.toJson()}
 
 class PiValue(FunctionalValue):
-    def __init__(self, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
-        super().__init__(type, argumentBindings, isVariadic, captureBindings, captureBindingValues, body, sourcePosition)
+    def __init__(self, name: Symbol, type: TypedValue, argumentBindings: list[SymbolArgumentBinding], isVariadic: bool, captureBindings: list[SymbolCaptureBinding], captureBindingValues: list[TypedValue], body, sourcePosition: SourcePosition = None, callingConvention: Symbol = None) -> None:
+        super().__init__(name, type, argumentBindings, isVariadic, captureBindings, captureBindingValues, body, sourcePosition)
         self.callingConvention = callingConvention
 
     def acceptTypedValueVisitor(self, visitor: TypedValueVisitor):
@@ -340,7 +361,7 @@ class PiValue(FunctionalValue):
         if self.callingConvention == conventionName:
             return self
 
-        return PiValue(self.type, self.argumentBindings, self.isVariadic, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, conventionName)
+        return PiValue(self.name, self.type, self.argumentBindings, self.isVariadic, self.captureBindings, self.captureBindingValues, self.body, self.sourcePosition, conventionName)
 
     def toJson(self):
         return {'pi': list(map(lambda n: n.toJson(), self.argumentBindings)), 'body': self.body.toJson(), 'type': self.type.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}

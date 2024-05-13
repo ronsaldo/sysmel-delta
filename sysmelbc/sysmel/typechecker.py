@@ -774,16 +774,36 @@ class Typechecker(ASTVisitor):
             functionalEnvironment = functionalEnvironment.withArgumentBinding(typedArgument.binding)
             typedArguments.append(typedArgument)
 
-        body = self.withEnvironment(functionalEnvironment).visitNodeWithExpectedTypeExpression(node.body, node.resultType)
+        # Analyze here the result type expression, so that we can introduce the fixpoint binding without poluting the environment
+        analyzedResultTypeExpression = None
+        if node.resultType is not None:
+            analyzedResultTypeExpression = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.resultType)
 
-        ## Compute the lambda type.
+        name = self.evaluateOptionalSymbol(node.nameExpression)
+
+        # Construct the dependent type without result type inference.
+        typedPi = None
+        if (analyzedResultTypeExpression is not None) or (node.isFixpoint and name is not None):
+            typeUniverse = mergeTypeUniversesOfTypeNodes([getTypeOfAnalyzedNode(analyzedResultTypeExpression, node.sourcePosition)] + list(map(lambda a: getTypeOfAnalyzedNode(a, node.sourcePosition), typedArguments)), node.sourcePosition)
+            typedPi = reducePiNode(ASTTypedPiNode(node.sourcePosition, None, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, analyzedResultTypeExpression, node.callingConvention))
+
+        # Add the fixpoint symbol.
+        fixpointBinding = None
+        if node.isFixpoint and name is not None:
+            fixpointBinding = SymbolFixpointBinding(node.sourcePosition, name, typedPi)
+            functionalEnvironment = functionalEnvironment.withFixpointBinding(fixpointBinding)
+
+        # Analyze the body
+        body = self.withEnvironment(functionalEnvironment).visitNodeWithExpectedTypeExpression(node.body, analyzedResultTypeExpression)
+
+        # Compute the lambda type.
         bodyType = getTypeOfAnalyzedNode(body, node.sourcePosition)
         typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: getTypeOfAnalyzedNode(a, node.sourcePosition), typedArguments)), node.sourcePosition)
-        typedPi = reducePiNode(ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, bodyType, node.callingConvention))
+        if typedPi is None:
+            typedPi = reducePiNode(ASTTypedPiNode(node.sourcePosition, None, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, bodyType, node.callingConvention))
 
-        ## Make the lambda node.
-        typedLambda = ASTTypedLambdaNode(node.sourcePosition, typedPi, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, body, node.callingConvention)
-        return reduceLambdaNode(typedLambda)
+        # Make the lambda node.
+        return reduceLambdaNode(ASTTypedLambdaNode(node.sourcePosition, name, typedPi, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, fixpointBinding, body, node.callingConvention))
 
     def visitPiNode(self, node: ASTPiNode):
         functionalEnvironment = FunctionalAnalysisEnvironment(self.lexicalEnvironment, [], node.sourcePosition)
@@ -798,8 +818,7 @@ class Typechecker(ASTVisitor):
         else:
             body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
         typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: getTypeOfAnalyzedNode(a, node.sourcePosition), typedArguments)), node.sourcePosition)
-        typedPi = ASTTypedPiNode(node.sourcePosition, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, body, node.callingConvention)
-        return reducePiNode(typedPi)
+        return reducePiNode(ASTTypedPiNode(node.sourcePosition, None, typeUniverse, typedArguments, node.isVariadic, functionalEnvironment.captureBindings, body, node.callingConvention))
 
     def visitSigmaNode(self, node: ASTSigmaNode):
         functionalEnvironment = FunctionalAnalysisEnvironment(self.lexicalEnvironment, [], node.sourcePosition)
@@ -811,7 +830,7 @@ class Typechecker(ASTVisitor):
 
         body = self.withEnvironment(functionalEnvironment).visitTypeExpression(node.body)
         typeUniverse = mergeTypeUniversesOfTypeNodes([body] + list(map(lambda a: getTypeOfAnalyzedNode(a, node.sourcePosition), typedArguments)), node.sourcePosition)
-        typedSigma = ASTTypedSigmaNode(node.sourcePosition, typeUniverse, typedArguments, False, functionalEnvironment.captureBindings, body, node.callingConvention)
+        typedSigma = ASTTypedSigmaNode(node.sourcePosition, None, typeUniverse, typedArguments, False, functionalEnvironment.captureBindings, body, node.callingConvention)
         return reduceSigmaNode(typedSigma)
 
     def visitLexicalBlockNode(self, node: ASTLexicalBlockNode):
@@ -1484,7 +1503,7 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
         reducer, newArguments, newCaptureBindings = self.reduceArguments(node.arguments, node.captureBindings)
 
         reducedBody = reducer.visitNode(node.body)
-        return reducePiNode(ASTTypedPiNode(node.sourcePosition, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
+        return reducePiNode(ASTTypedPiNode(node.sourcePosition, node.name, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
 
     def visitTypedIdentifierReferenceNode(self, node: ASTTypedIdentifierReferenceNode):
         return node.binding.evaluateSubstitutionInContextFor(self.substitutionContext, node)
@@ -1522,16 +1541,20 @@ class ASTBetaReducer(ASTTypecheckedVisitor):
     def visitTypedLambdaNode(self, node: ASTTypedLambdaNode):
         newType = self.visitNode(node.type)
         reducer, newArguments, newCaptureBindings = self.reduceArguments(node.arguments, node.captureBindings)
+        newFixpointBinding = None
+        if node.fixpointBinding is not None:
+            newFixpointBinding = SymbolFixpointBinding(node.fixpointBinding.sourcePosition, node.fixpointBinding.name, self.visitNode(node.fixpointBinding.typeExpression))
+            reducer.substitutionContext.setSubstitutionBindingForBinding(node.fixpointBinding, newFixpointBinding)
 
         reducedBody = reducer.visitNode(node.body)
-        return reduceLambdaNode(ASTTypedLambdaNode(node.sourcePosition, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
+        return reduceLambdaNode(ASTTypedLambdaNode(node.sourcePosition, node.name, newType, newArguments, newCaptureBindings, newFixpointBinding, reducedBody, node.callingConvention))
 
     def visitTypedSigmaNode(self, node: ASTTypedSigmaNode):
         newType = self.visitNode(node.type)
         reducer, newArguments, newCaptureBindings = self.reduceArguments(node.arguments, node.captureBindings)
 
         reducedBody = reducer.visitNode(node.body)
-        return reduceSigmaNode(ASTTypedSigmaNode(node.sourcePosition, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
+        return reduceSigmaNode(ASTTypedSigmaNode(node.sourcePosition, node.name, newType, newArguments, newCaptureBindings, reducedBody, node.callingConvention))
 
     def visitTypedLiteralNode(self, node: ASTTypedLiteralNode):
         return node
@@ -1706,11 +1729,14 @@ def unpackReductionArgumentToArity(argument: ASTTypedTupleNode, requiredArity: i
     
     assert False
 
-def betaReduceFunctionalValueApplicationWithArgument(functionalValue, application: ASTTypedApplicationNode, argument: ASTNode):
+def betaReduceFunctionalValueApplicationWithArgument(functionalValue: FunctionalValue, application: ASTTypedApplicationNode, argument: ASTNode):
     argumentBindings = functionalValue.argumentBindings
+    shouldBetaReduce = len(functionalValue.captureBindings) == 0 and functionalValue.isCompileTimeReducible()
+    if not shouldBetaReduce:
+        return application
+
     unpackedArguments = unpackReductionArgumentToArity(argument, len(argumentBindings))
     body = functionalValue.body
-    assert len(functionalValue.captureBindings) == 0
 
     substitutionContext = SubstitutionContext()
     for i in range(len(unpackedArguments)):
@@ -1845,19 +1871,19 @@ def reduceFunctionTypeNode(node: ASTTypedFunctionTypeNode):
 
 def reducePiNode(node: ASTTypedPiNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        piValue = PiValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition, node.callingConvention)
+        piValue = PiValue(node.name, node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition, node.callingConvention)
         return ASTLiteralTypeNode(node.sourcePosition, piValue)
     return node
 
 def reduceSigmaNode(node: ASTTypedSigmaNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        sigmaValue = SigmaValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition)
+        sigmaValue = SigmaValue(node.name, node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition)
         return ASTLiteralTypeNode(node.sourcePosition, sigmaValue)
     return node
 
 def reduceLambdaNode(node: ASTTypedLambdaNode):
     if len(node.captureBindings) == 0 and node.type.isLiteralTypeNode():
-        lambdaValue = LambdaValue(node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.body, node.sourcePosition)
+        lambdaValue = LambdaValue(node.name, node.type.value, list(map(lambda n: n.binding, node.arguments)), node.isVariadic, [], [], node.fixpointBinding, node.body, node.sourcePosition)
         return ASTTypedLiteralNode(node.sourcePosition, node.type, lambdaValue)
     return node
 
