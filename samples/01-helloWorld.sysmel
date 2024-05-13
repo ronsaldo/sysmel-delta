@@ -4,32 +4,34 @@ Inductive: #Nat with: (Unit: #Zero)
                     | (Product: #Succ with: Nat)
                     .
 
-#*:fibonacci(n: Int32 :: Int32)
+#*:fibonacci(n: Int32 :: Int32) __cdecl
     <- if: n = 0i32
         then: 1i32
         else: fibonacci(n - 2i32) + fibonacci(n - 1i32).
 *#
 
 export: (
-    :TestRecord <- RecordWith: #{
+    :TestRecord := RecordWith: #{
         first: Int32.
         second: Int32.
     }.
 
-    :getFirst <- (:(TestRecord ref)record :: Int32) __cdecl
+    :getFirst(:(TestRecord ref)record :: Int32) __cdecl
         := record first.
 
-    :getSecond <- (:(TestRecord ref)record :: Int32) __cdecl
+    :getSecond(:(TestRecord ref)record :: Int32) __cdecl
         := record second.
+
+    :myOne(:: Int32) __cdecl := 1i32.
 ).
 
 external: #C export: (
     :main <- (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl := {
-        :record <- TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
+        :record := TestRecord#{first: argc. second: argc + 42i32}#{first: argc + 1i32}.
         :a, :b <- argc, argc + 1i32.
         printf("Hello World: %d\n" elements, a).
 
-        :!i <- 1i32.
+        :!i := 1i32.
         while: (i < argc) do: {
             printf("%d loop body: %s\n" elements, i, argv[i asSize]).
         } continueWith: (i := i + 1i32).

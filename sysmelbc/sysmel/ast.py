@@ -423,6 +423,14 @@ class ASTBindableNameNode(ASTNode):
     def expandBindingOfValueWithAt(self, value, typechecker, sourcePosition):
         return ASTBindingDefinitionNode(sourcePosition, self.nameExpression, self.typeExpression, value, isRebind = True, isMutable = self.isMutable)
 
+    def withCallingConventionNamed(self, callingConventionName: TypedValue):
+        typeExpressionWithCallingConvention = None
+        if self.typeExpression is not None:
+            typeExpressionWithCallingConvention = self.typeExpression.withCallingConventionNamed(callingConventionName)
+        else:
+            typeExpressionWithCallingConvention = ASTErrorNode(self.sourcePosition, 'Bindable name without a type expression cannot have a specific calling convention.')
+        return ASTBindableNameNode(self.sourcePosition, typeExpressionWithCallingConvention, self.nameExpression, self.isImplicit, self.isExistential, self.isVariadic, self.isMutable, self.hasPostTypeExpression)
+
     def toJson(self) -> dict:
         return {'kind': 'Argument',
                 'typeExpression': optionalASTNodeToJson(self.typeExpression),
@@ -505,12 +513,16 @@ class ASTFunctionalDependentTypeNode(ASTNode):
             return self
         return ASTFunctionalDependentTypeNode(self.sourcePosition, self.argumentPattern, self.resultType, callingConventionName)
     
-    def constructLambdaWithBody(self, body):
+    def constructLambdaWithBody(self, nameExpression, body, isFixpoint):
         bodyOrInnerLambda = body
         if self.resultType.isFunctionalDependentTypeNode():
-            bodyOrInnerLambda = self.resultType.constructLambdaWithBody(body)
-        argumentNodes, isExistential, isVariadic = self.argumentPattern.parseAndUnpackArgumentsPattern()
-        return ASTLambdaNode(self.sourcePosition, argumentNodes, isVariadic, self.resultType, bodyOrInnerLambda, self.callingConvention)
+            bodyOrInnerLambda = self.resultType.constructLambdaWithBody(None, body, False)
+        argumentNodes = []
+        isExistential = False
+        isVariadic = False
+        if self.argumentPattern is not None:
+            argumentNodes, isExistential, isVariadic = self.argumentPattern.parseAndUnpackArgumentsPattern()
+        return ASTLambdaNode(self.sourcePosition, nameExpression, argumentNodes, isVariadic, self.resultType, bodyOrInnerLambda, self.callingConvention, isFixpoint)
     
     def toJson(self) -> dict:
         return {'kind': 'FunctionalType', 'argumentPattern': list(map(optionalASTNodeToJson, self.argumentPattern)), 'resultType': optionalASTNodeToJson(self.resultType)}
@@ -734,31 +746,35 @@ class ASTSigmaNode(ASTNode):
         return {'kind': 'SigmaNode', 'arguments': list(map(lambda x: x.toJson(), self.arguments)), 'body': optionalASTNodeToJson(self.body)}
 
 class ASTFunctionNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, functionalType: ASTFunctionalDependentTypeNode, body: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, functionalType: ASTFunctionalDependentTypeNode, body: ASTNode, isFixpoint: bool) -> None:
         super().__init__(sourcePosition)
+        self.nameExpression = nameExpression
         self.functionalType = functionalType
         self.body = body
+        self.isFixpoint = isFixpoint
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitFunctionNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'Function', 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson()}
+        return {'kind': 'Function', 'nameExpression': self.nameExpression, 'functionalType': self.functionalType.toJson(), 'body': self.body.toJson(), 'isFixpoint': self.isFixpoint}
     
 class ASTLambdaNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, arguments: list[ASTBindableNameNode], isVariadic: bool, resultType: ASTNode, body: ASTNode, callingConvention: Symbol = None) -> None:
+    def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, arguments: list[ASTBindableNameNode], isVariadic: bool, resultType: ASTNode, body: ASTNode, callingConvention: Symbol = None, isFixpoint: bool = False) -> None:
         super().__init__(sourcePosition)
+        self.nameExpression = nameExpression
         self.arguments = arguments
         self.isVariadic = isVariadic
         self.resultType = resultType
         self.body = body
         self.callingConvention = callingConvention
+        self.isFixpoint = isFixpoint
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitLambdaNode(self)
 
     def toJson(self) -> dict:
-        return {'kind': 'Lambda', 'arguments': list(map(lambda x: x.toJson(), self.arguments)), 'resultType': optionalASTNodeToJson(self.resultType), 'body': self.body.toJson(), 'callingConvention' : optionalToJson(self.callingConvention)}
+        return {'kind': 'Lambda', 'nameExpression': optionalASTNodeToJson(self.nameExpression), 'arguments': list(map(lambda x: x.toJson(), self.arguments)), 'resultType': optionalASTNodeToJson(self.resultType), 'body': self.body.toJson(), 'callingConvention' : optionalToJson(self.callingConvention), 'isFixpoint': self.isFixpoint}
 
 class ASTBindingDefinitionNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, nameExpression: ASTNode, expectedTypeExpression: ASTNode, initialValueExpression: ASTNode, isMutable = False, isPublic = False, isRebind = False) -> None:
@@ -837,6 +853,11 @@ class ASTMessageSendNode(ASTNode):
 
     def isMessageSendNode(self) -> bool:
         return True
+    
+    def parseAsExportedNameSymbol(self):
+        if self.receiver is not None and len(self.arguments) == 0:
+            return self.receiver.parseAsExportedNameSymbol()
+        return super().parseAsExportedNameSymbol()
 
     def toJson(self) -> dict:
         return {'kind': 'MessageSend', 'receiver': optionalASTNodeToJson(self.receiver), 'selector': self.selector.toJson(), 'arguments': list(map(optionalASTNodeToJson, self.arguments))}
@@ -871,10 +892,11 @@ class ASTAssignmentNode(ASTNode):
         return {'kind': 'Assignment', 'store': self.store.toJson(), 'value': self.value.toJson()}
     
 class ASTBindPatternNode(ASTNode):
-    def __init__(self, sourcePosition: SourcePosition, pattern: ASTNode, value: ASTNode) -> None:
+    def __init__(self, sourcePosition: SourcePosition, pattern: ASTNode, value: ASTNode, allowsRebind: bool) -> None:
         super().__init__(sourcePosition)
         self.pattern = pattern
         self.value = value
+        self.allowsRebind = allowsRebind
 
     def accept(self, visitor: ASTVisitor):
         return visitor.visitBindPatternNode(self)
@@ -883,7 +905,7 @@ class ASTBindPatternNode(ASTNode):
         return self.pattern.parseAsExportedNameSymbol()
 
     def toJson(self) -> dict:
-        return {'kind': 'BindPattern', 'pattern': self.pattern.toJson(), 'value': self.value.toJson()}
+        return {'kind': 'BindPattern', 'pattern': self.pattern.toJson(), 'value': self.value.toJson(), 'allowsRebind': self.allowsRebind}
 
 class ASTSequenceNode(ASTNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ASTNode]) -> None:

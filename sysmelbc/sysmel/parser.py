@@ -471,7 +471,7 @@ def parseBindExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.BIND_OPERATOR:
         state.advance()
         state, boundValue = parseBindExpression(state)
-        return state, ASTBindPatternNode(state.sourcePositionFrom(startPosition), patternExpressionOrValue, boundValue)
+        return state, ASTBindPatternNode(state.sourcePositionFrom(startPosition), patternExpressionOrValue, boundValue, True)
     else:
         return state, patternExpressionOrValue
 

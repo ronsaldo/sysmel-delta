@@ -561,7 +561,7 @@ def arrowMacro(macroContext: MacroContext, argumentType: ASTNode, resultType: AS
     return ASTFunctionTypeNode(macroContext.sourcePosition, argumentType, resultType)
 
 def callingConventionMacro(macroContext: MacroContext, functionNode: ASTNode, conventionName: TypedValue) -> ASTNode:
-    if functionNode.isFunctionalDependentTypeNode():
+    if functionNode.isFunctionalDependentTypeNode() or functionNode.isBindableNameNode():
         return macroContext.typechecker.visitNodeForMacroExpansionOnly(functionNode).withCallingConventionNamed(conventionName)
     else:
         return macroContext.typechecker.visitNode(functionNode).withCallingConventionNamed(conventionName)

@@ -519,7 +519,7 @@ class Typechecker(ASTVisitor):
         if functionalTypeNode.isTypedErrorNode():
            return self.visitNode(ASTSequenceNode(node.sourcePosition, [functionalTypeNode, node.body]))
         
-        lambdaNode = functionalTypeNode.constructLambdaWithBody(node.body)
+        lambdaNode = functionalTypeNode.constructLambdaWithBody(node.nameExpression, node.body, node.isFixpoint)
         return self.visitNode(lambdaNode)
     
     def visitFunctionTypeNode(self, node: ASTFunctionTypeNode):
@@ -864,9 +864,14 @@ class Typechecker(ASTVisitor):
     def visitAssignmentNode(self, node: ASTAssignmentNode):
         expandedStore = self.visitNodeForMacroExpansionOnly(node.store)
         if expandedStore.isFunctionalDependentTypeNode():
-            return self.visitNode(ASTFunctionNode(node.sourcePosition, expandedStore, node.value))
+            return self.visitNode(ASTFunctionNode(node.sourcePosition, None, expandedStore, node.value, False))
         elif expandedStore.isBindableNameNode():
-            assert False
+            bindableName: ASTBindableNameNode = expandedStore
+            if bindableName.typeExpression is not None and bindableName.typeExpression.isFunctionalDependentTypeNode():
+                functionExpression = ASTFunctionNode(node.sourcePosition, bindableName.nameExpression, bindableName.typeExpression, node.value, bindableName.hasPostTypeExpression)
+                return self.visitNode(ASTBindingDefinitionNode(node.sourcePosition, bindableName.nameExpression, None, functionExpression, isRebind = True, isMutable = bindableName.isMutable))
+            else:
+                return self.visitNode(ASTBindPatternNode(node.sourcePosition, expandedStore, node.value, False))
         
         selector = ASTLiteralNode(node.sourcePosition, Symbol.intern(':='))
         return self.visitNode(ASTMessageSendNode(node.sourcePosition, expandedStore, selector, [node.value]))
