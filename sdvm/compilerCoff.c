@@ -141,7 +141,9 @@ static sdvm_compilerCoffFileLayout_t sdvm_compilerCoff_computeObjectFileLayout(s
             if(symbol->binding == SdvmCompSymbolBindingLocal && symbol->section && !layout.writtenSections[symbol->section])
                 continue;
 
-            if(symbol->name)
+            if(symbol->kind == SdvmCompSymbolKindSection)
+                layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize(compiler->sections[symbol->section].name);
+            else if(symbol->name)
                 layout.stringTableSize += sdvm_compilerCoff_computeNameStringSize((char*)compiler->symbolTable.strings.data + symbol->name);
             symbol->objectSymbolIndex = (uint32_t)layout.symbolCount++;
         }
@@ -270,7 +272,10 @@ sdvm_compilerObjectFile_t *sdvm_compilerCoff_encode(sdvm_compiler_t *compiler)
                 continue;
 
             sdvm_coff_symbol_t *coffSymbol = coffSymbols + symbol->objectSymbolIndex;
-            sdvm_compilerCoffSymbolNameWrite(coffSymbol, &stringTable, (char*)compiler->symbolTable.strings.data + symbol->name);
+            if(symbol->kind == SdvmCompSymbolKindSection)
+                sdvm_compilerCoffSymbolNameWrite(coffSymbol, &stringTable, compiler->sections[symbol->section].name);
+            else
+                sdvm_compilerCoffSymbolNameWrite(coffSymbol, &stringTable, (char*)compiler->symbolTable.strings.data + symbol->name);
 
             if(symbol->section && symbol->section < SDVM_COMPILER_SECTION_COUNT)
                 coffSymbol->sectionNumber = layout.sectionIndices[symbol->section];

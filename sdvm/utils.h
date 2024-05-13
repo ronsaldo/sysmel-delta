@@ -79,14 +79,14 @@ static inline int sdvm_uint32_log2(uint32_t x)
 {
     unsigned long index;
     _BitScanReverse(&index, x);
-    return 31 - index;
+    return index;
 }
 
 static inline int sdvm_uint64_log2(uint64_t x)
 {
     unsigned long index;
     _BitScanReverse64(&index, x);
-    return 31 - index;
+    return index;
 }
 
 static inline int sdvm_uint32_ctz(uint32_t x)
