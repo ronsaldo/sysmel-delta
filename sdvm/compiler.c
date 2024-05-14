@@ -2589,6 +2589,7 @@ void sdvm_linearScanRegisterAllocatorFile_spillAndActivateRegister(sdvm_compiler
                 registerFile->activeIntervals[destIndex++] = *interval;
         }
 
+        registerFile->activeIntervalCount = destIndex;
         SDVM_ASSERT(!sdvm_registerSet_includes(&registerFile->allocatedRegisterSet, registerValue));
     }
 
@@ -2639,6 +2640,7 @@ void sdvm_linearScanRegisterAllocatorFile_spillClobberSets(sdvm_compiler_t *comp
         else
             registerFile->activeIntervals[destIndex++] = *interval;
     }
+    registerFile->activeIntervalCount = destIndex;
 }
 
 void sdvm_linearScanRegisterAllocatorFile_endInstruction(sdvm_linearScanRegisterAllocatorFile_t *registerFile)
@@ -2923,10 +2925,10 @@ void sdvm_compiler_allocateInstructionRegisters(sdvm_functionCompilationState_t 
         sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg1Location, state->instructions + startInstruction->decoding.instruction.arg1);
     if(endInstruction->allowArg2DestinationShare &&
         startInstruction->decoding.arg2IsInstruction)
-        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg1Location, state->instructions + startInstruction->decoding.instruction.arg2);
+        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg2Location, state->instructions + startInstruction->decoding.instruction.arg2);
     if(endInstruction->allowArg3DestinationShare &&
         startInstruction->decoding.arg3IsInstruction)
-        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg1Location, state->instructions + startInstruction->decoding.instruction.arg3);
+        sdvm_linearScanRegisterAllocator_attemptToAllocateRegisterLocationSharingWith(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction, &startInstruction->arg3Location, state->instructions + startInstruction->decoding.instruction.arg3);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->implicitArg0Location, NULL);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, endInstruction, &endInstruction->destinationLocation, endInstruction);
     sdvm_linearScanRegisterAllocator_allocateRegisterLocation(registerAllocator, startInstruction, &startInstruction->scratchLocation0, NULL);

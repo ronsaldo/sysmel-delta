@@ -41,10 +41,10 @@ external: #C export: (
         :a, :b <- argc, argc + 1i32.
         printf("Hello World: %d\n" elements, a).
 
-        :!i := 1i32.
+        :!i := 0i32.
         while: (i < argc) do: {
             printf("%d loop body: %s\n" elements, i, argv[i asSize]).
-            ##printf("fib(%d): %d\n" elements, i, fibonacci(i)).
+            printf("fib(%d): %d\n" elements, i, fibonacci(i)).
         } continueWith: (i := i + 1i32).
 
         0i32
