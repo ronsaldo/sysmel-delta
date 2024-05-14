@@ -5,6 +5,7 @@
 #include "macho.h"
 #include "dwarf.h"
 #include "utils.h"
+#include "assert.h"
 #include <string.h>
 
 #define SDVM_X86_REG_DEF(regKind, regSize, name, regValue) const sdvm_compilerRegister_t sdvm_x86_ ## name = {\
@@ -3794,12 +3795,160 @@ void sdvm_compiler_x64_ensureCIE(sdvm_moduleCompilationState_t *state)
     state->hasEmittedCIE = true;
 }
 
+void sdvm_compiler_x64_seh_begin(sdvm_compiler_t *compiler, sdvm_compilerSymbolHandle_t functionSymbol)
+{
+    sdvm_seh_builder_t *seh = &compiler->seh;
+    if(!seh->unwindCodes.data)
+        sdvm_dynarray_initialize(&compiler->seh.unwindCodes, 2, 256);
+    sdvm_dynarray_clear(&compiler->seh.unwindCodes);
+    seh->functionSymbol = functionSymbol;
+    seh->startPC = sdvm_compiler_getCurrentPC(compiler);
+    seh->frameRegister = 0;
+    seh->frameOffset = 0;
+}
+
+void sdvm_compiler_x64_seh_endPrologue(sdvm_compiler_t *compiler)
+{
+    compiler->seh.prologueEndPC = (uint32_t)sdvm_compiler_getCurrentPC(compiler);
+}
+
+void sdvm_compiler_x64_seh_op(sdvm_compiler_t *compiler, uint8_t opcode, uint8_t operationInfo)
+{
+    uint8_t prologueOffset = sdvm_compiler_getCurrentPC(compiler) - compiler->seh.startPC;
+    uint8_t operation = (operationInfo << 4) | opcode;
+    uint16_t code = prologueOffset | (operation << 8);
+    sdvm_dynarray_addAll(&compiler->seh.unwindCodes, 2, &code);
+}
+
+void sdvm_compiler_x64_seh_op_pushNonVol(sdvm_compiler_t *compiler, uint8_t reg)
+{
+    sdvm_compiler_x64_seh_op(compiler, /*UWOP_PUSH_NONVOL */0 , reg);
+}
+
+void sdvm_compiler_x64_seh_op_setFPReg(sdvm_compiler_t *compiler, uint8_t reg, size_t offset)
+{
+    SDVM_ASSERT((offset % 16) == 0);
+    compiler->seh.frameRegister = reg;
+    compiler->seh.frameOffset = offset / 16;
+    sdvm_compiler_x64_seh_op(compiler, /* UWOP_SET_FPREG */3, 0);
+}
+
+void sdvm_compiler_x64_seh_op_alloc(sdvm_compiler_t *compiler, size_t amount)
+{
+    if(amount == 0) return;
+
+    SDVM_ASSERT((amount % 8) == 0);
+    if(amount <= 128)
+    {
+        sdvm_compiler_x64_seh_op(compiler, /* UWOP_ALLOC_SMALL */2, (uint8_t)(amount/8 - 1));
+    }
+    else if(amount <= 512*1024 - 8)
+    {
+        size_t encodedAmount = amount / 8;
+        SDVM_ASSERT(encodedAmount <= 0xFFFF);
+        uint16_t encodedAmountU16 = (uint16_t)encodedAmount;
+        sdvm_dynarray_addAll(&compiler->seh.unwindCodes, 2, &encodedAmountU16);
+        sdvm_compiler_x64_seh_op(compiler, /* UWOP_ALLOC_LARGE */1, 0);
+    }
+    else
+    {
+        abort();
+    }
+}
+
+void sdvm_compiler_x64_seh_op_saveXMM(sdvm_compiler_t *compiler, uint8_t reg, size_t offset)
+{
+    SDVM_ASSERT((offset % 16) == 0);
+    uint32_t offset16 = offset / 16;
+
+    if(offset16 <= 0xFFFF)
+    {
+        uint16_t encodedOffset = (uint16_t)offset16;
+        sdvm_dynarray_addAll(&compiler->seh.unwindCodes, 2, &encodedOffset);
+        sdvm_compiler_x64_seh_op(compiler, /* UWOP_SAVE_XMM128 */8, reg);
+    }
+    else
+    {
+        uint16_t encodedOffsetLow = (uint16_t)offset16;
+        uint16_t encodedOffsetHigh = (uint16_t)(offset16 >> 16);
+        sdvm_dynarray_addAll(&compiler->seh.unwindCodes, 2, &encodedOffsetHigh);
+        sdvm_dynarray_addAll(&compiler->seh.unwindCodes, 2, &encodedOffsetLow);
+        sdvm_compiler_x64_seh_op(compiler, /* UWOP_SAVE_XMM128_FAR */9, reg);
+    }
+}
+
+void sdvm_compiler_x64_seh_end(sdvm_compiler_t *compiler)
+{
+    sdvm_seh_builder_t *seh = &compiler->seh;
+
+    sdvm_x86_win64_runtime_info_t runtimeInfo = {0};
+    uint32_t runtimeInfoOffset = (uint32_t)compiler->pdataSection.contents.size;
+    uint32_t unwindInfoOffset = (uint32_t)compiler->xdataSection.contents.size;
+
+    sdvm_x86_win64_unwind_info_t unwindInfo = {
+        .versionAndFlags = /*Version*/1  | (/* Flags*/0 << 3),
+        .prologueSize = seh->prologueEndPC - seh->startPC,
+        .unwindCodeCount = seh->unwindCodes.size,
+        .frameRegisterAndOffset = (uint8_t) ((seh->frameRegister) | (seh->frameOffset << 4))
+    };
+
+    sdvm_dynarray_addAll(&compiler->xdataSection.contents, sizeof(unwindInfo), &unwindInfo);
+    
+    // Unwind codes must be sorted in descending order.
+    const uint16_t *unwindCodes = (const uint16_t *)seh->unwindCodes.data;
+    for(size_t i = 0; i < seh->unwindCodes.size; ++i)
+        sdvm_dynarray_addAll(&compiler->xdataSection.contents, 2, unwindCodes + seh->unwindCodes.size - i - 1);
+
+    // Pad the unwind codes.
+    if(seh->unwindCodes.size % 2 != 0)
+    {
+        uint16_t zero = 0;
+        sdvm_dynarray_addAll(&compiler->xdataSection.contents, 2, &zero);
+    }
+
+    // Function start address
+    {
+        sdvm_compilerRelocation_t relocation = {
+            .kind = SdvmCompRelocationAbsolute32,
+            .symbol = seh->functionSymbol,
+            .addend = 0,
+            .offset = runtimeInfoOffset
+        };
+        sdvm_dynarray_add(&compiler->pdataSection.relocations, &relocation);
+    }
+
+    // Function end address
+    {
+        sdvm_compilerRelocation_t relocation = {
+            .kind = SdvmCompRelocationAbsolute32,
+            .symbol = seh->functionSymbol,
+            .addend = sdvm_compiler_getCurrentPC(compiler) - seh->startPC,
+            .offset = runtimeInfoOffset + 4
+        };
+        sdvm_dynarray_add(&compiler->pdataSection.relocations, &relocation);
+    }
+
+    // Unwind info address
+    {
+        sdvm_compilerRelocation_t relocation = {
+            .kind = SdvmCompRelocationAbsolute32,
+            .symbol = compiler->xdataSection.symbolIndex,
+            .addend = unwindInfoOffset,
+            .offset = runtimeInfoOffset + 8
+        };
+        sdvm_dynarray_add(&compiler->pdataSection.relocations, &relocation);
+    }
+
+    sdvm_dynarray_addAll(&compiler->pdataSection.contents, sizeof(runtimeInfo), &runtimeInfo);
+}
+
 void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *state)
 {
     const sdvm_compilerCallingConvention_t *convention = state->callingConvention;
     sdvm_compiler_t *compiler = state->compiler;
 
     bool usesDwarfEH = compiler->target->usesEHFrame;
+    bool usesSEH = compiler->target->usesSEH;
     sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
 
     if(usesDwarfEH)
@@ -3807,6 +3956,8 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
         sdvm_compiler_x64_ensureCIE(state->moduleState);
         sdvm_dwarf_cfi_beginFDE(cfi, state->symbol, sdvm_compiler_getCurrentPC(compiler));
     }
+    if(usesSEH)
+        sdvm_compiler_x64_seh_begin(compiler, state->symbol);
 
     if(state->debugFunctionTableEntry)
         sdvm_moduleCompilationState_addDebugLineInfo(state->moduleState, SdvmDebugLineInfoKindBeginPrologue, state->debugFunctionTableEntry->declarationLineInfo);
@@ -3818,6 +3969,9 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
     {
         if(usesDwarfEH)
             sdvm_dwarf_cfi_endPrologue(cfi);
+        if(usesSEH)
+            sdvm_compiler_x64_seh_endPrologue(compiler);
+
         return;
     }
 
@@ -3827,6 +3981,8 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
         sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
         sdvm_dwarf_cfi_pushRegister(cfi, DW_X64_REG_RBP);
     }
+    if(usesSEH)
+        sdvm_compiler_x64_seh_op_pushNonVol(compiler, SDVM_X86_RBP);
 
     sdvm_compiler_x86_mov64RegReg(compiler, SDVM_X86_RBP, SDVM_X86_RSP);
     if(usesDwarfEH)
@@ -3834,6 +3990,8 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
         sdvm_dwarf_cfi_setPC(cfi, sdvm_compiler_getCurrentPC(compiler));
         sdvm_dwarf_cfi_saveFramePointerInRegister(cfi, DW_X64_REG_RBP, 0);
     }
+    if(usesSEH)
+        sdvm_compiler_x64_seh_op_setFPReg(compiler, SDVM_X86_RBP, 0);
 
     // Preserved integer registers.
     for(uint32_t i = 0; i < convention->callPreservedIntegerRegisterCount; ++i)
@@ -3844,6 +4002,8 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
             sdvm_compiler_x86_push(compiler, reg);
             if(usesDwarfEH)
                 sdvm_dwarf_cfi_pushRegister(cfi, sdvm_compiler_x64_mapIntegerRegisterToDwarf(reg));
+            if(usesSEH)
+                sdvm_compiler_x64_seh_op_pushNonVol(compiler, reg);
         }
     }
 
@@ -3851,31 +4011,37 @@ void sdvm_compiler_x64_emitFunctionPrologue(sdvm_functionCompilationState_t *sta
     sdvm_compiler_x86_sub64RegImmS32(compiler, SDVM_X86_RSP, stackSubtractionAmount);
     if(usesDwarfEH)
         sdvm_dwarf_cfi_stackSizeAdvance(cfi, sdvm_compiler_getCurrentPC(compiler), stackSubtractionAmount);
+    if(usesSEH)
+        sdvm_compiler_x64_seh_op_alloc(compiler, stackSubtractionAmount);
 
     // Preserved vector registers.
-    int32_t vectorOffset = state->stackFramePointerAnchorOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
+    int32_t vectorOffset = state->calloutStackSegment.endOffset - state->vectorCallPreservedRegisterStackSegment.endOffset;
     for(uint32_t i = 0; i < convention->callPreservedVectorRegisterCount; ++i)
     {
         sdvm_compilerRegisterValue_t reg = convention->callPreservedVectorRegisters[i];
         if(sdvm_registerSet_includes(&state->usedCallPreservedVectorRegisterSet, reg))
         {
-            sdvm_compiler_x86_movapsRmoReg(compiler, state->stackFrameRegister, vectorOffset, reg);
+            sdvm_compiler_x86_movapsRmoReg(compiler, SDVM_X86_RSP, vectorOffset, reg);
+            if(usesSEH)
+                sdvm_compiler_x64_seh_op_saveXMM(compiler, reg, vectorOffset);
             vectorOffset += 16;
         }
     }
     
     if(usesDwarfEH)
         sdvm_dwarf_cfi_endPrologue(cfi);
+
+    if(usesSEH)
+        sdvm_compiler_x64_seh_endPrologue(compiler);
 }
 
 void sdvm_compiler_x64_emitFunctionEnding(sdvm_functionCompilationState_t *state)
 {
     sdvm_compiler_t *compiler = state->compiler;
     if(compiler->target->usesEHFrame)
-    {
-        sdvm_dwarf_cfi_builder_t *cfi = &state->moduleState->cfi;
-        sdvm_dwarf_cfi_endFDE(cfi, sdvm_compiler_getCurrentPC(compiler));
-    }
+        sdvm_dwarf_cfi_endFDE(&state->moduleState->cfi, sdvm_compiler_getCurrentPC(compiler));
+    if(compiler->target->usesSEH)
+        sdvm_compiler_x64_seh_end(compiler);
 }
 
 void sdvm_compiler_x64_emitFunctionEpilogue(sdvm_functionCompilationState_t *state)
@@ -5845,7 +6011,7 @@ static sdvm_compilerTarget_t sdvm_compilerTarget_x64_windows = {
     .usesCET = false,
     .usesPIC = false,
     .usesEHFrame = false,
-    .usesWin64Exceptions = true,
+    .usesSEH = true,
 
     .defaultCC = &sdvm_x64_win64_callingConvention,
     .cdeclCC = &sdvm_x64_win64_callingConvention,

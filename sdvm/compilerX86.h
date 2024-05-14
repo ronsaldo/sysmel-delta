@@ -3,6 +3,21 @@
 
 #include "compiler.h"
 
+typedef struct sdvm_x86_win64_runtime_info_s
+{
+    uint32_t functionStartAddress;
+    uint32_t functionEndAddress;
+    uint32_t unwindInfoAddress;
+} sdvm_x86_win64_runtime_info_t;
+
+typedef struct sdvm_x86_win64_unwind_info_s
+{
+    uint8_t versionAndFlags;
+    uint8_t prologueSize;
+    uint8_t unwindCodeCount;
+    uint8_t frameRegisterAndOffset;
+} sdvm_x86_win64_unwind_info_t;
+
 typedef enum sdvm_x86_registerIndex_e
 {
 #define SDVM_X86_REG_DEF(kind, size, name, value) SDVM_X86_ ## name = value,

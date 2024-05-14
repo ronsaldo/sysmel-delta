@@ -7,7 +7,7 @@
 #include "dwarf.h"
 #include <stdbool.h>
 
-#define SDVM_COMPILER_SECTION_COUNT 11
+#define SDVM_COMPILER_SECTION_COUNT 13
 
 typedef struct sdvm_module_s sdvm_module_t;
 
@@ -198,6 +198,16 @@ typedef struct sdvm_compilerSymbolTable_s
     sdvm_dynarray_t symbols;
 } sdvm_compilerSymbolTable_t;
 
+typedef struct sdvm_seh_builder_s
+{
+    sdvm_dynarray_t unwindCodes;
+    sdvm_compilerSymbolHandle_t functionSymbol;
+    uint32_t startPC;
+    uint32_t prologueEndPC;
+    uint32_t frameRegister;
+    uint32_t frameOffset;
+} sdvm_seh_builder_t;
+
 typedef struct sdvm_compiler_s
 {
     uint32_t pointerSize;
@@ -206,6 +216,7 @@ typedef struct sdvm_compiler_s
     sdvm_dynarray_t labels;
     uint32_t anonRelocationSymbolCount;
     bool verbose;
+    sdvm_seh_builder_t seh;
 
     union {
         struct {
@@ -216,6 +227,8 @@ typedef struct sdvm_compiler_s
             sdvm_compilerObjectSection_t bssSection;
 
             sdvm_compilerObjectSection_t ehFrameSection;
+            sdvm_compilerObjectSection_t xdataSection;
+            sdvm_compilerObjectSection_t pdataSection;
 
             sdvm_compilerObjectSection_t targetSpecificAttributes;
 
@@ -252,7 +265,7 @@ struct sdvm_compilerTarget_s
     bool closureCallNeedsScratch;
     bool usesPIC;
     bool usesEHFrame;
-    bool usesWin64Exceptions;
+    bool usesSEH;
 
     const sdvm_compilerCallingConvention_t *defaultCC;
     const sdvm_compilerCallingConvention_t *cdeclCC;
