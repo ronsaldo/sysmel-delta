@@ -1,6 +1,5 @@
 from .scanner import Token, TokenKind, scanFileNamed
-from .ast import *
-from .value import *
+from .parsetree import *
 import copy
 
 C_ESCAPE_TABLE = {
@@ -41,14 +40,14 @@ class ParserState:
         self.position += 1
         return token
 
-    def expectAddingErrorToNode(self, expectedKind: TokenKind, node: ASTNode) -> ASTNode:
+    def expectAddingErrorToNode(self, expectedKind: TokenKind, node: ParseTreeNode) -> ParseTreeNode:
         if self.peekKind() == expectedKind:
             self.advance()
             return node
         
         errorPosition = self.currentSourcePosition()
-        errorNode = ASTErrorNode(errorPosition, "Expected token of kind %s." % str(expectedKind))
-        return ASTSequenceNode(node.sourcePosition.to(errorPosition), [node, errorNode])
+        errorNode = ParseTreeErrorNode(errorPosition, "Expected token of kind %s." % str(expectedKind))
+        return ParseTreeSequenceNode(node.sourcePosition.to(errorPosition), [node, errorNode])
 
     def currentSourcePosition(self) -> SourcePosition:
         if self.position < len(self.tokens):
@@ -74,13 +73,13 @@ class ParserState:
     def advanceWithExpectedError(self, message: str):
         if self.peekKind() == TokenKind.ERROR:
             errorToken = self.next()
-            return self, ASTErrorNode(errorToken.sourcePosition, errorToken.errorMessage)
+            return self, ParseTreeErrorNode(errorToken.sourcePosition, errorToken.errorMessage)
         elif self.atEnd():
-            return self, ASTErrorNode(self.currentSourcePosition(), message)
+            return self, ParseTreeErrorNode(self.currentSourcePosition(), message)
         else:
             errorPosition = self.currentSourcePosition()
             self.advance()
-            return self, ASTErrorNode(errorPosition, message)
+            return self, ParseTreeErrorNode(errorPosition, message)
 
 def parseCEscapedString(string: str) -> str:
     unescaped = ''
@@ -95,36 +94,36 @@ def parseCEscapedString(string: str) -> str:
         i += 1
     return unescaped
 
-def parseLiteralInteger(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLiteralInteger(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.NAT
-    return state, ASTLiteralNode(token.sourcePosition, IntegerValue(int(token.getValue())))
+    return state, ParseTreeLiteralIntegerNode(token.sourcePosition, int(token.getValue()))
 
-def parseLiteralFloat(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLiteralFloat(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.FLOAT
-    return state, ASTLiteralNode(token.sourcePosition, PrimitiveFloatValue(Float64Type, float(token.getValue())))
+    return state, ParseTreeLiteralFloatNode(token.sourcePosition, float(token.getValue()))
 
-def parseLiteralString(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLiteralString(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.STRING
-    return state, ASTLiteralNode(token.sourcePosition, makeStringValue(parseCEscapedString(token.getStringValue()[1:-1])))
+    return state, ParseTreeLiteralStringNode(token.sourcePosition, parseCEscapedString(token.getStringValue()[1:-1]))
 
-def parseLiteralCharacter(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLiteralCharacter(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.CHARACTER
-    return state, ASTLiteralNode(token.sourcePosition, PrimitiveCharacterValue(Char32Type, ord(parseCEscapedString(token.getStringValue()[1:-1])[0])))
+    return state, ParseTreeLiteralCharacterNode(token.sourcePosition, ord(parseCEscapedString(token.getStringValue()[1:-1])[0]))
 
-def parseLiteralSymbol(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLiteralSymbol(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.SYMBOL
     symbolValue = token.getStringValue()[1:]
     if symbolValue[0] == '"':
         assert symbolValue[0] == '"' and symbolValue[-1] == '"'
         symbolValue = parseCEscapedString(symbolValue[1:-1])
-    return state, ASTLiteralNode(token.sourcePosition, Symbol.intern(symbolValue))
+    return state, ParseTreeLiteralSymbolNode(token.sourcePosition, symbolValue)
 
-def parseLiteral(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLiteral(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.NAT: return parseLiteralInteger(state)
     elif state.peekKind() == TokenKind.FLOAT: return parseLiteralFloat(state)
     elif state.peekKind() == TokenKind.STRING: return parseLiteralString(state)
@@ -132,12 +131,12 @@ def parseLiteral(state: ParserState) -> tuple[ParserState, ASTNode]:
     elif state.peekKind() == TokenKind.SYMBOL: return parseLiteralSymbol(state)
     else: return state.advanceWithExpectedError("Literal")
 
-def parseIdentifier(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseIdentifier(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.IDENTIFIER
-    return state, ASTIdentifierReferenceNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
+    return state, ParseTreeIdentifierReferenceNode(token.sourcePosition, token.getStringValue())
 
-def parseTerm(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseTerm(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.IDENTIFIER: return parseIdentifier(state)
     elif state.peekKind() == TokenKind.LEFT_PARENT: return parseParenthesis(state)
     elif state.peekKind() == TokenKind.LEFT_CURLY_BRACKET: return parseBlock(state)
@@ -145,20 +144,20 @@ def parseTerm(state: ParserState) -> tuple[ParserState, ASTNode]:
     elif state.peekKind() == TokenKind.COLON: return parseBindableName(state)
     else: return parseLiteral(state)
 
-def parseOptionalParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseOptionalParenthesis(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.LEFT_PARENT:
         return parseParenthesis(state)
     else:
         return state, None
 
-def parseNameExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseNameExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.IDENTIFIER:
         token = state.next()
-        return state, ASTLiteralNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
+        return state, ParseTreeLiteralSymbolNode(token.sourcePosition, token.getStringValue())
     else:
-        return state, ASTErrorNode(state.currentSourcePosition(), 'Expected a bindable name.')
+        return state, ParseTreeErrorNode(state.currentSourcePosition(), 'Expected a bindable name.')
 
-def parseOptionalBindableNameType(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseOptionalBindableNameType(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.LEFT_BRACKET:
         state.advance()
         state, typeExpression  = parseExpression(state)
@@ -171,7 +170,7 @@ def parseOptionalBindableNameType(state: ParserState) -> tuple[ParserState, ASTN
         return False, state, typeExpression
     return False, state, None
 
-def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseBindableName(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     assert state.peekKind() == TokenKind.COLON
     state.advance()
@@ -203,9 +202,9 @@ def parseBindableName(state: ParserState) -> tuple[ParserState, ASTNode]:
             state.advance()
             isVariadic = True
 
-    return state, ASTBindableNameNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential, isVariadic, isMutable, hasPostTypeExpression)
+    return state, ParseTreeBindableNameNode(state.sourcePositionFrom(startPosition), typeExpression, nameExpression, isImplicit, isExistential, isVariadic, isMutable, hasPostTypeExpression)
 
-def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseParenthesis(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     # (
     startPosition = state.position
     assert state.peekKind() == TokenKind.LEFT_PARENT
@@ -214,11 +213,11 @@ def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     if isBinaryExpressionOperator(state.peekKind()) and state.peekKind(1) == TokenKind.RIGHT_PARENT:
         token = state.next()
         state.advance()
-        return state, ASTIdentifierReferenceNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
+        return state, ParseTreeIdentifierReferenceNode(token.sourcePosition, token.getStringValue())
 
     if state.peekKind() == TokenKind.RIGHT_PARENT:
         state.advance()
-        return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [])
+        return state, ParseTreeTupleNode(state.sourcePositionFrom(startPosition), [])
     
     state, expression = parseSequenceUntilEndOrDelimiter(state, TokenKind.RIGHT_PARENT)
 
@@ -226,7 +225,7 @@ def parseParenthesis(state: ParserState) -> tuple[ParserState, ASTNode]:
     expression = state.expectAddingErrorToNode(TokenKind.RIGHT_PARENT, expression)
     return state, expression
 
-def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseBlock(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     # {
     startPosition = state.position
     assert state.peekKind() == TokenKind.LEFT_CURLY_BRACKET
@@ -237,28 +236,28 @@ def parseBlock(state: ParserState) -> tuple[ParserState, ASTNode]:
         state.advance()
         if state.peekKind() == TokenKind.BAR:
             state.advance()
-            functionalType = ASTFunctionalDependentTypeNode(state.currentSourcePosition(), None, None)
+            functionalType = ParseTreeFunctionalDependentTypeNode(state.currentSourcePosition(), None, None)
         else:
             state, functionalType = parseFunctionalType(state)
             state.expectAddingErrorToNode(TokenKind.BAR, functionalType)
             if not functionalType.isFunctionalDependentTypeNode():
-                functionalType = ASTFunctionalDependentTypeNode(state.currentSourcePosition(), functionalType, None)
+                functionalType = ParseTreeFunctionalDependentTypeNode(state.currentSourcePosition(), functionalType, None)
 
     state, body = parseSequenceUntilEndOrDelimiter(state, TokenKind.RIGHT_CURLY_BRACKET)
 
     # }
     body = state.expectAddingErrorToNode(TokenKind.RIGHT_CURLY_BRACKET, body)
     if functionalType is None:
-        return state, ASTLexicalBlockNode(state.sourcePositionFrom(startPosition), body)
+        return state, ParseTreeLexicalBlockNode(state.sourcePositionFrom(startPosition), body)
     else:
-        return state, ASTBlockNode(state.sourcePositionFrom(startPosition), functionalType, body)
+        return state, ParseTreeBlockNode(state.sourcePositionFrom(startPosition), functionalType, body)
 
-def parseDictionaryAssociation(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseDictionaryAssociation(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     value = None
     if state.peekKind() == TokenKind.KEYWORD:
         keyToken = state.next()
-        key = ASTLiteralNode(keyToken.sourcePosition, Symbol.intern(keyToken.getStringValue()[:-1]))
+        key = ParseTreeLiteralSymbolNode(keyToken.sourcePosition, keyToken.getStringValue()[:-1])
 
         if state.peekKind() not in [TokenKind.DOT, TokenKind.RIGHT_CURLY_BRACKET]:
             state, value = parseAssociationExpression(state)
@@ -268,9 +267,9 @@ def parseDictionaryAssociation(state: ParserState) -> tuple[ParserState, ASTNode
             state.advance()
             state, value = parseAssociationExpression(state)
 
-    return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [key, value])
+    return state, ParseTreeTupleNode(state.sourcePositionFrom(startPosition), [key, value])
 
-def parseDictionary(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseDictionary(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     # #{
     startPosition = state.position
     assert state.peekKind() == TokenKind.DICTIONARY_START
@@ -285,7 +284,7 @@ def parseDictionary(state: ParserState) -> tuple[ParserState, ASTNode]:
     elements = []
     while not state.atEnd() and state.peekKind() != TokenKind.RIGHT_CURLY_BRACKET:
         if not expectsExpression:
-            elements.append(ASTErrorNode(state.currentSourcePosition(), "Expected dot before association."))
+            elements.append(ParseTreeErrorNode(state.currentSourcePosition(), "Expected dot before association."))
 
         state, expression = parseDictionaryAssociation(state)
         elements.append(expression)
@@ -300,55 +299,55 @@ def parseDictionary(state: ParserState) -> tuple[ParserState, ASTNode]:
     if state.peekKind() == TokenKind.RIGHT_CURLY_BRACKET:
         state.advance()
     else:
-        elements.append(ASTErrorNode(state.currentSourcePosition(), "Expected a right curly brack (})."))
+        elements.append(ParseTreeErrorNode(state.currentSourcePosition(), "Expected a right curly brack (})."))
 
-    return state, ASTDictionaryNode(state.sourcePositionFrom(startPosition), elements)
+    return state, ParseTreeDictionaryNode(state.sourcePositionFrom(startPosition), elements)
 
-def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, receiver = parseTerm(state)
     while state.peekKind() in [TokenKind.IDENTIFIER, TokenKind.LEFT_PARENT, TokenKind.LEFT_BRACKET, TokenKind.LEFT_CURLY_BRACKET, TokenKind.BYTE_ARRAY_START, TokenKind.DICTIONARY_START]:
         token = state.peek()
         if token.kind == TokenKind.IDENTIFIER:
             state.advance()
-            selector = ASTLiteralNode(token.sourcePosition, Symbol.intern(token.getStringValue()))
-            receiver = ASTMessageSendNode(receiver.sourcePosition.to(selector.sourcePosition), receiver, selector, [])
+            selector = ParseTreeLiteralSymbolNode(token.sourcePosition, token.getStringValue())
+            receiver = ParseTreeMessageSendNode(receiver.sourcePosition.to(selector.sourcePosition), receiver, selector, [])
         elif token.kind == TokenKind.LEFT_PARENT:
             state.advance()
             state, arguments = parseExpressionListUntilEndOrDelimiter(state, TokenKind.RIGHT_PARENT)
             if state.peekKind() == TokenKind.RIGHT_PARENT:
                 state.advance()
             else:
-                arguments.append(ASTErrorNode(state.currentSourcePosition(), "Expected right parenthesis."))
-            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments)
+                arguments.append(ParseTreeErrorNode(state.currentSourcePosition(), "Expected right parenthesis."))
+            receiver = ParseTreeApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments, ParseTreeApplicationNode.Normal)
         elif token.kind == TokenKind.LEFT_BRACKET:
             state.advance()
             state, arguments = parseExpressionListUntilEndOrDelimiter(state, TokenKind.RIGHT_BRACKET)
             if state.peekKind() == TokenKind.RIGHT_BRACKET:
                 state.advance()
             else:
-                arguments.append(ASTErrorNode(state.currentSourcePosition(), "Expected right bracket."))
-            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments, kind = ASTApplicationNode.Bracket)
+                arguments.append(ParseTreeErrorNode(state.currentSourcePosition(), "Expected right bracket."))
+            receiver = ParseTreeApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments, ParseTreeApplicationNode.Bracket)
         elif token.kind == TokenKind.BYTE_ARRAY_START:
             state.advance()
             state, arguments = parseExpressionListUntilEndOrDelimiter(state, TokenKind.RIGHT_BRACKET)
             if state.peekKind() == TokenKind.RIGHT_BRACKET:
                 state.advance()
             else:
-                arguments.append(ASTErrorNode(state.currentSourcePosition(), "Expected right bracket."))
-            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments, kind = ASTApplicationNode.ByteArrayStart)
+                arguments.append(ParseTreeErrorNode(state.currentSourcePosition(), "Expected right bracket."))
+            receiver = ParseTreeApplicationNode(state.sourcePositionFrom(startPosition), receiver, arguments, ParseTreeApplicationNode.ByteArrayStart)
         elif token.kind == TokenKind.LEFT_CURLY_BRACKET:
             state, argument = parseBlock(state)
-            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, [argument], kind = ASTApplicationNode.Block)
+            receiver = ParseTreeApplicationNode(state.sourcePositionFrom(startPosition), receiver, [argument], ParseTreeApplicationNode.Block)
         elif token.kind == TokenKind.DICTIONARY_START:
             state, argument = parseDictionary(state)
-            receiver = ASTApplicationNode(state.sourcePositionFrom(startPosition), receiver, [argument], kind = ASTApplicationNode.Dictionary)
+            receiver = ParseTreeApplicationNode(state.sourcePositionFrom(startPosition), receiver, [argument], ParseTreeApplicationNode.Dictionary)
     return state, receiver
 
 def isBinaryExpressionOperator(kind: TokenKind) -> bool:
     return kind in [TokenKind.OPERATOR, TokenKind.STAR, TokenKind.LESS_THAN, TokenKind.GREATER_THAN, TokenKind.BAR]
 
-def parseBinaryExpressionSequence(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseBinaryExpressionSequence(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, operand = parseUnaryPostfixExpression(state)
     if not isBinaryExpressionOperator(state.peekKind()):
@@ -357,15 +356,15 @@ def parseBinaryExpressionSequence(state: ParserState) -> tuple[ParserState, ASTN
     elements = [operand]
     while isBinaryExpressionOperator(state.peekKind()):
         operatorToken = state.next()
-        operator = ASTLiteralNode(operatorToken.sourcePosition, Symbol.intern(operatorToken.getStringValue()))
+        operator = ParseTreeLiteralSymbolNode(operatorToken.sourcePosition, operatorToken.getStringValue())
         elements.append(operator)
 
         state, operand = parseUnaryPostfixExpression(state)
         elements.append(operand)
 
-    return state, ASTBinaryExpressionSequenceNode(state.sourcePositionFrom(startPosition), elements)
+    return state, ParseTreeBinaryExpressionSequenceNode(state.sourcePositionFrom(startPosition), elements)
 
-def parseAssociationExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseAssociationExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, key = parseBinaryExpressionSequence(state)
 
@@ -374,9 +373,9 @@ def parseAssociationExpression(state: ParserState) -> tuple[ParserState, ASTNode
     
     state.advance()
     state, value = parseAssociationExpression(state)
-    return state, ASTTupleNode(state.sourcePositionFrom(startPosition), [key, value])
+    return state, ParseTreeTupleNode(state.sourcePositionFrom(startPosition), [key, value])
     
-def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     assert state.peekKind() == TokenKind.KEYWORD
     startPosition = state.position
 
@@ -392,12 +391,12 @@ def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ASTNode]:
         state, argument = parseAssociationExpression(state)
         arguments.append(argument)
 
-    functionIdentifier = ASTIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
+    functionIdentifier = ParseTreeIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), symbolValue)
     sourcePosition = state.sourcePositionFrom(startPosition)
-    argumentsTuple = ASTTupleNode(sourcePosition, arguments)
-    return state, ASTApplicationNode(sourcePosition, functionIdentifier, [argumentsTuple])
+    argumentsTuple = ParseTreeTupleNode(sourcePosition, arguments)
+    return state, ParseTreeApplicationNode(sourcePosition, functionIdentifier, [argumentsTuple], ParseTreeApplicationNode.Normal)
 
-def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, receiver = parseAssociationExpression(state)
     if state.peekKind() != TokenKind.KEYWORD:
@@ -415,25 +414,25 @@ def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ASTNode]:
         state, argument = parseAssociationExpression(state)
         arguments.append(argument)
 
-    selector = ASTLiteralNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), Symbol.intern(symbolValue))
-    return state, ASTMessageSendNode(state.sourcePositionFrom(startPosition), receiver, selector, arguments)
+    selector = ParseTreeLiteralSymbolNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), symbolValue)
+    return state, ParseTreeMessageSendNode(state.sourcePositionFrom(startPosition), receiver, selector, arguments)
 
-def parseLowPrecedenceExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseLowPrecedenceExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.KEYWORD:
         return parseKeywordApplication(state)
     return parseKeywordMessageSend(state)
 
-def parseAssignmentExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseAssignmentExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, assignedStore = parseLowPrecedenceExpression(state)
     if state.peekKind() == TokenKind.ASSIGNMENT:
         operatorToken = state.next()
         state, assignedValue = parseAssignmentExpression(state)
-        return state, ASTAssignmentNode(state.sourcePositionFrom(startPosition), assignedStore, assignedValue)
+        return state, ParseTreeAssignmentNode(state.sourcePositionFrom(startPosition), assignedStore, assignedValue)
     else:
         return state, assignedStore
 
-def parseCommaExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseCommaExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, element = parseAssignmentExpression(state)
     if state.peekKind() != TokenKind.COMMA:
@@ -445,40 +444,40 @@ def parseCommaExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
         state, element = parseAssignmentExpression(state)
         elements.append(element)
     
-    return state, ASTTupleNode(state.sourcePositionFrom(startPosition), elements)
+    return state, ParseTreeTupleNode(state.sourcePositionFrom(startPosition), elements)
 
-def parseFunctionalType(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseFunctionalType(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, argumentPatternOrExpression = parseCommaExpression(state)
     if state.peekKind() == TokenKind.COLON_COLON:
         state.advance()
         state, resultTypeExpression = parseFunctionalType(state)
-        return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), argumentPatternOrExpression, resultTypeExpression, None)
+        return state, ParseTreeFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), argumentPatternOrExpression, resultTypeExpression)
     return state, argumentPatternOrExpression
 
-def parseFunctionalTypeWithOptionalArgument(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseFunctionalTypeWithOptionalArgument(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.COLON_COLON:
         state.advance()
         startPosition = state.position
         state, resultTypeExpression = parseFunctionalType(state)
-        return state, ASTFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), None, resultTypeExpression, None)
+        return state, ParseTreeFunctionalDependentTypeNode(state.sourcePositionFrom(startPosition), None, resultTypeExpression)
     else:
         return parseFunctionalType(state)
 
-def parseBindExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseBindExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     state, patternExpressionOrValue = parseFunctionalTypeWithOptionalArgument(state)
     if state.peekKind() == TokenKind.BIND_OPERATOR:
         state.advance()
         state, boundValue = parseBindExpression(state)
-        return state, ASTBindPatternNode(state.sourcePositionFrom(startPosition), patternExpressionOrValue, boundValue, True)
+        return state, ParseTreeBindPatternNode(state.sourcePositionFrom(startPosition), patternExpressionOrValue, boundValue)
     else:
         return state, patternExpressionOrValue
 
-def parseExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     return parseBindExpression(state)
 
-def parseExpressionListUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -> tuple[ParserState, list[ASTNode]]:
+def parseExpressionListUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -> tuple[ParserState, list[ParseTreeNode]]:
     elements = []
 
     # Chop the initial dots
@@ -489,7 +488,7 @@ def parseExpressionListUntilEndOrDelimiter(state: ParserState, delimiter: TokenK
     expectsExpression = True
     while not state.atEnd() and state.peekKind() != delimiter:
         if not expectsExpression:
-            elements.append(ASTErrorNode(state.currentSourcePosition(), "Expected dot before expression."))
+            elements.append(ParseTreeErrorNode(state.currentSourcePosition(), "Expected dot before expression."))
 
         state, expression = parseExpression(state)
         elements.append(expression)
@@ -502,18 +501,18 @@ def parseExpressionListUntilEndOrDelimiter(state: ParserState, delimiter: TokenK
 
     return state, elements
 
-def parseSequenceUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -> tuple[ParserState, ASTNode]:
+def parseSequenceUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -> tuple[ParserState, ParseTreeNode]:
     initialPosition = state.position
     state, elements = parseExpressionListUntilEndOrDelimiter(state, delimiter)
     if len(elements) == 1:
         return state, elements[0]
-    return state, ASTSequenceNode(state.sourcePositionFrom(initialPosition), elements)
+    return state, ParseTreeSequenceNode(state.sourcePositionFrom(initialPosition), elements)
 
-def parseTopLevelExpression(state: ParserState) -> tuple[ParserState, ASTNode]:
+def parseTopLevelExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     state, node = parseSequenceUntilEndOrDelimiter(state, TokenKind.END_OF_SOURCE)
     return node
 
-def parseFileNamed(fileName: str) -> ASTNode:
+def parseFileNamed(fileName: str) -> ParseTreeNode:
     sourceCode, tokens = scanFileNamed(fileName)
     state = ParserState(sourceCode, tokens)
     return parseTopLevelExpression(state)

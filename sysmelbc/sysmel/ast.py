@@ -1,3 +1,4 @@
+from .parsetree import *
 from .value import *
 from abc import ABC, abstractmethod
 
@@ -2465,3 +2466,63 @@ class ASTTypecheckedVisitor(ASTVisitor):
 
     def visitModifiedRecordNode(self, node):
         assert False
+
+class ASTParseTreeFrontEnd(ParseTreeVisitor):
+    def visitErrorNode(self, node: ParseTreeErrorNode):
+        if len(node.innerNodes) != 0:
+            return ASTSequenceNode(node.sourcePosition, self.transformNodes(node.innerNodes) + [ASTErrorNode(node.sourcePosition, node.message)])
+        return ASTErrorNode(node.sourcePosition, node.message)
+
+    def visitApplicationNode(self, node: ParseTreeApplicationNode):
+        return ASTApplicationNode(node.sourcePosition, self.visitNode(node.functional), self.transformNodes(node.arguments), node.kind)
+
+    def visitAssignmentNode(self, node: ParseTreeAssignmentNode):
+        return ASTAssignmentNode(node.sourcePosition, self.visitNode(node.store), self.visitNode(node.value))
+
+    def visitBindPatternNode(self, node: ParseTreeBindPatternNode):
+        return ASTBindPatternNode(node.sourcePosition, self.visitNode(node.pattern), self.visitNode(node.value), True)
+    
+    def visitBinaryExpressionSequenceNode(self, node: ParseTreeBinaryExpressionSequenceNode):
+        return ASTBinaryExpressionSequenceNode(node.sourcePosition, self.transformNodes(node.elements))
+
+    def visitBindableNameNode(self, node: ParseTreeBindableNameNode):
+        return ASTBindableNameNode(node.sourcePosition, self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression)
+
+    def visitBlockNode(self, node: ParseTreeBlockNode):
+        return ASTBlockNode(node.sourcePosition, self.visitNode(node.functionType), self.visitNode(node.body))
+
+    def visitDictionaryNode(self, node: ParseTreeDictionaryNode):
+        return ASTDictionaryNode(node.sourcePosition, self.transformNodes(node.elements))
+
+    def visitFunctionalDependentTypeNode(self, node: ParseTreeFunctionalDependentTypeNode):
+        return ASTFunctionalDependentTypeNode(node.sourcePosition, self.visitOptionalNode(node.argumentPattern), self.visitOptionalNode(node.resultType), None)
+
+    def visitIdentifierReferenceNode(self, node: ParseTreeIdentifierReferenceNode):
+        return ASTIdentifierReferenceNode(node.sourcePosition, Symbol.intern(node.value))
+
+    def visitLexicalBlockNode(self, node: ParseTreeLexicalBlockNode):
+        return ASTLexicalBlockNode(node.sourcePosition, self.visitNode(node.body))
+
+    def visitLiteralCharacterNode(self, node: ParseTreeLiteralCharacterNode):
+        return ASTLiteralNode(node.sourcePosition, PrimitiveCharacterValue(Char32Type, node.value))
+
+    def visitLiteralFloatNode(self, node: ParseTreeLiteralFloatNode):
+        return ASTLiteralNode(node.sourcePosition, PrimitiveFloatValue(Float64Type, node.value))
+
+    def visitLiteralIntegerNode(self, node: ParseTreeLiteralIntegerNode):
+        return ASTLiteralNode(node.sourcePosition, IntegerValue(node.value))
+
+    def visitLiteralSymbolNode(self, node: ParseTreeLiteralSymbolNode):
+        return ASTLiteralNode(node.sourcePosition, Symbol.intern(node.value))
+
+    def visitLiteralStringNode(self, node: ParseTreeLiteralStringNode):
+        return ASTLiteralNode(node.sourcePosition, makeStringValue(node.value))
+
+    def visitMessageSendNode(self, node: ParseTreeMessageSendNode):
+        return ASTMessageSendNode(node.sourcePosition, self.visitOptionalNode(node.receiver), self.visitNode(node.selector), self.transformNodes(node.arguments))
+
+    def visitSequenceNode(self, node: ParseTreeSequenceNode):
+        return ASTSequenceNode(node.sourcePosition, self.transformNodes(node.elements))
+
+    def visitTupleNode(self, node: ParseTreeTupleNode):
+        return ASTTupleNode(node.sourcePosition, self.transformNodes(node.elements))

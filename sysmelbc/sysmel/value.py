@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 import json
 from typing import Any
+from .parsetree import *
 import math
 import struct
-import os.path
 
 class TypedValueVisitor(ABC):
     @abstractmethod
@@ -1559,51 +1559,6 @@ def makeStringValue(value: str):
     data = StringDataValue(value.encode('utf-8'))
     size = PrimitiveIntegerValue(SizeType, len(value))
     return StringType.makeWithElements((data, size))
-
-class SourceCode:
-    def __init__(self, directory: str, name: str, language: str, text: bytes) -> None:
-        self.directory = directory
-        self.name = name
-        self.language = language
-        self.text = text
-
-    def __str__(self) -> str:
-        return os.path.join(self.directory, self.name)
-
-class SourcePosition:
-    def __init__(self, sourceCode: SourceCode, startIndex: int, endIndex: int, startLine: int, startColumn: int, endLine: int, endColumn: int) -> None:
-        self.sourceCode = sourceCode
-        self.startIndex = startIndex
-        self.endIndex = endIndex
-        self.startLine = startLine
-        self.startColumn = startColumn
-        self.endLine = endLine
-        self.endColumn = endColumn
-
-    def getValue(self) -> bytes:
-        return self.sourceCode.text[self.startIndex : self.endIndex]
-    
-    def getStringValue(self) -> str:
-        return self.getValue().decode('utf-8')
-    
-    def until(self, endSourcePosition):
-        return SourcePosition(self.sourceCode,
-                self.startIndex, endSourcePosition.startIndex,
-                self.startLine, self.startColumn,
-                endSourcePosition.startLine, endSourcePosition.startColumn)
-
-    def to(self, endSourcePosition):
-        return SourcePosition(self.sourceCode,
-                self.startIndex, endSourcePosition.endIndex,
-                self.startLine, self.startColumn,
-                endSourcePosition.endLine, endSourcePosition.endColumn)
-
-    def __str__(self) -> str:
-        return '%s:%d.%d-%d.%d' % (self.sourceCode, self.startLine, self.startColumn, self.endLine, self.endColumn)
-
-class EmptySourcePosition:
-    def __str__(self) -> str:
-        return '<no position>'
 
 class MacroContext(TypedValue):
     def __init__(self, sourcePosition: SourcePosition, lexicalEnvironment, typechecker) -> None:
