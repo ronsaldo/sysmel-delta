@@ -12,127 +12,216 @@ class ASGNodeSourceCodeDerivation(ASGNodeDerivation):
 class ASGNodeNoDerivation(ASGNodeDerivation):
     pass
 
-class ASGNodeKind:
-    def __init__(self, name: str) -> None:
-        pass
-
-class ASGNode(ABC):
-    def __init__(self, sourceDerivation: ASGNodeDerivation) -> None:
+class ASGNodeAttributeDescriptor:
+    def __init__(self) -> None:
         super().__init__()
-        self.sourceDerivation = sourceDerivation
+        self.name: str = None
+
+    def setName(self, name: str):
+        self.name = name
+        self.storageName = '_' + name
+
+    def loadValueFrom(self, instance):
+        return getattr(instance, self.storageName)
+    
+    def storeValueIn(self, value, instance):
+        setattr(instance, self.storageName, value)
+
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        raise Exception("Cannot initialize attribute %s during construction." % str(self.name))
+    
+    def initializeWithDefaultConstructorValueOn(self, instance):
+        raise Exception("Cannot initialize attribute %s with default value during construction." % str(self.name))
+
+    def isConstructionAttribute(self) -> bool:
+        return False
+
+    def isSpecialAttribute(self) -> bool:
+        return False
+
+    def isSourceDerivationAttribute(self) -> bool:
+        return False
+    
+    def isDataAttribute(self) -> bool:
+        return False
+
+    def isDataInputPort(self) -> bool:
+        return False
+
+class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
+    def isConstructionAttribute(self) -> bool:
+        return True
+
+    def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
+        self.storeValueIn(constructorValue, instance)
+
+class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
+    def __init__(self, type) -> None:
+        super().__init__()
+        self.type = type
+
+    def isDataAttribute(self) -> bool:
+        return True
+
+class ASGNodeSourceDerivationAttribute(ASGNodeConstructionAttribute):
+    def isConstructionAttribute(self) -> bool:
+        return True
+
+    def isSpecialAttribute(self) -> bool:
+        return True
+
+    def isSourceDerivationAttribute(self) -> bool:
+        return True
+    
+class ASGNodeDataInputPort(ASGNodeConstructionAttribute):
+    def isConstructionAttribute(self) -> bool:
+        return True
+
+    def isDataInputPort(self) -> bool:
+        return True
+
+class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttribute):
+    def isConstructionAttribute(self) -> bool:
+        return True
+
+    def isDataInputPort(self) -> bool:
+        return True
+
+class ASGNodeDataInputPorts(ASGNodeConstructionAttribute):
+    def isConstructionAttribute(self) -> bool:
+        return True
+
+    def isDataInputPort(self) -> bool:
+        return True
+
+class ASGNodeMetaclass(type):
+    def __new__(cls, name, bases, attributes):
+        descriptors = []
+        for base in bases:
+            baseDescriptors = getattr(base, '__asgAttributeDescriptors__', None)
+            if baseDescriptors is not None:
+                descriptors += baseDescriptors
+
+        for attributeName, attributeDescriptor in attributes.items():
+            if not isinstance(attributeDescriptor, ASGNodeAttributeDescriptor):
+                continue
+
+            attributeDescriptor.setName(attributeName)
+            descriptors.append(attributeDescriptor)
+
+        specialAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSpecialAttribute(), descriptors))
+        constructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute(), descriptors))
+        dataAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataAttribute(), descriptors))
+        dataInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataInputPort(), descriptors))
+
+        constructionAttributeDictionary = {}
+        for attr in constructionAttributes:
+            constructionAttributeDictionary[attr.name] = attr
+            
+        nodeClass = super().__new__(cls, name, bases, attributes)
+        nodeClass.__asgAttributeDescriptors__ = descriptors
+        nodeClass.__asgSpecialAttributes__ = specialAttributes
+        nodeClass.__asgConstructionAttributes__ = constructionAttributes
+        nodeClass.__asgConstructionAttributeDictionary__ = constructionAttributeDictionary
+        nodeClass.__asgDataAttributes__ = dataAttributes
+        nodeClass.__asgDataInputPorts__ = dataInputPorts
+        return nodeClass
+
+class ASGNode(metaclass = ASGNodeMetaclass):
+    sourceDerivation = ASGNodeSourceDerivationAttribute()
+
+    def __init__(self, *positionalArguments, **kwArguments) -> None:
+        super().__init__()
+
+        constructionAttributes = self.__class__.__asgConstructionAttributes__
+        constructionAttributeDictionary = self.__class__.__asgConstructionAttributeDictionary__
+        if len(positionalArguments) > len(constructionAttributes):
+            raise Exception('Excess number of construction arguments.')
+        
+        for i in range(len(positionalArguments)):
+            constructionAttributes[i].initializeWithConstructorValueOn(positionalArguments[i], self)
+        for i in range(len(positionalArguments), len(constructionAttributes)):
+            constructionAttributes[i].initializeWithDefaultConstructorValueOn(self)
+
+        for key, value in kwArguments.items():
+            if key not in constructionAttributeDictionary:
+                raise Exception('Failed to find attribute %s in %s' % (str(key), repr(self.__class__)))
+            constructionAttributeDictionary[key].initializeWithConstructorValueOn(value, self)
 
 class ASGErrorNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, message: str, innerNodes: list[ASGNode]) -> None:
-        super().__init__(sourceDerivation)
-        self.message = message
-        self.innerNodes = innerNodes
+    message = ASGNodeDataAttribute(int)
+    innerNodes = ASGNodeDataInputPorts()
 
 class ASGAtomicValueNode(ASGNode):
     pass
 
 class ASGAtomicCharacterValueNode(ASGAtomicValueNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, value: int) -> None:
-        super().__init__(sourceDerivation)
-        self.value = value
+    value = ASGNodeDataAttribute(int)
 
 class ASGAtomicIntegerValueNode(ASGAtomicValueNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, value: int) -> None:
-        super().__init__(sourceDerivation)
-        self.value = value
+    value = ASGNodeDataAttribute(int)
 
 class ASGAtomicFloatValueNode(ASGAtomicValueNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, value: float) -> None:
-        super().__init__(sourceDerivation)
-        self.value = value
+    value = ASGNodeDataAttribute(float)
 
 class ASGAtomicStringValueNode(ASGAtomicValueNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, value: str) -> None:
-        super().__init__(sourceDerivation)
-        self.value = value
+    value = ASGNodeDataAttribute(str)
 
 class ASGAtomicSymbolValueNode(ASGAtomicValueNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, value: str) -> None:
-        super().__init__(sourceDerivation)
-        self.value = value
+    value = ASGNodeDataAttribute(str)
 
 class ASGApplicationNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, functional: ASGNode, arguments: list[ASGNode], kind: int) -> None:
-        super().__init__(sourceDerivation)
-        self.functional = functional
-        self.arguments = arguments
-        self.kind = kind
+    functional = ASGNodeDataInputPort()
+    arguments = ASGNodeDataInputPorts()
+    kind = ASGNodeDataAttribute(int)
 
 class ASGAssignmentNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, store: ASGNode, value: ASGNode) -> None:
-        super().__init__(sourceDerivation)
-        self.store = store
-        self.value = value
+    store = ASGNodeDataInputPort()
+    value = ASGNodeDataInputPort()
 
 class ASGBindableNameNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, typeExpression: ASGNode, nameExpression: ASGNode, isImplicit: bool, isExistential: bool, isVariadic: bool, isMutable: bool, hasPostTypeExpression: bool) -> None:
-        super().__init__(sourceDerivation)
-        self.typeExpression = typeExpression
-        self.nameExpression = nameExpression
-        self.isImplicit = isImplicit
-        self.isExistential = isExistential
-        self.isVariadic = isVariadic
-        self.isMutable = isMutable
-        self.hasPostTypeExpression = hasPostTypeExpression
+    typeExpression = ASGNodeDataInputPort()
+    nameExpression = ASGNodeDataInputPort()
+    isImplicit = ASGNodeDataAttribute(bool)
+    isExistential = ASGNodeDataAttribute(bool)
+    isVariadic = ASGNodeDataAttribute(bool)
+    isMutable = ASGNodeDataAttribute(bool)
+    hasPostTypeExpression = ASGNodeDataAttribute(bool)
 
 class ASGBindPatternNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, pattern: ASGNode, value: ASGNode) -> None:
-        super().__init__(sourceDerivation)
-        self.pattern = pattern
-        self.value = value
+    pattern = ASGNodeDataInputPort()
+    value = ASGNodeDataInputPort()
 
 class ASGBinaryExpressionSequenceNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, elements: list[ASGNode]) -> None:
-        super().__init__(sourceDerivation)
-        self.elements = elements
+    elements = ASGNodeDataInputPorts()
 
 class ASGBlockNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, functionType: ASGNode, body: ASGNode) -> None:
-        super().__init__(sourceDerivation)
-        self.functionType = functionType
-        self.body = body
+    functionType = ASGNodeDataInputPort()
+    body = ASGNodeDataInputPorts()
 
 class ASGIdentifierReferenceNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, value: str) -> None:
-        super().__init__(sourceDerivation)
-        self.value = value
+    value = ASGNodeDataAttribute(str)
 
 class ASGLexicalBlockNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, body: ASGNode) -> None:
-        super().__init__(sourceDerivation)
-        self.body = body
+    body = ASGNodeDataInputPorts()
 
 class ASGMessageSendNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, receiver: ASGNode | None, selector: ASGNode, arguments: list[ASGNode]) -> None:
-        super().__init__(sourceDerivation)
-        self.receiver = receiver
-        self.selector = selector
-        self.arguments = arguments
+    receiver = ASGNodeOptionalDataInputPort()
+    selector = ASGNodeDataInputPort()
+    arguments = ASGNodeDataInputPorts()
 
 class ASGDictionaryNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, elements: list[ASGNode]) -> None:
-        super().__init__(sourceDerivation)
-        self.elements = elements
+    elements = ASGNodeDataInputPorts()
 
 class ASGFunctionalDependentTypeNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, argumentPattern: ASGNode, resultType: ASGNode) -> None:
-        super().__init__(sourceDerivation)
-        self.argumentPattern = argumentPattern
-        self.resultType = resultType
+    argumentPattern = ASGNodeOptionalDataInputPort()
+    resultType = ASGNodeOptionalDataInputPort()
 
 class ASGSequenceNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, elements: list[ASGNode]) -> None:
-        super().__init__(sourceDerivation)
-        self.elements = elements
+    elements = ASGNodeDataInputPorts()
 
 class ASGTupleNode(ASGNode):
-    def __init__(self, sourceDerivation: ASGNodeDerivation, elements: list[ASGNode]) -> None:
-        super().__init__(sourceDerivation)
-        self.elements = elements
+    elements = ASGNodeDataInputPorts()
 
 class ASGParseTreeFrontEnd(ParseTreeVisitor):
     def visitErrorNode(self, node: ParseTreeErrorNode):
