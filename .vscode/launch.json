@@ -5,12 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Sysmelbc (Python)",
+            "name": "Sysmelbc",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",
             "console": "integratedTerminal",
             "args": ["-v", "-emit-sdvm", "-c", "-o", "test.sdvm", "samples/01-helloWorld.sysmel"]
+        },
+        {
+            "name": "Sysmelbc ASG",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",
+            "console": "integratedTerminal",
+            "args": ["-v", "-asg", "-emit-sdvm", "-c", "-o", "test.sdvm", "samples/01-asgHelloWorld.sysmel"]
         },
         {
             "type": "lldb",

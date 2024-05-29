@@ -42,6 +42,9 @@ class ASGNodeAttributeDescriptor:
     def isSpecialAttribute(self) -> bool:
         return False
 
+    def isSyntacticPredecessorAttribute(self) -> bool:
+        return False
+    
     def isSourceDerivationAttribute(self) -> bool:
         return False
     
@@ -51,11 +54,14 @@ class ASGNodeAttributeDescriptor:
     def isDataInputPort(self) -> bool:
         return False
     
-    def getDataInputsOf(self, instance):
+    def getNodeInputsOf(self, instance):
         return []
 
 class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
     def isConstructionAttribute(self) -> bool:
+        return True
+
+    def isNumberedConstructionAttribute(self) -> bool:
         return True
 
     def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
@@ -74,6 +80,12 @@ class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
     def hasDefaultValueIn(self, instance) -> bool:
         return self.hasDefaultValue and self.loadValueFrom(instance) == self.defaultValue
 
+    def initializeWithDefaultConstructorValueOn(self, instance):
+        if self.hasDefaultValue:
+            self.storeValueIn(self.defaultValue, instance)
+        else:
+            super().initializeWithDefaultConstructorValueOn(self, instance)
+
     def isDataAttribute(self) -> bool:
         return True
 
@@ -86,38 +98,45 @@ class ASGNodeSourceDerivationAttribute(ASGNodeConstructionAttribute):
 
     def isSourceDerivationAttribute(self) -> bool:
         return True
-    
-class ASGNodeDataInputPort(ASGNodeConstructionAttribute):
-    def isConstructionAttribute(self) -> bool:
+
+class ASGSyntacticPredecessorAttribute(ASGNodeConstructionAttribute):
+    def isSyntacticPredecessorAttribute(self) -> bool:
         return True
 
+    def isNumberedConstructionAttribute(self) -> bool:
+        return False
+
+    def initializeWithDefaultConstructorValueOn(self, instance):
+        self.storeValueIn(None, instance)
+
+    def getNodeInputsOf(self, instance):
+        value = self.loadValueFrom(instance)
+        if value is None:
+            return []
+        return [value]
+
+class ASGNodeDataInputPort(ASGNodeConstructionAttribute):
     def isDataInputPort(self) -> bool:
         return True
 
-    def getDataInputsOf(self, instance):
+    def getNodeInputsOf(self, instance):
         return [self.loadValueFrom(instance)]
 
 class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttribute):
-    def isConstructionAttribute(self) -> bool:
-        return True
-
     def isDataInputPort(self) -> bool:
         return True
 
-    def getDataInputsOf(self, instance):
+    def getNodeInputsOf(self, instance):
         value =  self.loadValueFrom(instance)
         if value is None:
             return []
         return [value]
 
 class ASGNodeDataInputPorts(ASGNodeConstructionAttribute):
-    def isConstructionAttribute(self) -> bool:
-        return True
-
     def isDataInputPort(self) -> bool:
         return True
 
-    def getDataInputsOf(self, instance):
+    def getNodeInputsOf(self, instance):
         return self.loadValueFrom(instance)
 
 class ASGNodeMetaclass(type):
@@ -136,9 +155,13 @@ class ASGNodeMetaclass(type):
             descriptors.append(attributeDescriptor)
 
         specialAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSpecialAttribute(), descriptors))
-        constructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute(), descriptors))
+        syntacticPredecessors: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSyntacticPredecessorAttribute(), descriptors))
         dataAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataAttribute(), descriptors))
         dataInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataInputPort(), descriptors))
+
+        numberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and desc.isNumberedConstructionAttribute(), descriptors))
+        unnumberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and not desc.isNumberedConstructionAttribute(), descriptors))
+        constructionAttributes = numberedConstructionAttributes + unnumberedConstructionAttributes
 
         constructionAttributeDictionary = {}
         for attr in constructionAttributes:
@@ -148,6 +171,7 @@ class ASGNodeMetaclass(type):
         nodeClass.__asgKindName__ = name.removeprefix('ASG').removesuffix('Node')
         nodeClass.__asgAttributeDescriptors__ = descriptors
         nodeClass.__asgSpecialAttributes__ = specialAttributes
+        nodeClass.__asgSyntacticPredecessors__ = syntacticPredecessors
         nodeClass.__asgConstructionAttributes__ = constructionAttributes
         nodeClass.__asgConstructionAttributeDictionary__ = constructionAttributeDictionary
         nodeClass.__asgDataAttributes__ = dataAttributes
@@ -175,21 +199,23 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 raise Exception('Failed to find attribute %s in %s' % (str(key), repr(self.__class__)))
             constructionAttributeDictionary[key].initializeWithConstructorValueOn(value, self)
 
-    def lexicalDependencies(self):
-        return []
+    def syntacticDependencies(self):
+        for port in self.__class__.__asgSyntacticPredecessors__:
+            for predecessor in port.getNodeInputsOf(self):
+                yield predecessor
 
-    def controlDependencies(self):
+    def effectDependencies(self):
         return []
 
     def dataDependencies(self):
         for port in self.__class__.__asgDataInputPorts__:
-            for dataInput in port.getDataInputsOf(self):
+            for dataInput in port.getNodeInputsOf(self):
                 yield dataInput
 
     def allDependencies(self):
-        for dependency in self.lexicalDependencies():
+        for dependency in self.syntacticDependencies():
             yield dependency
-        for dependency in self.controlDependencies():
+        for dependency in self.effectDependencies():
             yield dependency
         for dependency in self.dataDependencies():
             yield dependency
@@ -220,38 +246,41 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def __str__(self) -> str:
         return self.printNameWithDataAttributes()
 
-class ASGErrorNode(ASGNode):
+class ASGSyntacticalNode(ASGNode):
+    syntacticPredecessor = ASGSyntacticPredecessorAttribute()
+
+class ASGSyntacticalErrorNode(ASGSyntacticalNode):
     message = ASGNodeDataAttribute(int)
     innerNodes = ASGNodeDataInputPorts()
 
-class ASGAtomicValueNode(ASGNode):
+class ASGSyntacticalLiteralNode(ASGSyntacticalNode):
     pass
 
-class ASGAtomicCharacterValueNode(ASGAtomicValueNode):
+class ASGSyntacticalLiteralCharacterNode(ASGSyntacticalLiteralNode):
     value = ASGNodeDataAttribute(int)
 
-class ASGAtomicIntegerValueNode(ASGAtomicValueNode):
+class ASGSyntacticalLiteralIntegerNode(ASGSyntacticalLiteralNode):
     value = ASGNodeDataAttribute(int)
 
-class ASGAtomicFloatValueNode(ASGAtomicValueNode):
+class ASGSyntacticalLiteralFloatNode(ASGSyntacticalLiteralNode):
     value = ASGNodeDataAttribute(float)
 
-class ASGAtomicStringValueNode(ASGAtomicValueNode):
+class ASGSyntacticalLiteralStringNode(ASGSyntacticalLiteralNode):
     value = ASGNodeDataAttribute(str)
 
-class ASGAtomicSymbolValueNode(ASGAtomicValueNode):
+class ASGSyntacticalLiteralSymbolNode(ASGSyntacticalLiteralNode):
     value = ASGNodeDataAttribute(str)
 
-class ASGApplicationNode(ASGNode):
+class ASGSyntacticalApplicationNode(ASGSyntacticalNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
     kind = ASGNodeDataAttribute(int, default = 0)
 
-class ASGAssignmentNode(ASGNode):
+class ASGSyntacticalAssignmentNode(ASGSyntacticalNode):
     store = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
 
-class ASGBindableNameNode(ASGNode):
+class ASGSyntacticalBindableNameNode(ASGSyntacticalNode):
     typeExpression = ASGNodeOptionalDataInputPort()
     nameExpression = ASGNodeOptionalDataInputPort()
     isImplicit = ASGNodeDataAttribute(bool, default = False)
@@ -260,98 +289,105 @@ class ASGBindableNameNode(ASGNode):
     isMutable = ASGNodeDataAttribute(bool, default = False)
     hasPostTypeExpression = ASGNodeDataAttribute(bool, default = False)
 
-class ASGBindPatternNode(ASGNode):
+class ASGSyntacticalBindPatternNode(ASGSyntacticalNode):
     pattern = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
 
-class ASGBinaryExpressionSequenceNode(ASGNode):
+class ASGSyntacticalBinaryExpressionSequenceNode(ASGSyntacticalNode):
     elements = ASGNodeDataInputPorts()
 
-class ASGBlockNode(ASGNode):
+class ASGSyntacticalBlockNode(ASGSyntacticalNode):
     functionType = ASGNodeDataInputPort()
     body = ASGNodeDataInputPorts()
 
-class ASGIdentifierReferenceNode(ASGNode):
+class ASGSyntacticalIdentifierReferenceNode(ASGSyntacticalNode):
     value = ASGNodeDataAttribute(str)
 
-class ASGLexicalBlockNode(ASGNode):
+class ASGSyntacticalLexicalBlockNode(ASGSyntacticalNode):
     body = ASGNodeDataInputPort()
 
-class ASGMessageSendNode(ASGNode):
+class ASGSyntacticalMessageSendNode(ASGSyntacticalNode):
     receiver = ASGNodeOptionalDataInputPort()
     selector = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
 
-class ASGDictionaryNode(ASGNode):
+class ASGSyntacticalDictionaryNode(ASGSyntacticalNode):
     elements = ASGNodeDataInputPorts()
 
-class ASGFunctionalDependentTypeNode(ASGNode):
+class ASGSyntacticalFunctionalDependentTypeNode(ASGSyntacticalNode):
     argumentPattern = ASGNodeOptionalDataInputPort()
     resultType = ASGNodeOptionalDataInputPort()
 
-class ASGSequenceNode(ASGNode):
+class ASGSyntacticalSequenceNode(ASGSyntacticalNode):
     elements = ASGNodeDataInputPorts()
 
-class ASGTupleNode(ASGNode):
+class ASGSyntacticalTupleNode(ASGSyntacticalNode):
     elements = ASGNodeDataInputPorts()
 
 class ASGParseTreeFrontEnd(ParseTreeVisitor):
+    def __init__(self):
+        self.lastVisitedNode = None
+
+    def visitNode(self, node: ParseTreeNode):
+        self.lastVisitedNode = super().visitNode(node)
+        return self.lastVisitedNode
+
     def visitErrorNode(self, node: ParseTreeErrorNode):
-        return ASGErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodes(node.innerNodes))
+        return ASGSyntacticalErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodes(node.innerNodes), syntacticPredecessor = self.lastVisitedNode)
 
     def visitApplicationNode(self, node: ParseTreeApplicationNode):
-        return ASGApplicationNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functional), self.transformNodes(node.arguments), node.kind)
+        return ASGSyntacticalApplicationNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functional), self.transformNodes(node.arguments), node.kind, syntacticPredecessor = self.lastVisitedNode)
 
     def visitAssignmentNode(self, node: ParseTreeAssignmentNode):
-        return ASGAssignmentNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.store), self.visitNode(node.value))
+        return ASGSyntacticalAssignmentNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.store), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindPatternNode(self, node: ParseTreeBindPatternNode):
-        return ASGBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.pattern), self.visitNode(node.value))
+        return ASGSyntacticalBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.pattern), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBinaryExpressionSequenceNode(self, node: ParseTreeBinaryExpressionSequenceNode):
-        return ASGBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements))
+        return ASGSyntacticalBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindableNameNode(self, node: ParseTreeBindableNameNode):
-        return ASGBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression)
+        return ASGSyntacticalBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression, syntacticPredecessor = self.lastVisitedNode)
 
     def visitBlockNode(self, node: ParseTreeBlockNode):
-        return ASGBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functionType), self.visitNode(node.body))
+        return ASGSyntacticalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functionType), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
 
     def visitDictionaryNode(self, node: ParseTreeDictionaryNode):
-        return ASGDictionaryNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements))
+        return ASGSyntacticalDictionaryNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitFunctionalDependentTypeNode(self, node: ParseTreeFunctionalDependentTypeNode):
-        return ASGFunctionalDependentTypeNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.argumentPattern), self.visitOptionalNode(node.resultType))
+        return ASGSyntacticalFunctionalDependentTypeNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.argumentPattern), self.visitOptionalNode(node.resultType), syntacticPredecessor = self.lastVisitedNode)
 
     def visitIdentifierReferenceNode(self, node: ParseTreeIdentifierReferenceNode):
-        return ASGIdentifierReferenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value)
+        return ASGSyntacticalIdentifierReferenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLexicalBlockNode(self, node: ParseTreeLexicalBlockNode):
-        return ASGLexicalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.body))
+        return ASGSyntacticalLexicalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralCharacterNode(self, node: ParseTreeLiteralCharacterNode):
-        return ASGAtomicCharacterValueNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value)
+        return ASGSyntacticalLiteralCharacterNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralFloatNode(self, node: ParseTreeLiteralFloatNode):
-        return ASGAtomicFloatValueNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value)
+        return ASGSyntacticalLiteralFloatNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralIntegerNode(self, node: ParseTreeLiteralIntegerNode):
-        return ASGAtomicIntegerValueNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value)
+        return ASGSyntacticalLiteralIntegerNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralSymbolNode(self, node: ParseTreeLiteralSymbolNode):
-        return ASGAtomicSymbolValueNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value)
+        return ASGSyntacticalLiteralSymbolNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralStringNode(self, node: ParseTreeLiteralStringNode):
-        return ASGAtomicStringValueNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value)
+        return ASGSyntacticalLiteralStringNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitMessageSendNode(self, node: ParseTreeMessageSendNode):
-        return ASGMessageSendNode(ASGNodeSourceCodeDerivation, self.visitOptionalNode(node.receiver), self.visitNode(node.selector), self.transformNodes(node.arguments))
+        return ASGSyntacticalMessageSendNode(ASGNodeSourceCodeDerivation, self.visitOptionalNode(node.receiver), self.visitNode(node.selector), self.transformNodes(node.arguments), syntacticPredecessor = self.lastVisitedNode)
 
     def visitSequenceNode(self, node: ParseTreeSequenceNode):
-        return ASGSequenceNode(ASGNodeSourceCodeDerivation, self.transformNodes(node.elements))
+        return ASGSyntacticalSequenceNode(ASGNodeSourceCodeDerivation, self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitTupleNode(self, node: ParseTreeTupleNode):
-        return ASGTupleNode(ASGNodeSourceCodeDerivation, self.transformNodes(node.elements))
+        return ASGSyntacticalTupleNode(ASGNodeSourceCodeDerivation, self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
 def asgTopoSortTraversal(aBlock, node: ASGNode):
     visited = set()
@@ -384,10 +420,10 @@ def asgToDot(node: ASGNode):
 
     for node in sortedNodes:
         nodeName = nodeToNameDictionary[node]
-        for dependency in node.lexicalDependencies():
+        for dependency in node.syntacticDependencies():
             dependencyName = nodeToNameDictionary[dependency]
             result += '  %s -> %s [color = brown]\n' % (nodeName, dependencyName)
-        for dependency in node.controlDependencies():
+        for dependency in node.effectDependencies():
             dependencyName = nodeToNameDictionary[dependency]
             result += '  %s -> %s [color = blue]\n' % (nodeName, dependencyName)
         for dependency in node.dataDependencies():

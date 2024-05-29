@@ -25,6 +25,7 @@ class FrontEndDriver:
         self.mhirModule = None
         self.sdvmModule = None
         self.keepIntermediates = False
+        self.asgPipeline = False
         if sys.platform.startswith('win32'):
             self.sdvmPath = os.path.join(self.topFolder, 'build/bin/sdvm.exe')
         else:
@@ -43,7 +44,8 @@ class FrontEndDriver:
 -I<Dir>                     Adds an include directory.
 -c                          Emits object file.
 -o                          Sets the output file name.
--keep-intermediate         Keep the intermediate files.
+-keep-intermediate          Keep the intermediate files.
+-asg                        Use ASG based pipeline.
 """
         )
 
@@ -72,6 +74,8 @@ class FrontEndDriver:
                     self.emitObjectFile = True
                 elif arg in ['-emit-sdvm']:
                     self.emitSdvm = True
+                elif arg in ['-asg']:
+                    self.asgPipeline = True
                 elif arg in ['-o']:
                     if i >= len(argv):
                         self.printHelp()
@@ -108,14 +112,16 @@ class FrontEndDriver:
         if not ParseTreeErrorVisitor().checkAndPrintErrors(parseTree):
             return False
 
-        asg = ASGParseTreeFrontEnd().visitNode(parseTree)
-        with open('asg.dot', 'w') as outDot:
-            outDot.write(asgToDot(asg))
-
-        ast = ASTParseTreeFrontEnd().visitNode(parseTree)
-        typechecked, typecheckedSucceeded = Typechecker(makeScriptAnalysisEnvironment(self.module, ast.sourcePosition, sourceFile)).typecheckASTAndPrintErrors(ast)
-        self.typecheckedSources.append(typechecked)
-        return typecheckedSucceeded
+        if self.asgPipeline:
+            asg = ASGParseTreeFrontEnd().visitNode(parseTree)
+            with open('asg.dot', 'w') as outDot:
+                outDot.write(asgToDot(asg))
+            return True
+        else:
+            ast = ASTParseTreeFrontEnd().visitNode(parseTree)
+            typechecked, typecheckedSucceeded = Typechecker(makeScriptAnalysisEnvironment(self.module, ast.sourcePosition, sourceFile)).typecheckASTAndPrintErrors(ast)
+            self.typecheckedSources.append(typechecked)
+            return typecheckedSucceeded
 
     def parseAndTypecheckSourceFiles(self):
         from sysmel.value import Symbol, Module
@@ -188,6 +194,10 @@ class FrontEndDriver:
     def runPipeline(self):
         if not self.parseAndTypecheckSourceFiles():
             return False
+
+        if self.asgPipeline:
+            return True
+
         if not self.evaluateTypecheckedSources():
             return False
 

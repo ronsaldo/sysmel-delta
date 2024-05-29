@@ -1,0 +1,29 @@
+{
+    "files.associations": {
+        "*.inc": "c",
+        "*.tcc": "c",
+        "deque": "c",
+        "list": "c",
+        "string": "c",
+        "unordered_map": "c",
+        "vector": "c",
+        "system_error": "c",
+        "typeinfo": "c",
+        "array": "c",
+        "compare": "c",
+        "functional": "c",
+        "istream": "c",
+        "ostream": "c",
+        "ranges": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "span": "c",
+        "optional": "c",
+        "elf.h": "c",
+        "utils.h": "c",
+        "macho.h": "c"
+    }
+}
