@@ -101,7 +101,7 @@ class FrontEndDriver:
         from sysmel.parser import parseFileNamed
         from sysmel.parsetree import ParseTreeErrorVisitor
         from sysmel.ast import ASTParseTreeFrontEnd
-        from sysmel.asg import ASGParseTreeFrontEnd
+        from sysmel.asg import ASGParseTreeFrontEnd, asgToDot
         from sysmel.typechecker import Typechecker
         from sysmel.environment import makeScriptAnalysisEnvironment
         parseTree = parseFileNamed(sourceFile)
@@ -109,7 +109,8 @@ class FrontEndDriver:
             return False
 
         asg = ASGParseTreeFrontEnd().visitNode(parseTree)
-        print(asg)
+        with open('asg.dot', 'w') as outDot:
+            outDot.write(asgToDot(asg))
 
         ast = ASTParseTreeFrontEnd().visitNode(parseTree)
         typechecked, typecheckedSucceeded = Typechecker(makeScriptAnalysisEnvironment(self.module, ast.sourcePosition, sourceFile)).typecheckASTAndPrintErrors(ast)

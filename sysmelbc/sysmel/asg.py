@@ -47,6 +47,9 @@ class ASGNodeAttributeDescriptor:
 
     def isDataInputPort(self) -> bool:
         return False
+    
+    def getDataInputsOf(self, instance):
+        return []
 
 class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
     def isConstructionAttribute(self) -> bool:
@@ -80,6 +83,9 @@ class ASGNodeDataInputPort(ASGNodeConstructionAttribute):
     def isDataInputPort(self) -> bool:
         return True
 
+    def getDataInputsOf(self, instance):
+        return [self.loadValueFrom(instance)]
+
 class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttribute):
     def isConstructionAttribute(self) -> bool:
         return True
@@ -87,12 +93,21 @@ class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttribute):
     def isDataInputPort(self) -> bool:
         return True
 
+    def getDataInputsOf(self, instance):
+        value =  self.loadValueFrom(instance)
+        if value is None:
+            return []
+        return [value]
+
 class ASGNodeDataInputPorts(ASGNodeConstructionAttribute):
     def isConstructionAttribute(self) -> bool:
         return True
 
     def isDataInputPort(self) -> bool:
         return True
+
+    def getDataInputsOf(self, instance):
+        return self.loadValueFrom(instance)
 
 class ASGNodeMetaclass(type):
     def __new__(cls, name, bases, attributes):
@@ -119,6 +134,7 @@ class ASGNodeMetaclass(type):
             constructionAttributeDictionary[attr.name] = attr
             
         nodeClass = super().__new__(cls, name, bases, attributes)
+        nodeClass.__asgKindName__ = name.removeprefix('ASG').removesuffix('Node')
         nodeClass.__asgAttributeDescriptors__ = descriptors
         nodeClass.__asgSpecialAttributes__ = specialAttributes
         nodeClass.__asgConstructionAttributes__ = constructionAttributes
@@ -147,6 +163,30 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             if key not in constructionAttributeDictionary:
                 raise Exception('Failed to find attribute %s in %s' % (str(key), repr(self.__class__)))
             constructionAttributeDictionary[key].initializeWithConstructorValueOn(value, self)
+
+    def dataInputs(self):
+        for port in self.__class__.__asgDataInputPorts__:
+            for dataInput in port.getDataInputsOf(self):
+                yield dataInput
+
+    def dependencies(self):
+        return self.dataInputs()
+    
+    def printNameWithDataAttributes(self) -> str:
+        result = self.__class__.__asgKindName__
+        attributes = self.__class__.__asgDataAttributes__
+        if len(attributes) != 0:
+            result += '('
+            for i in range(len(attributes)):
+                if i > 0:
+                    result += ', '
+                attribute: ASGNodeAttributeDescriptor = attributes[i]
+                result += attribute.name
+                result += ' = '
+                result += repr(attribute.loadValueFrom(self))
+            result += ')'
+                
+        return result
 
 class ASGErrorNode(ASGNode):
     message = ASGNodeDataAttribute(int)
@@ -180,8 +220,8 @@ class ASGAssignmentNode(ASGNode):
     value = ASGNodeDataInputPort()
 
 class ASGBindableNameNode(ASGNode):
-    typeExpression = ASGNodeDataInputPort()
-    nameExpression = ASGNodeDataInputPort()
+    typeExpression = ASGNodeOptionalDataInputPort()
+    nameExpression = ASGNodeOptionalDataInputPort()
     isImplicit = ASGNodeDataAttribute(bool)
     isExistential = ASGNodeDataAttribute(bool)
     isVariadic = ASGNodeDataAttribute(bool)
@@ -203,7 +243,7 @@ class ASGIdentifierReferenceNode(ASGNode):
     value = ASGNodeDataAttribute(str)
 
 class ASGLexicalBlockNode(ASGNode):
-    body = ASGNodeDataInputPorts()
+    body = ASGNodeDataInputPort()
 
 class ASGMessageSendNode(ASGNode):
     receiver = ASGNodeOptionalDataInputPort()
@@ -280,3 +320,40 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
 
     def visitTupleNode(self, node: ParseTreeTupleNode):
         return ASGTupleNode(ASGNodeSourceCodeDerivation, self.transformNodes(node.elements))
+
+def asgTopoSortTraversal(aBlock, node: ASGNode):
+    visited = set()
+    def visitNode(node):
+        if node in visited:
+            return
+        
+        visited.add(node)
+        for dependency in node.dependencies():
+            visitNode(dependency)
+        aBlock(node)
+
+    visitNode(node)
+
+def asgTopoSort(node: ASGNode):
+    sorted = []
+    asgTopoSortTraversal(sorted.append, node)
+    return sorted
+
+def asgToDot(node: ASGNode):
+    sortedNodes = asgTopoSort(node)
+    nodeToNameDictionary = {}
+    nodeCount = 0
+    result = 'digraph {\n'
+    for node in sortedNodes:
+        nodeName = 'N%d' % nodeCount
+        nodeToNameDictionary[node] = nodeName
+        result += '  N%d [label="%s"]\n' % (nodeCount, node.printNameWithDataAttributes().replace('\\', '\\\\').replace('"', '\"'))
+        nodeCount += 1
+
+    for node in sortedNodes:
+        nodeName = nodeToNameDictionary[node]
+        for dependency in node.dependencies():
+            dependencyName = nodeToNameDictionary[dependency]
+            result += '  %s -> %s\n' % (nodeName, dependencyName)
+    result += '}\n'
+    return result
