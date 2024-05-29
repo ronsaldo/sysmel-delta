@@ -24,6 +24,9 @@ class ASGNodeAttributeDescriptor:
     def loadValueFrom(self, instance):
         return getattr(instance, self.storageName)
     
+    def hasDefaultValueIn(self, instance) -> bool:
+        return False
+    
     def storeValueIn(self, value, instance):
         setattr(instance, self.storageName, value)
 
@@ -59,9 +62,17 @@ class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
         self.storeValueIn(constructorValue, instance)
 
 class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
-    def __init__(self, type) -> None:
+    def __init__(self, type, **kwArguments) -> None:
         super().__init__()
         self.type = type
+        self.hasDefaultValue = False
+        self.defaultValue = None
+        if 'default' in kwArguments:
+            self.hasDefaultValue = True
+            self.defaultValue = kwArguments['default']
+
+    def hasDefaultValueIn(self, instance) -> bool:
+        return self.hasDefaultValue and self.loadValueFrom(instance) == self.defaultValue
 
     def isDataAttribute(self) -> bool:
         return True
@@ -164,29 +175,50 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 raise Exception('Failed to find attribute %s in %s' % (str(key), repr(self.__class__)))
             constructionAttributeDictionary[key].initializeWithConstructorValueOn(value, self)
 
-    def dataInputs(self):
+    def lexicalDependencies(self):
+        return []
+
+    def controlDependencies(self):
+        return []
+
+    def dataDependencies(self):
         for port in self.__class__.__asgDataInputPorts__:
             for dataInput in port.getDataInputsOf(self):
                 yield dataInput
 
-    def dependencies(self):
-        return self.dataInputs()
+    def allDependencies(self):
+        for dependency in self.lexicalDependencies():
+            yield dependency
+        for dependency in self.controlDependencies():
+            yield dependency
+        for dependency in self.dataDependencies():
+            yield dependency
     
     def printNameWithDataAttributes(self) -> str:
         result = self.__class__.__asgKindName__
-        attributes = self.__class__.__asgDataAttributes__
-        if len(attributes) != 0:
-            result += '('
-            for i in range(len(attributes)):
-                if i > 0:
-                    result += ', '
-                attribute: ASGNodeAttributeDescriptor = attributes[i]
-                result += attribute.name
-                result += ' = '
-                result += repr(attribute.loadValueFrom(self))
+        attributes: list[ASGNodeAttributeDescriptor] = self.__class__.__asgDataAttributes__
+        destIndex = 0;
+        for attribute in attributes:
+            if attribute.hasDefaultValueIn(self):
+                continue
+
+            if destIndex == 0:
+                result += '('
+            else:
+                result += ', '
+
+            result += attribute.name
+            result += ' = '
+            result += repr(attribute.loadValueFrom(self))
+            destIndex += 1
+
+        if destIndex != 0:
             result += ')'
                 
         return result
+    
+    def __str__(self) -> str:
+        return self.printNameWithDataAttributes()
 
 class ASGErrorNode(ASGNode):
     message = ASGNodeDataAttribute(int)
@@ -213,7 +245,7 @@ class ASGAtomicSymbolValueNode(ASGAtomicValueNode):
 class ASGApplicationNode(ASGNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
-    kind = ASGNodeDataAttribute(int)
+    kind = ASGNodeDataAttribute(int, default = 0)
 
 class ASGAssignmentNode(ASGNode):
     store = ASGNodeDataInputPort()
@@ -222,11 +254,11 @@ class ASGAssignmentNode(ASGNode):
 class ASGBindableNameNode(ASGNode):
     typeExpression = ASGNodeOptionalDataInputPort()
     nameExpression = ASGNodeOptionalDataInputPort()
-    isImplicit = ASGNodeDataAttribute(bool)
-    isExistential = ASGNodeDataAttribute(bool)
-    isVariadic = ASGNodeDataAttribute(bool)
-    isMutable = ASGNodeDataAttribute(bool)
-    hasPostTypeExpression = ASGNodeDataAttribute(bool)
+    isImplicit = ASGNodeDataAttribute(bool, default = False)
+    isExistential = ASGNodeDataAttribute(bool, default = False)
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+    isMutable = ASGNodeDataAttribute(bool, default = False)
+    hasPostTypeExpression = ASGNodeDataAttribute(bool, default = False)
 
 class ASGBindPatternNode(ASGNode):
     pattern = ASGNodeDataInputPort()
@@ -328,7 +360,7 @@ def asgTopoSortTraversal(aBlock, node: ASGNode):
             return
         
         visited.add(node)
-        for dependency in node.dependencies():
+        for dependency in node.allDependencies():
             visitNode(dependency)
         aBlock(node)
 
@@ -352,8 +384,14 @@ def asgToDot(node: ASGNode):
 
     for node in sortedNodes:
         nodeName = nodeToNameDictionary[node]
-        for dependency in node.dependencies():
+        for dependency in node.lexicalDependencies():
             dependencyName = nodeToNameDictionary[dependency]
-            result += '  %s -> %s\n' % (nodeName, dependencyName)
+            result += '  %s -> %s [color = brown]\n' % (nodeName, dependencyName)
+        for dependency in node.controlDependencies():
+            dependencyName = nodeToNameDictionary[dependency]
+            result += '  %s -> %s [color = blue]\n' % (nodeName, dependencyName)
+        for dependency in node.dataDependencies():
+            dependencyName = nodeToNameDictionary[dependency]
+            result += '  %s -> %s [color = green]\n' % (nodeName, dependencyName)
     result += '}\n'
     return result
