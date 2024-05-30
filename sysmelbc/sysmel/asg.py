@@ -158,10 +158,14 @@ class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
         self.type = type
         self.hasDefaultValue = False
         self.defaultValue = None
+        self.isCompared = 'notCompared' not in kwArguments
         if 'default' in kwArguments:
             self.hasDefaultValue = True
             self.defaultValue = kwArguments['default']
 
+    def isComparedForUnification(self) -> bool:
+        return self.isCompared
+    
     def hasDefaultValueIn(self, instance) -> bool:
         return self.hasDefaultValue and self.loadValueFrom(instance) == self.defaultValue
 
@@ -457,6 +461,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def asASGTypeNodeDerivation(self):
         return self.asASGNodeDerivation()
     
+    def isCapturableValueNode(self) -> bool:
+        return False
+
     def isTypeNode(self) -> bool:
         return False
 
@@ -616,6 +623,9 @@ class ASGSyntaxBindableNameNode(ASGSyntaxNode):
                 self.typeExpression, self.nameExpression, value,
                 self.isMutable)
 
+    def parseAndUnpackArgumentsPattern(self):
+        return [self], self.isExistential, self.isVariadic
+    
 class ASGSyntaxBindPatternNode(ASGSyntaxNode):
     pattern = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
@@ -651,11 +661,40 @@ class ASGSyntaxFunctionalDependentTypeNode(ASGSyntaxNode):
     argumentPattern = ASGNodeOptionalDataInputPort()
     resultType = ASGNodeOptionalDataInputPort()
 
+class ASGSyntaxPiNode(ASGSyntaxNode):
+    arguments = ASGNodeDataInputPorts()
+    resultType = ASGNodeOptionalDataInputPort()
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+    callingConvention = ASGNodeDataAttribute(str, default = None)
+
+class ASGSyntaxSigmaNode(ASGSyntaxNode):
+    arguments = ASGNodeDataInputPorts()
+    resultType = ASGNodeOptionalDataInputPort()
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+
+class ASGSyntaxLambdaNode(ASGSyntaxNode):
+    nameExpression = ASGNodeOptionalDataInputPort()
+    arguments = ASGNodeDataInputPorts()
+    resultType = ASGNodeOptionalDataInputPort()
+    body = ASGNodeDataInputPorts()
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+    isFixpoint = ASGNodeDataAttribute(bool, default = False)
+    callingConvention = ASGNodeDataAttribute(str, default = None)
+
 class ASGSyntaxSequenceNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
 
 class ASGSyntaxTupleNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
+
+    def parseAndUnpackArgumentsPattern(self):
+        isExistential = False
+        isVariadic = False
+        if len(self.elements) == 1 and self.elements[0].isBindableNameNode():
+            isExistential = self.elements[0].isExistential
+        if len(self.elements) > 0 and self.elements[-1].isBindableNameNode():
+            isVariadic = self.elements[-1].isVariadic
+        return self.elements, isExistential, isVariadic
 
 class ASGParseTreeFrontEnd(ParseTreeVisitor):
     def __init__(self):
@@ -812,6 +851,18 @@ class ASGTypeNode(ASGTypecheckedNode):
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return environment.getTopLevelTargetEnvironment().getTypeUniverseWithIndex(self.getTypeUniverseIndex())
 
+class ASGTypedCapturableValueNode(ASGTypedDataExpressionNode):
+    def isCapturableValueNode(self) -> bool:
+        return True
+
+class ASGTypedArgumentNode(ASGTypedCapturableValueNode):
+    index = ASGNodeDataAttribute(int)
+    isImplicit = ASGNodeDataAttribute(bool, default = False)
+    name = ASGNodeDataAttribute(str, default = None, notCompared = True)
+
+class ASGTypedCapturedValueNode(ASGTypedCapturableValueNode):
+    pass
+
 class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
 
@@ -852,6 +903,15 @@ class ASGTypedTupleNode(ASGTypedDataExpressionNode):
 
 class ASGSumTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
+
+class ASGSigmaTypeNode(ASGTypeNode):
+    arguments = ASGNodeDataInputPorts()
+    resultType = ASGNodeTypeInputNode()
+
+class ASGPiTypeNode(ASGTypeNode):
+    arguments = ASGNodeDataInputPorts()
+    resultType = ASGNodeTypeInputNode()
+    callingConvention = ASGNodeDataAttribute(str, default = None)
 
 def asgTopoSortTraversal(aBlock, node: ASGNode):
     visited = set()
@@ -1075,14 +1135,13 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addSymbolValue(baseType.name, baseType)
 
     def addSymbolValue(self, name: str, value: ASGNode):
-        if name not in self.symbolTable:
-            self.symbolTable[name] = []
-        self.symbolTable[name].append(value)
+        if name is not None:
+            self.symbolTable[name] = [value] + self.symbolTable.get(name, [])
 
     def lookLastBindingOf(self, name: str):
         if not name in self.symbolTable:
             return None
-        return self.symbolTable[name][-1]
+        return self.symbolTable[name][0]
 
     def getTopLevelTargetEnvironment(self):
         return self
@@ -1129,9 +1188,8 @@ class ASGChildEnvironmentWithBindings(ASGChildEnvironment):
         self.symbolTable = dict(self.symbolTable)
 
     def addSymbolBinding(self, symbol: str, binding: ASGNode):
-        if symbol not in self.symbolTable:
-            self.symbolTable[symbol] = []
-        self.symbolTable[symbol].append(binding)
+        if symbol is not None:
+            self.symbolTable[symbol] = [binding] + self.symbolTable.get(symbol, [])
 
     def childWithSymbolBinding(self, symbol: str, binding: ASGNode):
         child = copy.copy(self)
@@ -1145,6 +1203,17 @@ class ASGChildEnvironmentWithBindings(ASGChildEnvironment):
 class ASGLexicalEnvironment(ASGChildEnvironment):
     def isLexicalEnvironment(self):
         return True
+
+class ASGFunctionalAnalysisEnvironment(ASGLexicalEnvironment):
+    def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(parent, sourcePosition)
+        self.arguments = []
+        self.symbolTable = {}
+
+    def addArgumentBinding(self, argument: ASGTypedArgumentNode):
+        self.arguments.append(argument)
+        if argument.name is not None:
+            self.symbolTable[argument.name] = [argument] + self.symbolTable.get(argument.name, [])
 
 class ASGScriptEnvironment(ASGLexicalEnvironment):
     def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script') -> None:
@@ -1222,10 +1291,15 @@ class ASGBuilderWithGVN:
         return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGSequenceExpression, valueOrSequenceNode, predecessor = predecessor)
     
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
-    def __init__(self, environment: ASGEnvironment) -> None:
+    def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVN = None) -> None:
         super().__init__()
         self.environment = environment
-        self.builder = ASGBuilderWithGVN(None, self.environment.getTopLevelTargetEnvironment())
+        self.builder = builder
+        if self.builder is None:
+            self.builder = ASGBuilderWithGVN(None, self.environment.getTopLevelTargetEnvironment())
+
+    def withFunctionalAnalysisEnvironment(self, newEnvironment: ASGFunctionalAnalysisEnvironment):
+        return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()))
 
     def syntaxPredecessorOf(self, node: ASGSyntaxNode):
         predecessor = node.syntacticPredecessor
@@ -1262,6 +1336,18 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
         self.makeErrorAtNode('Expected a literal symbol.', node)
         return None
+    
+    def analyzeArgumentNode(self, node: ASGNode, index: int) -> ASGTypedArgumentNode:
+        if node.__class__ is not ASGSyntaxBindableNameNode:
+            return self.makeErrorAtNode('Expected a bindable name node for defining the argument.', node)
+
+        bindableName: ASGSyntaxBindableNameNode = node
+        type = self.analyzeOptionalTypeExpression(bindableName.typeExpression)
+        if type is None:
+            type = self.builder.topLevelIdentifier('Any')
+
+        name = self.evaluateOptionalSymbol(bindableName.nameExpression)
+        return self.builder.forSyntaxExpansionBuild(self, node, ASGTypedArgumentNode, type, index, name, isImplicit = bindableName.isImplicit)
 
     def analyzeTypeExpression(self, node: ASGNode) -> ASGTypecheckedNode:
         analyzedNode = self(node).asASGTypeNode()
@@ -1298,11 +1384,34 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         return value
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxFunctionalDependentTypeNode)
-    def expandSyntaxBindindingDefinitionNode(self, node: ASGSyntaxFunctionalDependentTypeNode) -> ASGTypecheckedNode:
+    def expandSyntaxFunctionalDependentTypeNode(self, node: ASGSyntaxFunctionalDependentTypeNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
-        assert False
 
-    @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
+        if node.argumentPattern is None:
+            return self(ASGSyntaxPiNode(ASGNodeSyntaxExpansionDerivation(self, node), [], node.resultType))
+
+        argumentNodes, isExistential, isVariadic = node.argumentPattern.parseAndUnpackArgumentsPattern()
+        if isExistential:
+            return self(ASGSyntaxSigmaNode(ASGNodeSyntaxExpansionDerivation(self, node), argumentNodes, node.resultType, isVariadic = isVariadic))
+        else:
+            return self(ASGSyntaxPiNode(ASGNodeSyntaxExpansionDerivation(self, node), argumentNodes, node.resultType, isVariadic = isVariadic))
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxPiNode)
+    def expandSyntaxPiNode(self, node: ASGSyntaxPiNode) -> ASGTypecheckedNode:
+        functionalEnvironment = ASGFunctionalAnalysisEnvironment(self.environment, node.sourceDerivation.getSourcePosition())
+        functionalAnalyzer = self.withFunctionalAnalysisEnvironment(functionalEnvironment)
+        typedArguments = []
+        arguments = node.arguments
+        for i in range(len(arguments)):
+            argument = arguments[i]
+            typedArgument = functionalAnalyzer.analyzeArgumentNode(argument, i)
+            functionalEnvironment = functionalEnvironment.addArgumentBinding(typedArgument)
+            typedArguments.append(typedArgument)
+        functionalAnalyzer.builder.currentPredecessor = None
+
+        resultType = functionalAnalyzer.analyzeTypeExpression(node.resultType)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiTypeNode, typedArguments, resultType, callingConvention = node.callingConvention)
+
     def expandSyntaxLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         type = self.builder.topLevelIdentifier('Integer')
