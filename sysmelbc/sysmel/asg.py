@@ -609,6 +609,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 
         return result
     
+    def prettyPrintNameWithDataAttributes(self) -> str:
+        return self.printNameWithDataAttributes()
+    
     def hasSequencingPredecessorOf(self, predecessor) -> bool:
         return False
     
@@ -952,7 +955,7 @@ class ASGTypedCapturableValueNode(ASGTypedDataExpressionNode):
     def isCapturableValueNode(self) -> bool:
         return True
 
-class ASGTypedArgumentNode(ASGTypedCapturableValueNode):
+class ASGArgumentNode(ASGTypedCapturableValueNode):
     index = ASGNodeDataAttribute(int)
     name = ASGNodeDataAttribute(str, default = None, notCompared = True)
     isImplicit = ASGNodeDataAttribute(bool, default = False)
@@ -962,6 +965,12 @@ class ASGTypedCapturedValueNode(ASGTypedCapturableValueNode):
 
 class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
+
+    def prettyPrintNameWithDataAttributes(self):
+        if self.name is not None:
+            return self.name
+        else:
+            return super().prettyPrintNameWithDataAttributes()
 
 class ASGUnitTypeNode(ASGBaseTypeNode):
     pass
@@ -995,10 +1004,10 @@ class ASGTypeUniverseNode(ASGTypeNode):
 class ASGProductTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
 
-class ASGTypedTupleNode(ASGTypedDataExpressionNode):
+class ASGTupleNode(ASGTypedDataExpressionNode):
     elements = ASGNodeDataInputPorts()
 
-class ASGTypedLambdaNode(ASGTypedDataExpressionNode):
+class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     resultType = ASGNodeTypeInputNode()
     entryPoint = ASGSequencingDestinationPort()
@@ -1008,11 +1017,11 @@ class ASGTypedLambdaNode(ASGTypedDataExpressionNode):
 class ASGSumTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
 
-class ASGSigmaTypeNode(ASGTypeNode):
+class ASGSigmaNode(ASGTypeNode):
     arguments = ASGNodeDataInputPorts()
     resultType = ASGNodeTypeInputNode()
 
-class ASGPiTypeNode(ASGTypeNode):
+class ASGPiNode(ASGTypeNode):
     arguments = ASGNodeDataInputPorts()
     resultType = ASGNodeTypeInputNode()
     callingConvention = ASGNodeDataAttribute(str, default = None)
@@ -1044,7 +1053,7 @@ def asgToDot(node: ASGNode):
     for node in sortedNodes:
         nodeName = 'N%d' % nodeCount
         nodeToNameDictionary[node] = nodeName
-        result += '  N%d [label="%s"]\n' % (nodeCount, node.printNameWithDataAttributes().replace('\\', '\\\\').replace('"', '\\"'))
+        result += '  N%d [label="%s"]\n' % (nodeCount, node.prettyPrintNameWithDataAttributes().replace('\\', '\\\\').replace('"', '\\"'))
         nodeCount += 1
 
     for node in sortedNodes:
@@ -1319,7 +1328,7 @@ class ASGFunctionalAnalysisEnvironment(ASGLexicalEnvironment):
         self.arguments = []
         self.symbolTable = {}
 
-    def addArgumentBinding(self, argument: ASGTypedArgumentNode):
+    def addArgumentBinding(self, argument: ASGArgumentNode):
         self.arguments.append(argument)
         if argument.name is not None:
             self.symbolTable[argument.name] = [argument] + self.symbolTable.get(argument.name, [])
@@ -1451,7 +1460,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         self.makeErrorAtNode('Expected a literal symbol.', node)
         return None
     
-    def analyzeArgumentNode(self, node: ASGNode, index: int) -> ASGTypedArgumentNode:
+    def analyzeArgumentNode(self, node: ASGNode, index: int) -> ASGArgumentNode:
         if node.__class__ is not ASGSyntaxBindableNameNode:
             return self.makeErrorAtNode('Expected a bindable name node for defining the argument.', node)
 
@@ -1461,7 +1470,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             type = self.builder.topLevelIdentifier('Any')
 
         name = self.evaluateOptionalSymbol(bindableName.nameExpression)
-        return self.builder.forSyntaxExpansionBuild(self, node, ASGTypedArgumentNode, type, index, name, isImplicit = bindableName.isImplicit)
+        return self.builder.forSyntaxExpansionBuild(self, node, ASGArgumentNode, type, index, name, isImplicit = bindableName.isImplicit)
 
     def analyzeTypeExpression(self, node: ASGNode) -> ASGTypecheckedNode:
         analyzedNode = self(node).asASGTypeNode()
@@ -1557,7 +1566,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         functionalAnalyzer.builder.currentPredecessor = None
 
         resultType = functionalAnalyzer.analyzeTypeExpression(node.resultType)
-        piType = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiTypeNode, typedArguments, resultType, callingConvention = node.callingConvention)
+        piType = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiNode, typedArguments, resultType, callingConvention = node.callingConvention)
 
         functionalAnalyzer.builder.currentPredecessor = None
         entryPoint = functionalAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGEntryPointNode)
@@ -1567,7 +1576,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             return body
         body = functionalAnalyzer.builder.forSyntaxExpansionSequence(functionalAnalyzer, node, functionalAnalyzer.builder.currentPredecessor, body)
 
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLambdaNode, piType, typedArguments, resultType, entryPoint, [body], callingConvention = node.callingConvention)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, resultType, entryPoint, [body], callingConvention = node.callingConvention)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxPiNode)
     def expandSyntaxPiNode(self, node: ASGSyntaxPiNode) -> ASGTypecheckedNode:
@@ -1583,7 +1592,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         functionalAnalyzer.builder.currentPredecessor = None
 
         resultType = functionalAnalyzer.analyzeTypeExpression(node.resultType)
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiTypeNode, typedArguments, resultType, callingConvention = node.callingConvention)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiNode, typedArguments, resultType, callingConvention = node.callingConvention)
 
     def expandSyntaxLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
@@ -1638,7 +1647,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
         elementTypes = list(map(lambda n: n.asASGDataNode().getTypeInEnvironment(self.environment), elements))
         type = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGProductTypeNode, elementTypes)
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedTupleNode, type, elements)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTupleNode, type, elements)
     
     @asgPatternMatchingOnNodeKind(ASGTypecheckedNode)
     def expandSyntaxTypecheckedNode(self, node: ASGTypecheckedNode) -> ASGTypecheckedNode:
