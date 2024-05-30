@@ -810,7 +810,7 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return ASGSyntaxAssignmentNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.store), self.visitNodeWithoutSequencing(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindPatternNode(self, node: ParseTreeBindPatternNode):
-        return ASGSyntaxBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.pattern), self.visitNodeWithoutSequencing(node.value), syntacticPredecessor = self.lastVisitedNode, allowsRebind = True)
+        return ASGSyntaxBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.pattern), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode, allowsRebind = True)
 
     def visitBinaryExpressionSequenceNode(self, node: ParseTreeBinaryExpressionSequenceNode):
         return ASGSyntaxBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
