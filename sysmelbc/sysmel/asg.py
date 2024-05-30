@@ -612,6 +612,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def hasSequencingPredecessorOf(self, predecessor) -> bool:
         return False
     
+    def isSequencingNodeForExpression(self, expression) -> bool:
+        return False
+    
     def __str__(self) -> str:
         return self.printNameWithDataAttributes()
 
@@ -893,6 +896,9 @@ class ASGSequenceExpressionNode(ASGSequencingNode):
     
     def hasSequencingPredecessorOf(self, predecessor) -> bool:
         return self is predecessor or self.predecessor is predecessor
+    
+    def isSequencingNodeForExpression(self, expression) -> bool:
+        return self.expression is expression
 
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
@@ -1394,6 +1400,8 @@ class ASGBuilderWithGVN:
         else:
             if valueOrSequenceNode.hasSequencingPredecessorOf(predecessor):
                 return valueOrSequenceNode
+            elif predecessor.isSequencingNodeForExpression(valueOrSequenceNode):
+                return predecessor
         return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGSequenceExpressionNode, valueOrSequenceNode, predecessor = predecessor)
 
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
