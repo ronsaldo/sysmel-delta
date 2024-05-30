@@ -105,6 +105,9 @@ class ASGNodeAttributeDescriptor:
     def isTypeInputPort(self) -> bool:
         return False
     
+    def isSequencingDestinationPort(self) -> bool:
+        return False
+    
     def getNodeInputsOf(self, instance):
         return []
     
@@ -227,6 +230,23 @@ class ASGSequencingPredecessorAttribute(ASGPredecessorAttribute):
         else:
             self.storeValueIn(constructorValue.asASGSequencingNode(), instance)
             self.storeSourceDerivationIn(constructorValue.asASGSequencingNodeDerivation(), instance)
+    
+class ASGSequencingDestinationPort(ASGNodeConstructionAttributeWithSourceDerivation):
+    def isSequencingDestinationPort(self) -> bool:
+        return True
+
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        self.storeValueIn(constructorValue.asASGSequencingNode(), instance)
+        self.storeSourceDerivationIn(constructorValue.asASGSequencingNodeDerivation(), instance)
+
+    def getNodeInputsOf(self, instance):
+        return [self.loadValueFrom(instance)]
+    
+    def hashFrom(self, instance) -> int:
+        return self.loadValueFrom(instance).unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        return self.loadValueFrom(first).unificationEquals(self.loadValueFrom(second))
     
 class ASGNodeDataInputPort(ASGNodeConstructionAttributeWithSourceDerivation):
     def initializeWithConstructorValueOn(self, constructorValue, instance):
@@ -409,6 +429,7 @@ class ASGNodeMetaclass(type):
         dataAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataAttribute(), descriptors))
         dataInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataInputPort(), descriptors))
         typeInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isTypeInputPort(), descriptors))
+        destinationPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSequencingDestinationPort(), descriptors))
 
         numberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and desc.isNumberedConstructionAttribute(), descriptors))
         unnumberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and not desc.isNumberedConstructionAttribute(), descriptors))
@@ -429,6 +450,7 @@ class ASGNodeMetaclass(type):
         nodeClass.__asgDataAttributes__ = dataAttributes
         nodeClass.__asgDataInputPorts__ = dataInputPorts
         nodeClass.__asgTypeInputPorts__ = typeInputPorts
+        nodeClass.__asgDestinationPorts__ = destinationPorts
         return nodeClass
 
 class ASGNode(metaclass = ASGNodeMetaclass):
@@ -523,6 +545,11 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             return None
 
         return self.asASGNodeDerivation()
+
+    def explicitDestinations(self):
+        for port in self.__class__.__asgDestinationPorts__:
+            for predecessor in port.getNodeInputsOf(self):
+                yield predecessor
 
     def sequencingDependencies(self):
         for port in self.__class__.__asgSequencingPredecessors__:
@@ -833,12 +860,24 @@ class ASGTypecheckedNode(ASGNode):
     def asASGNodeDerivation(self):
         return self.sourceDerivation
 
-class ASGSequenceExpression(ASGTypecheckedNode):
+class ASGSequencingNode(ASGTypecheckedNode):
+    def isPureDataNode(self) -> bool:
+        return False
+
+    def isSequencingNode(self) -> bool:
+        return True
+
+class ASGEntryPointNode(ASGSequencingNode):
+
+    def isEntryPointNode(self) -> bool:
+        return True
+
+class ASGSequenceExpressionNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
     expression = ASGNodeDataInputPort()
 
-    def isPureDataNode(self) -> bool:
-        return False
+    def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
+        return self.expression.getTypeInEnvironment(environment)
     
     def asASGDataNode(self):
         return self.expression.asASGDataNode()
@@ -852,9 +891,6 @@ class ASGSequenceExpression(ASGTypecheckedNode):
     def asASGTypeNodeDerivation(self):
         return self.expression.asASGTypeNodeDerivation()
     
-    def isSequencingNode(self) -> bool:
-        return True
-
     def hasSequencingPredecessorOf(self, predecessor) -> bool:
         return self is predecessor or self.predecessor is predecessor
 
@@ -959,6 +995,7 @@ class ASGTypedTupleNode(ASGTypedDataExpressionNode):
 class ASGTypedLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     resultType = ASGNodeTypeInputNode()
+    entryPoint = ASGSequencingDestinationPort()
     result = ASGNodeDataAndSequencingInputPorts()
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
@@ -1001,7 +1038,7 @@ def asgToDot(node: ASGNode):
     for node in sortedNodes:
         nodeName = 'N%d' % nodeCount
         nodeToNameDictionary[node] = nodeName
-        result += '  N%d [label="%s"]\n' % (nodeCount, node.printNameWithDataAttributes().replace('\\', '\\\\').replace('"', '\"'))
+        result += '  N%d [label="%s"]\n' % (nodeCount, node.printNameWithDataAttributes().replace('\\', '\\\\').replace('"', '\\"'))
         nodeCount += 1
 
     for node in sortedNodes:
@@ -1021,6 +1058,11 @@ def asgToDot(node: ASGNode):
         for dependency in node.typeDependencies():
             dependencyName = nodeToNameDictionary[dependency]
             result += '  %s -> %s [color = yellow]\n' % (nodeName, dependencyName)
+
+        for destination in node.explicitDestinations():
+            destinationName = nodeToNameDictionary[destination]
+            result += '  %s -> %s [color = cyan]\n' % (nodeName, destinationName)
+
     result += '}\n'
     return result
 
@@ -1352,7 +1394,7 @@ class ASGBuilderWithGVN:
         else:
             if valueOrSequenceNode.hasSequencingPredecessorOf(predecessor):
                 return valueOrSequenceNode
-        return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGSequenceExpression, valueOrSequenceNode, predecessor = predecessor)
+        return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGSequenceExpressionNode, valueOrSequenceNode, predecessor = predecessor)
 
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVN = None) -> None:
@@ -1377,14 +1419,14 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedErrorNode, type, message)
     
     def analyzeNodeWithExpectedType(self, node: ASGNode, expectedType: ASGNode) -> ASGTypecheckedNode:
-        analyzedNode = self(node)
+        analyzedNode = self(node).asASGDataNode()
         if expectedType is None:
             return analyzedNode, True
 
-        analyzedNodeType = analyzedNode.asASGDataNode().getTypeInEnvironment(self.environment)
-        if analyzedNodeType.unificationEquals(expectedType):
+        analyzedNodeType = analyzedNode.getTypeInEnvironment(self.environment)
+        if analyzedNodeType.unificationEquals(expectedType.asASGTypeNode()):
             return analyzedNode, True
-        return self.makeErrorAtNode(node, 'Type checking failure. Expected %s instead of %s.' % (str(expectedType), str(analyzedNodeType))), False
+        return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (str(expectedType), str(analyzedNodeType)), node), False
     
     def evaluateOptionalSymbol(self, node: ASGNode) -> str:
         if node is None:
@@ -1510,11 +1552,14 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         piType = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiTypeNode, typedArguments, resultType, callingConvention = node.callingConvention)
 
         functionalAnalyzer.builder.currentPredecessor = None
+        entryPoint = functionalAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGEntryPointNode)
+
         body, bodyTypechecked = functionalAnalyzer.analyzeNodeWithExpectedType(node.body, resultType)
         if not bodyTypechecked:
             return body
-        
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLambdaNode, piType, typedArguments, resultType, [body], callingConvention = node.callingConvention)
+        body = functionalAnalyzer.builder.forSyntaxExpansionSequence(functionalAnalyzer, node, functionalAnalyzer.builder.currentPredecessor, body)
+
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLambdaNode, piType, typedArguments, resultType, entryPoint, [body], callingConvention = node.callingConvention)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxPiNode)
     def expandSyntaxPiNode(self, node: ASGSyntaxPiNode) -> ASGTypecheckedNode:

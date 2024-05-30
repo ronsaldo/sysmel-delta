@@ -3,5 +3,5 @@
 ##1i32 + 2i32
 ##1, 2, 3
 ##Int32, Float32, Char32.
-(:(Int32)x :: Int32) := x
+((:(Int32)x :: Int32) := x) , ((:(Float32)y :: Float32) := y).
 ##Int32 -> Int32
