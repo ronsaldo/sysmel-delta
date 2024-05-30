@@ -44,6 +44,14 @@ class SourcePosition:
         return '%s:%d.%d-%d.%d' % (self.sourceCode, self.startLine, self.startColumn, self.endLine, self.endColumn)
 
 class EmptySourcePosition:
+    Singleton = None
+
+    @classmethod
+    def getSingleton(cls):
+        if cls.Singleton is None:
+            cls.Singleton = cls()
+        return cls.Singleton
+
     def __str__(self) -> str:
         return '<no position>'
     

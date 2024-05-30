@@ -3,6 +3,7 @@
 import sys
 import json
 import os.path
+from sysmel.target import *
 
 class FrontEndDriver:
     def __init__(self) -> None:
@@ -105,7 +106,7 @@ class FrontEndDriver:
         from sysmel.parser import parseFileNamed
         from sysmel.parsetree import ParseTreeErrorVisitor
         from sysmel.ast import ASTParseTreeFrontEnd
-        from sysmel.asg import ASGParseTreeFrontEnd, asgToDot
+        from sysmel.asg import ASGParseTreeFrontEnd, asgMakeScriptAnalysisEnvironment, asgExpandAndTypecheck, asgToDotFileNamed
         from sysmel.typechecker import Typechecker
         from sysmel.environment import makeScriptAnalysisEnvironment
         parseTree = parseFileNamed(sourceFile)
@@ -113,9 +114,11 @@ class FrontEndDriver:
             return False
 
         if self.asgPipeline:
-            asg = ASGParseTreeFrontEnd().visitNode(parseTree)
-            with open('asg.dot', 'w') as outDot:
-                outDot.write(asgToDot(asg))
+            asgSyntax = ASGParseTreeFrontEnd().visitNode(parseTree)
+            asgToDotFileNamed(asgSyntax, 'asgSyntax.dot')
+
+            asgTypechecked = asgExpandAndTypecheck(asgMakeScriptAnalysisEnvironment(DefaultCompilationTarget, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
+            asgToDotFileNamed(asgTypechecked, 'asgTypechecked.dot')
             return True
         else:
             ast = ASTParseTreeFrontEnd().visitNode(parseTree)

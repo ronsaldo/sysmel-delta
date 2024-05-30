@@ -1,16 +1,47 @@
 from abc import ABC, abstractmethod
+from typing import Any
+from .target import *
 from .parsetree import *
 
 class ASGNodeDerivation(ABC):
-    pass
+    @abstractmethod
+    def getSourcePosition(self) -> SourcePosition:
+        pass
 
 class ASGNodeSourceCodeDerivation(ASGNodeDerivation):
     def __init__(self, sourcePosition: SourcePosition) -> None:
         super().__init__()
         self.sourcePosition = sourcePosition
 
-class ASGNodeNoDerivation(ASGNodeDerivation):
+    def getSourcePosition(self) -> SourcePosition:
+        return self.sourcePosition
+
+class ASGNodeExpansionDerivation(ASGNodeDerivation):
+    def __init__(self, algorithm, sourceNode) -> None:
+        super().__init__()
+        self.algorithm = algorithm
+        self.sourceNode = sourceNode
+        self.sourcePosition = None
+
+    def getSourcePosition(self) -> SourcePosition:
+        if self.sourcePosition is None:
+            self.sourcePosition = self.sourceNode.sourceDerivation.getSourcePosition()
+        return self.sourcePosition
+    
+class ASGNodeSyntaxExpansionDerivation(ASGNodeExpansionDerivation):
     pass
+    
+class ASGNodeNoDerivation(ASGNodeDerivation):
+    Singleton = None
+
+    def getSourcePosition(self) -> SourcePosition:
+        return EmptySourcePosition.getSingleton()
+
+    @classmethod
+    def getSingleton(cls):
+        if cls.Singleton is None:
+            cls.Singleton = cls()
+        return cls.Singleton
 
 class ASGNodeAttributeDescriptor:
     def __init__(self) -> None:
@@ -41,6 +72,9 @@ class ASGNodeAttributeDescriptor:
 
     def isSpecialAttribute(self) -> bool:
         return False
+    
+    def isSequencingPredecessorAttribute(self) -> bool:
+        return False
 
     def isSyntacticPredecessorAttribute(self) -> bool:
         return False
@@ -54,8 +88,17 @@ class ASGNodeAttributeDescriptor:
     def isDataInputPort(self) -> bool:
         return False
     
+    def isTypeInputPort(self) -> bool:
+        return False
+    
     def getNodeInputsOf(self, instance):
         return []
+    
+    def __get__(self, instance, owner):
+        return self.loadValueFrom(instance)
+    
+    def __set__(self, instance, value):
+        raise Exception('Not supported')
 
 class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
     def isConstructionAttribute(self) -> bool:
@@ -64,8 +107,26 @@ class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
     def isNumberedConstructionAttribute(self) -> bool:
         return True
 
-    def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
         self.storeValueIn(constructorValue, instance)
+
+class ASGNodeConstructionAttributeWithSourceDerivation(ASGNodeConstructionAttribute):
+    def __init__(self) -> None:
+        super().__init__()
+        self.sourceDerivationStorageName = None
+    def setName(self, name: str):
+        super().setName(name)
+        self.sourceDerivationStorageName = '_' + name + '_sourceDerivation'
+
+    def loadSourceDerivationFrom(self, instance):
+        return getattr(instance, self.sourceDerivationStorageName)
+
+    def storeSourceDerivationIn(self, sourceDerivation, instance):
+        return setattr(instance, self.sourceDerivationStorageName, sourceDerivation)
+
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        self.storeValueIn(constructorValue.asASGNode(), instance)
+        self.storeSourceDerivationIn(constructorValue.asASGNodeDerivation(), instance)
 
 class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
     def __init__(self, type, **kwArguments) -> None:
@@ -99,30 +160,63 @@ class ASGNodeSourceDerivationAttribute(ASGNodeConstructionAttribute):
     def isSourceDerivationAttribute(self) -> bool:
         return True
 
-class ASGSyntacticPredecessorAttribute(ASGNodeConstructionAttribute):
-    def isSyntacticPredecessorAttribute(self) -> bool:
-        return True
-
+class ASGPredecessorAttribute(ASGNodeConstructionAttributeWithSourceDerivation):
     def isNumberedConstructionAttribute(self) -> bool:
         return False
 
     def initializeWithDefaultConstructorValueOn(self, instance):
         self.storeValueIn(None, instance)
+        self.storeSourceDerivationIn(None, instance)
 
     def getNodeInputsOf(self, instance):
         value = self.loadValueFrom(instance)
         if value is None:
             return []
         return [value]
+    
+class ASGSyntacticPredecessorAttribute(ASGPredecessorAttribute):
+    def isSyntacticPredecessorAttribute(self) -> bool:
+        return True
 
-class ASGNodeDataInputPort(ASGNodeConstructionAttribute):
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        if constructorValue is None:
+            self.storeValueIn(None, instance)
+            self.storeSourceDerivationIn(None, instance)
+        else:
+            super().initializeWithConstructorValueOn(constructorValue, instance)
+
+class ASGSequencingPredecessorAttribute(ASGPredecessorAttribute):
+    def isSequencingPredecessorAttribute(self) -> bool:
+        return True
+
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        if constructorValue is None:
+            self.storeValueIn(None, instance)
+            self.storeSourceDerivationIn(None, instance)
+        else:
+            self.storeValueIn(constructorValue.asASGSequencingNode(), instance)
+            self.storeSourceDerivationIn(constructorValue.asASGSequencingNodeDerivation(), instance)
+    
+class ASGNodeDataInputPort(ASGNodeConstructionAttributeWithSourceDerivation):
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        self.storeValueIn(constructorValue.asASGDataNode(), instance)
+        self.storeSourceDerivationIn(constructorValue.asASGDataNodeDerivation(), instance)
+
     def isDataInputPort(self) -> bool:
         return True
 
     def getNodeInputsOf(self, instance):
         return [self.loadValueFrom(instance)]
 
-class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttribute):
+class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttributeWithSourceDerivation):
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        if constructorValue is None:
+            self.storeValueIn(None, instance)
+            self.storeSourceDerivationIn(None, instance)
+        else:
+            self.storeValueIn(constructorValue.asASGDataNode(), instance)
+            self.storeSourceDerivationIn(constructorValue.asASGDataNodeDerivation(), instance)
+
     def isDataInputPort(self) -> bool:
         return True
 
@@ -132,7 +226,28 @@ class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttribute):
             return []
         return [value]
 
-class ASGNodeDataInputPorts(ASGNodeConstructionAttribute):
+class ASGNodeTypeInputNode(ASGNodeConstructionAttributeWithSourceDerivation):
+    def isTypeInputPort(self) -> bool:
+        return True
+
+    def getNodeInputsOf(self, instance):
+        return [self.loadValueFrom(instance)]
+    
+class ASGNodeOptionalTypeInputNode(ASGNodeConstructionAttribute):
+    def isTypeInputPort(self) -> bool:
+        return True
+
+    def getNodeInputsOf(self, instance):
+        type = self.loadValueFrom(instance)
+        if type is None:
+            return []
+        return [self.loadValueFrom(instance)]
+    
+class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
+    def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
+        self.storeValueIn(list(map(lambda x: x.asASGDataNode(), constructorValue)), instance)
+        self.storeSourceDerivationIn(list(map(lambda x: x.asASGDataNodeDerivation(), constructorValue)), instance)
+
     def isDataInputPort(self) -> bool:
         return True
 
@@ -156,8 +271,10 @@ class ASGNodeMetaclass(type):
 
         specialAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSpecialAttribute(), descriptors))
         syntacticPredecessors: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSyntacticPredecessorAttribute(), descriptors))
+        sequencingPredecessors: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSequencingPredecessorAttribute(), descriptors))
         dataAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataAttribute(), descriptors))
         dataInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataInputPort(), descriptors))
+        typeInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isTypeInputPort(), descriptors))
 
         numberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and desc.isNumberedConstructionAttribute(), descriptors))
         unnumberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and not desc.isNumberedConstructionAttribute(), descriptors))
@@ -172,15 +289,15 @@ class ASGNodeMetaclass(type):
         nodeClass.__asgAttributeDescriptors__ = descriptors
         nodeClass.__asgSpecialAttributes__ = specialAttributes
         nodeClass.__asgSyntacticPredecessors__ = syntacticPredecessors
+        nodeClass.__asgSequencingPredecessors__ = sequencingPredecessors
         nodeClass.__asgConstructionAttributes__ = constructionAttributes
         nodeClass.__asgConstructionAttributeDictionary__ = constructionAttributeDictionary
         nodeClass.__asgDataAttributes__ = dataAttributes
         nodeClass.__asgDataInputPorts__ = dataInputPorts
+        nodeClass.__asgTypeInputPorts__ = typeInputPorts
         return nodeClass
 
 class ASGNode(metaclass = ASGNodeMetaclass):
-    sourceDerivation = ASGNodeSourceDerivationAttribute()
-
     def __init__(self, *positionalArguments, **kwArguments) -> None:
         super().__init__()
 
@@ -199,6 +316,41 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 raise Exception('Failed to find attribute %s in %s' % (str(key), repr(self.__class__)))
             constructionAttributeDictionary[key].initializeWithConstructorValueOn(value, self)
 
+    def asASGNode(self):
+        return self
+
+    def asASGNodeDerivation(self):
+        return ASGNodeNoDerivation.getSingleton()
+
+    def asASGDataNode(self):
+        return self.asASGNode()
+
+    def asASGDataNodeDerivation(self):
+        return self.asASGNodeDerivation()
+    
+    def isPureDataNode(self) -> bool:
+        raise Exception("Subclass responsibility isPureDataNode")
+    
+    def isSequencingNode(self) -> bool:
+        return False
+    
+    def asASGSequencingNode(self):
+        if self.isPureDataNode():
+            return None
+
+        return self.asASGNode()
+
+    def asASGSequencingNodeDerivation(self):
+        if self.isPureDataNode():
+            return None
+
+        return self.asASGNodeDerivation()
+
+    def sequencingDependencies(self):
+        for port in self.__class__.__asgSequencingPredecessors__:
+            for predecessor in port.getNodeInputsOf(self):
+                yield predecessor
+
     def syntacticDependencies(self):
         for port in self.__class__.__asgSyntacticPredecessors__:
             for predecessor in port.getNodeInputsOf(self):
@@ -212,12 +364,21 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             for dataInput in port.getNodeInputsOf(self):
                 yield dataInput
 
+    def typeDependencies(self):
+        for port in self.__class__.__asgTypeInputPorts__:
+            for typeInput in port.getNodeInputsOf(self):
+                yield typeInput
+
     def allDependencies(self):
+        for dependency in self.sequencingDependencies():
+            yield dependency
         for dependency in self.syntacticDependencies():
             yield dependency
         for dependency in self.effectDependencies():
             yield dependency
         for dependency in self.dataDependencies():
+            yield dependency
+        for dependency in self.typeDependencies():
             yield dependency
     
     def printNameWithDataAttributes(self) -> str:
@@ -243,44 +404,54 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 
         return result
     
+    def hasSequencingPredecessorOf(self, predecessor) -> bool:
+        return False
+    
     def __str__(self) -> str:
         return self.printNameWithDataAttributes()
 
-class ASGSyntacticalNode(ASGNode):
+class ASGSyntaxNode(ASGNode):
+    sourceDerivation = ASGNodeSourceDerivationAttribute()
     syntacticPredecessor = ASGSyntacticPredecessorAttribute()
 
-class ASGSyntacticalErrorNode(ASGSyntacticalNode):
+    def isPureDataNode(self) -> bool:
+        return True
+
+    def asASGNodeDerivation(self):
+        return self.sourceDerivation
+
+class ASGSyntaxErrorNode(ASGSyntaxNode):
     message = ASGNodeDataAttribute(int)
     innerNodes = ASGNodeDataInputPorts()
 
-class ASGSyntacticalLiteralNode(ASGSyntacticalNode):
+class ASGSyntaxLiteralNode(ASGSyntaxNode):
     pass
 
-class ASGSyntacticalLiteralCharacterNode(ASGSyntacticalLiteralNode):
+class ASGSyntaxLiteralCharacterNode(ASGSyntaxLiteralNode):
     value = ASGNodeDataAttribute(int)
 
-class ASGSyntacticalLiteralIntegerNode(ASGSyntacticalLiteralNode):
+class ASGSyntaxLiteralIntegerNode(ASGSyntaxLiteralNode):
     value = ASGNodeDataAttribute(int)
 
-class ASGSyntacticalLiteralFloatNode(ASGSyntacticalLiteralNode):
+class ASGSyntaxLiteralFloatNode(ASGSyntaxLiteralNode):
     value = ASGNodeDataAttribute(float)
 
-class ASGSyntacticalLiteralStringNode(ASGSyntacticalLiteralNode):
+class ASGSyntaxLiteralStringNode(ASGSyntaxLiteralNode):
     value = ASGNodeDataAttribute(str)
 
-class ASGSyntacticalLiteralSymbolNode(ASGSyntacticalLiteralNode):
+class ASGSyntaxLiteralSymbolNode(ASGSyntaxLiteralNode):
     value = ASGNodeDataAttribute(str)
 
-class ASGSyntacticalApplicationNode(ASGSyntacticalNode):
+class ASGSyntaxApplicationNode(ASGSyntaxNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
     kind = ASGNodeDataAttribute(int, default = 0)
 
-class ASGSyntacticalAssignmentNode(ASGSyntacticalNode):
+class ASGSyntaxAssignmentNode(ASGSyntaxNode):
     store = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
 
-class ASGSyntacticalBindableNameNode(ASGSyntacticalNode):
+class ASGSyntaxBindableNameNode(ASGSyntaxNode):
     typeExpression = ASGNodeOptionalDataInputPort()
     nameExpression = ASGNodeOptionalDataInputPort()
     isImplicit = ASGNodeDataAttribute(bool, default = False)
@@ -289,39 +460,39 @@ class ASGSyntacticalBindableNameNode(ASGSyntacticalNode):
     isMutable = ASGNodeDataAttribute(bool, default = False)
     hasPostTypeExpression = ASGNodeDataAttribute(bool, default = False)
 
-class ASGSyntacticalBindPatternNode(ASGSyntacticalNode):
+class ASGSyntaxBindPatternNode(ASGSyntaxNode):
     pattern = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
 
-class ASGSyntacticalBinaryExpressionSequenceNode(ASGSyntacticalNode):
+class ASGSyntaxBinaryExpressionSequenceNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
 
-class ASGSyntacticalBlockNode(ASGSyntacticalNode):
+class ASGSyntaxBlockNode(ASGSyntaxNode):
     functionType = ASGNodeDataInputPort()
     body = ASGNodeDataInputPorts()
 
-class ASGSyntacticalIdentifierReferenceNode(ASGSyntacticalNode):
+class ASGSyntaxIdentifierReferenceNode(ASGSyntaxNode):
     value = ASGNodeDataAttribute(str)
 
-class ASGSyntacticalLexicalBlockNode(ASGSyntacticalNode):
+class ASGSyntaxLexicalBlockNode(ASGSyntaxNode):
     body = ASGNodeDataInputPort()
 
-class ASGSyntacticalMessageSendNode(ASGSyntacticalNode):
+class ASGSyntaxMessageSendNode(ASGSyntaxNode):
     receiver = ASGNodeOptionalDataInputPort()
     selector = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
 
-class ASGSyntacticalDictionaryNode(ASGSyntacticalNode):
+class ASGSyntaxDictionaryNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
 
-class ASGSyntacticalFunctionalDependentTypeNode(ASGSyntacticalNode):
+class ASGSyntaxFunctionalDependentTypeNode(ASGSyntaxNode):
     argumentPattern = ASGNodeOptionalDataInputPort()
     resultType = ASGNodeOptionalDataInputPort()
 
-class ASGSyntacticalSequenceNode(ASGSyntacticalNode):
+class ASGSyntaxSequenceNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
 
-class ASGSyntacticalTupleNode(ASGSyntacticalNode):
+class ASGSyntaxTupleNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
 
 class ASGParseTreeFrontEnd(ParseTreeVisitor):
@@ -333,61 +504,129 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return self.lastVisitedNode
 
     def visitErrorNode(self, node: ParseTreeErrorNode):
-        return ASGSyntacticalErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodes(node.innerNodes), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodes(node.innerNodes), syntacticPredecessor = self.lastVisitedNode)
 
     def visitApplicationNode(self, node: ParseTreeApplicationNode):
-        return ASGSyntacticalApplicationNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functional), self.transformNodes(node.arguments), node.kind, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxApplicationNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functional), self.transformNodes(node.arguments), node.kind, syntacticPredecessor = self.lastVisitedNode)
 
     def visitAssignmentNode(self, node: ParseTreeAssignmentNode):
-        return ASGSyntacticalAssignmentNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.store), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxAssignmentNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.store), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindPatternNode(self, node: ParseTreeBindPatternNode):
-        return ASGSyntacticalBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.pattern), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.pattern), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBinaryExpressionSequenceNode(self, node: ParseTreeBinaryExpressionSequenceNode):
-        return ASGSyntacticalBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindableNameNode(self, node: ParseTreeBindableNameNode):
-        return ASGSyntacticalBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression, syntacticPredecessor = self.lastVisitedNode)
 
     def visitBlockNode(self, node: ParseTreeBlockNode):
-        return ASGSyntacticalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functionType), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functionType), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
 
     def visitDictionaryNode(self, node: ParseTreeDictionaryNode):
-        return ASGSyntacticalDictionaryNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxDictionaryNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitFunctionalDependentTypeNode(self, node: ParseTreeFunctionalDependentTypeNode):
-        return ASGSyntacticalFunctionalDependentTypeNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.argumentPattern), self.visitOptionalNode(node.resultType), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxFunctionalDependentTypeNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.argumentPattern), self.visitOptionalNode(node.resultType), syntacticPredecessor = self.lastVisitedNode)
 
     def visitIdentifierReferenceNode(self, node: ParseTreeIdentifierReferenceNode):
-        return ASGSyntacticalIdentifierReferenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxIdentifierReferenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLexicalBlockNode(self, node: ParseTreeLexicalBlockNode):
-        return ASGSyntacticalLexicalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxLexicalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralCharacterNode(self, node: ParseTreeLiteralCharacterNode):
-        return ASGSyntacticalLiteralCharacterNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxLiteralCharacterNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralFloatNode(self, node: ParseTreeLiteralFloatNode):
-        return ASGSyntacticalLiteralFloatNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxLiteralFloatNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralIntegerNode(self, node: ParseTreeLiteralIntegerNode):
-        return ASGSyntacticalLiteralIntegerNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxLiteralIntegerNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralSymbolNode(self, node: ParseTreeLiteralSymbolNode):
-        return ASGSyntacticalLiteralSymbolNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxLiteralSymbolNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralStringNode(self, node: ParseTreeLiteralStringNode):
-        return ASGSyntacticalLiteralStringNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxLiteralStringNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitMessageSendNode(self, node: ParseTreeMessageSendNode):
-        return ASGSyntacticalMessageSendNode(ASGNodeSourceCodeDerivation, self.visitOptionalNode(node.receiver), self.visitNode(node.selector), self.transformNodes(node.arguments), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxMessageSendNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.receiver), self.visitNode(node.selector), self.transformNodes(node.arguments), syntacticPredecessor = self.lastVisitedNode)
 
     def visitSequenceNode(self, node: ParseTreeSequenceNode):
-        return ASGSyntacticalSequenceNode(ASGNodeSourceCodeDerivation, self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitTupleNode(self, node: ParseTreeTupleNode):
-        return ASGSyntacticalTupleNode(ASGNodeSourceCodeDerivation, self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxTupleNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
+
+class ASGTypecheckedNode(ASGNode):
+    sourceDerivation = ASGNodeSourceDerivationAttribute()
+
+    def asASGNodeDerivation(self):
+        return self.sourceDerivation
+
+class ASGTypecheckedSequencedExpression(ASGTypecheckedNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    expression = ASGNodeDataInputPort()
+
+    def isPureDataNode(self) -> bool:
+        return False
+    
+    def asASGDataNode(self):
+        return self.expression.asASGDataNode()
+    
+    def asASGDataNodeDerivation(self):
+        return self.expression.asASGDataNodeDerivation()
+    
+    def isSequencingNode(self) -> bool:
+        return True
+
+    def hasSequencingPredecessorOf(self, predecessor) -> bool:
+        return self.predecessor is predecessor
+
+class ASGTypedExpressionNode(ASGTypecheckedNode):
+    type = ASGNodeTypeInputNode()
+
+class ASGTypedLiteralNode(ASGTypedExpressionNode):
+    def isPureDataNode(self) -> bool:
+        return True
+    
+class ASGTypedLiteralCharacterNode(ASGTypedLiteralNode):
+    value = ASGNodeDataAttribute(int)
+
+class ASGTypedLiteralIntegerNode(ASGTypedLiteralNode):
+    value = ASGNodeDataAttribute(int)
+
+class ASGTypedLiteralFloatNode(ASGTypedLiteralNode):
+    value = ASGNodeDataAttribute(float)
+
+class ASGTypedLiteralSymbolNode(ASGTypedLiteralNode):
+    value = ASGNodeDataAttribute(str)
+
+class ASGTypedLiteralUnitNode(ASGTypedLiteralNode):
+    pass
+
+class ASGTypeNode(ASGTypecheckedNode):
+    def isPureDataNode(self) -> bool:
+        return True
+
+class ASGBaseTypeNode(ASGTypeNode):
+    name = ASGNodeDataAttribute(str)
+
+class ASGPrimitiveType(ASGBaseTypeNode):
+    size = ASGNodeDataAttribute(int)
+    alignment = ASGNodeDataAttribute(int)
+
+class ASGPrimitiveIntegerType(ASGPrimitiveType):
+    isSigned = ASGNodeDataAttribute(int)
+    pass
+
+class ASGPrimitiveFloat(ASGPrimitiveType):
+    pass
+
+class ASGUniverseTypeNode(ASGTypeNode):
+    pass
 
 def asgTopoSortTraversal(aBlock, node: ASGNode):
     visited = set()
@@ -404,7 +643,8 @@ def asgTopoSortTraversal(aBlock, node: ASGNode):
 
 def asgTopoSort(node: ASGNode):
     sorted = []
-    asgTopoSortTraversal(sorted.append, node)
+    if node is not None:
+        asgTopoSortTraversal(sorted.append, node)
     return sorted
 
 def asgToDot(node: ASGNode):
@@ -420,14 +660,272 @@ def asgToDot(node: ASGNode):
 
     for node in sortedNodes:
         nodeName = nodeToNameDictionary[node]
-        for dependency in node.syntacticDependencies():
-            dependencyName = nodeToNameDictionary[dependency]
-            result += '  %s -> %s [color = brown]\n' % (nodeName, dependencyName)
-        for dependency in node.effectDependencies():
+        for dependency in node.sequencingDependencies():
             dependencyName = nodeToNameDictionary[dependency]
             result += '  %s -> %s [color = blue]\n' % (nodeName, dependencyName)
+        for dependency in node.syntacticDependencies():
+            dependencyName = nodeToNameDictionary[dependency]
+            result += '  %s -> %s [color = blue]\n' % (nodeName, dependencyName)
+        for dependency in node.effectDependencies():
+            dependencyName = nodeToNameDictionary[dependency]
+            result += '  %s -> %s [color = red]\n' % (nodeName, dependencyName)
         for dependency in node.dataDependencies():
             dependencyName = nodeToNameDictionary[dependency]
             result += '  %s -> %s [color = green]\n' % (nodeName, dependencyName)
+        for dependency in node.typeDependencies():
+            dependencyName = nodeToNameDictionary[dependency]
+            result += '  %s -> %s [color = yellow]\n' % (nodeName, dependencyName)
     result += '}\n'
     return result
+
+def asgToDotFileNamed(node: ASGNode, filename: str):
+    dotData = asgToDot(node)
+    with open(filename, "w") as f:
+        f.write(dotData)
+
+class ASGPatternMatchingPattern(ABC):
+    @abstractmethod
+    def matchesNode(self, node: ASGNode):
+        pass
+
+    @abstractmethod
+    def getExpectedKind(self) -> type:
+        pass
+
+    @abstractmethod
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        pass
+
+class ASGPatternMatchingNodeKindPattern(ASGPatternMatchingPattern):
+    def __init__(self, kind: type, function) -> None:
+        super().__init__()
+        self.kind = kind
+        self.function = function
+
+    def getExpectedKind(self) -> type:
+        return self.kind
+
+    def matchesNode(self, node):
+        return True
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        return self.function(*args, **kwds)
+
+def asgPatternMatchingOnNodeKind(kind: type):
+    def makePattern(function):
+        return ASGPatternMatchingNodeKindPattern(kind, function)
+    return makePattern
+
+class ASGUnifiedNodeValue:
+    def __init__(self, node: ASGNode, derivation: ASGNodeDerivation) -> None:
+        self.node = node
+        self.derivation = derivation
+
+    def asASGNode(self) -> ASGNode:
+        return self.node
+    
+    def asASGNodeDerivation(self) -> ASGNodeDerivation:
+        return self.derivation
+
+    def asASGDataNode(self):
+        return self.node.asASGDataNode()
+
+    def asASGDataNodeDerivation(self):
+        return self.node.asASGDataNodeDerivation()
+    
+    def asASGSequencingNode(self):
+        return self.node.asASGSequencingNode()
+
+    def asASGSequencingNodeDerivation(self):
+        return self.node.asASGSequencingNodeDerivation()
+    
+class ASGDynamicProgrammingAlgorithmMetaclass(type):
+    def __new__(cls, name, bases, attributes):
+        patterns: list[ASGPatternMatchingNodeKindPattern] = []
+        patternKindDictionary = {}
+        for value in attributes.values():
+            if isinstance(value, ASGPatternMatchingPattern):
+                patterns.append(value)
+
+        for pattern in patterns:
+            patternKind = pattern.getExpectedKind()
+            if patternKind not in patternKindDictionary:
+                patternKindDictionary[patternKind] = []
+            patternKindDictionary[patternKind].append(pattern)
+
+        algorithm = super().__new__(cls, name, bases, attributes)
+        algorithm.__asgDPAPatterns__ = patterns
+        algorithm.__asgDPAPatternKindDictionary__ = patternKindDictionary
+        return algorithm
+
+class ASGDynamicProgrammingAlgorithm(metaclass = ASGDynamicProgrammingAlgorithmMetaclass):
+    def __init__(self) -> None:
+        self.processedNodes = {}
+
+    def __call__(self, node: ASGNode) -> Any:
+        if node in self.processedNodes:
+            return self.processedNodes[node]
+
+        patternKindDictionary = self.__class__.__asgDPAPatternKindDictionary__
+        currentClass = node.__class__
+        while currentClass is not None:
+            patterns: list[ASGPatternMatchingNodeKindPattern] | None = patternKindDictionary.get(currentClass, None)
+            if patterns is not None:
+                for pattern in patterns:
+                    if pattern.matchesNode(node):
+                        result = pattern(self, node)
+                        self.processedNodes[node] = result
+                        return result
+
+            if len(currentClass.__bases__) != 0:
+                currentClass = currentClass.__bases__[0]
+            else:
+                currentClass = None
+        raise Exception("Failed to find matching pattern for %s in %s." % (str(node), str(self)))
+
+class ASGEnvironment(ABC):
+    @abstractmethod
+    def getTopLevelTargetEnvironment(self):
+        pass
+
+    def isLexicalEnvironment(self):
+        return False
+
+    def isScriptEnvironment(self):
+        return False
+
+class ASGTopLevelTargetEnvironment(ASGEnvironment):
+    def __init__(self, target: CompilationTarget) -> None:
+        super().__init__()
+        self.target = target
+        self.symbolTable = {}
+        topLevelDerivation = ASGNodeNoDerivation.getSingleton()
+        self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Integer'))
+        self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Void'))
+
+    def addBaseType(self, baseType: ASGBaseTypeNode):
+        self.addSymbolValue(baseType.name, baseType)
+
+    def addSymbolValue(self, name: str, value: ASGNode):
+        if name not in self.symbolTable:
+            self.symbolTable[name] = []
+        self.symbolTable[name].append(value)
+
+    def lookLastBindingOf(self, name: str):
+        if not name in self.symbolTable:
+            return None
+        return self.symbolTable[name][-1]
+
+    def getTopLevelTargetEnvironment(self):
+        return self
+    
+    @classmethod
+    def getForTarget(cls, target: CompilationTarget):
+        if hasattr(target, 'asgTopLevelTargetEnvironment'):
+            return target.asgTopLevelTargetEnvironment
+
+        topLevelEnvironment = cls(target)
+        target.asgTopLevelTargetEnvironment = topLevelEnvironment
+        return topLevelEnvironment
+
+class ASGChildEnvironment(ASGEnvironment):
+    def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
+        super().__init__()
+        self.parent = parent
+        self.sourcePosition = sourcePosition
+        self.topLevelTargetEnvironment = parent.getTopLevelTargetEnvironment()
+    
+    def getTopLevelTargetEnvironment(self):
+        return self.topLevelTargetEnvironment
+
+class ASGLexicalEnvironment(ASGChildEnvironment):
+    def isLexicalEnvironment(self):
+        return True
+
+class ASGScriptEnvironment(ASGLexicalEnvironment):
+    def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script') -> None:
+        super().__init__(parent, sourcePosition)
+        self.scriptDirectory = scriptDirectory
+        self.scriptName = scriptName
+
+    def isScriptEnvironment(self):
+        return True
+
+class ASGBuilderWithGVN:
+    def __init__(self, parentBuilder, topLevelEnvironment: ASGTopLevelTargetEnvironment) -> None:
+        self.parentBuilder: ASGBuilderWithGVN = parentBuilder
+        self.topLevelEnvironment = topLevelEnvironment
+
+    def topLevelIdentifier(self, name: str):
+        if self.parentBuilder is not None:
+            return self.parentBuilder.topLevelIdentifier(name)
+
+        value = self.topLevelEnvironment.lookLastBindingOf(name)
+        return self.unifyWithPreviousBuiltNode(value)
+
+    def unifyWithPreviousBuiltNode(self, node: ASGNode):
+        return node
+
+    def build(self, kind, *arguments, **kwArguments) -> ASGNode | ASGUnifiedNodeValue:
+        builtNode = kind(*arguments, **kwArguments)
+        return self.unifyWithPreviousBuiltNode(builtNode)
+    
+    def forSyntaxExpansionBuild(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
+        return self.build(kind, ASGNodeSyntaxExpansionDerivation(expansionAlgorithm, syntaxNode), *arguments, **kwArguments)
+
+    def forSyntaxExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, predecessor, *arguments, **kwArguments):
+        return self.forSyntaxExpansionSequence(expansionAlgorithm, syntaxNode, predecessor, self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
+
+    def forSyntaxExpansionSequence(self, expansionAlgorithm, syntaxNode, predecessor, valueOrSequenceNode):
+        if predecessor is None:
+            if valueOrSequenceNode.isSequencingNode():
+                return valueOrSequenceNode
+        else:
+            if valueOrSequenceNode is predecessor:
+                return valueOrSequenceNode
+            if valueOrSequenceNode.hasSequencingPredecessorOf(predecessor):
+                return valueOrSequenceNode
+        return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGTypecheckedSequencedExpression, valueOrSequenceNode, predecessor = predecessor)
+    
+class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
+    def __init__(self, environment: ASGEnvironment) -> None:
+        super().__init__()
+        self.environment = environment
+        self.builder = ASGBuilderWithGVN(None, self.environment.getTopLevelTargetEnvironment())
+
+    def syntaxPredecessorOf(self, node: ASGSyntaxNode):
+        predecessor = node.syntacticPredecessor
+        if predecessor is not None:
+            return self(predecessor)
+        else:
+            return None
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
+    def expandLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> tuple[ASGTypecheckedNode, ASGTypecheckedNode]:
+        predecessor = self.syntaxPredecessorOf(node)
+        type = self.builder.topLevelIdentifier('Integer')
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralIntegerNode, predecessor, type, node.value)
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
+    def expandSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        if len(node.elements) == 0:
+            type = self.builder.topLevelIdentifier('Void')
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralUnitNode, predecessor, type)
+
+        result = None
+        for element in node.elements:
+            result = self(element)
+            predecessor = result
+        return result
+
+def asgExpandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
+    expander = ASGExpandAndTypecheckingAlgorithm(environment)
+    result = expander(node)
+    return result
+
+def asgMakeScriptAnalysisEnvironment(target: CompilationTarget, sourcePosition: SourcePosition, scriptPath: str) -> ASGEnvironment:
+    topLevelEnvironment = ASGTopLevelTargetEnvironment.getForTarget(target)
+    scriptDirectory = os.path.dirname(scriptPath)
+    scriptName = os.path.basename(scriptPath)
+    return ASGScriptEnvironment(topLevelEnvironment, sourcePosition, scriptDirectory, scriptName)
