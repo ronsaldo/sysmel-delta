@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
+
 from .target import *
 from .parsetree import *
+import copy
 
 class ASGNodeDerivation(ABC):
     @abstractmethod
@@ -466,6 +468,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     
     def isSequencingNode(self) -> bool:
         return False
+
+    def isTypedLiteralNode(self) -> bool:
+        return False
     
     def asASGSequencingNode(self):
         if self.isPureDataNode():
@@ -543,6 +548,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def __str__(self) -> str:
         return self.printNameWithDataAttributes()
 
+    def expandPatternWithValueAt(self, expander, value, location):
+        return ASGSyntaxErrorNode(ASGNodeExpansionDerivation(expander, location), 'Not a valid pattern for expanding.', [self, location])
+
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
         self.node = node
@@ -603,12 +611,23 @@ class ASGSyntaxBindableNameNode(ASGSyntaxNode):
     isMutable = ASGNodeDataAttribute(bool, default = False)
     hasPostTypeExpression = ASGNodeDataAttribute(bool, default = False)
 
+    def expandPatternWithValueAt(self, expander, value, location):
+        return ASGSyntaxBindingDefinitionNode(ASGNodeExpansionDerivation(expander, location),
+                self.typeExpression, self.nameExpression, value,
+                self.isMutable)
+
 class ASGSyntaxBindPatternNode(ASGSyntaxNode):
     pattern = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
 
 class ASGSyntaxBinaryExpressionSequenceNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
+
+class ASGSyntaxBindingDefinitionNode(ASGSyntaxNode):
+    typeExpression = ASGNodeOptionalDataInputPort()
+    nameExpression = ASGNodeOptionalDataInputPort()
+    valueExpression = ASGNodeDataInputPort()
+    isMutable = ASGNodeDataAttribute(bool, default = False)
 
 class ASGSyntaxBlockNode(ASGSyntaxNode):
     functionType = ASGNodeDataInputPort()
@@ -646,6 +665,12 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         self.lastVisitedNode = super().visitNode(node)
         return self.lastVisitedNode
 
+    def visitNodeWithoutSequencing(self, node: ParseTreeNode):
+        lastVisitedNode = self.lastVisitedNode
+        result = self.visitNode(node)
+        self.lastVisitedNode = lastVisitedNode
+        return result
+
     def visitErrorNode(self, node: ParseTreeErrorNode):
         return ASGSyntaxErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodes(node.innerNodes), syntacticPredecessor = self.lastVisitedNode)
 
@@ -656,7 +681,7 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return ASGSyntaxAssignmentNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.store), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindPatternNode(self, node: ParseTreeBindPatternNode):
-        return ASGSyntaxBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.pattern), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.pattern), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBinaryExpressionSequenceNode(self, node: ParseTreeBinaryExpressionSequenceNode):
         return ASGSyntaxBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
@@ -747,8 +772,12 @@ class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
     def isPureDataNode(self) -> bool:
         return True
 
+class ASGTypedErrorNode(ASGTypedDataExpressionNode):
+    message = ASGNodeDataAttribute(str)
+
 class ASGTypedLiteralNode(ASGTypedDataExpressionNode):
-    pass
+    def isTypedLiteralNode(self) -> bool:
+        return True
     
 class ASGTypedLiteralCharacterNode(ASGTypedLiteralNode):
     value = ASGNodeDataAttribute(int)
@@ -782,6 +811,9 @@ class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
 
 class ASGUnitTypeNode(ASGBaseTypeNode):
+    pass
+
+class ASGBottomTypeNode(ASGBaseTypeNode):
     pass
 
 class ASGPrimitiveType(ASGBaseTypeNode):
@@ -1005,6 +1037,9 @@ class ASGEnvironment(ABC):
 
     def isScriptEnvironment(self):
         return False
+    
+    def childWithSymbolBinding(self, symbol: str, binding: ASGNode):
+        return ASGChildEnvironmentWithBindings(self).childWithSymbolBinding(symbol, binding)
 
 class ASGTopLevelTargetEnvironment(ASGEnvironment):
     def __init__(self, target: CompilationTarget) -> None:
@@ -1013,7 +1048,9 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.symbolTable = {}
         topLevelDerivation = ASGNodeNoDerivation.getSingleton()
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Integer'))
+        self.addBaseType(ASGBottomTypeNode(topLevelDerivation, 'Abort'))
         self.addBaseType(ASGUnitTypeNode(topLevelDerivation, 'Void'))
+        self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Symbol'))
         self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char8',  1, 1))
         self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char16',  2, 2))
         self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char32',  4, 4))
@@ -1077,6 +1114,28 @@ class ASGChildEnvironment(ASGEnvironment):
 
     def lookSymbolBindingListRecursively(self, symbol: str):
         return self.parent.lookSymbolBindingListRecursively(symbol)
+
+class ASGChildEnvironmentWithBindings(ASGChildEnvironment):
+    def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(parent, sourcePosition)
+        self.symbolTable = {}
+
+    def postCopy(self):
+        self.symbolTable = dict(self.symbolTable)
+
+    def addSymbolBinding(self, symbol: str, binding: ASGNode):
+        if symbol not in self.symbolTable:
+            self.symbolTable[symbol] = []
+        self.symbolTable[symbol].append(binding)
+
+    def childWithSymbolBinding(self, symbol: str, binding: ASGNode):
+        child = copy.copy(self)
+        child.postCopy()
+        child.addSymbolBinding(symbol, binding)
+        return child
+
+    def lookSymbolBindingListRecursively(self, symbol: str):
+        return self.symbolTable.get(symbol, []) + self.parent.lookSymbolBindingListRecursively(symbol)
 
 class ASGLexicalEnvironment(ASGChildEnvironment):
     def isLexicalEnvironment(self):
@@ -1169,19 +1228,88 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             return self(predecessor)
         else:
             return None
+        
+    def makeErrorAtNode(self, message: str, node: ASGNode) -> ASGTypecheckedNode:
+        type = self.builder.topLevelIdentifier('Abort')
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedErrorNode, type, message)
+    
+    def analyzeNodeWithExpectedType(self, node: ASGNode, expectedType: ASGNode) -> ASGTypecheckedNode:
+        analyzedNode = self(node)
+        if expectedType is None:
+            return analyzedNode
+
+        analyzedNodeType = analyzedNode.asASGDataNode().getTypeInEnvironment(self.environment)
+        if analyzedNodeType.unificationEquals(expectedType):
+            return analyzedNode, True
+        return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (str(expectedType), str(analyzedNodeType))), False
+    
+    def evaluateOptionalSymbol(self, node: ASGNode) -> str:
+        if node is None:
+            return None
+
+        typecheckedNode, typechecked = self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Symbol'))
+        if not typechecked:
+            return None
+        
+        typecheckedNode = typecheckedNode.asASGDataNode()
+        if typecheckedNode.isTypedLiteralNode():
+            return typecheckedNode.value
+
+        self.makeErrorAtNode('Expected a literal symbol.', node)
+        return None
+
+    def analyzeTypeExpression(self, node: ASGNode) -> ASGTypecheckedNode:
+        analyzedNode = self(node).asASGTypeNode()
+        if analyzedNode.isTypeNode():
+            return analyzedNode
+
+        return self.makeErrorAtNode('Expected a type expression.', node)
+
+    def analyzeOptionalTypeExpression(self, node: ASGNode) -> ASGTypecheckedNode:
+        if node is None:
+            return None
+        return self.analyzeTypeExpression(node)
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxErrorNode)
+    def expandSyntaxErrorNode(self, node: ASGSyntaxErrorNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        return self.makeErrorAtNode(node.message, node)
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxBindPatternNode)
+    def expandSyntaxBindPatternNode(self, node: ASGSyntaxBindPatternNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        return self(node.pattern.expandPatternWithValueAt(self, node.value, node))
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxBindingDefinitionNode)
+    def expandSyntaxBindindingDefinitionNode(self, node: ASGSyntaxBindingDefinitionNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        name = self.evaluateOptionalSymbol(node.nameExpression)
+        expectedType = self.analyzeOptionalTypeExpression(node.typeExpression)
+        value = self.analyzeNodeWithExpectedType(node.valueExpression, expectedType).asASGDataNode()
+        if name is None:
+            return value
+
+        self.environment = self.environment.childWithSymbolBinding(name, value)
+        return value
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
-    def expandLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
+    def expandSyntaxLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         type = self.builder.topLevelIdentifier('Integer')
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralIntegerNode, type, node.value)
 
+    @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralSymbolNode)
+    def expandSyntaxLiteralSymbolNode(self, node: ASGSyntaxLiteralSymbolNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        type = self.builder.topLevelIdentifier('Symbol')
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralSymbolNode, type, node.value)
+
     @asgPatternMatchingOnNodeKind(ASGSyntaxIdentifierReferenceNode)
-    def expandIdentifierReferenceNode(self, node: ASGSyntaxIdentifierReferenceNode) -> ASGTypecheckedNode:
+    def expandSyntaxIdentifierReferenceNode(self, node: ASGSyntaxIdentifierReferenceNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         lookupResult = self.environment.lookSymbolBindingListRecursively(node.value)
         if len(lookupResult) == 0:
-            assert False
+            return self.makeErrorAtNode('Failed to finding binding for symbol %s.' % node.value, node)
         elif len(lookupResult) == 1:
             return self(lookupResult[0])
         else:
@@ -1189,7 +1317,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             assert False
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
-    def expandSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:
+    def expandSyntaxSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         if len(node.elements) == 0:
             type = self.builder.topLevelIdentifier('Void')
@@ -1201,7 +1329,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         return result
     
     @asgPatternMatchingOnNodeKind(ASGSyntaxTupleNode)
-    def expandTupleNode(self, node: ASGSyntaxTupleNode) -> ASGTypecheckedNode:
+    def expandSyntaxTupleNode(self, node: ASGSyntaxTupleNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         if len(node.elements) == 0:
             type = self.builder.topLevelIdentifier('Void')
@@ -1221,7 +1349,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedTupleNode, type, elements)
     
     @asgPatternMatchingOnNodeKind(ASGTypecheckedNode)
-    def expandTypecheckedNode(self, node: ASGTypecheckedNode) -> ASGTypecheckedNode:
+    def expandSyntaxTypecheckedNode(self, node: ASGTypecheckedNode) -> ASGTypecheckedNode:
         return node
 
 def asgExpandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
