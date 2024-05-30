@@ -454,6 +454,12 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def asASGTypeNodeDerivation(self):
         return self.asASGNodeDerivation()
+    
+    def isTypeNode(self) -> bool:
+        return False
+
+    def isTypeUniverseNode(self) -> bool:
+        return False
 
     def isPureDataNode(self) -> bool:
         raise Exception("Subclass responsibility isPureDataNode")
@@ -731,6 +737,9 @@ class ASGSequenceExpression(ASGTypecheckedNode):
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
 
+    def isTypeNode(self) -> bool:
+        return self.type.isTypeUniverseNode()
+
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return self.type
 
@@ -757,6 +766,9 @@ class ASGTypedLiteralUnitNode(ASGTypedLiteralNode):
     pass
 
 class ASGTypeNode(ASGTypecheckedNode):
+    def isTypeNode(self) -> bool:
+        return True
+
     def isPureDataNode(self) -> bool:
         return True
 
@@ -769,19 +781,28 @@ class ASGTypeNode(ASGTypecheckedNode):
 class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
 
+class ASGUnitTypeNode(ASGBaseTypeNode):
+    pass
+
 class ASGPrimitiveType(ASGBaseTypeNode):
     size = ASGNodeDataAttribute(int)
     alignment = ASGNodeDataAttribute(int)
+
+class ASGPrimitiveCharacterType(ASGPrimitiveType):
+    pass
 
 class ASGPrimitiveIntegerType(ASGPrimitiveType):
     isSigned = ASGNodeDataAttribute(int)
     pass
 
-class ASGPrimitiveFloat(ASGPrimitiveType):
+class ASGPrimitiveFloatType(ASGPrimitiveType):
     pass
 
 class ASGTypeUniverseNode(ASGTypeNode):
     index = ASGNodeDataAttribute(int)
+
+    def isTypeUniverseNode(self) -> bool:
+        return True
 
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return environment.getTopLevelTargetEnvironment().getTypeUniverseWithIndex(self.index + 1)
@@ -975,6 +996,10 @@ class ASGEnvironment(ABC):
     def getTopLevelTargetEnvironment(self):
         pass
 
+    @abstractmethod
+    def lookSymbolBindingListRecursively(self, symbol: str):
+        pass
+
     def isLexicalEnvironment(self):
         return False
 
@@ -988,7 +1013,21 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.symbolTable = {}
         topLevelDerivation = ASGNodeNoDerivation.getSingleton()
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Integer'))
-        self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Void'))
+        self.addBaseType(ASGUnitTypeNode(topLevelDerivation, 'Void'))
+        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char8',  1, 1))
+        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char16',  2, 2))
+        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char32',  4, 4))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int8',  1, 1, True))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int16', 2, 2, True))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int32', 4, 4, True))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int64', 8, 8, True))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt8',  1, 1, False))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt16', 2, 2, False))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt32', 4, 4, False))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt64', 8, 8, False))
+        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Size', target.pointerSize, target.pointerAlignment, False))
+        self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float32', 4, 4))
+        self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float64', 8, 8))
 
     def addBaseType(self, baseType: ASGBaseTypeNode):
         self.addSymbolValue(baseType.name, baseType)
@@ -1014,6 +1053,9 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.typeUniverseIndexCache[universe]
         return universe
 
+    def lookSymbolBindingListRecursively(self, symbol: str):
+        return self.symbolTable.get(symbol, [])
+
     @classmethod
     def getForTarget(cls, target: CompilationTarget):
         if hasattr(target, 'asgTopLevelTargetEnvironment'):
@@ -1032,6 +1074,9 @@ class ASGChildEnvironment(ASGEnvironment):
     
     def getTopLevelTargetEnvironment(self):
         return self.topLevelTargetEnvironment
+
+    def lookSymbolBindingListRecursively(self, symbol: str):
+        return self.parent.lookSymbolBindingListRecursively(symbol)
 
 class ASGLexicalEnvironment(ASGChildEnvironment):
     def isLexicalEnvironment(self):
@@ -1126,10 +1171,22 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             return None
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
-    def expandLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> tuple[ASGTypecheckedNode, ASGTypecheckedNode]:
+    def expandLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         type = self.builder.topLevelIdentifier('Integer')
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralIntegerNode, type, node.value)
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxIdentifierReferenceNode)
+    def expandIdentifierReferenceNode(self, node: ASGSyntaxIdentifierReferenceNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        lookupResult = self.environment.lookSymbolBindingListRecursively(node.value)
+        if len(lookupResult) == 0:
+            assert False
+        elif len(lookupResult) == 1:
+            return self(lookupResult[0])
+        else:
+            ## Potentially overloaded
+            assert False
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
     def expandSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:
@@ -1151,13 +1208,21 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralUnitNode, type)
         
         elements = []
-        elementTypes = []
         for element in node.elements:
             expandedElement = self(element)
             elements.append(expandedElement)
-            elementTypes.append(expandedElement.asASGDataNode().getTypeInEnvironment(self.environment))
+
+        # If there are all elements, then this is a product type formation node
+        if all(element.isTypeNode() for element in elements):
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGProductTypeNode, elements)
+
+        elementTypes = list(map(lambda n: n.asASGDataNode().getTypeInEnvironment(self.environment), elements))
         type = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGProductTypeNode, elementTypes)
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedTupleNode, type, elements)
+    
+    @asgPatternMatchingOnNodeKind(ASGTypecheckedNode)
+    def expandTypecheckedNode(self, node: ASGTypecheckedNode) -> ASGTypecheckedNode:
+        return node
 
 def asgExpandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
     expander = ASGExpandAndTypecheckingAlgorithm(environment)
