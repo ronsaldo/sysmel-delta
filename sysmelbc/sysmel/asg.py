@@ -666,10 +666,15 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return self.lastVisitedNode
 
     def visitNodeWithoutSequencing(self, node: ParseTreeNode):
-        lastVisitedNode = self.lastVisitedNode
+        lastVisitedNode = None
         result = self.visitNode(node)
         self.lastVisitedNode = lastVisitedNode
         return result
+    
+    def visitOptionalNodeWithoutSequencing(self, node: ParseTreeNode):
+        if node is None:
+            return None
+        return self.visitNodeWithoutSequencing(node)
 
     def visitErrorNode(self, node: ParseTreeErrorNode):
         return ASGSyntaxErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodes(node.innerNodes), syntacticPredecessor = self.lastVisitedNode)
@@ -696,7 +701,7 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return ASGSyntaxDictionaryNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitFunctionalDependentTypeNode(self, node: ParseTreeFunctionalDependentTypeNode):
-        return ASGSyntaxFunctionalDependentTypeNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.argumentPattern), self.visitOptionalNode(node.resultType), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxFunctionalDependentTypeNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNodeWithoutSequencing(node.argumentPattern), self.visitOptionalNode(node.resultType), syntacticPredecessor = self.lastVisitedNode)
 
     def visitIdentifierReferenceNode(self, node: ParseTreeIdentifierReferenceNode):
         return ASGSyntaxIdentifierReferenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
@@ -1291,6 +1296,11 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
         self.environment = self.environment.childWithSymbolBinding(name, value)
         return value
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxFunctionalDependentTypeNode)
+    def expandSyntaxBindindingDefinitionNode(self, node: ASGSyntaxFunctionalDependentTypeNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        assert False
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
     def expandSyntaxLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
