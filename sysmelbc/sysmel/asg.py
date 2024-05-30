@@ -27,7 +27,19 @@ class ASGNodeExpansionDerivation(ASGNodeDerivation):
         if self.sourcePosition is None:
             self.sourcePosition = self.sourceNode.sourceDerivation.getSourcePosition()
         return self.sourcePosition
-    
+
+class ASGNodeUnificationDerivation(ASGNodeDerivation):
+    def __init__(self, originalNode, unifiedNode) -> None:
+        super().__init__()
+        self.originalNode = originalNode
+        self.unifiedNode = unifiedNode
+        self.sourcePosition = None
+
+    def getSourcePosition(self) -> SourcePosition:
+        if self.sourcePosition is None:
+            self.sourcePosition = self.originalNode.sourceDerivation.getSourcePosition()
+        return self.sourcePosition
+
 class ASGNodeSyntaxExpansionDerivation(ASGNodeExpansionDerivation):
     pass
     
@@ -106,6 +118,15 @@ class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
 
     def isNumberedConstructionAttribute(self) -> bool:
         return True
+    
+    def isComparedForUnification(self) -> bool:
+        return True
+    
+    def hashFrom(self, instance) -> int:
+        return hash(self.loadValueFrom(instance))
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        return self.loadValueFrom(first) == self.loadValueFrom(second)
 
     def initializeWithConstructorValueOn(self, constructorValue, instance):
         self.storeValueIn(constructorValue, instance)
@@ -114,6 +135,7 @@ class ASGNodeConstructionAttributeWithSourceDerivation(ASGNodeConstructionAttrib
     def __init__(self) -> None:
         super().__init__()
         self.sourceDerivationStorageName = None
+
     def setName(self, name: str):
         super().setName(name)
         self.sourceDerivationStorageName = '_' + name + '_sourceDerivation'
@@ -159,6 +181,9 @@ class ASGNodeSourceDerivationAttribute(ASGNodeConstructionAttribute):
 
     def isSourceDerivationAttribute(self) -> bool:
         return True
+
+    def isComparedForUnification(self) -> bool:
+        return False
 
 class ASGPredecessorAttribute(ASGNodeConstructionAttributeWithSourceDerivation):
     def isNumberedConstructionAttribute(self) -> bool:
@@ -208,6 +233,12 @@ class ASGNodeDataInputPort(ASGNodeConstructionAttributeWithSourceDerivation):
     def getNodeInputsOf(self, instance):
         return [self.loadValueFrom(instance)]
 
+    def hashFrom(self, instance) -> int:
+        return self.loadValueFrom(instance).unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        return self.loadValueFrom(first).unificationEquals(self.loadValueFrom(second))
+    
 class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttributeWithSourceDerivation):
     def initializeWithConstructorValueOn(self, constructorValue, instance):
         if constructorValue is None:
@@ -226,12 +257,33 @@ class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttributeWithSourceDerivat
             return []
         return [value]
 
+    def hashFrom(self, instance) -> int:
+        value = self.loadValueFrom(instance)
+        if value is None:
+            return hash(None)
+        return value.unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        firstValue = self.loadValueFrom(first)
+        secondValue = self.loadValueFrom(second)
+        if firstValue is secondValue:
+            return True
+        if firstValue is None:
+            return False
+        return firstValue.unificationEquals(secondValue)
+
 class ASGNodeTypeInputNode(ASGNodeConstructionAttributeWithSourceDerivation):
     def isTypeInputPort(self) -> bool:
         return True
 
     def getNodeInputsOf(self, instance):
         return [self.loadValueFrom(instance)]
+    
+    def hashFrom(self, instance) -> int:
+        return self.loadValueFrom(instance).unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        return self.loadValueFrom(first).unificationEquals(self.loadValueFrom(second))
     
 class ASGNodeOptionalTypeInputNode(ASGNodeConstructionAttribute):
     def isTypeInputPort(self) -> bool:
@@ -243,10 +295,25 @@ class ASGNodeOptionalTypeInputNode(ASGNodeConstructionAttribute):
             return []
         return [self.loadValueFrom(instance)]
     
+    def hashFrom(self, instance) -> int:
+        value = self.loadValueFrom(instance)
+        if value is None:
+            return hash(None)
+        return value.unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        firstValue = self.loadValueFrom(first)
+        secondValue = self.loadValueFrom(second)
+        if firstValue is secondValue:
+            return True
+        if firstValue is None:
+            return False
+        return firstValue.unificationEquals(secondValue)
+
 class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
     def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
-        self.storeValueIn(list(map(lambda x: x.asASGDataNode(), constructorValue)), instance)
-        self.storeSourceDerivationIn(list(map(lambda x: x.asASGDataNodeDerivation(), constructorValue)), instance)
+        self.storeValueIn(tuple(map(lambda x: x.asASGDataNode(), constructorValue)), instance)
+        self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGDataNodeDerivation(), constructorValue)), instance)
 
     def isDataInputPort(self) -> bool:
         return True
@@ -254,6 +321,25 @@ class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
     def getNodeInputsOf(self, instance):
         return self.loadValueFrom(instance)
 
+    def hashFrom(self, instance) -> int:
+        result = hash(tuple)
+        for value in self.loadValueFrom(instance):
+            result ^= value.unificationHash()
+
+        return value.unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        firstValue = self.loadValueFrom(first)
+        secondValue = self.loadValueFrom(second)
+        if len(firstValue) != len(secondValue):
+            return False
+
+        for i in range(len(firstValue)):
+            if not firstValue[i].unificationEquals(secondValue[i]):
+                return False
+
+        return True
+    
 class ASGNodeMetaclass(type):
     def __new__(cls, name, bases, attributes):
         descriptors = []
@@ -301,6 +387,8 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def __init__(self, *positionalArguments, **kwArguments) -> None:
         super().__init__()
 
+        self.__hashValueCache__ = None
+
         constructionAttributes = self.__class__.__asgConstructionAttributes__
         constructionAttributeDictionary = self.__class__.__asgConstructionAttributeDictionary__
         if len(positionalArguments) > len(constructionAttributes):
@@ -315,6 +403,30 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             if key not in constructionAttributeDictionary:
                 raise Exception('Failed to find attribute %s in %s' % (str(key), repr(self.__class__)))
             constructionAttributeDictionary[key].initializeWithConstructorValueOn(value, self)
+
+    def unificationHash(self) -> int:
+        if self.__hashValueCache__ is not None:
+            return self.__hashValueCache__
+        
+        self.__hashValueCache__ = hash(self.__class__)
+        constructionAttributes = self.__class__.__asgConstructionAttributes__
+        for attribute in constructionAttributes:
+            if attribute.isComparedForUnification():
+                self.__hashValueCache__ ^= attribute.hashFrom(self)
+        return self.__hashValueCache__
+    
+    def unificationEquals(self, other) -> bool:
+        if self is other: return True
+        if self.__class__ != other.__class__:
+            return False
+
+        constructionAttributes = self.__class__.__asgConstructionAttributes__
+        for attribute in constructionAttributes:
+            if attribute.isComparedForUnification():
+                if not attribute.equalsFromAndFrom(self, other):
+                    return False
+
+        return True
 
     def asASGNode(self):
         return self
@@ -409,6 +521,16 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     
     def __str__(self) -> str:
         return self.printNameWithDataAttributes()
+
+class ASGUnificationComparisonNode:
+    def __init__(self, node) -> None:
+        self.node = node
+
+    def __eq__(self, other: object) -> bool:
+        return self.node.unificationEquals(other.node)
+    
+    def __hash__(self) -> int:
+        return self.node.unificationHash()
 
 class ASGSyntaxNode(ASGNode):
     sourceDerivation = ASGNodeSourceDerivationAttribute()
@@ -566,7 +688,7 @@ class ASGTypecheckedNode(ASGNode):
     def asASGNodeDerivation(self):
         return self.sourceDerivation
 
-class ASGTypecheckedSequencedExpression(ASGTypecheckedNode):
+class ASGSequenceExpression(ASGTypecheckedNode):
     predecessor = ASGSequencingPredecessorAttribute()
     expression = ASGNodeDataInputPort()
 
@@ -583,7 +705,7 @@ class ASGTypecheckedSequencedExpression(ASGTypecheckedNode):
         return True
 
     def hasSequencingPredecessorOf(self, predecessor) -> bool:
-        return self.predecessor is predecessor
+        return self is predecessor or self.predecessor is predecessor
 
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
@@ -739,6 +861,9 @@ class ASGUnifiedNodeValue:
     def asASGSequencingNodeDerivation(self):
         return self.node.asASGSequencingNodeDerivation()
     
+    def hasSequencingPredecessorOf(self, predecessor):
+        return self.node.hasSequencingPredecessorOf(predecessor)
+    
 class ASGDynamicProgrammingAlgorithmMetaclass(type):
     def __new__(cls, name, bases, attributes):
         patterns: list[ASGPatternMatchingNodeKindPattern] = []
@@ -855,6 +980,7 @@ class ASGBuilderWithGVN:
     def __init__(self, parentBuilder, topLevelEnvironment: ASGTopLevelTargetEnvironment) -> None:
         self.parentBuilder: ASGBuilderWithGVN = parentBuilder
         self.topLevelEnvironment = topLevelEnvironment
+        self.builtNodes = {}
 
     def topLevelIdentifier(self, name: str):
         if self.parentBuilder is not None:
@@ -864,7 +990,28 @@ class ASGBuilderWithGVN:
         return self.unifyWithPreviousBuiltNode(value)
 
     def unifyWithPreviousBuiltNode(self, node: ASGNode):
+        if node is None:
+            return None
+        
+        if not node.isPureDataNode():
+            return node
+        
+        comparisonNode = ASGUnificationComparisonNode(node)
+        unifiedNode = self.unifyChildNode(comparisonNode)
+        if unifiedNode is not None:
+            return ASGUnifiedNodeValue(unifiedNode.node, ASGNodeUnificationDerivation(node, unifiedNode.node))
+        
+        self.builtNodes[comparisonNode] = comparisonNode
         return node
+    
+    def unifyChildNode(self, node: ASGNode):
+        unified = self.builtNodes.get(node, None)
+        if unified is not None:
+            return unified
+
+        if self.parentBuilder is not None:
+            return self.parentBuilder.unifyChildNode(node)
+        return None
 
     def build(self, kind, *arguments, **kwArguments) -> ASGNode | ASGUnifiedNodeValue:
         builtNode = kind(*arguments, **kwArguments)
@@ -881,11 +1028,9 @@ class ASGBuilderWithGVN:
             if valueOrSequenceNode.isSequencingNode():
                 return valueOrSequenceNode
         else:
-            if valueOrSequenceNode is predecessor:
-                return valueOrSequenceNode
             if valueOrSequenceNode.hasSequencingPredecessorOf(predecessor):
                 return valueOrSequenceNode
-        return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGTypecheckedSequencedExpression, valueOrSequenceNode, predecessor = predecessor)
+        return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGSequenceExpression, valueOrSequenceNode, predecessor = predecessor)
     
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     def __init__(self, environment: ASGEnvironment) -> None:
