@@ -272,7 +272,41 @@ class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttributeWithSourceDerivat
             return False
         return firstValue.unificationEquals(secondValue)
 
+class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
+    def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
+        self.storeValueIn(tuple(map(lambda x: x.asASGDataNode(), constructorValue)), instance)
+        self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGDataNodeDerivation(), constructorValue)), instance)
+
+    def isDataInputPort(self) -> bool:
+        return True
+
+    def getNodeInputsOf(self, instance):
+        return self.loadValueFrom(instance)
+
+    def hashFrom(self, instance) -> int:
+        result = hash(tuple)
+        for value in self.loadValueFrom(instance):
+            result ^= value.unificationHash()
+
+        return value.unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        firstValue = self.loadValueFrom(first)
+        secondValue = self.loadValueFrom(second)
+        if len(firstValue) != len(secondValue):
+            return False
+
+        for i in range(len(firstValue)):
+            if not firstValue[i].unificationEquals(secondValue[i]):
+                return False
+
+        return True
+    
 class ASGNodeTypeInputNode(ASGNodeConstructionAttributeWithSourceDerivation):
+    def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
+        self.storeValueIn(constructorValue.asASGTypeNode(), instance)
+        self.storeSourceDerivationIn(constructorValue.asASGTypeNodeDerivation(), instance)
+
     def isTypeInputPort(self) -> bool:
         return True
 
@@ -284,36 +318,11 @@ class ASGNodeTypeInputNode(ASGNodeConstructionAttributeWithSourceDerivation):
     
     def equalsFromAndFrom(self, first, second) -> bool:
         return self.loadValueFrom(first).unificationEquals(self.loadValueFrom(second))
-    
-class ASGNodeOptionalTypeInputNode(ASGNodeConstructionAttribute):
-    def isTypeInputPort(self) -> bool:
-        return True
 
-    def getNodeInputsOf(self, instance):
-        type = self.loadValueFrom(instance)
-        if type is None:
-            return []
-        return [self.loadValueFrom(instance)]
-    
-    def hashFrom(self, instance) -> int:
-        value = self.loadValueFrom(instance)
-        if value is None:
-            return hash(None)
-        return value.unificationHash()
-    
-    def equalsFromAndFrom(self, first, second) -> bool:
-        firstValue = self.loadValueFrom(first)
-        secondValue = self.loadValueFrom(second)
-        if firstValue is secondValue:
-            return True
-        if firstValue is None:
-            return False
-        return firstValue.unificationEquals(secondValue)
-
-class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
+class ASGNodeTypeInputNodes(ASGNodeConstructionAttributeWithSourceDerivation):
     def initializeWithConstructorValueOn(self, constructorValue, instance) -> bool:
-        self.storeValueIn(tuple(map(lambda x: x.asASGDataNode(), constructorValue)), instance)
-        self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGDataNodeDerivation(), constructorValue)), instance)
+        self.storeValueIn(tuple(map(lambda x: x.asASGTypeNode(), constructorValue)), instance)
+        self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGTypeNodeDerivation(), constructorValue)), instance)
 
     def isDataInputPort(self) -> bool:
         return True
@@ -439,7 +448,13 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def asASGDataNodeDerivation(self):
         return self.asASGNodeDerivation()
-    
+
+    def asASGTypeNode(self):
+        return self.asASGNode()
+
+    def asASGTypeNodeDerivation(self):
+        return self.asASGNodeDerivation()
+
     def isPureDataNode(self) -> bool:
         raise Exception("Subclass responsibility isPureDataNode")
     
@@ -701,6 +716,12 @@ class ASGSequenceExpression(ASGTypecheckedNode):
     def asASGDataNodeDerivation(self):
         return self.expression.asASGDataNodeDerivation()
     
+    def asASGTypeNode(self):
+        return self.expression.asASGTypeNode()
+    
+    def asASGTypeNodeDerivation(self):
+        return self.expression.asASGTypeNodeDerivation()
+    
     def isSequencingNode(self) -> bool:
         return True
 
@@ -710,9 +731,15 @@ class ASGSequenceExpression(ASGTypecheckedNode):
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
 
-class ASGTypedLiteralNode(ASGTypedExpressionNode):
+    def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
+        return self.type
+
+class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
     def isPureDataNode(self) -> bool:
         return True
+
+class ASGTypedLiteralNode(ASGTypedDataExpressionNode):
+    pass
     
 class ASGTypedLiteralCharacterNode(ASGTypedLiteralNode):
     value = ASGNodeDataAttribute(int)
@@ -733,6 +760,12 @@ class ASGTypeNode(ASGTypecheckedNode):
     def isPureDataNode(self) -> bool:
         return True
 
+    def getTypeUniverseIndex(self) -> int:
+        return 0
+
+    def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
+        return environment.getTopLevelTargetEnvironment().getTypeUniverseWithIndex(self.getTypeUniverseIndex())
+
 class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
 
@@ -747,8 +780,20 @@ class ASGPrimitiveIntegerType(ASGPrimitiveType):
 class ASGPrimitiveFloat(ASGPrimitiveType):
     pass
 
-class ASGUniverseTypeNode(ASGTypeNode):
-    pass
+class ASGTypeUniverseNode(ASGTypeNode):
+    index = ASGNodeDataAttribute(int)
+
+    def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
+        return environment.getTopLevelTargetEnvironment().getTypeUniverseWithIndex(self.index + 1)
+
+class ASGProductTypeNode(ASGTypeNode):
+    elements = ASGNodeTypeInputNodes()
+
+class ASGTypedTupleNode(ASGTypedDataExpressionNode):
+    elements = ASGNodeDataInputPorts()
+
+class ASGSumTypeNode(ASGTypeNode):
+    elements = ASGNodeTypeInputNodes()
 
 def asgTopoSortTraversal(aBlock, node: ASGNode):
     visited = set()
@@ -872,6 +917,12 @@ class ASGUnifiedNodeValue:
     def asASGSequencingNodeDerivation(self):
         return self.node.asASGSequencingNodeDerivation()
     
+    def asASGTypeNode(self):
+        return self.node.asASGTypeNode()
+
+    def asASGTypeNodeDerivation(self):
+        return self.node.asASGTypeNodeDerivation()
+    
     def hasSequencingPredecessorOf(self, predecessor):
         return self.node.hasSequencingPredecessorOf(predecessor)
     
@@ -955,6 +1006,14 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
     def getTopLevelTargetEnvironment(self):
         return self
     
+    def getTypeUniverseWithIndex(self, index):
+        if index in self.typeUniverseIndexCache:
+            return self.typeUniverseIndexCache[index]
+        
+        universe = ASGTypeUniverseNode(index)
+        self.typeUniverseIndexCache[universe]
+        return universe
+
     @classmethod
     def getForTarget(cls, target: CompilationTarget):
         if hasattr(target, 'asgTopLevelTargetEnvironment'):
@@ -1083,6 +1142,22 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         for element in node.elements:
             result = self(element)
         return result
+    
+    @asgPatternMatchingOnNodeKind(ASGSyntaxTupleNode)
+    def expandTupleNode(self, node: ASGSyntaxTupleNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        if len(node.elements) == 0:
+            type = self.builder.topLevelIdentifier('Void')
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralUnitNode, type)
+        
+        elements = []
+        elementTypes = []
+        for element in node.elements:
+            expandedElement = self(element)
+            elements.append(expandedElement)
+            elementTypes.append(expandedElement.asASGDataNode().getTypeInEnvironment(self.environment))
+        type = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGProductTypeNode, elementTypes)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedTupleNode, type, elements)
 
 def asgExpandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
     expander = ASGExpandAndTypecheckingAlgorithm(environment)
