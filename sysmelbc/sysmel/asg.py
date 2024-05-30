@@ -833,9 +833,20 @@ class ASGPatternMatchingNodeKindPattern(ASGPatternMatchingPattern):
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.function(*args, **kwds)
 
-def asgPatternMatchingOnNodeKind(kind: type):
+class ASGPatternMatchingNodeKindPatternWithPredicate(ASGPatternMatchingNodeKindPattern):
+    def __init__(self, kind: type, predicate, function) -> None:
+        super().__init__(kind, function)
+        self.predicate = predicate
+
+    def matchesNode(self, node):
+        return self.predicate(node)
+
+def asgPatternMatchingOnNodeKind(kind: type, when = None):
     def makePattern(function):
-        return ASGPatternMatchingNodeKindPattern(kind, function)
+        if when is not None:
+            return ASGPatternMatchingNodeKindPatternWithPredicate(kind, when, function)
+        else:
+            return ASGPatternMatchingNodeKindPattern(kind, function)
     return makePattern
 
 class ASGUnifiedNodeValue:
@@ -981,6 +992,7 @@ class ASGBuilderWithGVN:
         self.parentBuilder: ASGBuilderWithGVN = parentBuilder
         self.topLevelEnvironment = topLevelEnvironment
         self.builtNodes = {}
+        self.currentPredecessor = None
 
     def topLevelIdentifier(self, name: str):
         if self.parentBuilder is not None:
@@ -1012,16 +1024,25 @@ class ASGBuilderWithGVN:
         if self.parentBuilder is not None:
             return self.parentBuilder.unifyChildNode(node)
         return None
+    
+    def updatePredecessorWith(self, node: ASGNode):
+        if node.asASGNode().isSequencingNode():
+            self.currentPredecessor = node
+        return node
 
     def build(self, kind, *arguments, **kwArguments) -> ASGNode | ASGUnifiedNodeValue:
         builtNode = kind(*arguments, **kwArguments)
-        return self.unifyWithPreviousBuiltNode(builtNode)
+        return self.updatePredecessorWith(self.unifyWithPreviousBuiltNode(builtNode))
     
     def forSyntaxExpansionBuild(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
         return self.build(kind, ASGNodeSyntaxExpansionDerivation(expansionAlgorithm, syntaxNode), *arguments, **kwArguments)
 
-    def forSyntaxExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, predecessor, *arguments, **kwArguments):
+    def forSyntaxExpansionBuildAndSequenceWith(self, expansionAlgorithm, syntaxNode, kind, predecessor, *arguments, **kwArguments):
         return self.forSyntaxExpansionSequence(expansionAlgorithm, syntaxNode, predecessor, self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
+
+    def forSyntaxExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
+        lastPredecessor = self.currentPredecessor
+        return self.updatePredecessorWith(self.forSyntaxExpansionBuildAndSequenceWith(expansionAlgorithm, syntaxNode, kind, lastPredecessor, *arguments, **kwArguments))
 
     def forSyntaxExpansionSequence(self, expansionAlgorithm, syntaxNode, predecessor, valueOrSequenceNode):
         if predecessor is None:
@@ -1047,21 +1068,20 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
     def expandLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> tuple[ASGTypecheckedNode, ASGTypecheckedNode]:
-        predecessor = self.syntaxPredecessorOf(node)
+        self.syntaxPredecessorOf(node)
         type = self.builder.topLevelIdentifier('Integer')
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralIntegerNode, predecessor, type, node.value)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralIntegerNode, type, node.value)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
     def expandSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         if len(node.elements) == 0:
             type = self.builder.topLevelIdentifier('Void')
-            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralUnitNode, predecessor, type)
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTypedLiteralUnitNode, type)
 
         result = None
         for element in node.elements:
             result = self(element)
-            predecessor = result
         return result
 
 def asgExpandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
