@@ -5,5 +5,10 @@
 ##Int32, Float32, Char32.
 ##((:(Int32)x :: Int32) := x) , ((:(Int32)y :: Int32) := y).
 ##(:(Type)T :: Type) := T.
-(:(Type)T :: :(T)x :: T) := x
+##:Identity(:(Type)T :: :(T)x :: T) := x.
+##:Identity <- (:(Type)T :: :(T)x :: T) := x.
+
 ##Int32 -> Int32
+
+:idInteger(:(Integer)x :: Integer) := x.
+idInteger(42)
