@@ -688,6 +688,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             return self.__betaReplaceableDependencies__
         
         self.__betaReplaceableDependencies__ = set()
+        if self.isBetaReplaceableNode():
+            self.__betaReplaceableDependencies__.add(self)
+
         for dependency in self.allDependencies():
             for element in dependency.betaReplaceableDependencies():
                 self.__betaReplaceableDependencies__.add(element)
@@ -1041,9 +1044,6 @@ class ASGTypeNode(ASGTypecheckedNode):
 class ASGBetaReplaceableNode(ASGTypedDataExpressionNode):
     def isBetaReplaceableNode(self) -> bool:
         return True
-    
-    def betaReplaceableDependencies(self):
-        return (self,)
 
 class ASGArgumentNode(ASGBetaReplaceableNode):
     index = ASGNodeDataAttribute(int, default = 0)
@@ -1603,7 +1603,7 @@ class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGBetaReplaceableNode)
     def expandBetaReplaceableNode(self, node: ASGBetaReplaceableNode) -> ASGTypecheckedNode:
         if not self.substitutionContext.includesNode(node):
-            return node
+            return self.expandGenericNodeRecursively(node)
         else:
             return self.substitutionContext.getSubstitutionFor(node)
         
@@ -1617,6 +1617,9 @@ class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
 
     @asgPatternMatchingOnNodeKind(ASGNode)
     def expandGenericNode(self, node: ASGNode) -> ASGTypecheckedNode:
+        return self.expandGenericNodeRecursively(node)
+    
+    def expandGenericNodeRecursively(self, node: ASGNode):
         nodeAttributes = node.getAllConstructionAttributes()
         expandedParameters = []
         for attribute in nodeAttributes:

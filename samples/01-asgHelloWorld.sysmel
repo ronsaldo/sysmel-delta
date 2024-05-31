@@ -6,7 +6,7 @@
 ##((:(Int32)x :: Int32) := x) , ((:(Int32)y :: Int32) := y).
 ##(:(Type)T :: Type) := T.
 :Identity(:(Type)T :: :(T)x :: T) := x.
-Identity(Integer)
+Identity(Integer)(42)
 ##:Identity <- (:(Type)T :: :(T)x :: T) := x.
 
 ##Int32 -> Int32
