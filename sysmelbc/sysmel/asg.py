@@ -176,7 +176,7 @@ class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
         if self.hasDefaultValue:
             self.storeValueIn(self.defaultValue, instance)
         else:
-            super().initializeWithDefaultConstructorValueOn(self, instance)
+            super().initializeWithDefaultConstructorValueOn(instance)
 
     def isDataAttribute(self) -> bool:
         return True
@@ -505,6 +505,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
         return True
 
+    def isSatisfiedAsTypeBy(self, otherType) -> bool:
+        return self.unificationEquals(otherType)
+
     def asASGNode(self):
         return self
 
@@ -616,6 +619,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 
         return result
 
+    def getAllConstructionAttributes(self) -> list:
+        return list(map(lambda attr: attr.loadValueFrom(self), self.__class__.__asgConstructionAttributes__))
+
     def printNameWithComparedAttributes(self) -> str:
         result = self.__class__.__asgKindName__
         attributes: list[ASGNodeAttributeDescriptor] = self.__class__.__asgConstructionAttributes__
@@ -683,7 +689,8 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         
         self.__betaReplaceableDependencies__ = set()
         for dependency in self.allDependencies():
-            self.__betaReplaceableDependencies__ += dependency.betaReplaceableDependencies()
+            for element in dependency.betaReplaceableDependencies():
+                self.__betaReplaceableDependencies__.add(element)
         return self.__betaReplaceableDependencies__
 
 class ASGUnificationComparisonNode:
@@ -1036,7 +1043,7 @@ class ASGBetaReplaceableNode(ASGTypedDataExpressionNode):
         return True
     
     def betaReplaceableDependencies(self):
-        return ()
+        return (self,)
 
 class ASGArgumentNode(ASGBetaReplaceableNode):
     index = ASGNodeDataAttribute(int, default = 0)
@@ -1079,6 +1086,12 @@ class ASGAnyTypeUniverseNode(ASGBaseTypeNode):
     def isTypeUniverseNode(self) -> bool:
         return True
     
+    def isSatisfiedAsTypeBy(self, otherType) -> bool:
+        if otherType.isTypeUniverseNode():
+            return True
+
+        return self.unificationEquals(otherType)
+
 class ASGTypeUniverseNode(ASGTypeNode):
     index = ASGNodeDataAttribute(int)
 
@@ -1360,6 +1373,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         super().__init__()
         self.target = target
         self.symbolTable = {}
+        self.typeUniverseIndexCache = {}
         topLevelDerivation = ASGNodeNoDerivation.getSingleton()
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Integer'))
         self.addBaseType(ASGBottomTypeNode(topLevelDerivation, 'Abort'))
@@ -1400,8 +1414,8 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         if index in self.typeUniverseIndexCache:
             return self.typeUniverseIndexCache[index]
         
-        universe = ASGTypeUniverseNode(index)
-        self.typeUniverseIndexCache[universe]
+        universe = ASGTypeUniverseNode(ASGNodeNoDerivation.getSingleton(), index)
+        self.typeUniverseIndexCache[index] = universe
         return universe
 
     def lookSymbolBindingListRecursively(self, symbol: str):
@@ -1552,8 +1566,20 @@ class ASGBetaSubstitutionContext:
     def setSubstitutionForNode(self, oldNode: ASGNode, replacedNode: ASGNode):
         self.substitutionTable[oldNode] = replacedNode
 
+    def getSubstitutionFor(self, node):
+        return self.substitutionTable.get(node, node)
+
     def isEmpty(self) -> bool:
         return len(self.substitutionTable) == 0
+    
+    def includesNode(self, node) -> bool:
+        return node in self.substitutionTable
+    
+    def includesAnyOf(self, listOfNodes) -> bool:
+        for node in listOfNodes:
+            if self.includesNode(node):
+                return True
+        return False
 
 class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
     def __init__(self, substitutionContext: ASGBetaSubstitutionContext, builder: ASGBuilderWithGVN) -> None:
@@ -1564,9 +1590,38 @@ class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
     def expandNode(self, node: ASGNode):
         if self.substitutionContext.isEmpty():
             return node
-        if len(node.betaReplaceableDependencies()) == 0:
+        
+        if self.substitutionContext.includesNode(node):
+            return self.substitutionContext.getSubstitutionFor(node)
+        
+        betaReplaceableDependencies = node.betaReplaceableDependencies()
+        if not self.substitutionContext.includesAnyOf(betaReplaceableDependencies):
             return node
+
         return self(node)
+
+    @asgPatternMatchingOnNodeKind(ASGBetaReplaceableNode)
+    def expandBetaReplaceableNode(self, node: ASGBetaReplaceableNode) -> ASGTypecheckedNode:
+        if not self.substitutionContext.includesNode(node):
+            return node
+        else:
+            return self.substitutionContext.getSubstitutionFor(node)
+        
+    def expandParameter(self, parameter):
+        if isinstance(parameter, ASGNode):
+            return self.expandNode(parameter)
+        elif isinstance(parameter, tuple):
+            return tuple(map(self.expandParameter, parameter))
+        else:
+            return parameter
+
+    @asgPatternMatchingOnNodeKind(ASGNode)
+    def expandGenericNode(self, node: ASGNode) -> ASGTypecheckedNode:
+        nodeAttributes = node.getAllConstructionAttributes()
+        expandedParameters = []
+        for attribute in nodeAttributes:
+            expandedParameters.append(self.expandParameter(attribute))
+        return node.__class__(*expandedParameters)
 
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVN = None) -> None:
@@ -1596,7 +1651,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             return analyzedNode, True
 
         analyzedNodeType = analyzedNode.getTypeInEnvironment(self.environment)
-        if analyzedNodeType.unificationEquals(expectedType.asASGTypeNode()):
+        if expectedType.asASGTypeNode().isSatisfiedAsTypeBy(analyzedNodeType):
             return analyzedNode, True
         return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (str(expectedType), str(analyzedNodeType)), node), False
     
