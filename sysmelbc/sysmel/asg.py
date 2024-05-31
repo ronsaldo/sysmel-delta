@@ -919,10 +919,22 @@ class ASGSequencingNode(ASGTypecheckedNode):
         return True
 
 class ASGEntryPointNode(ASGSequencingNode):
-
     def isEntryPointNode(self) -> bool:
         return True
 
+class ASGExitPointNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    expression = ASGNodeDataInputPort()
+
+    def isExitPointNode(self) -> bool:
+        return True
+
+    def hasSequencingPredecessorOf(self, predecessor) -> bool:
+        return self is predecessor or self.predecessor is predecessor
+    
+    def isSequencingNodeForExpression(self, expression) -> bool:
+        return self.expression is expression
+    
 class ASGSequenceExpressionNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
     expression = ASGNodeDataInputPort()
@@ -1059,8 +1071,12 @@ class ASGTupleNode(ASGTypedDataExpressionNode):
 class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     entryPoint = ASGSequencingDestinationPort()
-    result = ASGNodeDataAndSequencingInputPorts()
+    exitPoints = ASGNodeDataAndSequencingInputPorts()
     callingConvention = ASGNodeDataAttribute(str, default = None)
+
+class ASGTopLevelScriptNode(ASGTypedDataExpressionNode):
+    entryPoint = ASGSequencingDestinationPort()
+    exitPoints = ASGNodeDataAndSequencingInputPorts()
 
 class ASGSumTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
@@ -1663,8 +1679,18 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         body, bodyTypechecked = functionalAnalyzer.analyzeNodeWithExpectedType(node.body, resultType)
         if not bodyTypechecked:
             return body
-        body = functionalAnalyzer.builder.forSyntaxExpansionSequence(functionalAnalyzer, node, functionalAnalyzer.builder.currentPredecessor, body)
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, [body], callingConvention = node.callingConvention)
+
+        bodyExitPoint = functionalAnalyzer.builder.forSyntaxExpansionBuild(functionalAnalyzer, node, ASGExitPointNode, body, predecessor = functionalAnalyzer.builder.currentPredecessor)
+        exitPoints = [bodyExitPoint]
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, exitPoints, callingConvention = node.callingConvention)
+    
+    def expandTopLevelScript(self, node: ASGNode) -> ASGTopLevelScriptNode:
+        entryPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGEntryPointNode)
+        scriptResult = self(node)
+        exitPoint = self.builder.forSyntaxExpansionBuild(self, node, ASGExitPointNode, scriptResult, predecessor = self.builder.currentPredecessor)
+        exitPoints = [exitPoint]
+        resultType = scriptResult.getTypeInEnvironment(self.builder)
+        return self.builder.forSyntaxExpansionBuild(self, node, ASGTopLevelScriptNode, resultType, entryPoint, exitPoints)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxPiNode)
     def expandSyntaxPiNode(self, node: ASGSyntaxPiNode) -> ASGTypecheckedNode:
@@ -1748,7 +1774,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
 def asgExpandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
     expander = ASGExpandAndTypecheckingAlgorithm(environment)
-    result = expander(node)
+    result = expander.expandTopLevelScript(node)
     return result
 
 def asgMakeScriptAnalysisEnvironment(target: CompilationTarget, sourcePosition: SourcePosition, scriptPath: str) -> ASGEnvironment:
