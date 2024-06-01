@@ -913,7 +913,8 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return ASGSyntaxBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindableNameNode(self, node: ParseTreeBindableNameNode):
-        return ASGSyntaxBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression, syntacticPredecessor = self.lastVisitedNode)
+        self.lastVisitedNode = None
+        return ASGSyntaxBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression)
 
     def visitBlockNode(self, node: ParseTreeBlockNode):
         return ASGSyntaxBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functionType), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
@@ -1128,6 +1129,15 @@ class ASGProductTypeNode(ASGTypeNode):
 class ASGTupleNode(ASGTypedDataExpressionNode):
     elements = ASGNodeDataInputPorts()
 
+    def parseAndUnpackArgumentsPattern(self):
+        isExistential = False
+        isVariadic = False
+        if len(self.elements) == 1 and self.elements[0].isBindableNameNode():
+            isExistential = self.elements[0].isExistential
+        if len(self.elements) > 0 and self.elements[-1].isBindableNameNode():
+            isVariadic = self.elements[-1].isVariadic
+        return self.elements, isExistential, isVariadic
+    
 class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     entryPoint = ASGSequencingDestinationPort()
