@@ -1701,6 +1701,14 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
     def withFunctionalAnalysisEnvironment(self, newEnvironment: ASGFunctionalAnalysisEnvironment):
         return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()))
+    
+    def withChildLexicalEnvironmentDo(self, newEnvironment: ASGEnvironment, aBlock):
+        oldEnvironment = self.environment
+        self.environment = newEnvironment
+        try:
+            return aBlock()
+        finally:
+            self.environment = oldEnvironment
 
     def syntaxPredecessorOf(self, node: ASGSyntaxNode):
         predecessor = node.syntacticPredecessor
@@ -1739,7 +1747,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if node is None:
             return None
         
-        return self.evaluateSymbol(self, node)
+        return self.evaluateSymbol(node)
     
     def analyzeArgumentNode(self, functionalAnalyzer, node: ASGNode, index: int) -> ASGArgumentNode:
         if not node.isKindOf(ASGSyntaxBindableNameNode):
@@ -1894,6 +1902,12 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         resultType = functionalAnalyzer.analyzeTypeExpression(node.resultType)
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiNode, typedArguments, resultType, isVariadic = node.isVariadic, callingConvention = node.callingConvention)
 
+    @asgPatternMatchingOnNodeKind(ASGSyntaxLexicalBlockNode)
+    def expandSyntaxLexicalBlock(self, node: ASGSyntaxLexicalBlockNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        lexicalEnvironment = ASGLexicalEnvironment(self.environment, node.sourceDerivation.getSourcePosition())
+        return self.withChildLexicalEnvironmentDo(lexicalEnvironment, lambda: self(node.body))
+    
     @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
     def expandSyntaxLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)

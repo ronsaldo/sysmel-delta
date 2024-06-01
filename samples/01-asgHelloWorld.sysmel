@@ -14,4 +14,7 @@
 ##:idInteger(:(Integer)x :: Integer) := x.
 ##idInteger(42)
 
-42i32
+:main(:(Int32)argc :: Int32) := {
+
+    0i32
+}.
