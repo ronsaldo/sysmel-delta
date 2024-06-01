@@ -124,6 +124,9 @@ class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
     def isNumberedConstructionAttribute(self) -> bool:
         return True
     
+    def isPrinted(self) -> bool:
+        return True
+
     def isComparedForUnification(self) -> bool:
         return True
     
@@ -162,9 +165,13 @@ class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
         self.hasDefaultValue = False
         self.defaultValue = None
         self.isCompared = 'notCompared' not in kwArguments
+        self.isPrinted_ = 'notPrinted' not in kwArguments
         if 'default' in kwArguments:
             self.hasDefaultValue = True
             self.defaultValue = kwArguments['default']
+
+    def isPrinted(self) -> bool:
+        return self.isPrinted_
 
     def isComparedForUnification(self) -> bool:
         return self.isCompared
@@ -601,6 +608,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         attributes: list[ASGNodeAttributeDescriptor] = self.__class__.__asgDataAttributes__
         destIndex = 0;
         for attribute in attributes:
+            if not attribute.isPrinted():
+                continue
+
             if attribute.hasDefaultValueIn(self):
                 continue
 
@@ -627,6 +637,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         attributes: list[ASGNodeAttributeDescriptor] = self.__class__.__asgConstructionAttributes__
         destIndex = 0;
         for attribute in attributes:
+            if not attribute.isPrinted():
+                continue
+
             if not attribute.isComparedForUnification():
                 continue
 
@@ -682,6 +695,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             expander(argument)
         
         return expander.makeErrorAtNode('Cannot apply non-functional value of type %s.' % str(self), applicationNode)
+    
+    def expandSyntaxMessageSendNode(self, expander, messageSendNode):
+        return expander.expandFunctionalApplicationMessageSendNode(messageSendNode)
 
     def betaReplaceableDependencies(self):
         if self.__betaReplaceableDependencies__ is not None:
@@ -951,8 +967,8 @@ class ASGSequencingNode(ASGTypecheckedNode):
     def isSequencingNode(self) -> bool:
         return True
 
-class ASGEntryPointNode(ASGSequencingNode):
-    def isEntryPointNode(self) -> bool:
+class ASGSequenceEntryNode(ASGSequencingNode):
+    def isSequenceEntryNode(self) -> bool:
         return True
 
 class ASGExitPointNode(ASGSequencingNode):
@@ -1028,6 +1044,10 @@ class ASGLiteralSymbolNode(ASGLiteralNode):
 class ASGLiteralUnitNode(ASGLiteralNode):
     pass
 
+class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
+    name = ASGNodeDataAttribute(str)
+    compileTimeImplementation = ASGNodeDataAttribute(object, default = None, notCompared = True, notPrinted = True)
+
 class ASGTypeNode(ASGTypecheckedNode):
     def isTypeNode(self) -> bool:
         return True
@@ -1066,7 +1086,8 @@ class ASGUnitTypeNode(ASGBaseTypeNode):
     pass
 
 class ASGBottomTypeNode(ASGBaseTypeNode):
-    pass
+    def expandSyntaxApplicationNode(self, expander, applicationNode):
+        return expander.expandErrorApplicationWithType(applicationNode, self)
 
 class ASGPrimitiveType(ASGBaseTypeNode):
     size = ASGNodeDataAttribute(int)
@@ -1136,7 +1157,16 @@ class ASGPiNode(ASGTypeNode):
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandDependentApplicationWithType(applicationNode, self)
-    
+
+class ASGFunctionTypeNode(ASGTypeNode):
+    arguments = ASGNodeDataInputPorts()
+    resultType = ASGNodeDataInputPort()
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+    callingConvention = ASGNodeDataAttribute(str, default = None)
+
+    def expandSyntaxApplicationNode(self, expander, applicationNode):
+        return expander.expandFunctionApplicationWithType(applicationNode, self)
+
 def asgTopoSortTraversal(aBlock, node: ASGNode):
     visited = set()
     def visitNode(node):
@@ -1375,6 +1405,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.symbolTable = {}
         self.typeUniverseIndexCache = {}
         topLevelDerivation = ASGNodeNoDerivation.getSingleton()
+        self.topLevelUnificationTable = {}
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Integer'))
         self.addBaseType(ASGBottomTypeNode(topLevelDerivation, 'Abort'))
         self.addBaseType(ASGUnitTypeNode(topLevelDerivation, 'Void'))
@@ -1395,8 +1426,19 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float32', 4, 4))
         self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float64', 8, 8))
 
+        self.addPrimitiveFunctions()
+
     def addBaseType(self, baseType: ASGBaseTypeNode):
+        baseType = self.addUnificationValue(baseType)
         self.addSymbolValue(baseType.name, baseType)
+
+    def addUnificationValue(self, value: ASGNode):
+        comparisonValue = ASGUnificationComparisonNode(value)
+        if comparisonValue in self.topLevelUnificationTable:
+            return self.topLevelUnificationTable[comparisonValue]
+        else:
+            self.topLevelUnificationTable[comparisonValue] = value
+            return value
 
     def addSymbolValue(self, name: str, value: ASGNode):
         if name is not None:
@@ -1405,6 +1447,11 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
     def lookLastBindingOf(self, name: str):
         if not name in self.symbolTable:
             return None
+        return self.symbolTable[name][0]
+    
+    def lookValidLastBindingOf(self, name: str):
+        if not name in self.symbolTable:
+            raise Exception('Missing required binding for %s.' % name)
         return self.symbolTable[name][0]
 
     def getTopLevelTargetEnvironment(self):
@@ -1429,6 +1476,24 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         topLevelEnvironment = cls(target)
         target.asgTopLevelTargetEnvironment = topLevelEnvironment
         return topLevelEnvironment
+    
+    def makeFunctionType(self, argumentTypes: list[ASGNode], resultType: ASGNode):
+        return self.addUnificationValue(ASGFunctionTypeNode(ASGNodeNoDerivation.getSingleton(), argumentTypes, resultType))
+    
+    def makeFunctionTypeWithSignature(self, signature):
+        arguments, resultType = signature
+        arguments = list(map(self.lookValidLastBindingOf, arguments))
+        resultType = self.lookValidLastBindingOf(resultType)
+        return self.makeFunctionType(arguments, resultType)
+
+    def addPrimitiveFunctions(self):
+        for name, primitiveName, functionTypeSignature, effects, implementation in [
+            ('i32', 'Integer::asInt32', (('Integer',), 'Int32'), ['pure'], lambda n: n.abort() )
+        ]:
+            functionType = self.makeFunctionTypeWithSignature(functionTypeSignature)
+            primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation)
+            self.addUnificationValue(primitiveFunction)
+            self.addSymbolValue(name, primitiveFunction)
 
 class ASGChildEnvironment(ASGEnvironment):
     def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
@@ -1657,11 +1722,8 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if expectedType.asASGTypeNode().isSatisfiedAsTypeBy(analyzedNodeType):
             return analyzedNode, True
         return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (str(expectedType), str(analyzedNodeType)), node), False
-    
-    def evaluateOptionalSymbol(self, node: ASGNode) -> str:
-        if node is None:
-            return None
 
+    def evaluateSymbol(self, node: ASGNode) -> str:
         typecheckedNode, typechecked = self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Symbol'))
         if not typechecked:
             return None
@@ -1672,6 +1734,12 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
         self.makeErrorAtNode('Expected a literal symbol.', node)
         return None
+
+    def evaluateOptionalSymbol(self, node: ASGNode) -> str:
+        if node is None:
+            return None
+        
+        return self.evaluateSymbol(self, node)
     
     def analyzeArgumentNode(self, functionalAnalyzer, node: ASGNode, index: int) -> ASGArgumentNode:
         if not node.isKindOf(ASGSyntaxBindableNameNode):
@@ -1790,7 +1858,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         piType = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiNode, typedArguments, resultType, isVariadic = node.isVariadic, callingConvention = node.callingConvention)
 
         functionalAnalyzer.builder.currentPredecessor = None
-        entryPoint = functionalAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGEntryPointNode)
+        entryPoint = functionalAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
 
         body, bodyTypechecked = functionalAnalyzer.analyzeNodeWithExpectedType(node.body, resultType)
         if not bodyTypechecked:
@@ -1801,7 +1869,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, exitPoints, callingConvention = node.callingConvention)
     
     def expandTopLevelScript(self, node: ASGNode) -> ASGTopLevelScriptNode:
-        entryPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGEntryPointNode)
+        entryPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
         scriptResult = self(node)
         exitPoint = self.builder.forSyntaxExpansionBuild(self, node, ASGExitPointNode, scriptResult, predecessor = self.builder.currentPredecessor)
         exitPoints = [exitPoint]
@@ -1850,12 +1918,51 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             ## Potentially overloaded
             assert False
 
+    @asgPatternMatchingOnNodeKind(ASGSyntaxMessageSendNode, when = lambda n: n.receiver is None)
+    def expandSyntaxMessageSendNodeWithoutReceiver(self, node: ASGSyntaxMessageSendNode) -> ASGTypecheckedNode:
+        return self.expandFunctionalApplicationMessageSendNode(node)
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxMessageSendNode, when = lambda n: n.receiver is not None)
+    def expandSyntaxMessageSendNodeWithReceiver(self, node: ASGSyntaxMessageSendNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        receiver = self(node.receiver)
+        receiverType = receiver.getTypeInEnvironment(self.environment)
+        return receiverType.expandSyntaxMessageSendNode(self, node)
+
+    def expandFunctionalApplicationMessageSendNode(self, node: ASGSyntaxMessageSendNode) -> ASGTypecheckedNode:
+        selectorValue = self.evaluateSymbol(node.selector)
+        if selectorValue is None:
+            ## Analyze the the receiver and the arguments to discover more errors.
+            if node.receiver is not None: self(node.receiver)
+            for arg in node.arguments:
+                self(arg)
+            return self.makeErrorAtNode('Cannot expand message send node without constant selector.', node)
+
+        selectorIdentifier = ASGSyntaxIdentifierReferenceNode(ASGNodeSyntaxExpansionDerivation(self, node), selectorValue)
+        applicationArguments = []
+        if node.receiver is not None:
+            applicationArguments.append(node.receiver)
+        applicationArguments += node.arguments
+        
+        application = ASGSyntaxApplicationNode(ASGNodeSyntaxExpansionDerivation(self, node), selectorIdentifier, applicationArguments)
+        return self.fromNodeContinueExpanding(node, application)
+
     @asgPatternMatchingOnNodeKind(ASGSyntaxApplicationNode)
     def expandSyntaxApplicationNode(self, node: ASGSyntaxApplicationNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         functional = self(node.functional)
         functionalType = functional.getTypeInEnvironment(self.environment)
         return functionalType.expandSyntaxApplicationNode(self, node)
+    
+    def expandErrorApplicationWithType(self, node: ASGSyntaxApplicationNode, errorType: ASGBottomTypeNode):
+        self.syntaxPredecessorOf(node)
+
+        # Analyze the functional and the arguments.
+        functional = self(node.functional)
+        analyzedArguments = list(map(self, node.arguments))
+
+        # Make an application node with the error.
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, errorType, functional, analyzedArguments)
 
     def expandDependentApplicationWithType(self, node: ASGSyntaxApplicationNode, dependentType: ASGPiNode):
         self.syntaxPredecessorOf(node)
@@ -1896,6 +2003,48 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         # Check the argument sizes.
         if requiredArgumentCount != availableArgumentCount:
             if not dependentType.isVariadic:
+                return self.makeErrorAtNode(node, 'Application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount))
+            elif availableArgumentCount < requiredArgumentCount: 
+                return self.makeErrorAtNode(node, 'Required at least %d arguments for variadic application.' % requiredArgumentCount)
+        
+        return application
+
+    def expandFunctionApplicationWithType(self, node: ASGSyntaxApplicationNode, functionType: ASGFunctionTypeNode):
+        self.syntaxPredecessorOf(node)
+
+        requiredArgumentCount = len(functionType.arguments)
+        availableArgumentCount = len(node.arguments)
+
+        # Analyze the functional.
+        functional = self(node.functional)
+
+        # Analyze the direct checkeable arguments.
+        directCheckeableArgumentCount = min(requiredArgumentCount, availableArgumentCount)
+        expectedType: ASGNode = None
+        analyzedArguments = []
+        for i in range(directCheckeableArgumentCount):
+            argumentValue: ASGNode = node.arguments[i]
+            expectedType = functionType.arguments[i]
+            analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
+            analyzedArguments.append(analyzedArgument)
+
+        # Analyze the remaining arguments
+        if not functionType.isVariadic:
+            expectedType = None
+        
+        for i in range(availableArgumentCount):
+            analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
+            analyzedArguments.append(analyzedArgument)
+
+        # Retrieve the result type.
+        resultType = functionType.resultType
+
+        # Make the application node
+        application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, resultType, functional, analyzedArguments)
+
+        # Check the argument sizes.
+        if requiredArgumentCount != availableArgumentCount:
+            if not functionType.isVariadic:
                 return self.makeErrorAtNode(node, 'Application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount))
             elif availableArgumentCount < requiredArgumentCount: 
                 return self.makeErrorAtNode(node, 'Required at least %d arguments for variadic application.' % requiredArgumentCount)
