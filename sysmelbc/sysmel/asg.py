@@ -990,31 +990,6 @@ class ASGExitPointNode(ASGSequencingNode):
     
     def isSequencingNodeForExpression(self, expression) -> bool:
         return self.expression is expression
-    
-class ASGSequenceExpressionNode(ASGSequencingNode):
-    predecessor = ASGSequencingPredecessorAttribute()
-    expression = ASGNodeDataInputPort()
-
-    def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
-        return self.expression.getTypeInEnvironment(environment)
-    
-    def asASGDataNode(self):
-        return self.expression.asASGDataNode()
-    
-    def asASGDataNodeDerivation(self):
-        return self.expression.asASGDataNodeDerivation()
-    
-    def asASGTypeNode(self):
-        return self.expression.asASGTypeNode()
-    
-    def asASGTypeNodeDerivation(self):
-        return self.expression.asASGTypeNodeDerivation()
-    
-    def hasSequencingPredecessorOf(self, predecessor) -> bool:
-        return self is predecessor or self.predecessor is predecessor
-    
-    def isSequencingNodeForExpression(self, expression) -> bool:
-        return self.expression is expression
 
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
@@ -1618,23 +1593,9 @@ class ASGBuilderWithGVN:
     def forSyntaxExpansionBuild(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
         return self.build(kind, ASGNodeSyntaxExpansionDerivation(expansionAlgorithm, syntaxNode), *arguments, **kwArguments)
 
-    def forSyntaxExpansionBuildAndSequenceWith(self, expansionAlgorithm, syntaxNode, kind, predecessor, *arguments, **kwArguments):
-        return self.forSyntaxExpansionSequence(expansionAlgorithm, syntaxNode, predecessor, self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
-
     def forSyntaxExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
-        lastPredecessor = self.currentPredecessor
-        return self.updatePredecessorWith(self.forSyntaxExpansionBuildAndSequenceWith(expansionAlgorithm, syntaxNode, kind, lastPredecessor, *arguments, **kwArguments))
+        return self.updatePredecessorWith(self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
 
-    def forSyntaxExpansionSequence(self, expansionAlgorithm, syntaxNode, predecessor, valueOrSequenceNode):
-        if predecessor is None:
-            if valueOrSequenceNode.isSequencingNode():
-                return valueOrSequenceNode
-        else:
-            if valueOrSequenceNode.hasSequencingPredecessorOf(predecessor):
-                return valueOrSequenceNode
-            elif predecessor.isSequencingNodeForExpression(valueOrSequenceNode):
-                return predecessor
-        return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGSequenceExpressionNode, valueOrSequenceNode, predecessor = predecessor)
 
 class ASGDynamicProgrammingAlgorithmMetaclass(type):
     def __new__(cls, name, bases, attributes):
@@ -1830,7 +1791,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()), self.reductionAlgorithm)
     
     def postProcessResult(self, result):
-        return self.reductionAlgorithm(result)
+        return self.reductionAlgorithm(result.asASGNode())
     
     def withChildLexicalEnvironmentDo(self, newEnvironment: ASGEnvironment, aBlock):
         oldEnvironment = self.environment
@@ -2057,7 +2018,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if len(lookupResult) == 0:
             return self.makeErrorAtNode('Failed to finding binding for symbol %s.' % node.value, node)
         elif len(lookupResult) == 1:
-            return self.builder.forSyntaxExpansionSequence(self, node, self.builder.currentPredecessor, self(lookupResult[0]))
+            return self(lookupResult[0])
         else:
             ## Potentially overloaded
             assert False
