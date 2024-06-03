@@ -44,7 +44,15 @@ class ASGNodeUnificationDerivation(ASGNodeDerivation):
 
 class ASGNodeSyntaxExpansionDerivation(ASGNodeExpansionDerivation):
     pass
-    
+
+class ASGNodeCoercionExpansionDerivation(ASGNodeExpansionDerivation):
+    pass
+
+class ASGNodeMacroExpansionDerivation(ASGNodeExpansionDerivation):
+    def __init__(self, algorithm, sourceNode, macro) -> None:
+        super().__init__(algorithm, sourceNode)
+        self.macro = macro
+
 class ASGNodeReductionDerivation(ASGNodeExpansionDerivation):
     pass
 
@@ -247,6 +255,36 @@ class ASGSequencingPredecessorAttribute(ASGPredecessorAttribute):
             self.storeValueIn(constructorValue.asASGSequencingNode(), instance)
             self.storeSourceDerivationIn(constructorValue.asASGSequencingNodeDerivation(), instance)
     
+class ASGSequencingPredecessorsAttribute(ASGPredecessorAttribute):
+    def initializeWithConstructorValueOn(self, constructorValue, instance):
+        self.storeValueIn(tuple(map(lambda x: x.asASGSequencingNode(), constructorValue)), instance)
+        self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGSequencingNodeDerivation(), constructorValue)), instance)
+
+    def isDataInputPort(self) -> bool:
+        return True
+
+    def getNodeInputsOf(self, instance):
+        return self.loadValueFrom(instance)
+
+    def hashFrom(self, instance) -> int:
+        result = hash(tuple)
+        for value in self.loadValueFrom(instance):
+            result ^= value.unificationHash()
+
+        return value.unificationHash()
+    
+    def equalsFromAndFrom(self, first, second) -> bool:
+        firstValue = self.loadValueFrom(first)
+        secondValue = self.loadValueFrom(second)
+        if len(firstValue) != len(secondValue):
+            return False
+
+        for i in range(len(firstValue)):
+            if not firstValue[i].unificationEquals(secondValue[i]):
+                return False
+
+        return True
+
 class ASGSequencingDestinationPort(ASGNodeConstructionAttributeWithSourceDerivation):
     def isSequencingDestinationPort(self) -> bool:
         return True
@@ -516,6 +554,8 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         return True
 
     def isSatisfiedAsTypeBy(self, otherType) -> bool:
+        if otherType.isBottomTypeNode():
+            return True
         return self.unificationEquals(otherType)
 
     def asASGNode(self):
@@ -543,6 +583,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         return False
 
     def isTypeUniverseNode(self) -> bool:
+        return False
+    
+    def isBottomTypeNode(self) -> bool:
         return False
 
     def isPureDataNode(self) -> bool:
@@ -677,12 +720,6 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def prettyPrintNameWithDataAttributes(self) -> str:
         return self.printNameWithDataAttributes()
     
-    def hasSequencingPredecessorOf(self, predecessor) -> bool:
-        return False
-    
-    def isSequencingNodeForExpression(self, expression) -> bool:
-        return False
-    
     def __str__(self) -> str:
         return self.printNameWithDataAttributes()
     
@@ -717,6 +754,15 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def isPureCompileTimePrimitive(self) -> bool:
         return False
+    
+    def isLiteralPrimitiveFunction(self) -> bool:
+        return False
+    
+    def isLambda(self) -> bool:
+        return False
+
+    def coerceExpressionWith(self, expression, expander):
+        return expression
 
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
@@ -878,6 +924,11 @@ class ASGSyntaxTupleNode(ASGSyntaxNode):
             isVariadic = self.elements[-1].isVariadic
         return self.elements, isExistential, isVariadic
 
+class ASGSyntaxIfThenElseNode(ASGSyntaxNode):
+    condition = ASGNodeDataInputPort()
+    trueExpression = ASGNodeOptionalDataInputPort()
+    falseExpression = ASGNodeOptionalDataInputPort()
+
 class ASGParseTreeFrontEnd(ParseTreeVisitor):
     def __init__(self):
         self.lastVisitedNode = None
@@ -973,7 +1024,7 @@ class ASGSequencingNode(ASGTypecheckedNode):
 
     def isSequencingNode(self) -> bool:
         return True
-
+    
 class ASGSequenceEntryNode(ASGSequencingNode):
     def isSequenceEntryNode(self) -> bool:
         return True
@@ -985,11 +1036,18 @@ class ASGExitPointNode(ASGSequencingNode):
     def isExitPointNode(self) -> bool:
         return True
 
-    def hasSequencingPredecessorOf(self, predecessor) -> bool:
-        return self is predecessor or self.predecessor is predecessor
-    
-    def isSequencingNodeForExpression(self, expression) -> bool:
-        return self.expression is expression
+class ASGSequenceDivergenceNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+
+class ASGConditionalBranchNode(ASGSequenceDivergenceNode):
+    condition = ASGNodeDataInputPort()
+    trueDestination = ASGSequencingDestinationPort()
+    falseDestination = ASGSequencingDestinationPort()
+
+class ASGSequenceConvergenceNode(ASGSequencingNode):
+    divergence = ASGSequencingPredecessorAttribute()
+    predecessors = ASGSequencingPredecessorsAttribute()
+    values = ASGNodeDataInputPorts()
 
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
@@ -1032,6 +1090,9 @@ class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
 
     isPure = ASGNodeDataAttribute(bool, default = False)
     isCompileTime = ASGNodeDataAttribute(bool, default = False)
+
+    def isLiteralPrimitiveFunction(self) -> bool:
+        return True
 
     def isPureCompileTimePrimitive(self) -> bool:
         return self.isPure and self.isCompileTime
@@ -1083,6 +1144,9 @@ class ASGUnitTypeNode(ASGBaseTypeNode):
 class ASGBottomTypeNode(ASGBaseTypeNode):
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandErrorApplicationWithType(applicationNode, self)
+    
+    def isBottomTypeNode(self) -> bool:
+        return True
 
 class ASGPrimitiveType(ASGBaseTypeNode):
     size = ASGNodeDataAttribute(int)
@@ -1139,6 +1203,12 @@ class ASGTypeUniverseNode(ASGTypeNode):
 
 class ASGProductTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
+    name = ASGNodeDataAttribute(str, default = None)
+
+    def prettyPrintNameWithDataAttributes(self) -> str:
+        if self.name is not None:
+            return self.name
+        return super().prettyPrintNameWithDataAttributes()
 
 class ASGTupleNode(ASGTypedDataExpressionNode):
     elements = ASGNodeDataInputPorts()
@@ -1151,12 +1221,18 @@ class ASGTupleNode(ASGTypedDataExpressionNode):
         if len(self.elements) > 0 and self.elements[-1].isBindableNameNode():
             isVariadic = self.elements[-1].isVariadic
         return self.elements, isExistential, isVariadic
-    
+
+class ASGMetaType(ASGBaseTypeNode):
+    metaclass = ASGNodeDataAttribute(type, notPrinted = True)
+
 class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     entryPoint = ASGSequencingDestinationPort()
     exitPoints = ASGNodeDataAndSequencingInputPorts()
     callingConvention = ASGNodeDataAttribute(str, default = None)
+
+    def isLambda(self) -> bool:
+        return True
 
 class ASGApplicationNode(ASGTypedDataExpressionNode):
     functional = ASGNodeDataInputPort()
@@ -1165,12 +1241,41 @@ class ASGApplicationNode(ASGTypedDataExpressionNode):
     def isLiteralPureCompileTimePrimitiveApplication(self):
         return self.functional.isPureCompileTimePrimitive() and all(argument.isLiteralNode() for argument in self.arguments)
 
+class ASGInjectSum(ASGTypedDataExpressionNode):
+    index = ASGNodeDataAttribute(int)
+    value = ASGNodeDataInputPort()
+
 class ASGTopLevelScriptNode(ASGTypedDataExpressionNode):
     entryPoint = ASGSequencingDestinationPort()
     exitPoints = ASGNodeDataAndSequencingInputPorts()
 
+class ASGPhiIncomingValueNode(ASGTypedDataExpressionNode):
+    value = ASGNodeDataInputPort()
+    predecessor = ASGSequencingPredecessorAttribute()
+
+class ASGPhiNode(ASGTypedDataExpressionNode):
+    values = ASGNodeDataInputPorts()
+
 class ASGSumTypeNode(ASGTypeNode):
-    elements = ASGNodeTypeInputNodes()
+    variants = ASGNodeTypeInputNodes()
+    name = ASGNodeDataAttribute(str, default = None)
+
+    def coerceExpressionWith(self, expression, expander):
+        expressionType = expression.getTypeInEnvironment(expander.environment)
+        if expressionType.isBottomTypeNode():
+            return expression
+        elif expressionType is not self:
+            for i in range(len(self.variants)):
+                variant = self.variants[i]
+                if variant.isSatisfiedAsTypeBy(expressionType):
+                    return expander.builder.forCoercionExpansionBuildAndSequence(expander, expression, ASGInjectSum, self, i, expression)
+
+        return super().coerceExpressionWith(expression, expander)
+    
+    def prettyPrintNameWithDataAttributes(self) -> str:
+        if self.name is not None:
+            return self.name
+        return super().prettyPrintNameWithDataAttributes()
 
 class ASGSigmaNode(ASGTypeNode):
     arguments = ASGNodeDataInputPorts()
@@ -1193,6 +1298,14 @@ class ASGFunctionTypeNode(ASGTypeNode):
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandFunctionApplicationWithType(applicationNode, self)
+
+class ASGMacroFunctionTypeNode(ASGTypeNode):
+    arguments = ASGNodeDataInputPorts()
+    resultType = ASGNodeDataInputPort()
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+
+    def expandSyntaxApplicationNode(self, expander, applicationNode):
+        return expander.expandMacroApplicationWithType(applicationNode, self)
 
 def asgTopoSortTraversal(aBlock, node: ASGNode):
     visited = set()
@@ -1329,9 +1442,6 @@ class ASGUnifiedNodeValue:
     
     def isSequencingNode(self):
         return self.node.isSequencingNode()
-
-    def hasSequencingPredecessorOf(self, predecessor):
-        return self.node.hasSequencingPredecessorOf(predecessor)
     
 class ASGEnvironment(ABC):
     @abstractmethod
@@ -1351,6 +1461,10 @@ class ASGEnvironment(ABC):
     def childWithSymbolBinding(self, symbol: str, binding: ASGNode):
         return ASGChildEnvironmentWithBindings(self).childWithSymbolBinding(symbol, binding)
 
+class ASGMacroContext(ASGNode):
+    derivation = ASGNodeDataAttribute(ASGNodeDerivation)
+    expander = ASGNodeDataAttribute(object)
+
 class ASGTopLevelTargetEnvironment(ASGEnvironment):
     def __init__(self, target: CompilationTarget) -> None:
         super().__init__()
@@ -1361,8 +1475,11 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.topLevelUnificationTable = {}
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Integer'))
         self.addBaseType(ASGBottomTypeNode(topLevelDerivation, 'Abort'))
-        self.addBaseType(ASGUnitTypeNode(topLevelDerivation, 'Void'))
+        voidType = self.addBaseType(ASGUnitTypeNode(topLevelDerivation, 'Void'))
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Symbol'))
+        falseType = self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'False'))
+        trueType = self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'True'))
+        self.addBaseType(ASGSumTypeNode(topLevelDerivation, [falseType, trueType], 'Boolean'))
         self.addBaseType(ASGAnyTypeUniverseNode(topLevelDerivation, 'Type'))
         self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char8',  1, 1))
         self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char16', 2, 2))
@@ -1379,11 +1496,18 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float32', 4, 4))
         self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float64', 8, 8))
 
+        self.addBaseType(ASGMetaType(topLevelDerivation, 'ASGNode', ASGNode))
+        self.addBaseType(ASGMetaType(topLevelDerivation, 'MacroContext', ASGMacroContext))
+        self.addSymbolValue('void', ASGLiteralUnitNode(topLevelDerivation, voidType))
+        self.addSymbolValue('false', ASGLiteralUnitNode(topLevelDerivation, falseType))
+        self.addSymbolValue('true', ASGLiteralUnitNode(topLevelDerivation, trueType))
+
         self.addPrimitiveFunctions()
 
     def addBaseType(self, baseType: ASGBaseTypeNode):
         baseType = self.addUnificationValue(baseType)
         self.addSymbolValue(baseType.name, baseType)
+        return baseType
 
     def addUnificationValue(self, value: ASGNode):
         comparisonValue = ASGUnificationComparisonNode(value)
@@ -1430,16 +1554,35 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         target.asgTopLevelTargetEnvironment = topLevelEnvironment
         return topLevelEnvironment
     
-    def makeFunctionType(self, argumentTypes: list[ASGNode], resultType: ASGNode):
-        return self.addUnificationValue(ASGFunctionTypeNode(ASGNodeNoDerivation.getSingleton(), argumentTypes, resultType))
+    def makeFunctionType(self, argumentTypes: list[ASGNode], resultType: ASGNode, isMacro = False):
+        if isMacro:
+            return self.addUnificationValue(ASGMacroFunctionTypeNode(ASGNodeNoDerivation.getSingleton(), argumentTypes, resultType))
+        else:
+            return self.addUnificationValue(ASGFunctionTypeNode(ASGNodeNoDerivation.getSingleton(), argumentTypes, resultType))
     
-    def makeFunctionTypeWithSignature(self, signature):
+    def makeFunctionTypeWithSignature(self, signature, isMacro = False):
         arguments, resultType = signature
         arguments = list(map(self.lookValidLastBindingOf, arguments))
         resultType = self.lookValidLastBindingOf(resultType)
-        return self.makeFunctionType(arguments, resultType)
+        return self.makeFunctionType(arguments, resultType, isMacro = isMacro)
 
     def addPrimitiveFunctions(self):
+        self.addControlFlowMacros()
+        self.addPrimitiveTypeFunctions()
+
+    def addControlFlowMacros(self):
+        self.addPrimitiveFunctionsWithDesc([
+            ('if:then:',  'ControlFlow::if:then:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.ifThenMacro),
+            ('if:then:else:',  'ControlFlow::if:then:',  (('ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.ifThenElseMacro),
+        ])
+
+    def ifThenMacro(self, macroContext: ASGMacroContext, condition: ASGNode, ifTrue: ASGNode) -> ASGNode:
+        return ASGSyntaxIfThenElseNode(macroContext.derivation, condition, ifTrue, None)
+
+    def ifThenElseMacro(self, macroContext: ASGMacroContext, condition: ASGNode, ifTrue: ASGNode, ifFalse: ASGNode) -> ASGNode:
+        return ASGSyntaxIfThenElseNode(macroContext.derivation, condition, ifTrue, ifFalse)
+
+    def addPrimitiveTypeFunctions(self):
         primitiveCharacterTypes = list(map(self.lookValidLastBindingOf, [
             'Char8', 'Char16', 'Char32'
         ]))
@@ -1476,12 +1619,14 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
 
     def addPrimitiveFunctionsWithDesc(self, descriptions):
         for name, primitiveName, functionTypeSignature, effects, implementation in descriptions:
-            functionType = self.makeFunctionTypeWithSignature(functionTypeSignature)
+            isMacro = 'macro' in effects
+            functionType = self.makeFunctionTypeWithSignature(functionTypeSignature, isMacro = isMacro)
             isPure = 'pure' in effects
             isCompileTime = 'compileTime' in effects
             primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation, isPure = isPure, isCompileTime = isCompileTime)
             self.addUnificationValue(primitiveFunction)
             self.addSymbolValue(name, primitiveFunction)
+
 class ASGChildEnvironment(ASGEnvironment):
     def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
         super().__init__()
@@ -1594,6 +1739,12 @@ class ASGBuilderWithGVN:
         return self.build(kind, ASGNodeSyntaxExpansionDerivation(expansionAlgorithm, syntaxNode), *arguments, **kwArguments)
 
     def forSyntaxExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
+        return self.updatePredecessorWith(self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
+
+    def forCoercionExpansionBuild(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
+        return self.build(kind, ASGNodeCoercionExpansionDerivation(expansionAlgorithm, syntaxNode), *arguments, **kwArguments)
+
+    def forCoercionExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
         return self.updatePredecessorWith(self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
 
 
@@ -1787,9 +1938,12 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if self.reductionAlgorithm is None:
             self.reductionAlgorithm = ASGReductionAlgorithm()
 
-    def withFunctionalAnalysisEnvironment(self, newEnvironment: ASGFunctionalAnalysisEnvironment):
+    def withDivergingEnvironment(self, newEnvironment: ASGEnvironment):
         return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()), self.reductionAlgorithm)
-    
+
+    def withFunctionalAnalysisEnvironment(self, newEnvironment: ASGFunctionalAnalysisEnvironment):
+        return self.withDivergingEnvironment(newEnvironment)
+
     def postProcessResult(self, result):
         return self.reductionAlgorithm(result.asASGNode())
     
@@ -1817,10 +1971,15 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if expectedType is None:
             return analyzedNode, True
 
+        # Coercion
+        expectedTypeNode = expectedType.asASGTypeNode()
+        analyzedNode = expectedTypeNode.coerceExpressionWith(analyzedNode, self)
+
+        # Type checking
         analyzedNodeType = analyzedNode.getTypeInEnvironment(self.environment)
-        if expectedType.asASGTypeNode().isSatisfiedAsTypeBy(analyzedNodeType):
+        if expectedTypeNode.isSatisfiedAsTypeBy(analyzedNodeType):
             return analyzedNode, True
-        return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (str(expectedType), str(analyzedNodeType)), node), False
+        return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (expectedType.prettyPrintNameWithDataAttributes(), analyzedNodeType.prettyPrintNameWithDataAttributes()), node), False
 
     def evaluateSymbol(self, node: ASGNode) -> str:
         typecheckedNode, typechecked = self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Symbol'))
@@ -2155,6 +2314,85 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
                 return self.makeErrorAtNode(node, 'Required at least %d arguments for variadic application.' % requiredArgumentCount)
         
         return application
+    
+    def expandMacroApplicationWithType(self, node: ASGSyntaxApplicationNode, macroFunctionType: ASGMacroFunctionTypeNode):
+        self.syntaxPredecessorOf(node)
+        macro = self(node.functional)
+        
+        requiredArgumentCount = len(macroFunctionType.arguments)
+        availableArgumentCount = len(node.arguments)
+        # Check the argument sizes.
+        if requiredArgumentCount != availableArgumentCount:
+            if not macroFunctionType.isVariadic:
+                return self.makeErrorAtNode(node, 'Macro application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount))
+            elif availableArgumentCount < requiredArgumentCount: 
+                return self.makeErrorAtNode(node, 'Required at least %d arguments for variadic macro application.' % requiredArgumentCount)
+            
+        # The macro must be a literal primitive or a lambda node.
+        macroExpansionDerivation = ASGNodeMacroExpansionDerivation(self, node, macro)
+        macroContext = ASGMacroContext(macroExpansionDerivation, self)
+        if macro.isLiteralPrimitiveFunction():
+            expanded = macro.compileTimeImplementation(macroContext, *node.arguments)
+            return self.fromNodeContinueExpanding(node, expanded)
+        elif macro.isLambda():
+            assert False
+        else:
+            return self.makeErrorAtNode(node, 'Cannot expand a macro application without knowing the macro during compile time.')
+        
+    def analyzeBooleanCondition(self, node: ASGNode):
+        return self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Boolean'))
+    
+    def analyzeDivergentBranchExpression(self, node: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
+        branchAnalyzer = self.withDivergingEnvironment(ASGLexicalEnvironment(self.environment, node.sourceDerivation.getSourcePosition()))
+        entryPoint = branchAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
+        branchResult = branchAnalyzer(node)
+        exitPoint = branchAnalyzer.builder.currentPredecessor
+        return entryPoint, exitPoint, branchResult, branchAnalyzer
+
+    def analyzeOptionalDivergentBranchExpression(self, node: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
+        if node is not None:
+            return self.analyzeDivergentBranchExpression(node)
+        
+        assert False
+        
+    def mergeTypesOfBranches(self, branches: list[ASGNode]):
+        if len(branches) == 0:
+            return self.builder.topLevelIdentifier('Void')
+        
+        mergedBranchType = None
+        for branch in branches:
+            branchType = branch.getTypeInEnvironment(self.environment)
+            if mergedBranchType is None:
+                mergedBranchType = branchType
+            elif not branchType.unificationEquals(mergedBranchType):
+                return None
+        return mergedBranchType
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxIfThenElseNode)
+    def expandSyntaxIfThenElseNode(self, node: ASGSyntaxIfThenElseNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        condition, typechecked = self.analyzeBooleanCondition(node.condition)
+        trueEntryPoint, trueExitPoint, trueResult, trueBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.trueExpression)
+        falseEntryPoint, falseExitPoint, falseResult, falseBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.falseExpression)
+        branch = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGConditionalBranchNode, condition, trueEntryPoint, falseEntryPoint, predecessor = self.builder.currentPredecessor)
+
+        mergedBranchType = self.mergeTypesOfBranches([trueResult, falseResult])
+        branchResult = None
+        convergenceValues = []
+        if mergedBranchType is None:
+            # Failed to merge the branch types. Emit void.
+            branchResult = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, self.builder.topLevelIdentifier('Void'))
+        else:
+            phiIncomingValues = [
+                self.builder.forSyntaxExpansionBuild(self, node, ASGPhiIncomingValueNode, mergedBranchType, trueResult, predecessor = trueExitPoint),
+                self.builder.forSyntaxExpansionBuild(self, node, ASGPhiIncomingValueNode, mergedBranchType, falseResult, predecessor = falseExitPoint),
+            ]
+
+            branchResult = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPhiNode, mergedBranchType, phiIncomingValues)
+            convergenceValues = [branchResult]
+
+        convergence = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, convergenceValues, divergence = branch, predecessors = [trueExitPoint, falseExitPoint])
+        return branchResult
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
     def expandSyntaxSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:

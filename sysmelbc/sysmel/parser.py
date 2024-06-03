@@ -391,10 +391,8 @@ def parseKeywordApplication(state: ParserState) -> tuple[ParserState, ParseTreeN
         state, argument = parseAssociationExpression(state)
         arguments.append(argument)
 
-    functionIdentifier = ParseTreeIdentifierReferenceNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), symbolValue)
-    sourcePosition = state.sourcePositionFrom(startPosition)
-    argumentsTuple = ParseTreeTupleNode(sourcePosition, arguments)
-    return state, ParseTreeApplicationNode(sourcePosition, functionIdentifier, [argumentsTuple], ParseTreeApplicationNode.Normal)
+    functionIdentifier = ParseTreeLiteralSymbolNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), symbolValue)
+    return state, ParseTreeMessageSendNode(state.sourcePositionFrom(startPosition), None, functionIdentifier, arguments)
 
 def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position

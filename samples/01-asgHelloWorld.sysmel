@@ -15,6 +15,5 @@
 ##idInteger(42)
 
 :main(:(Int32)argc, :(Char8)argv :: Int32) := {
-
-    0i32
+    if: true then: 1i32 else: 2i32
 }.
