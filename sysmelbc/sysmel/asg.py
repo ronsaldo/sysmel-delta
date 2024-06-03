@@ -1029,13 +1029,6 @@ class ASGSequenceEntryNode(ASGSequencingNode):
     def isSequenceEntryNode(self) -> bool:
         return True
 
-class ASGExitPointNode(ASGSequencingNode):
-    predecessor = ASGSequencingPredecessorAttribute()
-    expression = ASGNodeDataInputPort()
-
-    def isExitPointNode(self) -> bool:
-        return True
-
 class ASGSequenceDivergenceNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
 
@@ -1228,7 +1221,8 @@ class ASGMetaType(ASGBaseTypeNode):
 class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     entryPoint = ASGSequencingDestinationPort()
-    exitPoints = ASGNodeDataAndSequencingInputPorts()
+    result = ASGNodeDataInputPort()
+    exitPoint = ASGSequencingPredecessorAttribute()
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
     def isLambda(self) -> bool:
@@ -1247,9 +1241,10 @@ class ASGInjectSum(ASGTypedDataExpressionNode):
 
 class ASGTopLevelScriptNode(ASGTypedDataExpressionNode):
     entryPoint = ASGSequencingDestinationPort()
-    exitPoints = ASGNodeDataAndSequencingInputPorts()
+    result = ASGNodeDataInputPort()
+    exitPoint = ASGSequencingPredecessorAttribute()
 
-class ASGPhiIncomingValueNode(ASGTypedDataExpressionNode):
+class ASGPhiValueNode(ASGTypedDataExpressionNode):
     value = ASGNodeDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
 
@@ -2122,17 +2117,15 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if not bodyTypechecked:
             return body
 
-        bodyExitPoint = functionalAnalyzer.builder.forSyntaxExpansionBuild(functionalAnalyzer, node, ASGExitPointNode, body, predecessor = functionalAnalyzer.builder.currentPredecessor)
-        exitPoints = [bodyExitPoint]
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, exitPoints, callingConvention = node.callingConvention)
+        bodyExitPoint = functionalAnalyzer.builder.currentPredecessor
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, body, exitPoint = bodyExitPoint, callingConvention = node.callingConvention)
     
     def expandTopLevelScript(self, node: ASGNode) -> ASGTopLevelScriptNode:
         entryPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
         scriptResult = self(node)
-        exitPoint = self.builder.forSyntaxExpansionBuild(self, node, ASGExitPointNode, scriptResult, predecessor = self.builder.currentPredecessor)
-        exitPoints = [exitPoint]
+        exitPoint = self.builder.currentPredecessor
         resultType = scriptResult.getTypeInEnvironment(self.builder)
-        return self.builder.forSyntaxExpansionBuild(self, node, ASGTopLevelScriptNode, resultType, entryPoint, exitPoints)
+        return self.builder.forSyntaxExpansionBuild(self, node, ASGTopLevelScriptNode, resultType, entryPoint, scriptResult, exitPoint = exitPoint)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxPiNode)
     def expandSyntaxPiNode(self, node: ASGSyntaxPiNode) -> ASGTypecheckedNode:
@@ -2384,8 +2377,8 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             branchResult = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, self.builder.topLevelIdentifier('Void'))
         else:
             phiIncomingValues = [
-                self.builder.forSyntaxExpansionBuild(self, node, ASGPhiIncomingValueNode, mergedBranchType, trueResult, predecessor = trueExitPoint),
-                self.builder.forSyntaxExpansionBuild(self, node, ASGPhiIncomingValueNode, mergedBranchType, falseResult, predecessor = falseExitPoint),
+                self.builder.forSyntaxExpansionBuild(self, node, ASGPhiValueNode, mergedBranchType, trueResult, predecessor = trueExitPoint),
+                self.builder.forSyntaxExpansionBuild(self, node, ASGPhiValueNode, mergedBranchType, falseResult, predecessor = falseExitPoint),
             ]
 
             branchResult = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPhiNode, mergedBranchType, phiIncomingValues)
