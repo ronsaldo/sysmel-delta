@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
-
 from .target import *
 from .parsetree import *
 import copy
+import struct
 
 class ASGNodeDerivation(ABC):
     @abstractmethod
@@ -45,6 +45,9 @@ class ASGNodeUnificationDerivation(ASGNodeDerivation):
 class ASGNodeSyntaxExpansionDerivation(ASGNodeExpansionDerivation):
     pass
     
+class ASGNodeReductionDerivation(ASGNodeExpansionDerivation):
+    pass
+
 class ASGNodeNoDerivation(ASGNodeDerivation):
     Singleton = None
 
@@ -548,7 +551,7 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isSequencingNode(self) -> bool:
         return False
 
-    def isTypedLiteralNode(self) -> bool:
+    def isLiteralNode(self) -> bool:
         return False
     
     def asASGSequencingNode(self):
@@ -711,6 +714,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             for element in dependency.betaReplaceableDependencies():
                 self.__betaReplaceableDependencies__.add(element)
         return self.__betaReplaceableDependencies__
+
+    def isPureCompileTimePrimitive(self) -> bool:
+        return False
 
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
@@ -1027,7 +1033,7 @@ class ASGErrorNode(ASGTypedDataExpressionNode):
     message = ASGNodeDataAttribute(str)
 
 class ASGLiteralNode(ASGTypedDataExpressionNode):
-    def isTypedLiteralNode(self) -> bool:
+    def isLiteralNode(self) -> bool:
         return True
     
 class ASGLiteralCharacterNode(ASGLiteralNode):
@@ -1048,6 +1054,16 @@ class ASGLiteralUnitNode(ASGLiteralNode):
 class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
     name = ASGNodeDataAttribute(str)
     compileTimeImplementation = ASGNodeDataAttribute(object, default = None, notCompared = True, notPrinted = True)
+
+    isPure = ASGNodeDataAttribute(bool, default = False)
+    isCompileTime = ASGNodeDataAttribute(bool, default = False)
+
+    def isPureCompileTimePrimitive(self) -> bool:
+        return self.isPure and self.isCompileTime
+    
+    def reduceApplicationWithAlgorithm(self, node, algorithm):
+        arguments = list(map(algorithm, node.arguments))
+        return self.compileTimeImplementation(ASGNodeReductionDerivation(node, algorithm), node.type, *arguments)
 
 class ASGTypeNode(ASGTypecheckedNode):
     def isTypeNode(self) -> bool:
@@ -1077,6 +1093,9 @@ class ASGCapturedValueNode(ASGBetaReplaceableNode):
 class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
 
+    def normalizeValue(self, value):
+        return value
+
     def prettyPrintNameWithDataAttributes(self):
         if self.name is not None:
             return self.name
@@ -1095,14 +1114,34 @@ class ASGPrimitiveType(ASGBaseTypeNode):
     alignment = ASGNodeDataAttribute(int)
 
 class ASGPrimitiveCharacterType(ASGPrimitiveType):
-    pass
+    def normalizeValue(self, value):
+        intValue = int(value)
+        bitSize = self.size * 8
+        mask = (1 << bitSize) - 1
+        return intValue & mask
 
 class ASGPrimitiveIntegerType(ASGPrimitiveType):
     isSigned = ASGNodeDataAttribute(int)
-    pass
+
+    def normalizeValue(self, value):
+        intValue = int(value)
+        bitSize = self.size * 8
+        if self.isSigned:
+            signBit = 1 << (bitSize-1)
+            return (intValue & (signBit - 1)) - (intValue & signBit)
+        else:
+            mask = (1 << bitSize) - 1
+            return intValue & mask
 
 class ASGPrimitiveFloatType(ASGPrimitiveType):
-    pass
+    def normalizeValue(self, value):
+        floatValue = float(value)
+        if self.size == 2:
+            return struct.unpack('<e', struct.pack('<e', value))
+        elif self.size == 4:
+            return struct.unpack('<d', struct.pack('<d', value))
+        else:
+            return floatValue
 
 class ASGAnyTypeUniverseNode(ASGBaseTypeNode):
     def isTypeUniverseNode(self) -> bool:
@@ -1147,6 +1186,9 @@ class ASGLambdaNode(ASGTypedDataExpressionNode):
 class ASGApplicationNode(ASGTypedDataExpressionNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
+
+    def isLiteralPureCompileTimePrimitiveApplication(self):
+        return self.functional.isPureCompileTimePrimitive() and all(argument.isLiteralNode() for argument in self.arguments)
 
 class ASGTopLevelScriptNode(ASGTypedDataExpressionNode):
     entryPoint = ASGSequencingDestinationPort()
@@ -1316,80 +1358,6 @@ class ASGUnifiedNodeValue:
     def hasSequencingPredecessorOf(self, predecessor):
         return self.node.hasSequencingPredecessorOf(predecessor)
     
-class ASGDynamicProgrammingAlgorithmMetaclass(type):
-    def __new__(cls, name, bases, attributes):
-        patterns: list[ASGPatternMatchingNodeKindPattern] = []
-        patternKindDictionary = {}
-        for value in attributes.values():
-            if isinstance(value, ASGPatternMatchingPattern):
-                patterns.append(value)
-
-        for pattern in patterns:
-            patternKind = pattern.getExpectedKind()
-            if patternKind not in patternKindDictionary:
-                patternKindDictionary[patternKind] = []
-            patternKindDictionary[patternKind].append(pattern)
-
-        algorithm = super().__new__(cls, name, bases, attributes)
-        algorithm.__asgDPAPatterns__ = patterns
-        algorithm.__asgDPAPatternKindDictionary__ = patternKindDictionary
-        return algorithm
-
-class ASGDynamicProgrammingAlgorithmNodeExpansionResult:
-    def __init__(self, incomingDelegatingExpansion, node: ASGNode) -> None:
-        self.incomingDelegatingExpansion: ASGDynamicProgrammingAlgorithmNodeExpansionResult = incomingDelegatingExpansion
-        self.node = node
-        self.hasFinished = False
-        self.result = None
-
-    def finishWithValue(self, resultValue):
-        if self.hasFinished:
-            if resultValue != self.result:
-                raise Exception("Expansion of %s has diverging result values." % (self.node))
-            return self.result
-
-        self.hasFinished = True
-        self.result = resultValue
-        if self.incomingDelegatingExpansion is not None:
-            self.incomingDelegatingExpansion.finishWithValue(resultValue)
-        return resultValue
-    
-class ASGDynamicProgrammingAlgorithm(metaclass = ASGDynamicProgrammingAlgorithmMetaclass):
-    def __init__(self) -> None:
-        self.processedNodes = {}
-
-    def fromNodeContinueExpanding(self, incomingDelegatingNode: ASGNode, node: ASGNode):
-        expansionResult = self.processedNodes.get(node, None)
-        if expansionResult is not None:
-            if not expansionResult.hasFinished:
-                raise Exception('Circular dependency in expansion of node %s' % str(node))
-
-            return expansionResult.result
-
-        patternKindDictionary = self.__class__.__asgDPAPatternKindDictionary__
-        currentClass = node.__class__
-        while currentClass is not None:
-            patterns: list[ASGPatternMatchingNodeKindPattern] | None = patternKindDictionary.get(currentClass, None)
-            if patterns is not None:
-                for pattern in patterns:
-                    if pattern.matchesNode(node):
-                        incomingExpansion = None
-                        if incomingDelegatingNode is not None:
-                            incomingExpansion = self.processedNodes[incomingDelegatingNode]
-
-                        expansionResult = ASGDynamicProgrammingAlgorithmNodeExpansionResult(incomingExpansion, node)
-                        self.processedNodes[node] = expansionResult
-                        return expansionResult.finishWithValue(pattern(self, expansionResult, node))
-
-            if len(currentClass.__bases__) != 0:
-                currentClass = currentClass.__bases__[0]
-            else:
-                currentClass = None
-        raise Exception("Failed to find matching pattern for %s in %s." % (str(node), str(self)))
-    
-    def __call__(self, node: ASGNode) -> Any:
-        return self.fromNodeContinueExpanding(None, node)
-
 class ASGEnvironment(ABC):
     @abstractmethod
     def getTopLevelTargetEnvironment(self):
@@ -1422,8 +1390,8 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Symbol'))
         self.addBaseType(ASGAnyTypeUniverseNode(topLevelDerivation, 'Type'))
         self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char8',  1, 1))
-        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char16',  2, 2))
-        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char32',  4, 4))
+        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char16', 2, 2))
+        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char32', 4, 4))
         self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int8',  1, 1, True))
         self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int16', 2, 2, True))
         self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int32', 4, 4, True))
@@ -1497,14 +1465,48 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         return self.makeFunctionType(arguments, resultType)
 
     def addPrimitiveFunctions(self):
-        for name, primitiveName, functionTypeSignature, effects, implementation in [
-            ('i32', 'Integer::asInt32', (('Integer',), 'Int32'), ['pure'], lambda n: n.abort() )
-        ]:
+        primitiveCharacterTypes = list(map(self.lookValidLastBindingOf, [
+            'Char8', 'Char16', 'Char32'
+        ]))
+        primitiveIntegerTypes = list(map(self.lookValidLastBindingOf, [
+            'Int8',  'Int16',  'Int32',  'Int64',
+            'UInt8', 'UInt16', 'UInt32', 'UInt64',
+        ]))
+        primitiveFloatTypes = list(map(self.lookValidLastBindingOf, ['Float32', 'Float64']))
+        numberTypes = list(map(self.lookValidLastBindingOf, ['Integer'])) + primitiveCharacterTypes + primitiveIntegerTypes + primitiveFloatTypes
+
+        for numberType in [self.lookValidLastBindingOf('Integer')]:
+            castToCharacter = lambda derivation, resultType, value: ASGLiteralCharacterNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
+            castToInteger = lambda derivation, resultType, value: ASGLiteralIntegerNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
+            castToFloat = lambda derivation, resultType, value: ASGLiteralFloatNode(derivation, resultType, resultType.normalizeValue(float(value.value)))
+
+            self.addPrimitiveFunctionsWithDesc([
+                ('c8',  'Integer::asChar8',  (('Integer',), 'Char8'),  ['compileTime', 'pure'], castToCharacter),
+                ('c16', 'Integer::asChar16', (('Integer',), 'Char16'), ['compileTime', 'pure'], castToCharacter),
+                ('c32', 'Integer::asChar32', (('Integer',), 'Char32'), ['compileTime', 'pure'], castToCharacter),
+
+                ('i8',  'Integer::asInt8',  (('Integer',), 'Int8'),  ['compileTime', 'pure'], castToInteger),
+                ('i16', 'Integer::asInt16', (('Integer',), 'Int16'), ['compileTime', 'pure'], castToInteger),
+                ('i32', 'Integer::asInt32', (('Integer',), 'Int32'), ['compileTime', 'pure'], castToInteger),
+                ('i64', 'Integer::asInt64', (('Integer',), 'Int64'), ['compileTime', 'pure'], castToInteger),
+
+                ('u8',  'Integer::asUInt8',  (('Integer',), 'UInt8'),  ['compileTime', 'pure'], castToInteger),
+                ('u16', 'Integer::asUInt16', (('Integer',), 'UInt16'), ['compileTime', 'pure'], castToInteger),
+                ('u32', 'Integer::asUInt32', (('Integer',), 'UInt32'), ['compileTime', 'pure'], castToInteger),
+                ('u64', 'Integer::asUInt64', (('Integer',), 'UInt64'), ['compileTime', 'pure'], castToInteger),
+
+                ('f32', 'Integer::asFloat32', (('Integer',), 'Float32'), ['compileTime', 'pure'], castToFloat),
+                ('f64', 'Integer::asFloat64', (('Integer',), 'Float64'), ['compileTime', 'pure'], castToFloat),
+            ])
+
+    def addPrimitiveFunctionsWithDesc(self, descriptions):
+        for name, primitiveName, functionTypeSignature, effects, implementation in descriptions:
             functionType = self.makeFunctionTypeWithSignature(functionTypeSignature)
-            primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation)
+            isPure = 'pure' in effects
+            isCompileTime = 'compileTime' in effects
+            primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation, isPure = isPure, isCompileTime = isCompileTime)
             self.addUnificationValue(primitiveFunction)
             self.addSymbolValue(name, primitiveFunction)
-
 class ASGChildEnvironment(ASGEnvironment):
     def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
         super().__init__()
@@ -1634,6 +1636,86 @@ class ASGBuilderWithGVN:
                 return predecessor
         return self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, ASGSequenceExpressionNode, valueOrSequenceNode, predecessor = predecessor)
 
+class ASGDynamicProgrammingAlgorithmMetaclass(type):
+    def __new__(cls, name, bases, attributes):
+        patterns: list[ASGPatternMatchingNodeKindPattern] = []
+        patternKindDictionary = {}
+        for value in attributes.values():
+            if isinstance(value, ASGPatternMatchingPattern):
+                patterns.append(value)
+
+        for pattern in patterns:
+            patternKind = pattern.getExpectedKind()
+            if patternKind not in patternKindDictionary:
+                patternKindDictionary[patternKind] = []
+            patternKindDictionary[patternKind].append(pattern)
+
+        algorithm = super().__new__(cls, name, bases, attributes)
+        algorithm.__asgDPAPatterns__ = patterns
+        algorithm.__asgDPAPatternKindDictionary__ = patternKindDictionary
+        return algorithm
+
+class ASGDynamicProgrammingAlgorithmNodeExpansionResult:
+    def __init__(self, incomingDelegatingExpansion, node: ASGNode) -> None:
+        self.incomingDelegatingExpansion: ASGDynamicProgrammingAlgorithmNodeExpansionResult = incomingDelegatingExpansion
+        self.node = node
+        self.hasFinished = False
+        self.result = None
+
+    def finishWithValue(self, resultValue):
+        if self.hasFinished:
+            if resultValue != self.result:
+                raise Exception("Expansion of %s has diverging result values." % (self.node))
+            return self.result
+
+        self.hasFinished = True
+        self.result = resultValue
+        if self.incomingDelegatingExpansion is not None:
+            self.incomingDelegatingExpansion.finishWithValue(resultValue)
+        return resultValue
+    
+class ASGDynamicProgrammingAlgorithm(metaclass = ASGDynamicProgrammingAlgorithmMetaclass):
+    def __init__(self) -> None:
+        self.processedNodes = {}
+
+    def postProcessResult(self, result):
+        return result
+
+    def fromNodeContinueExpanding(self, incomingDelegatingNode: ASGNode, node: ASGNode):
+        expansionResult = self.processedNodes.get(node, None)
+        if expansionResult is not None:
+            if not expansionResult.hasFinished:
+                raise Exception('Circular dependency in expansion of node %s' % str(node))
+
+            return expansionResult.result
+
+        patternKindDictionary = self.__class__.__asgDPAPatternKindDictionary__
+        currentClass = node.__class__
+        while currentClass is not None:
+            patterns: list[ASGPatternMatchingNodeKindPattern] | None = patternKindDictionary.get(currentClass, None)
+            if patterns is not None:
+                for pattern in patterns:
+                    if pattern.matchesNode(node):
+                        incomingExpansion = None
+                        if incomingDelegatingNode is not None:
+                            incomingExpansion = self.processedNodes[incomingDelegatingNode]
+
+                        expansionResult = ASGDynamicProgrammingAlgorithmNodeExpansionResult(incomingExpansion, node)
+                        self.processedNodes[node] = expansionResult
+
+                        patternResult = pattern(self, expansionResult, node)
+                        patternResult = self.postProcessResult(patternResult)
+                        return expansionResult.finishWithValue(patternResult)
+
+            if len(currentClass.__bases__) != 0:
+                currentClass = currentClass.__bases__[0]
+            else:
+                currentClass = None
+        raise Exception("Failed to find matching pattern for %s in %s." % (str(node), str(self)))
+    
+    def __call__(self, node: ASGNode) -> Any:
+        return self.fromNodeContinueExpanding(None, node)
+
 class ASGBetaSubstitutionContext:
     def __init__(self) -> None:
         self.substitutionTable = {}
@@ -1655,6 +1737,38 @@ class ASGBetaSubstitutionContext:
             if self.includesNode(node):
                 return True
         return False
+
+class ASGReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
+    def reduceNode(self, node: ASGNode):
+        return self(node)
+    
+    def reduceAttribute(self, attribute):
+        if isinstance(attribute, ASGNode):
+            return self.reduceNode(attribute)
+        else:
+            return attribute
+
+    @asgPatternMatchingOnNodeKind(ASGApplicationNode, when = lambda n: n.isLiteralPureCompileTimePrimitiveApplication())
+    def reduceLiteralApplicationNode(self, node: ASGApplicationNode) -> ASGNode:
+        return node.functional.reduceApplicationWithAlgorithm(node, self)
+
+    @asgPatternMatchingOnNodeKind(ASGNode)
+    def reduceGenericNode(self, node: ASGNode) -> ASGTypecheckedNode:
+        return self.reduceGenericNodeRecursively(node)
+    
+    def reduceGenericNodeRecursively(self, node: ASGNode):
+        nodeAttributes = node.getAllConstructionAttributes()
+        reducedAttributes = []
+        hasReducedAttribute = False
+        for attribute in nodeAttributes:
+            reducedAttribute = self.reduceAttribute(attribute)
+            hasReducedAttribute = hasReducedAttribute or reducedAttribute is not attribute
+            reducedAttributes.append(reducedAttribute)
+
+        if hasReducedAttribute:
+            return self.fromNodeContinueExpanding(node, node.__class__(*reducedAttributes))
+        else:
+            return node
 
 class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
     def __init__(self, substitutionContext: ASGBetaSubstitutionContext, builder: ASGBuilderWithGVN) -> None:
@@ -1702,15 +1816,21 @@ class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
         return node.__class__(*expandedParameters)
 
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
-    def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVN = None) -> None:
+    def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVN = None, reductionAlgorithm: ASGReductionAlgorithm = None) -> None:
         super().__init__()
         self.environment = environment
         self.builder = builder
+        self.reductionAlgorithm = reductionAlgorithm
         if self.builder is None:
             self.builder = ASGBuilderWithGVN(None, self.environment.getTopLevelTargetEnvironment())
+        if self.reductionAlgorithm is None:
+            self.reductionAlgorithm = ASGReductionAlgorithm()
 
     def withFunctionalAnalysisEnvironment(self, newEnvironment: ASGFunctionalAnalysisEnvironment):
-        return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()))
+        return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()), self.reductionAlgorithm)
+    
+    def postProcessResult(self, result):
+        return self.reductionAlgorithm(result)
     
     def withChildLexicalEnvironmentDo(self, newEnvironment: ASGEnvironment, aBlock):
         oldEnvironment = self.environment
@@ -1747,7 +1867,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             return None
         
         typecheckedNode = typecheckedNode.asASGDataNode()
-        if typecheckedNode.isTypedLiteralNode():
+        if typecheckedNode.isLiteralNode():
             return typecheckedNode.value
 
         self.makeErrorAtNode('Expected a literal symbol.', node)
@@ -2014,7 +2134,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if not dependentType.isVariadic:
             expectedType = None
         
-        for i in range(availableArgumentCount):
+        for i in range(directCheckeableArgumentCount, availableArgumentCount):
             analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
             analyzedArguments.append(analyzedArgument)
 
@@ -2056,7 +2176,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if not functionType.isVariadic:
             expectedType = None
         
-        for i in range(availableArgumentCount):
+        for i in range(directCheckeableArgumentCount, availableArgumentCount):
             analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
             analyzedArguments.append(analyzedArgument)
 
