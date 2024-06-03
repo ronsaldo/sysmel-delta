@@ -260,9 +260,9 @@ class ASGSequencingPredecessorsAttribute(ASGPredecessorAttribute):
         self.storeValueIn(tuple(map(lambda x: x.asASGSequencingNode(), constructorValue)), instance)
         self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGSequencingNodeDerivation(), constructorValue)), instance)
 
-    def isDataInputPort(self) -> bool:
+    def isSequencingPredecessorAttribute(self) -> bool:
         return True
-
+    
     def getNodeInputsOf(self, instance):
         return self.loadValueFrom(instance)
 
