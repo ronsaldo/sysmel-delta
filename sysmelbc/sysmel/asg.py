@@ -761,6 +761,12 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isLambda(self) -> bool:
         return False
 
+    def isFunctionalTypeNode(self) -> bool:
+        return False
+    
+    def isOverloadedAlternativesNode(self) -> bool:
+        return False
+
     def coerceExpressionWith(self, expression, expander):
         return expression
 
@@ -1058,6 +1064,9 @@ class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
 class ASGErrorNode(ASGTypedDataExpressionNode):
     message = ASGNodeDataAttribute(str)
 
+    def prettyPrintError(self) -> str:
+        return '%s: %s' % (str(self.sourceDerivation.getSourcePosition()), self.message)
+
 class ASGLiteralNode(ASGTypedDataExpressionNode):
     def isLiteralNode(self) -> bool:
         return True
@@ -1272,6 +1281,22 @@ class ASGSumTypeNode(ASGTypeNode):
             return self.name
         return super().prettyPrintNameWithDataAttributes()
 
+class ASGOverloadedTypeNode(ASGTypeNode):
+    alternatives = ASGNodeTypeInputNodes()
+
+    def expandSyntaxApplicationNode(self, expander, applicationNode):
+        return expander.expandOverloadedApplicationWithType(applicationNode, self)
+    
+class ASGOverloadedAlternativesNode(ASGTypedDataExpressionNode):
+    alternatives = ASGNodeDataInputPorts()
+
+    def isOverloadedAlternativesNode(self) -> bool:
+        return True
+
+class ASGOverloadedAlternativeSelectionNode(ASGTypedDataExpressionNode):
+    index = ASGNodeDataAttribute(int)
+    alternatives = ASGNodeDataInputPort()
+
 class ASGSigmaNode(ASGTypeNode):
     arguments = ASGNodeDataInputPorts()
     resultType = ASGNodeDataInputPort()
@@ -1282,6 +1307,9 @@ class ASGPiNode(ASGTypeNode):
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
+    def isFunctionalTypeNode(self) -> bool:
+        return True
+
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandDependentApplicationWithType(applicationNode, self)
 
@@ -1291,6 +1319,9 @@ class ASGFunctionTypeNode(ASGTypeNode):
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
+    def isFunctionalTypeNode(self) -> bool:
+        return True
+
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandFunctionApplicationWithType(applicationNode, self)
 
@@ -1298,6 +1329,9 @@ class ASGMacroFunctionTypeNode(ASGTypeNode):
     arguments = ASGNodeDataInputPorts()
     resultType = ASGNodeDataInputPort()
     isVariadic = ASGNodeDataAttribute(bool, default = False)
+
+    def isFunctionalTypeNode(self) -> bool:
+        return True
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandMacroApplicationWithType(applicationNode, self)
@@ -1588,7 +1622,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         primitiveFloatTypes = list(map(self.lookValidLastBindingOf, ['Float32', 'Float64']))
         numberTypes = list(map(self.lookValidLastBindingOf, ['Integer'])) + primitiveCharacterTypes + primitiveIntegerTypes + primitiveFloatTypes
 
-        for numberType in [self.lookValidLastBindingOf('Integer')]:
+        for numberType in numberTypes:
             castToCharacter = lambda derivation, resultType, value: ASGLiteralCharacterNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
             castToInteger = lambda derivation, resultType, value: ASGLiteralIntegerNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
             castToFloat = lambda derivation, resultType, value: ASGLiteralFloatNode(derivation, resultType, resultType.normalizeValue(float(value.value)))
@@ -1689,6 +1723,12 @@ class ASGBuilderWithGVN:
         self.topLevelEnvironment = topLevelEnvironment
         self.builtNodes = {}
         self.currentPredecessor = None
+
+    def memento(self):
+        return self.currentPredecessor
+
+    def restoreMemento(self, memento):
+        self.currentPredecessor = memento
 
     def topLevelIdentifier(self, name: str):
         if self.parentBuilder is not None:
@@ -1858,6 +1898,10 @@ class ASGReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGApplicationNode, when = lambda n: n.isLiteralPureCompileTimePrimitiveApplication())
     def reduceLiteralApplicationNode(self, node: ASGApplicationNode) -> ASGNode:
         return node.functional.reduceApplicationWithAlgorithm(node, self)
+    
+    @asgPatternMatchingOnNodeKind(ASGOverloadedAlternativeSelectionNode, when = lambda n: n.alternatives.isOverloadedAlternativesNode())
+    def reduceOverloadedAlternativeSelectionNode(self, node: ASGOverloadedAlternativeSelectionNode) -> ASGTypecheckedNode:
+        return node.alternatives.alternatives[node.index]
 
     @asgPatternMatchingOnNodeKind(ASGNode)
     def reduceGenericNode(self, node: ASGNode) -> ASGTypecheckedNode:
@@ -1922,19 +1966,29 @@ class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
             expandedParameters.append(self.expandParameter(attribute))
         return node.__class__(*expandedParameters)
 
+class ASGTypecheckingErrorAcumulator:
+    def __init__(self) -> None:
+        self.errorList = []
+
+    def addError(self, error: ASGErrorNode):
+        self.errorList.append(error)
+
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
-    def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVN = None, reductionAlgorithm: ASGReductionAlgorithm = None) -> None:
+    def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVN = None, reductionAlgorithm: ASGReductionAlgorithm = None, errorAccumulator = None) -> None:
         super().__init__()
         self.environment = environment
         self.builder = builder
         self.reductionAlgorithm = reductionAlgorithm
+        self.errorAccumulator = errorAccumulator
         if self.builder is None:
             self.builder = ASGBuilderWithGVN(None, self.environment.getTopLevelTargetEnvironment())
         if self.reductionAlgorithm is None:
             self.reductionAlgorithm = ASGReductionAlgorithm()
+        if self.errorAccumulator is None:
+            self.errorAccumulator = ASGTypecheckingErrorAcumulator()
 
     def withDivergingEnvironment(self, newEnvironment: ASGEnvironment):
-        return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()), self.reductionAlgorithm)
+        return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVN(self.builder, newEnvironment.getTopLevelTargetEnvironment()), self.reductionAlgorithm, self.errorAccumulator)
 
     def withFunctionalAnalysisEnvironment(self, newEnvironment: ASGFunctionalAnalysisEnvironment):
         return self.withDivergingEnvironment(newEnvironment)
@@ -1957,9 +2011,25 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         else:
             return None
         
+    def attemptExpansionOfNode(self, node: ASGNode) -> tuple[ASGNode, list[ASGNode]]:
+        builderMemento = self.builder.memento()
+        errorMemento = self.errorAccumulator
+
+        self.errorAccumulator = ASGTypecheckingErrorAcumulator()
+        expansionResult = self(node)
+        expansionErrors = self.errorAccumulator.errorList
+        self.errorAccumulator = errorMemento
+
+        if len(expansionErrors) != 0:
+            self.builder.restoreMemento(builderMemento)
+
+        return expansionResult, expansionErrors
+        
     def makeErrorAtNode(self, message: str, node: ASGNode) -> ASGTypecheckedNode:
         type = self.builder.topLevelIdentifier('Abort')
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGErrorNode, type, message)
+        errorNode = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGErrorNode, type, message)
+        self.errorAccumulator.addError(errorNode.asASGDataNode())
+        return errorNode
     
     def analyzeNodeWithExpectedType(self, node: ASGNode, expectedType: ASGNode) -> ASGTypecheckedNode:
         analyzedNode = self(node).asASGDataNode()
@@ -2166,14 +2236,31 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGSyntaxIdentifierReferenceNode)
     def expandSyntaxIdentifierReferenceNode(self, node: ASGSyntaxIdentifierReferenceNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
-        lookupResult = self.environment.lookSymbolBindingListRecursively(node.value)
-        if len(lookupResult) == 0:
+        lookupResults = self.environment.lookSymbolBindingListRecursively(node.value)
+        if len(lookupResults) == 0:
             return self.makeErrorAtNode('Failed to finding binding for symbol %s.' % node.value, node)
-        elif len(lookupResult) == 1:
-            return self(lookupResult[0])
+        elif len(lookupResults) == 1 or not lookupResults[0].getTypeInEnvironment(self.environment).isFunctionalTypeNode():
+            return self(lookupResults[0])
         else:
-            ## Potentially overloaded
-            assert False
+            # Select the first overloaded functionals.
+            overloadedAlternatives = []
+            overloadedAlternativeTypes = []
+            for lookupResult in lookupResults:
+                lookupResultType = lookupResult.getTypeInEnvironment(self.environment)
+                if not lookupResultType.isFunctionalTypeNode():
+                    break
+
+                overloadedAlternatives.append(lookupResult)
+                overloadedAlternativeTypes.append(lookupResultType)
+
+            # If we only have one overloaded alternative, select it.
+            assert len(overloadedAlternatives) >= 1
+            if len(overloadedAlternatives) == 1:
+                return self(overloadedAlternatives[0]) 
+            
+            ## Overloaded type and its alternatives.
+            overloadedType = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGOverloadedTypeNode, overloadedAlternativeTypes)
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGOverloadedAlternativesNode, overloadedType, overloadedAlternatives)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxMessageSendNode, when = lambda n: n.receiver is None)
     def expandSyntaxMessageSendNodeWithoutReceiver(self, node: ASGSyntaxMessageSendNode) -> ASGTypecheckedNode:
@@ -2308,6 +2395,32 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         
         return application
     
+    def expandOverloadedApplicationWithType(self, node: ASGSyntaxApplicationNode, overloadedType: ASGOverloadedTypeNode):
+        self.syntaxPredecessorOf(node)
+
+        overloadedFunctional = self(node.functional)
+
+        alternativesWithErrors = []
+
+        for i in range(len(overloadedType.alternatives)):
+            alternativeType = overloadedType.alternatives[i]
+            functionalAlternative = self.builder.forSyntaxExpansionBuild(self, node, ASGOverloadedAlternativeSelectionNode, alternativeType, i, overloadedFunctional)
+            functionalAlternative = self.reductionAlgorithm(functionalAlternative.asASGDataNode())
+
+            alternativeApplicationNode = ASGSyntaxApplicationNode(ASGNodeSyntaxExpansionDerivation(self, node), functionalAlternative, node.arguments, kind = node.kind)
+            alternativeExpandedResult, expansionTypecheckingErrors = self.attemptExpansionOfNode(alternativeApplicationNode)
+            if len(expansionTypecheckingErrors) == 0:
+                return alternativeExpandedResult
+            
+            alternativesWithErrors.append((functionalAlternative, expansionTypecheckingErrors))
+
+        # Ensure the arguments are checked for generating the error messages.
+        for argument in node.arguments:
+            self(argument)
+
+        # TODO: Properly format the error message.
+        return self.makeErrorAtNode('Failed to find matching overloaded alternative.', node)
+    
     def expandMacroApplicationWithType(self, node: ASGSyntaxApplicationNode, macroFunctionType: ASGMacroFunctionTypeNode):
         self.syntaxPredecessorOf(node)
         macro = self(node.functional)
@@ -2429,7 +2542,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 def asgExpandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
     expander = ASGExpandAndTypecheckingAlgorithm(environment)
     result = expander.expandTopLevelScript(node)
-    return result
+    return result, expander.errorAccumulator.errorList
 
 def asgMakeScriptAnalysisEnvironment(target: CompilationTarget, sourcePosition: SourcePosition, scriptPath: str) -> ASGEnvironment:
     topLevelEnvironment = ASGTopLevelTargetEnvironment.getForTarget(target)

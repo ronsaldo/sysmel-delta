@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import os.path
+import sys
 
 class SourceCode:
     def __init__(self, directory: str, name: str, language: str, text: bytes) -> None:
@@ -425,6 +426,6 @@ class ParseTreeErrorVisitor(ParseTreeSequentialVisitor):
     def checkAndPrintErrors(self, node: ParseTreeNode):
         self.visitNode(node)
         for errorNode in self.errorNodes:
-            print('%s: %s' % (str(errorNode.sourcePosition), errorNode.message))
+            sys.stderr.write('%s: %s\n' % (str(errorNode.sourcePosition), errorNode.message))
         return len(self.errorNodes) == 0
     

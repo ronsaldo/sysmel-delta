@@ -117,8 +117,10 @@ class FrontEndDriver:
             asgSyntax = ASGParseTreeFrontEnd().visitNode(parseTree)
             asgToDotFileNamed(asgSyntax, 'asgSyntax.dot')
 
-            asgTypechecked = asgExpandAndTypecheck(asgMakeScriptAnalysisEnvironment(DefaultCompilationTarget, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
+            asgTypechecked, asgTypecheckingErrors = asgExpandAndTypecheck(asgMakeScriptAnalysisEnvironment(DefaultCompilationTarget, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
             asgToDotFileNamed(asgTypechecked, 'asgTypechecked.dot')
+            for error in asgTypecheckingErrors:
+                sys.stderr.write('%s\n' % error.prettyPrintError())
             return True
         else:
             ast = ASTParseTreeFrontEnd().visitNode(parseTree)
