@@ -41,6 +41,30 @@ class ASGSyntaxApplicationNode(ASGSyntaxNode):
     arguments = ASGNodeDataInputPorts()
     kind = ASGNodeDataAttribute(int, default = 0)
 
+    KindToSelectorDictionary = {
+        ParseTreeApplicationNode.Normal: '()',
+        ParseTreeApplicationNode.Bracket: '[]',
+        ParseTreeApplicationNode.CurlyBracket: '{}',
+        ParseTreeApplicationNode.ByteArrayStart: '#[]',
+        ParseTreeApplicationNode.Block: '{|}',
+        ParseTreeApplicationNode.Dictionary: '#{}',
+    }
+
+    def isBracketKind(self):
+        return self.kind == ParseTreeApplicationNode.Bracket
+
+    def isCurlyBracketKind(self):
+        return self.kind == ParseTreeApplicationNode.CurlyBracket
+
+    def isDictionaryKind(self):
+        return self.kind == ParseTreeApplicationNode.Dictionary
+    
+    def getSelectorForApplicationMessage(self) -> str:
+        result = self.KindToSelectorDictionary[self.kind]
+        if len(self.arguments) != 0:
+            result += ':'
+        return result
+
 class ASGSyntaxAssignmentNode(ASGSyntaxNode):
     store = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()

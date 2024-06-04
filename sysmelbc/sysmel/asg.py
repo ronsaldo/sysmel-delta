@@ -1,4 +1,5 @@
 from .mop import *
+from .syntax import *
 
 class ASGTypecheckedNode(ASGNode):
     sourceDerivation = ASGNodeSourceDerivationAttribute()
@@ -75,13 +76,17 @@ class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
 
     pure = ASGNodeDataAttribute(bool, default = False)
     compileTime = ASGNodeDataAttribute(bool, default = False)
+    alwaysReduced = ASGNodeDataAttribute(bool, default = False)
 
     def isLiteralPrimitiveFunction(self) -> bool:
         return True
 
     def isPureCompileTimePrimitive(self) -> bool:
         return self.pure and self.compileTime
-    
+
+    def isAlwaysReducedPrimitive(self) -> bool:
+        return self.alwaysReduced
+
     def reduceApplicationWithAlgorithm(self, node, algorithm):
         arguments = list(map(algorithm, node.arguments))
         return self.compileTimeImplementation(ASGNodeReductionDerivation(node, algorithm), node.type, *arguments)
@@ -199,6 +204,9 @@ class ASGTypeUniverseNode(ASGTypeNode):
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return environment.getTopLevelTargetEnvironment().getTypeUniverseWithIndex(self.index + 1)
 
+    def expandSyntaxApplicationNode(self, expander, applicationNode: ASGSyntaxApplicationNode):
+        return expander(applicationNode.functional).__class__.expandMetaSyntaxApplicationNode(expander, applicationNode)
+    
 class ASGProductTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
     name = ASGNodeDataAttribute(str, default = None)
@@ -239,6 +247,9 @@ class ASGApplicationNode(ASGTypedDataExpressionNode):
 
     def isLiteralPureCompileTimePrimitiveApplication(self):
         return self.functional.isPureCompileTimePrimitive() and all(argument.isLiteralNode() for argument in self.arguments)
+
+    def isLiteralAlwaysReducedPrimitiveApplication(self):
+        return self.functional.isAlwaysReducedPrimitive()
 
 class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
@@ -316,8 +327,8 @@ class ASGPiNode(ASGTypeNode):
         return expander.expandDependentApplicationWithType(applicationNode, self)
 
 class ASGFunctionTypeNode(ASGTypeNode):
-    arguments = ASGNodeDataInputPorts()
-    resultType = ASGNodeDataInputPort()
+    arguments = ASGNodeTypeInputNodes()
+    resultType = ASGNodeTypeInputNode()
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
@@ -328,8 +339,8 @@ class ASGFunctionTypeNode(ASGTypeNode):
         return expander.expandFunctionApplicationWithType(applicationNode, self)
 
 class ASGMacroFunctionTypeNode(ASGTypeNode):
-    arguments = ASGNodeDataInputPorts()
-    resultType = ASGNodeDataInputPort()
+    arguments = ASGNodeTypeInputNodes()
+    resultType = ASGNodeTypeInputNode()
     isVariadic = ASGNodeDataAttribute(bool, default = False)
 
     def isFunctionalTypeNode(self) -> bool:
@@ -337,3 +348,39 @@ class ASGMacroFunctionTypeNode(ASGTypeNode):
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandMacroApplicationWithType(applicationNode, self)
+
+class ASGDerivedTypeNode(ASGTypeNode):
+    baseType = ASGNodeTypeInputNode()
+
+class ASGDecoratedTypeNode(ASGDerivedTypeNode):
+    def mutableConstructorImpl(cls, derivation, baseType):
+        # TODO: Implement properly
+        return baseType
+
+    def volatileConstructorImpl(cls, derivation, baseType):
+        # TODO: Implement properly
+        return baseType
+
+class ASGArrayTypeNode(ASGDerivedTypeNode):
+    size = ASGNodeDataInputPort()
+
+    @classmethod
+    def constructorImpl(cls, derivation, resultType, baseType, size):
+        return cls(derivation, baseType, size)
+    
+class ASGPointerLikeTypeNode(ASGDerivedTypeNode):
+    @classmethod
+    def constructorImpl(cls, derivation, resultType, baseType):
+        return cls(derivation, baseType)
+
+class ASGPointerTypeNode(ASGPointerLikeTypeNode):
+    pass
+
+class ASGReferenceLikeTypeNode(ASGPointerLikeTypeNode):
+    pass
+
+class ASGReferenceTypeNode(ASGReferenceLikeTypeNode):
+    pass
+
+class ASGTemporaryReferenceTypeNode(ASGReferenceLikeTypeNode):
+    pass

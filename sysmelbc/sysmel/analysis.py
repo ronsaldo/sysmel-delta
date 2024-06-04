@@ -35,7 +35,7 @@ class ASGReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
         else:
             return attribute
 
-    @asgPatternMatchingOnNodeKind(ASGApplicationNode, when = lambda n: n.isLiteralPureCompileTimePrimitiveApplication())
+    @asgPatternMatchingOnNodeKind(ASGApplicationNode, when = lambda n: n.isLiteralAlwaysReducedPrimitiveApplication() or n.isLiteralPureCompileTimePrimitiveApplication())
     def reduceLiteralApplicationNode(self, node: ASGApplicationNode) -> ASGNode:
         return node.functional.reduceApplicationWithAlgorithm(node, self)
     

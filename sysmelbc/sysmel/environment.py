@@ -51,7 +51,10 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UInt16', 2, 2, False))
         self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UInt32', 4, 4, False))
         self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UInt64', 8, 8, False))
-        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'Size', target.pointerSize, target.pointerAlignment, False))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'Size', target.sizeSize, target.sizeAlignment, False))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'SignedSize', target.sizeSize, target.sizeAlignment, True))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UIntPointer', target.pointerSize, target.pointerAlignment, False))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'IntPointer', target.pointerSize, target.pointerAlignment, True))
         self.addBaseType(ASGPrimitiveFloatTypeNode(topLevelDerivation, 'Float32', 4, 4))
         self.addBaseType(ASGPrimitiveFloatTypeNode(topLevelDerivation, 'Float64', 8, 8))
 
@@ -127,6 +130,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
 
     def addPrimitiveFunctions(self):
         self.addControlFlowMacros()
+        self.addTypeConstructors()
         self.addPrimitiveTypeFunctions()
 
     def addControlFlowMacros(self):
@@ -140,6 +144,17 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
 
     def ifThenElseMacro(self, macroContext: ASGMacroContext, condition: ASGNode, ifTrue: ASGNode, ifFalse: ASGNode) -> ASGNode:
         return ASGSyntaxIfThenElseNode(macroContext.derivation, condition, ifTrue, ifFalse)
+
+    def addTypeConstructors(self):
+        self.addPrimitiveFunctionsWithDesc([
+            ('mutable', 'Type::mutable', (('Type',), 'Type'),  ['compileTime', 'pure', 'alwaysReduced'], ASGDecoratedTypeNode.mutableConstructorImpl),
+            ('volatile', 'Type::volatile', (('Type',), 'Type'),  ['compileTime', 'pure', 'alwaysReduced'], ASGDecoratedTypeNode.volatileConstructorImpl),
+            ('array:', 'Type::array:', (('Type', 'Size'), 'Type'),  ['compileTime', 'pure', 'alwaysReduced'], ASGArrayTypeNode.constructorImpl),
+            ('[]:', 'Type::array:', (('Type', 'Size'), 'Type'),  ['compileTime', 'pure', 'alwaysReduced'], ASGArrayTypeNode.constructorImpl),
+            ('pointer', 'Type::pointer', (('Type',), 'Type'),  ['compileTime', 'pure', 'alwaysReduced'], ASGPointerTypeNode.constructorImpl),
+            ('ref', 'Type::pointer', (('Type',), 'Type'),  ['compileTime', 'pure', 'alwaysReduced'], ASGReferenceTypeNode.constructorImpl),
+            ('tempRef', 'Type::pointer', (('Type',), 'Type'),  ['compileTime', 'pure', 'alwaysReduced'], ASGTemporaryReferenceTypeNode.constructorImpl),
+        ])
 
     def addPrimitiveTypeFunctions(self):
         primitiveCharacterTypes = list(map(self.lookValidLastBindingOf, [
@@ -228,6 +243,11 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
                 ('asUInt32', namePrefix + 'asUInt32', ((name,), 'UInt32'), ['compileTime', 'pure'], castToInteger),
                 ('asUInt64', namePrefix + 'asUInt64', ((name,), 'UInt64'), ['compileTime', 'pure'], castToInteger),
 
+                ('asSize',        namePrefix + 'asSize',        ((name,), 'Size'),        ['compileTime', 'pure'], castToInteger),
+                ('asSignedSize',  namePrefix + 'asSignedSize',  ((name,), 'SignedSize'),  ['compileTime', 'pure'], castToInteger),
+                ('asIntPointer',  namePrefix + 'asIntPointer',  ((name,), 'IntPointer'),  ['compileTime', 'pure'], castToInteger),
+                ('asUIntPointer', namePrefix + 'asUIntPointer', ((name,), 'UIntPointer'), ['compileTime', 'pure'], castToInteger),
+
                 ('asFloat32', namePrefix + 'asFloat32', ((name,), 'Float32'), ['compileTime', 'pure'], castToFloat),
                 ('asFloat64', namePrefix + 'asFloat64', ((name,), 'Float64'), ['compileTime', 'pure'], castToFloat),
             ])
@@ -264,6 +284,11 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
                 ('u32', namePrefix + 'asUInt32', ((name,), 'UInt32'), ['compileTime', 'pure'], castToInteger),
                 ('u64', namePrefix + 'asUInt64', ((name,), 'UInt64'), ['compileTime', 'pure'], castToInteger),
 
+                ('sz',   namePrefix + 'asSize',        ((name,), 'Size'),        ['compileTime', 'pure'], castToInteger),
+                ('ssz',  namePrefix + 'asSignedSize',  ((name,), 'SignedSize'),  ['compileTime', 'pure'], castToInteger),
+                ('uptr', namePrefix + 'asUIntPointer', ((name,), 'UIntPointer'), ['compileTime', 'pure'], castToInteger),
+                ('iptr', namePrefix + 'asIntPointer',  ((name,), 'IntPointer'),  ['compileTime', 'pure'], castToInteger),
+
                 ('f32', namePrefix + 'asFloat32', ((name,), 'Float32'), ['compileTime', 'pure'], castToFloat),
                 ('f64', namePrefix + 'asFloat64', ((name,), 'Float64'), ['compileTime', 'pure'], castToFloat),
             ])
@@ -274,7 +299,8 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
             functionType = self.makeFunctionTypeWithSignature(functionTypeSignature, isMacro = isMacro)
             isPure = 'pure' in effects
             isCompileTime = 'compileTime' in effects
-            primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation, pure = isPure, compileTime = isCompileTime)
+            isAlwaysReduced = 'alwaysReduced' in effects
+            primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation, pure = isPure, compileTime = isCompileTime, alwaysReduced = isAlwaysReduced)
             self.addUnificationValue(primitiveFunction)
             self.addSymbolValue(name, primitiveFunction)
 

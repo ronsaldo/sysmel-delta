@@ -14,7 +14,7 @@
 ##:idInteger(:(Integer)x :: Integer) := x.
 ##idInteger(42)
 
-:main(:(Int32)argc, :(Char8)argv :: Int32) := {
+:main(:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) := {
     if: argc >= 1i32 then: {
 
         argc + 1i32

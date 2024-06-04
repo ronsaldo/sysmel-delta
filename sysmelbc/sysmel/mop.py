@@ -743,6 +743,15 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def expandPatternWithValueAt(self, expander, value, location):
         from .syntax import ASGSyntaxErrorNode
         return ASGSyntaxErrorNode(ASGNodeExpansionDerivation(expander, location), 'Not a valid pattern for expanding.', [self, location])
+    
+    @classmethod
+    def expandMetaSyntaxApplicationNode(cls, expander, applicationNode):
+        from .syntax import ASGSyntaxLiteralSymbolNode, ASGSyntaxMessageSendNode
+        derivation = ASGNodeSyntaxExpansionDerivation(expander, applicationNode)
+        selectorValue = applicationNode.getSelectorForApplicationMessage()
+        selector = ASGSyntaxLiteralSymbolNode(derivation, selectorValue)
+        messageSendNode = ASGSyntaxMessageSendNode(derivation, applicationNode.functional, selector, applicationNode.arguments)
+        return expander.fromNodeContinueExpanding(applicationNode, messageSendNode)
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         # Expand the arguments for making the error messages.
@@ -768,6 +777,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         return self.__betaReplaceableDependencies__
 
     def isPureCompileTimePrimitive(self) -> bool:
+        return False
+    
+    def isAlwaysReducedPrimitive(self) -> bool:
         return False
     
     def isLiteralPrimitiveFunction(self) -> bool:
