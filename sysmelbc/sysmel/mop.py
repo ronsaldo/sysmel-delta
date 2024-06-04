@@ -460,7 +460,7 @@ class ASGNodeTypeInputNodes(ASGNodeConstructionAttributeWithSourceDerivation):
         self.storeValueIn(tuple(map(lambda x: x.asASGTypeNode(), constructorValue)), instance)
         self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGTypeNodeDerivation(), constructorValue)), instance)
 
-    def isDataInputPort(self) -> bool:
+    def isTypeInputPort(self) -> bool:
         return True
 
     def getNodeInputsOf(self, instance):
