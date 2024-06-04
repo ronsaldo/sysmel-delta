@@ -167,7 +167,10 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         
     def makeErrorAtNode(self, message: str, node: ASGNode) -> ASGTypecheckedNode:
         type = self.builder.topLevelIdentifier('Abort')
-        errorNode = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGErrorNode, type, message)
+        innerNodes = []
+        if not node.isSyntaxNode():
+            innerNodes = [node]
+        errorNode = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGErrorNode, type, message, innerNodes)
         self.errorAccumulator.addError(errorNode.asASGDataNode())
         return errorNode
     
@@ -184,7 +187,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         analyzedNodeType = analyzedNode.getTypeInEnvironment(self.environment)
         if expectedTypeNode.isSatisfiedAsTypeBy(analyzedNodeType):
             return analyzedNode, True
-        return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (expectedType.prettyPrintNameWithDataAttributes(), analyzedNodeType.prettyPrintNameWithDataAttributes()), node), False
+        return self.makeErrorAtNode('Type checking failure. Expected %s instead of %s.' % (expectedType.prettyPrintNameWithDataAttributes(), analyzedNodeType.prettyPrintNameWithDataAttributes()), analyzedNode), False
 
     def evaluateSymbol(self, node: ASGNode) -> str:
         typecheckedNode, typechecked = self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Symbol'))
@@ -262,6 +265,25 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         selector = ASGLiteralSymbolNode(self.builder.topLevelIdentifier('Symbol'), ':=')
         return self.fromNodeContinueExpanding(node, ASGSyntaxMessageSendNode(derivation, store, selector, [node.value]))
 
+    @asgPatternMatchingOnNodeKind(ASGSyntaxBinaryExpressionSequenceNode)
+    def expandSyntaxBinaryExpressionSequenceNode(self, node: ASGSyntaxBinaryExpressionSequenceNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+
+        elementCount = len(node.elements)
+        assert elementCount >= 1
+
+        # TODO: Use an operator precedence parser
+        previous = node.elements[0]
+        i = 1
+        derivation = ASGNodeSyntaxExpansionDerivation(self, node)
+        while i < elementCount:
+            operator = node.elements[i]
+            operand = node.elements[i + 1]
+            previous = ASGSyntaxMessageSendNode(derivation, previous, operator, [operand])
+            i += 2
+
+        return self.fromNodeContinueExpanding(node, previous)
+
     @asgPatternMatchingOnNodeKind(ASGSyntaxBindPatternNode)
     def expandSyntaxBindPatternNode(self, node: ASGSyntaxBindPatternNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
@@ -324,9 +346,6 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         entryPoint = functionalAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
 
         body, bodyTypechecked = functionalAnalyzer.analyzeNodeWithExpectedType(node.body, resultType)
-        if not bodyTypechecked:
-            return body
-
         bodyExitPoint = functionalAnalyzer.builder.currentPredecessor
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, body, exitPoint = bodyExitPoint, callingConvention = node.callingConvention)
     

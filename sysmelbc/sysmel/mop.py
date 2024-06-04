@@ -83,6 +83,9 @@ class ASGNodeAttributeDescriptor:
     def hasDefaultValueIn(self, instance) -> bool:
         return False
     
+    def isFlag(self) -> bool:
+        return False
+    
     def storeValueIn(self, value, instance):
         setattr(instance, self.storageName, value)
 
@@ -183,6 +186,9 @@ class ASGNodeDataAttribute(ASGNodeConstructionAttribute):
 
     def isPrinted(self) -> bool:
         return self.isPrinted_
+    
+    def isFlag(self) -> bool:
+        return self.type is bool
 
     def isComparedForUnification(self) -> bool:
         return self.isCompared
@@ -368,7 +374,7 @@ class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
         for value in self.loadValueFrom(instance):
             result ^= value.unificationHash()
 
-        return value.unificationHash()
+        return result
     
     def equalsFromAndFrom(self, first, second) -> bool:
         firstValue = self.loadValueFrom(first)
@@ -591,6 +597,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isPureDataNode(self) -> bool:
         raise Exception("Subclass responsibility isPureDataNode")
     
+    def isSyntaxNode(self) -> bool:
+        return False
+
     def isSequencingNode(self) -> bool:
         return False
 
@@ -660,14 +669,19 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             if attribute.hasDefaultValueIn(self):
                 continue
 
+            if attribute.isFlag():
+                if not attribute.loadValueFrom(self):
+                    continue
+
             if destIndex == 0:
                 result += '('
             else:
                 result += ', '
 
             result += attribute.name
-            result += ' = '
-            result += repr(attribute.loadValueFrom(self))
+            if not attribute.isFlag():
+                result += ' = '
+                result += repr(attribute.loadValueFrom(self))
             destIndex += 1
 
         if destIndex != 0:
@@ -727,6 +741,7 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         return isinstance(self, kind)
 
     def expandPatternWithValueAt(self, expander, value, location):
+        from .syntax import ASGSyntaxErrorNode
         return ASGSyntaxErrorNode(ASGNodeExpansionDerivation(expander, location), 'Not a valid pattern for expanding.', [self, location])
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):

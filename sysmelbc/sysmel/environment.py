@@ -32,7 +32,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.typeUniverseIndexCache = {}
         topLevelDerivation = ASGNodeNoDerivation.getSingleton()
         self.topLevelUnificationTable = {}
-        self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Integer'))
+        self.addBaseType(ASGIntegerTypeNode(topLevelDerivation, 'Integer'))
         self.addBaseType(ASGBottomTypeNode(topLevelDerivation, 'Abort'))
         voidType = self.addBaseType(ASGUnitTypeNode(topLevelDerivation, 'Void'))
         self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'Symbol'))
@@ -40,20 +40,20 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         trueType = self.addBaseType(ASGBaseTypeNode(topLevelDerivation, 'True'))
         self.addBaseType(ASGSumTypeNode(topLevelDerivation, [falseType, trueType], 'Boolean'))
         self.addBaseType(ASGAnyTypeUniverseNode(topLevelDerivation, 'Type'))
-        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char8',  1, 1))
-        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char16', 2, 2))
-        self.addBaseType(ASGPrimitiveCharacterType(topLevelDerivation, 'Char32', 4, 4))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int8',  1, 1, True))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int16', 2, 2, True))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int32', 4, 4, True))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Int64', 8, 8, True))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt8',  1, 1, False))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt16', 2, 2, False))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt32', 4, 4, False))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'UInt64', 8, 8, False))
-        self.addBaseType(ASGPrimitiveIntegerType(topLevelDerivation, 'Size', target.pointerSize, target.pointerAlignment, False))
-        self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float32', 4, 4))
-        self.addBaseType(ASGPrimitiveFloatType(topLevelDerivation, 'Float64', 8, 8))
+        self.addBaseType(ASGPrimitiveCharacterTypeNode(topLevelDerivation, 'Char8',  1, 1))
+        self.addBaseType(ASGPrimitiveCharacterTypeNode(topLevelDerivation, 'Char16', 2, 2))
+        self.addBaseType(ASGPrimitiveCharacterTypeNode(topLevelDerivation, 'Char32', 4, 4))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'Int8',  1, 1, True))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'Int16', 2, 2, True))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'Int32', 4, 4, True))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'Int64', 8, 8, True))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UInt8',  1, 1, False))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UInt16', 2, 2, False))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UInt32', 4, 4, False))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'UInt64', 8, 8, False))
+        self.addBaseType(ASGPrimitiveIntegerTypeNode(topLevelDerivation, 'Size', target.pointerSize, target.pointerAlignment, False))
+        self.addBaseType(ASGPrimitiveFloatTypeNode(topLevelDerivation, 'Float32', 4, 4))
+        self.addBaseType(ASGPrimitiveFloatTypeNode(topLevelDerivation, 'Float64', 8, 8))
 
         self.addBaseType(ASGMetaType(topLevelDerivation, 'ASGNode', ASGNode))
         self.addBaseType(ASGMetaType(topLevelDerivation, 'MacroContext', ASGMacroContext))
@@ -151,29 +151,121 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         ]))
         primitiveFloatTypes = list(map(self.lookValidLastBindingOf, ['Float32', 'Float64']))
         numberTypes = list(map(self.lookValidLastBindingOf, ['Integer'])) + primitiveCharacterTypes + primitiveIntegerTypes + primitiveFloatTypes
+        literalNumberTypes = list(map(self.lookValidLastBindingOf, ['Integer', 'Char32', 'Float64']))
+
+        booleanNot = lambda derivation, resultType, operand: resultType.makeBooleanWithValue(derivation, not operand.value)
+        booleanAnd = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value and right.value)
+        booleanOr = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value or right.value)
+        booleanXor = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value ^ right.value)
+
+        negated = lambda derivation, resultType, operand: resultType.makeLiteralWithValue(derivation, -operand.value)
+        bitInvert = lambda derivation, resultType, operand: resultType.makeLiteralWithValue(derivation, ~operand.value)
+
+        plus = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value + right.value)
+        minus = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value - right.value)
+        times = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value * right.value)
+
+        minWith = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, min(left.value, right.value))
+        maxWith = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, max(left.value, right.value))
+
+        bitAnd = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value & right.value)
+        bitOr = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value | right.value)
+        bitXor = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value ^ right.value)
+        shiftLeft = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value << right.value)
+        shiftRight = lambda derivation, resultType, left, right: resultType.makeLiteralWithValue(derivation, left.value >> right.value)
+
+        equals = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value == right.value)
+        notEquals = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value != right.value)
+        lessThan = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value < right.value)
+        lessOrEquals = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value <= right.value)
+        greaterThan = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value > right.value)
+        greaterOrEquals = lambda derivation, resultType, left, right: resultType.makeBooleanWithValue(derivation, left.value >= right.value)
+
+        castToCharacter = lambda derivation, resultType, value: ASGLiteralCharacterNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
+        castToInteger = lambda derivation, resultType, value: ASGLiteralIntegerNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
+        castToFloat = lambda derivation, resultType, value: ASGLiteralFloatNode(derivation, resultType, resultType.normalizeValue(float(value.value)))
+
+        self.addPrimitiveFunctionsWithDesc([
+            ('not', 'Boolean::not', (('Boolean',), 'Boolean'),  ['compileTime', 'pure'], booleanNot),
+
+            ('&', 'Boolean::&', (('Boolean', 'Boolean'), 'Boolean'),  ['compileTime', 'pure'], booleanAnd),
+            ('|', 'Boolean::|', (('Boolean', 'Boolean'), 'Boolean'),  ['compileTime', 'pure'], booleanOr),
+            ('^', 'Boolean::^', (('Boolean', 'Boolean'), 'Boolean'),  ['compileTime', 'pure'], booleanXor),
+        ])
 
         for numberType in numberTypes:
-            castToCharacter = lambda derivation, resultType, value: ASGLiteralCharacterNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
-            castToInteger = lambda derivation, resultType, value: ASGLiteralIntegerNode(derivation, resultType, resultType.normalizeValue(int(value.value)))
-            castToFloat = lambda derivation, resultType, value: ASGLiteralFloatNode(derivation, resultType, resultType.normalizeValue(float(value.value)))
+            name = numberType.name
+            namePrefix = numberType.name + '::'
 
             self.addPrimitiveFunctionsWithDesc([
-                ('c8',  'Integer::asChar8',  (('Integer',), 'Char8'),  ['compileTime', 'pure'], castToCharacter),
-                ('c16', 'Integer::asChar16', (('Integer',), 'Char16'), ['compileTime', 'pure'], castToCharacter),
-                ('c32', 'Integer::asChar32', (('Integer',), 'Char32'), ['compileTime', 'pure'], castToCharacter),
+                ('negated', namePrefix + 'negated', ((name,), name),  ['compileTime', 'pure'], negated),
 
-                ('i8',  'Integer::asInt8',  (('Integer',), 'Int8'),  ['compileTime', 'pure'], castToInteger),
-                ('i16', 'Integer::asInt16', (('Integer',), 'Int16'), ['compileTime', 'pure'], castToInteger),
-                ('i32', 'Integer::asInt32', (('Integer',), 'Int32'), ['compileTime', 'pure'], castToInteger),
-                ('i64', 'Integer::asInt64', (('Integer',), 'Int64'), ['compileTime', 'pure'], castToInteger),
+                ('+', namePrefix + '+', ((name, name), name),  ['compileTime', 'pure'], plus),
+                ('-', namePrefix + '-', ((name, name), name),  ['compileTime', 'pure'], minus),
+                ('*', namePrefix + '*', ((name, name), name),  ['compileTime', 'pure'], times),
 
-                ('u8',  'Integer::asUInt8',  (('Integer',), 'UInt8'),  ['compileTime', 'pure'], castToInteger),
-                ('u16', 'Integer::asUInt16', (('Integer',), 'UInt16'), ['compileTime', 'pure'], castToInteger),
-                ('u32', 'Integer::asUInt32', (('Integer',), 'UInt32'), ['compileTime', 'pure'], castToInteger),
-                ('u64', 'Integer::asUInt64', (('Integer',), 'UInt64'), ['compileTime', 'pure'], castToInteger),
+                ('min:', namePrefix + 'min:', ((name, name), name),  ['compileTime', 'pure'], minWith),
+                ('max:', namePrefix + 'max:', ((name, name), name),  ['compileTime', 'pure'], maxWith),
 
-                ('f32', 'Integer::asFloat32', (('Integer',), 'Float32'), ['compileTime', 'pure'], castToFloat),
-                ('f64', 'Integer::asFloat64', (('Integer',), 'Float64'), ['compileTime', 'pure'], castToFloat),
+                ('=',  namePrefix + '=',  ((name, name), 'Boolean'),  ['compileTime', 'pure'], equals),
+                ('~=', namePrefix + '~=', ((name, name), 'Boolean'),  ['compileTime', 'pure'], notEquals),
+                ('<',  namePrefix + '<',  ((name, name), 'Boolean'),  ['compileTime', 'pure'], lessThan),
+                ('<=', namePrefix + '<=', ((name, name), 'Boolean'),  ['compileTime', 'pure'], lessOrEquals),
+                ('>',  namePrefix + '>',  ((name, name), 'Boolean'),  ['compileTime', 'pure'], greaterThan),
+                ('>=', namePrefix + '>=', ((name, name), 'Boolean'),  ['compileTime', 'pure'], greaterOrEquals),
+
+                ('asChar8',  namePrefix + 'asChar8',  ((name,), 'Char8'),  ['compileTime', 'pure'], castToCharacter),
+                ('asChar16', namePrefix + 'asChar16', ((name,), 'Char16'), ['compileTime', 'pure'], castToCharacter),
+                ('asChar32', namePrefix + 'asChar32', ((name,), 'Char32'), ['compileTime', 'pure'], castToCharacter),
+
+                ('asInt8',  namePrefix + 'asInt8',  ((name,), 'Int8'),  ['compileTime', 'pure'], castToInteger),
+                ('asInt16', namePrefix + 'asInt16', ((name,), 'Int16'), ['compileTime', 'pure'], castToInteger),
+                ('asInt32', namePrefix + 'asInt32', ((name,), 'Int32'), ['compileTime', 'pure'], castToInteger),
+                ('asInt64', namePrefix + 'asInt64', ((name,), 'Int64'), ['compileTime', 'pure'], castToInteger),
+
+                ('asUInt8',  namePrefix + 'asUInt8',  ((name,), 'UInt8'),  ['compileTime', 'pure'], castToInteger),
+                ('asUInt16', namePrefix + 'asUInt16', ((name,), 'UInt16'), ['compileTime', 'pure'], castToInteger),
+                ('asUInt32', namePrefix + 'asUInt32', ((name,), 'UInt32'), ['compileTime', 'pure'], castToInteger),
+                ('asUInt64', namePrefix + 'asUInt64', ((name,), 'UInt64'), ['compileTime', 'pure'], castToInteger),
+
+                ('asFloat32', namePrefix + 'asFloat32', ((name,), 'Float32'), ['compileTime', 'pure'], castToFloat),
+                ('asFloat64', namePrefix + 'asFloat64', ((name,), 'Float64'), ['compileTime', 'pure'], castToFloat),
+            ])
+
+        for numberType in primitiveIntegerTypes:
+            name = numberType.name
+            namePrefix = numberType.name + '::'
+            self.addPrimitiveFunctionsWithDesc([
+                ('bitInvert', namePrefix + 'bitInvert', ((name,), name),  ['compileTime', 'pure'], bitInvert),
+
+                ('&', namePrefix + '&', ((name, name), name),  ['compileTime', 'pure'], bitAnd),
+                ('|', namePrefix + '|', ((name, name), name),  ['compileTime', 'pure'], bitOr),
+                ('^', namePrefix + '^', ((name, name), name),  ['compileTime', 'pure'], bitXor),
+                ('<<', namePrefix + '<<', ((name, name), name),  ['compileTime', 'pure'], shiftLeft),
+                ('>>', namePrefix + '>>', ((name, name), name),  ['compileTime', 'pure'], shiftRight),
+            ])
+
+        for numberType in literalNumberTypes:
+            name = numberType.name
+            namePrefix = numberType.name + '::'
+
+            self.addPrimitiveFunctionsWithDesc([
+                ('c8',  namePrefix + 'asChar8',  ((name,), 'Char8'),  ['compileTime', 'pure'], castToCharacter),
+                ('c16', namePrefix + 'asChar16', ((name,), 'Char16'), ['compileTime', 'pure'], castToCharacter),
+                ('c32', namePrefix + 'asChar32', ((name,), 'Char32'), ['compileTime', 'pure'], castToCharacter),
+
+                ('i8',  namePrefix + 'asInt8',  ((name,), 'Int8'),  ['compileTime', 'pure'], castToInteger),
+                ('i16', namePrefix + 'asInt16', ((name,), 'Int16'), ['compileTime', 'pure'], castToInteger),
+                ('i32', namePrefix + 'asInt32', ((name,), 'Int32'), ['compileTime', 'pure'], castToInteger),
+                ('i64', namePrefix + 'asInt64', ((name,), 'Int64'), ['compileTime', 'pure'], castToInteger),
+
+                ('u8',  namePrefix + 'asUInt8',  ((name,), 'UInt8'),  ['compileTime', 'pure'], castToInteger),
+                ('u16', namePrefix + 'asUInt16', ((name,), 'UInt16'), ['compileTime', 'pure'], castToInteger),
+                ('u32', namePrefix + 'asUInt32', ((name,), 'UInt32'), ['compileTime', 'pure'], castToInteger),
+                ('u64', namePrefix + 'asUInt64', ((name,), 'UInt64'), ['compileTime', 'pure'], castToInteger),
+
+                ('f32', namePrefix + 'asFloat32', ((name,), 'Float32'), ['compileTime', 'pure'], castToFloat),
+                ('f64', namePrefix + 'asFloat64', ((name,), 'Float64'), ['compileTime', 'pure'], castToFloat),
             ])
 
     def addPrimitiveFunctionsWithDesc(self, descriptions):
@@ -182,7 +274,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
             functionType = self.makeFunctionTypeWithSignature(functionTypeSignature, isMacro = isMacro)
             isPure = 'pure' in effects
             isCompileTime = 'compileTime' in effects
-            primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation, isPure = isPure, isCompileTime = isCompileTime)
+            primitiveFunction = ASGLiteralPrimitiveFunctionNode(ASGNodeNoDerivation.getSingleton(), functionType, primitiveName, compileTimeImplementation = implementation, pure = isPure, compileTime = isCompileTime)
             self.addUnificationValue(primitiveFunction)
             self.addSymbolValue(name, primitiveFunction)
 

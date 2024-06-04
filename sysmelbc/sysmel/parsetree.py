@@ -413,7 +413,6 @@ class ParseTreeSequentialVisitor(ParseTreeVisitor):
     def visitTupleNode(self, node: ParseTreeTupleNode):
         self.visitNodes(node.elements)
 
-
 class ParseTreeErrorVisitor(ParseTreeSequentialVisitor):
     def __init__(self) -> None:
         super().__init__()

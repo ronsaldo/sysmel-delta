@@ -45,6 +45,7 @@ class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
 
 class ASGErrorNode(ASGTypedDataExpressionNode):
     message = ASGNodeDataAttribute(str)
+    innerNodes = ASGNodeDataInputPorts()
 
     def prettyPrintError(self) -> str:
         return '%s: %s' % (str(self.sourceDerivation.getSourcePosition()), self.message)
@@ -72,14 +73,14 @@ class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
     name = ASGNodeDataAttribute(str)
     compileTimeImplementation = ASGNodeDataAttribute(object, default = None, notCompared = True, notPrinted = True)
 
-    isPure = ASGNodeDataAttribute(bool, default = False)
-    isCompileTime = ASGNodeDataAttribute(bool, default = False)
+    pure = ASGNodeDataAttribute(bool, default = False)
+    compileTime = ASGNodeDataAttribute(bool, default = False)
 
     def isLiteralPrimitiveFunction(self) -> bool:
         return True
 
     def isPureCompileTimePrimitive(self) -> bool:
-        return self.isPure and self.isCompileTime
+        return self.pure and self.compileTime
     
     def reduceApplicationWithAlgorithm(self, node, algorithm):
         arguments = list(map(algorithm, node.arguments))
@@ -132,18 +133,25 @@ class ASGBottomTypeNode(ASGBaseTypeNode):
     def isBottomTypeNode(self) -> bool:
         return True
 
+class ASGIntegerTypeNode(ASGBaseTypeNode):
+    def makeLiteralWithValue(self, derivation, value: int):
+        return ASGLiteralIntegerNode(derivation, self, value)
+
 class ASGPrimitiveType(ASGBaseTypeNode):
     size = ASGNodeDataAttribute(int)
     alignment = ASGNodeDataAttribute(int)
 
-class ASGPrimitiveCharacterType(ASGPrimitiveType):
+class ASGPrimitiveCharacterTypeNode(ASGPrimitiveType):
     def normalizeValue(self, value):
         intValue = int(value)
         bitSize = self.size * 8
         mask = (1 << bitSize) - 1
         return intValue & mask
 
-class ASGPrimitiveIntegerType(ASGPrimitiveType):
+    def makeLiteralWithValue(self, derivation, value: int):
+        return ASGLiteralCharacterNode(derivation, self, self.normalizeValue(value))
+
+class ASGPrimitiveIntegerTypeNode(ASGPrimitiveType):
     isSigned = ASGNodeDataAttribute(int)
 
     def normalizeValue(self, value):
@@ -156,7 +164,10 @@ class ASGPrimitiveIntegerType(ASGPrimitiveType):
             mask = (1 << bitSize) - 1
             return intValue & mask
 
-class ASGPrimitiveFloatType(ASGPrimitiveType):
+    def makeLiteralWithValue(self, derivation, value: int):
+        return ASGLiteralIntegerNode(derivation, self, self.normalizeValue(value))
+
+class ASGPrimitiveFloatTypeNode(ASGPrimitiveType):
     def normalizeValue(self, value):
         floatValue = float(value)
         if self.size == 2:
@@ -165,6 +176,9 @@ class ASGPrimitiveFloatType(ASGPrimitiveType):
             return struct.unpack('<d', struct.pack('<d', value))
         else:
             return floatValue
+
+    def makeLiteralWithValue(self, derivation, value: int):
+        return ASGLiteralFloatNode(derivation, self, self.normalizeValue(value))
 
 class ASGAnyTypeUniverseNode(ASGBaseTypeNode):
     def isTypeUniverseNode(self) -> bool:
@@ -245,6 +259,12 @@ class ASGPhiNode(ASGTypedDataExpressionNode):
 class ASGSumTypeNode(ASGTypeNode):
     variants = ASGNodeTypeInputNodes()
     name = ASGNodeDataAttribute(str, default = None)
+
+    def makeBooleanWithValue(self, derivation, value: bool):
+        if not value:
+            return ASGInjectSum(derivation, self, 0, ASGLiteralUnitNode(derivation, self.variants[0]))
+        else:
+            return ASGInjectSum(derivation, self, 1, ASGLiteralUnitNode(derivation, self.variants[1]))
 
     def coerceExpressionWith(self, expression, expander):
         expressionType = expression.getTypeInEnvironment(expander.environment)
