@@ -96,7 +96,7 @@ def asgWithDerivationsToDot(node: ASGNode):
         nodeName = nodeToNameDictionary[node]
         for derivation in node.allDerivationNodes():
             derivationName = nodeToNameDictionary[derivation]
-            result += '  %s -> %s [color = gray]\n' % (derivationName, nodeName)
+            result += '  %s -> %s [color = gray]\n' % (nodeName, derivationName)
 
         for dependency in node.sequencingDependencies():
             dependencyName = nodeToNameDictionary[dependency]
