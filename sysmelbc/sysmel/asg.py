@@ -89,7 +89,7 @@ class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
 
     def reduceApplicationWithAlgorithm(self, node, algorithm):
         arguments = list(map(algorithm, node.arguments))
-        return self.compileTimeImplementation(ASGNodeReductionDerivation(node, algorithm), node.type, *arguments)
+        return self.compileTimeImplementation(ASGNodeReductionDerivation(algorithm, node), node.type, *arguments)
 
 class ASGTypeNode(ASGTypecheckedNode):
     def isTypeNode(self) -> bool:

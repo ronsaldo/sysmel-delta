@@ -101,7 +101,7 @@ class FrontEndDriver:
         from sysmel.parsetree import ParseTreeErrorVisitor
         from sysmel.syntax import ASGParseTreeFrontEnd
         from sysmel.analysis import expandAndTypecheck
-        from sysmel.visualizations import asgToDotFileNamed
+        from sysmel.visualizations import asgToDotFileNamed, asgWithDerivationsToDotFileNamed
         from sysmel.environment import makeScriptAnalysisEnvironment
         parseTree = parseFileNamed(sourceFile)
         if not ParseTreeErrorVisitor().checkAndPrintErrors(parseTree):
@@ -112,6 +112,7 @@ class FrontEndDriver:
 
         asgTypechecked, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(DefaultCompilationTarget, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
         asgToDotFileNamed(asgTypechecked, 'asgTypechecked.dot')
+        asgWithDerivationsToDotFileNamed(asgTypechecked, 'asgTypecheckedWithDerivation.dot')
         for error in asgTypecheckingErrors:
             sys.stderr.write('%s\n' % error.prettyPrintError())
         self.typecheckedSources.append(asgTypechecked)

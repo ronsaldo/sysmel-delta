@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 from .target import *
-from .parsetree import SourcePosition
+from .parsetree import SourcePosition, EmptySourcePosition
 import copy
 import struct
 
@@ -9,6 +9,9 @@ class ASGNodeDerivation(ABC):
     @abstractmethod
     def getSourcePosition(self) -> SourcePosition:
         pass
+
+    def getSourceNodeDerivations(self):
+        return ()
 
 class ASGNodeSourceCodeDerivation(ASGNodeDerivation):
     def __init__(self, sourcePosition: SourcePosition) -> None:
@@ -24,11 +27,15 @@ class ASGNodeExpansionDerivation(ASGNodeDerivation):
         self.algorithm = algorithm
         self.sourceNode = sourceNode
         self.sourcePosition = None
+        assert isinstance(self.sourceNode, ASGNode)
 
     def getSourcePosition(self) -> SourcePosition:
         if self.sourcePosition is None:
             self.sourcePosition = self.sourceNode.sourceDerivation.getSourcePosition()
         return self.sourcePosition
+
+    def getSourceNodeDerivations(self):
+        return (self.sourceNode,)
 
 class ASGNodeUnificationDerivation(ASGNodeDerivation):
     def __init__(self, originalNode, unifiedNode) -> None:
@@ -36,11 +43,15 @@ class ASGNodeUnificationDerivation(ASGNodeDerivation):
         self.originalNode = originalNode
         self.unifiedNode = unifiedNode
         self.sourcePosition = None
+        assert isinstance(self.originalNode, ASGNode)
 
     def getSourcePosition(self) -> SourcePosition:
         if self.sourcePosition is None:
             self.sourcePosition = self.originalNode.sourceDerivation.getSourcePosition()
         return self.sourcePosition
+
+    def getSourceNodeDerivations(self):
+        return (self.originalNode,)
 
 class ASGNodeSyntaxExpansionDerivation(ASGNodeExpansionDerivation):
     pass
@@ -123,6 +134,9 @@ class ASGNodeAttributeDescriptor:
         return False
     
     def getNodeInputsOf(self, instance):
+        return ()
+    
+    def getNodeDerivationsOf(self, instance):
         return ()
     
     def __get__(self, instance, owner):
@@ -218,6 +232,9 @@ class ASGNodeSourceDerivationAttribute(ASGNodeConstructionAttribute):
     def isComparedForUnification(self) -> bool:
         return False
 
+    def getNodeDerivationsOf(self, instance):
+        return self.loadValueFrom(instance).getSourceNodeDerivations()
+    
 class ASGPredecessorAttribute(ASGNodeConstructionAttributeWithSourceDerivation):
     def isNumberedConstructionAttribute(self) -> bool:
         return False
@@ -645,6 +662,12 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         for port in self.__class__.__asgTypeInputPorts__:
             for typeInput in port.getNodeInputsOf(self):
                 yield typeInput
+
+    def allDerivationNodes(self):
+        for port in self.__class__.__asgConstructionAttributes__:
+            for derivation in port.getNodeDerivationsOf(self):
+                yield derivation
+
 
     def allDependencies(self):
         for dependency in self.sequencingDependencies():
