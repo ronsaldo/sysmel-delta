@@ -21,12 +21,8 @@ class FrontEndDriver:
         self.emitSdvm = False
         self.emitObjectFile = False
         self.targetTriple = None
-        self.ghirModule = None
-        self.hirModule = None
-        self.mhirModule = None
         self.sdvmModule = None
         self.keepIntermediates = False
-        self.asgPipeline = False
         if sys.platform.startswith('win32'):
             self.sdvmPath = os.path.join(self.topFolder, 'build/bin/sdvm.exe')
         else:
@@ -75,8 +71,6 @@ class FrontEndDriver:
                     self.emitObjectFile = True
                 elif arg in ['-emit-sdvm']:
                     self.emitSdvm = True
-                elif arg in ['-asg']:
-                    self.asgPipeline = True
                 elif arg in ['-o']:
                     if i >= len(argv):
                         self.printHelp()
@@ -105,28 +99,23 @@ class FrontEndDriver:
     def parseAndTypecheckSourceFile(self, sourceFile):
         from sysmel.parser import parseFileNamed
         from sysmel.parsetree import ParseTreeErrorVisitor
-        from sysmel.ast import ASTParseTreeFrontEnd
-        from sysmel.asg import ASGParseTreeFrontEnd, asgMakeScriptAnalysisEnvironment, asgExpandAndTypecheck, asgToDotFileNamed
-        from sysmel.typechecker import Typechecker
+        from sysmel.syntax import ASGParseTreeFrontEnd
+        from sysmel.analysis import expandAndTypecheck
+        from sysmel.visualizations import asgToDotFileNamed
         from sysmel.environment import makeScriptAnalysisEnvironment
         parseTree = parseFileNamed(sourceFile)
         if not ParseTreeErrorVisitor().checkAndPrintErrors(parseTree):
             return False
 
-        if self.asgPipeline:
-            asgSyntax = ASGParseTreeFrontEnd().visitNode(parseTree)
-            asgToDotFileNamed(asgSyntax, 'asgSyntax.dot')
+        asgSyntax = ASGParseTreeFrontEnd().visitNode(parseTree)
+        asgToDotFileNamed(asgSyntax, 'asgSyntax.dot')
 
-            asgTypechecked, asgTypecheckingErrors = asgExpandAndTypecheck(asgMakeScriptAnalysisEnvironment(DefaultCompilationTarget, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
-            asgToDotFileNamed(asgTypechecked, 'asgTypechecked.dot')
-            for error in asgTypecheckingErrors:
-                sys.stderr.write('%s\n' % error.prettyPrintError())
-            return True
-        else:
-            ast = ASTParseTreeFrontEnd().visitNode(parseTree)
-            typechecked, typecheckedSucceeded = Typechecker(makeScriptAnalysisEnvironment(self.module, ast.sourcePosition, sourceFile)).typecheckASTAndPrintErrors(ast)
-            self.typecheckedSources.append(typechecked)
-            return typecheckedSucceeded
+        asgTypechecked, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(DefaultCompilationTarget, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
+        asgToDotFileNamed(asgTypechecked, 'asgTypechecked.dot')
+        for error in asgTypecheckingErrors:
+            sys.stderr.write('%s\n' % error.prettyPrintError())
+        self.typecheckedSources.append(asgTypechecked)
+        return len(asgTypecheckingErrors) == 0
 
     def parseAndTypecheckSourceFiles(self):
         from sysmel.value import Symbol, Module
@@ -141,77 +130,26 @@ class FrontEndDriver:
         return success
 
     def evaluateTypecheckedSource(self, typecheckedSource):
-        from sysmel.environment import FunctionalActivationEnvironment
-        from sysmel.eval import ASTEvaluator
-        return ASTEvaluator(FunctionalActivationEnvironment()).evaluate(typecheckedSource)
+        # TODO: Implement this part.
+        return None
 
     def evaluateTypecheckedSources(self):
         for typecheckedSource in self.typecheckedSources:
             evalResult = self.evaluateTypecheckedSource(typecheckedSource)
-            if self.verbose:
-                print(evalResult.prettyPrint())
-        return True
-    
-    def compileGHIRModule(self):
-        from sysmel.ghir import GHIRModuleFrontend
-        self.ghirModule = GHIRModuleFrontend().compileModule(self.module)
-        if self.verbose:
-            print('-'*60)
-            print('GHIR:')
-            print('-'*60)
-            print(self.ghirModule.prettyPrint())
-
-        return True
-
-    def compileHIRModule(self):
-        from sysmel.hir import HIRModuleFrontend
-        self.hirModule = HIRModuleFrontend().compileGraphModule(self.ghirModule)
-        if self.verbose:
-            print('-'*60)
-            print('HIR:')
-            print('-'*60)
-            print(self.hirModule.prettyPrint())
-
-        return True
-
-    def compileMIRModule(self):
-        from sysmel.mir import MIRModuleFrontend
-        self.mirModule = MIRModuleFrontend().compileHIRModule(self.hirModule)
-        if self.verbose:
-            print('-'*60)
-            print('MIR:')
-            print('-'*60)
-            print(self.mirModule.prettyPrint())
-
-        return True
-
-    def compileSDVMModule(self):
-        from sysmel.sdvmFrontend import SDVMModuleFrontEnd
-        self.sdvmModule = SDVMModuleFrontEnd().compileMIRModule(self.mirModule)
-        if self.verbose:
-            print('-'*60)
-            print('SDVM:')
-            print('-'*60)
-            print(self.sdvmModule.prettyPrint())
-
+            if self.verbose and evalResult is not None:
+                print(evalResult)
         return True
 
     def runPipeline(self):
         if not self.parseAndTypecheckSourceFiles():
             return False
 
-        if self.asgPipeline:
-            return True
-
         if not self.evaluateTypecheckedSources():
             return False
+        
+        # Generate the MIR
+        return True
 
-        if not self.compileGHIRModule():
-            return False
-        if not self.compileHIRModule():
-            return False
-        if not self.compileMIRModule():
-            return False
         if not self.compileSDVMModule():
             return False
 
