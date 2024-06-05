@@ -823,6 +823,13 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isTupleNode(self) -> bool:
         return False
     
+    def isSyntaxBindableNameNode(self) -> bool:
+        return False
+    
+    def withContextExpandAsExportWithExternalName(self, macroContext, externalName):
+        from .syntax import ASGSyntaxErrorNode
+        return ASGSyntaxErrorNode(ASGNodeSyntaxExpansionDerivation(macroContext.expander, self), 'Cannot export expression.', [self])
+    
     def canBePassedAsCVarArgType(self) -> bool:
         return False
 

@@ -142,15 +142,23 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addPrimitiveFunctionsWithDesc([
             ('fromExternal:import:withType:', 'Module::fromExternal:import:withType:',  (('ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.fromExternalImportWithTypeMacro),
             ('fromExternal:import:as:withType:', 'Module::fromExternal:import:as:withType:',  (('ASGNode', 'ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.fromExternalImportAsWithTypeMacro),
+            ('external:export:', 'Module::external:export:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.externalExportMacro),
+            ('export:', 'Module::export:',  (('ASGNode',), 'ASGNode'),  ['macro'], self.exportMacro),
         ])
 
-    def fromExternalImportWithTypeMacro(self, macroContext: ASGMacroContext, externalName: ASGMacroContext, nameExpression: ASGMacroContext, typeExpression: ASGMacroContext):
+    def fromExternalImportWithTypeMacro(self, macroContext: ASGMacroContext, externalName: ASGNode, nameExpression: ASGNode, typeExpression: ASGNode):
         return self.fromExternalImportAsWithTypeMacro(macroContext, externalName, nameExpression, nameExpression, typeExpression)
 
-    def fromExternalImportAsWithTypeMacro(self, macroContext: ASGMacroContext, externalName: ASGMacroContext, nameExpression: ASGMacroContext, importedNameExpression: ASGMacroContext, typeExpression: ASGMacroContext):
+    def fromExternalImportAsWithTypeMacro(self, macroContext: ASGMacroContext, externalName: ASGNode, nameExpression: ASGNode, importedNameExpression: ASGNode, typeExpression: ASGNode):
         return ASGSyntaxBindingDefinitionNode(macroContext.derivation, None, nameExpression,
             ASGSyntaxFromExternalImportNode(macroContext.derivation, externalName, importedNameExpression, typeExpression)
         )
+
+    def externalExportMacro(self, macroContext: ASGMacroContext, externalName: ASGNode, exportedExpressions: ASGNode):
+        return exportedExpressions.withContextExpandAsExportWithExternalName(macroContext, externalName)
+
+    def exportMacro(self, macroContext: ASGMacroContext, exportedExpressions: ASGNode):
+        return self.externalExportMacro(macroContext, None, exportedExpressions)
 
     def addControlFlowMacros(self):
         self.addPrimitiveFunctionsWithDesc([

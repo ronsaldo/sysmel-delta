@@ -1,4 +1,3 @@
-from .value import *
 from .environment import *
 from .scanner import SourceCode, SourcePosition, scanFileNamed
 from .parser import parseFileNamed

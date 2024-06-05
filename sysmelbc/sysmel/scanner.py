@@ -1,5 +1,5 @@
 from enum import Enum
-from .value import SourceCode, SourcePosition
+from .parsetree import SourceCode, SourcePosition
 import copy
 import os.path
 

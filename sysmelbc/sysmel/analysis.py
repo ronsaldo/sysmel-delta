@@ -580,9 +580,9 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         # Check the argument sizes.
         if requiredArgumentCount != availableArgumentCount:
             if not functionType.isVariadic:
-                return self.makeErrorAtNode(node, 'Application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount))
+                return self.makeErrorAtNode('Application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount), node)
             elif availableArgumentCount < requiredArgumentCount: 
-                return self.makeErrorAtNode(node, 'Required at least %d arguments for variadic application.' % requiredArgumentCount)
+                return self.makeErrorAtNode('Required at least %d arguments for variadic application.' % requiredArgumentCount, node)
         
         return application
     
@@ -725,6 +725,15 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         elementTypes = list(map(lambda n: n.asASGDataNode().getTypeInEnvironment(self.environment), elements))
         type = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGProductTypeNode, elementTypes)
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTupleNode, type, elements)
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxExportName)
+    def expandSyntaxExportNode(self, node: ASGSyntaxExportName) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        externalName = self.evaluateSymbol(node.externalName)
+        exportedName = self.evaluateSymbol(node.exportedName)
+        value = self(node.valueExpression)
+        self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGExportNode, externalName, exportedName, value, predecessor = self.builder.currentPredecessor)
+        return value
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxFromExternalImportNode)
     def expandSyntaxFromExternalImportNode(self, node: ASGSyntaxFromExternalImportNode) -> ASGTypecheckedNode:

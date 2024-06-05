@@ -119,10 +119,9 @@ class FrontEndDriver:
         return len(asgTypecheckingErrors) == 0
 
     def parseAndTypecheckSourceFiles(self):
-        from sysmel.value import Symbol, Module
         if self.moduleName is None:
             self.moduleName, ext = os.path.splitext(os.path.basename(self.inputSourceFiles[0]))
-            self.module = Module(Symbol.intern(self.moduleName))
+            #self.module = Module(Symbol.intern(self.moduleName))
 
         success = True
         for inputSource in self.inputSourceFiles:

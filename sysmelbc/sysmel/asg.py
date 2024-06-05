@@ -463,6 +463,12 @@ class ASGReferenceTypeNode(ASGReferenceLikeTypeNode):
 class ASGTemporaryReferenceTypeNode(ASGReferenceLikeTypeNode):
     pass
 
+class ASGExportNode(ASGSequencingNode):
+    externalName = ASGNodeDataAttribute(str)
+    exportedName = ASGNodeDataAttribute(str)
+    value = ASGNodeDataInputPort()
+    predecessor = ASGSequencingPredecessorAttribute()
+
 class ASGFromExternalImportNode(ASGTypedDataExpressionNode):
     externalName = ASGNodeDataAttribute(str)
     importedName = ASGNodeDataAttribute(str)

@@ -69,6 +69,11 @@ class ASGSyntaxAssignmentNode(ASGSyntaxNode):
     store = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
 
+    def withContextExpandAsExportWithExternalName(self, macroContext, externalName):
+        if self.store.isSyntaxBindableNameNode() and self.store.nameExpression is not None:
+            return ASGSyntaxExportName(macroContext.derivation, externalName, self.store.nameExpression, self)
+        return super().withContextExpandAsExportWithExternalName(macroContext, externalName)
+
 class ASGSyntaxBindableNameNode(ASGSyntaxNode):
     typeExpression = ASGNodeOptionalDataInputPort()
     nameExpression = ASGNodeOptionalDataInputPort()
@@ -85,7 +90,15 @@ class ASGSyntaxBindableNameNode(ASGSyntaxNode):
 
     def parseAndUnpackArgumentsPattern(self):
         return [self], self.isExistential, self.isVariadic
-    
+
+    def withContextExpandAsExportWithExternalName(self, macroContext, externalName):
+        if self.nameExpression is not None:
+            return ASGSyntaxExportName(macroContext.derivation, externalName, self.nameExpression, self)
+        return super().withContextExpandAsExportWithExternalName(macroContext, externalName)
+
+    def isSyntaxBindableNameNode(self) -> bool:
+        return True
+
 class ASGSyntaxBindPatternNode(ASGSyntaxNode):
     pattern = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
@@ -182,6 +195,11 @@ class ASGSyntaxIfThenElseNode(ASGSyntaxNode):
     condition = ASGNodeDataInputPort()
     trueExpression = ASGNodeOptionalDataInputPort()
     falseExpression = ASGNodeOptionalDataInputPort()
+
+class ASGSyntaxExportName(ASGSyntaxNode):
+    externalName = ASGNodeOptionalDataInputPort()
+    exportedName = ASGNodeDataInputPort()
+    valueExpression = ASGNodeDataInputPort()
 
 class ASGSyntaxFromExternalImportNode(ASGSyntaxNode):
     externalName = ASGNodeDataInputPort()
