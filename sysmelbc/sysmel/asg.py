@@ -40,6 +40,22 @@ class ASGTypedExpressionNode(ASGTypecheckedNode):
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return self.type
 
+class ASGSequencingAndDataNode(ASGTypecheckedNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    type = ASGNodeTypeInputNode()
+
+    def isPureDataNode(self) -> bool:
+        return False
+
+    def isSequencingNode(self) -> bool:
+        return True
+
+    def isTypeNode(self) -> bool:
+        return self.type.isTypeUniverseNode()
+
+    def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
+        return self.type
+
 class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
     def isPureDataNode(self) -> bool:
         return True
@@ -67,6 +83,9 @@ class ASGLiteralFloatNode(ASGLiteralNode):
 class ASGLiteralSymbolNode(ASGLiteralNode):
     value = ASGNodeDataAttribute(str)
 
+class ASGLiteralStringDataNode(ASGLiteralNode):
+    value = ASGNodeDataAttribute(str)
+
 class ASGLiteralUnitNode(ASGLiteralNode):
     pass
 
@@ -76,7 +95,7 @@ class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
 
     pure = ASGNodeDataAttribute(bool, default = False)
     compileTime = ASGNodeDataAttribute(bool, default = False)
-    alwaysReduced = ASGNodeDataAttribute(bool, default = False)
+    alwaysInline = ASGNodeDataAttribute(bool, default = False)
 
     def isLiteralPrimitiveFunction(self) -> bool:
         return True
@@ -85,7 +104,7 @@ class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
         return self.pure and self.compileTime
 
     def isAlwaysReducedPrimitive(self) -> bool:
-        return self.alwaysReduced
+        return self.alwaysInline
 
     def reduceApplicationWithAlgorithm(self, node, algorithm):
         arguments = list(map(algorithm, node.arguments))
@@ -127,6 +146,9 @@ class ASGBaseTypeNode(ASGTypeNode):
             return self.name
         else:
             return super().prettyPrintNameWithDataAttributes()
+
+class ASGSymbolTypeNode(ASGBaseTypeNode):
+    pass
 
 class ASGUnitTypeNode(ASGBaseTypeNode):
     pass
@@ -185,6 +207,10 @@ class ASGPrimitiveFloatTypeNode(ASGPrimitiveType):
     def makeLiteralWithValue(self, derivation, value: int):
         return ASGLiteralFloatNode(derivation, self, self.normalizeValue(value))
 
+class ASGPrimitiveCVarArgTypeNode(ASGBaseTypeNode):
+    def isSatisfiedAsTypeBy(self, otherType) -> bool:
+        return otherType.canBePassedAsCVarArgType()
+
 class ASGAnyTypeUniverseNode(ASGBaseTypeNode):
     def isTypeUniverseNode(self) -> bool:
         return True
@@ -211,13 +237,40 @@ class ASGProductTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
     name = ASGNodeDataAttribute(str, default = None)
 
+    def isProductTypeNode(self) -> bool:
+        return True
+
     def prettyPrintNameWithDataAttributes(self) -> str:
         if self.name is not None:
             return self.name
         return super().prettyPrintNameWithDataAttributes()
 
+class ASGRecordTypeNode(ASGProductTypeNode):
+    fieldNames = ASGNodeDataAttribute(tuple)
+
+    def isRecordTypeNode(self) -> bool:
+        return True
+    
+    def expandSyntaxMessageSendNode(self, expander, messageSendNode):
+        selector = expander.attemptToEvaluateMessageSendSelector(messageSendNode)
+        if selector is not None:
+            if len(messageSendNode.arguments) == 0:
+                if selector in self.fieldNames:
+                    fieldIndex = self.fieldNames.index(selector)
+                    fieldType = self.elements[fieldIndex]
+                    access = expander.builder.forSyntaxExpansionBuildAndSequence(expander, messageSendNode, ASGTupleAtNode, fieldType, expander(messageSendNode.receiver), fieldIndex)
+                    return expander.fromNodeContinueExpanding(messageSendNode, access)
+                    
+        return super().expandSyntaxMessageSendNode(expander, messageSendNode)
+
+class ASGStringTypeNode(ASGRecordTypeNode):
+    pass
+
 class ASGTupleNode(ASGTypedDataExpressionNode):
     elements = ASGNodeDataInputPorts()
+
+    def isTupleNode(self) -> bool:
+        return True
 
     def parseAndUnpackArgumentsPattern(self):
         isExistential = False
@@ -227,6 +280,10 @@ class ASGTupleNode(ASGTypedDataExpressionNode):
         if len(self.elements) > 0 and self.elements[-1].isBindableNameNode():
             isVariadic = self.elements[-1].isVariadic
         return self.elements, isExistential, isVariadic
+
+class ASGTupleAtNode(ASGTypedDataExpressionNode):
+    tuple = ASGNodeDataInputPort()
+    index = ASGNodeDataAttribute(int)
 
 class ASGMetaType(ASGBaseTypeNode):
     metaclass = ASGNodeDataAttribute(type, notPrinted = True)
@@ -247,6 +304,13 @@ class ASGApplicationNode(ASGTypedDataExpressionNode):
 
     def isLiteralPureCompileTimePrimitiveApplication(self):
         return self.functional.isPureCompileTimePrimitive() and all(argument.isLiteralNode() for argument in self.arguments)
+
+    def isLiteralAlwaysReducedPrimitiveApplication(self):
+        return self.functional.isAlwaysReducedPrimitive()
+
+class ASGFxApplicationNode(ASGSequencingAndDataNode):
+    functional = ASGNodeDataInputPort()
+    arguments = ASGNodeDataInputPorts()
 
     def isLiteralAlwaysReducedPrimitiveApplication(self):
         return self.functional.isAlwaysReducedPrimitive()
@@ -320,8 +384,14 @@ class ASGPiNode(ASGTypeNode):
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
+    ## TODO: Remove this when supporting dependent effects.
+    pure = ASGNodeDataAttribute(bool, default = False)
+
     def isFunctionalTypeNode(self) -> bool:
         return True
+
+    def isPureFunctional(self) -> bool:
+        return self.pure
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandDependentApplicationWithType(applicationNode, self)
@@ -331,9 +401,13 @@ class ASGFunctionTypeNode(ASGTypeNode):
     resultType = ASGNodeTypeInputNode()
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
+    pure = ASGNodeDataAttribute(bool, default = False)
 
     def isFunctionalTypeNode(self) -> bool:
         return True
+
+    def isPureFunctional(self) -> bool:
+        return self.pure
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandFunctionApplicationWithType(applicationNode, self)
@@ -384,3 +458,7 @@ class ASGReferenceTypeNode(ASGReferenceLikeTypeNode):
 
 class ASGTemporaryReferenceTypeNode(ASGReferenceLikeTypeNode):
     pass
+
+class ASGFromExternalImportNode(ASGTypedDataExpressionNode):
+    externalName = ASGNodeDataAttribute(str)
+    importedName = ASGNodeDataAttribute(str)

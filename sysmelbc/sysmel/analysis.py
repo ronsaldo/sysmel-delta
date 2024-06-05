@@ -43,6 +43,10 @@ class ASGReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
     def reduceOverloadedAlternativeSelectionNode(self, node: ASGOverloadedAlternativeSelectionNode) -> ASGTypecheckedNode:
         return node.alternatives.alternatives[node.index]
 
+    @asgPatternMatchingOnNodeKind(ASGTupleAtNode, when = lambda n: n.tuple.isTupleNode())
+    def reduceTupleAt(self, node: ASGTupleAtNode) -> ASGTypecheckedNode:
+        return node.tuple.elements[node.index]
+
     @asgPatternMatchingOnNodeKind(ASGNode)
     def reduceGenericNode(self, node: ASGNode) -> ASGTypecheckedNode:
         return self.reduceGenericNodeRecursively(node)
@@ -392,6 +396,16 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         type = self.builder.topLevelIdentifier('Symbol')
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralSymbolNode, type, node.value)
 
+    @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralStringNode)
+    def expandSyntaxLiteralStringNode(self, node: ASGSyntaxLiteralSymbolNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        type: ASGProductTypeNode = self.builder.topLevelIdentifier('String')
+        assert type.isProductTypeNode()
+
+        data = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralStringDataNode, type.elements[0], node.value)
+        size = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralIntegerNode, type.elements[0], len(node.value))
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTupleNode, type, [data, size])
+
     @asgPatternMatchingOnNodeKind(ASGSyntaxIdentifierReferenceNode)
     def expandSyntaxIdentifierReferenceNode(self, node: ASGSyntaxIdentifierReferenceNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
@@ -431,6 +445,18 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         receiver = self(node.receiver)
         receiverType = receiver.getTypeInEnvironment(self.environment)
         return receiverType.expandSyntaxMessageSendNode(self, node)
+    
+    def attemptToEvaluateMessageSendSelector(self, node: ASGSyntaxMessageSendNode) -> str:
+        symbolType = self.builder.topLevelIdentifier('Symbol')
+        analyzedSelector, typechecked = self.analyzeNodeWithExpectedType(node.selector, symbolType)
+        if not typechecked:
+            return None
+        
+        analyzedSelector = analyzedSelector.asASGDataNode()
+        if analyzedSelector.isLiteralNode():
+            return analyzedSelector.value
+        else:
+            return None
 
     def expandFunctionalApplicationMessageSendNode(self, node: ASGSyntaxMessageSendNode) -> ASGTypecheckedNode:
         selectorValue = self.evaluateSymbol(node.selector)
@@ -501,14 +527,17 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         resultType = substitutionAlgorithm.expandNode(dependentType.resultType)
 
         # Make the application node
-        application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, resultType, functional, analyzedArguments)
+        if dependentType.isPureFunctional():
+            application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, resultType, functional, analyzedArguments)
+        else:
+            application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGFxApplicationNode, resultType, functional, analyzedArguments, predecessor = self.builder.currentPredecessor)
 
         # Check the argument sizes.
         if requiredArgumentCount != availableArgumentCount:
             if not dependentType.isVariadic:
-                return self.makeErrorAtNode(node, 'Application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount))
-            elif availableArgumentCount < requiredArgumentCount: 
-                return self.makeErrorAtNode(node, 'Required at least %d arguments for variadic application.' % requiredArgumentCount)
+                return self.makeErrorAtNode('Application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount), node)
+            elif availableArgumentCount < requiredArgumentCount - 1: 
+                return self.makeErrorAtNode('Required at least %d arguments for variadic application.' % requiredArgumentCount, node)
         
         return application
 
@@ -543,7 +572,10 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         resultType = functionType.resultType
 
         # Make the application node
-        application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, resultType, functional, analyzedArguments)
+        if functionType.isPureFunctional():
+            application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, resultType, functional, analyzedArguments)
+        else:
+            application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGFxApplicationNode, resultType, functional, analyzedArguments, predecessor = self.builder.currentPredecessor)
 
         # Check the argument sizes.
         if requiredArgumentCount != availableArgumentCount:
@@ -589,9 +621,9 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         # Check the argument sizes.
         if requiredArgumentCount != availableArgumentCount:
             if not macroFunctionType.isVariadic:
-                return self.makeErrorAtNode(node, 'Macro application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount))
+                return self.makeErrorAtNode('Macro application argument count mismatch. Got %d instead of %d arguments.' % (availableArgumentCount, requiredArgumentCount), node)
             elif availableArgumentCount < requiredArgumentCount: 
-                return self.makeErrorAtNode(node, 'Required at least %d arguments for variadic macro application.' % requiredArgumentCount)
+                return self.makeErrorAtNode('Required at least %d arguments for variadic macro application.' % requiredArgumentCount, node)
             
         # The macro must be a literal primitive or a lambda node.
         macroExpansionDerivation = ASGNodeMacroExpansionDerivation(self, node, macro)
@@ -602,7 +634,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         elif macro.isLambda():
             assert False
         else:
-            return self.makeErrorAtNode(node, 'Cannot expand a macro application without knowing the macro during compile time.')
+            return self.makeErrorAtNode('Cannot expand a macro application without knowing the macro during compile time.', node)
         
     def analyzeBooleanCondition(self, node: ASGNode):
         return self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Boolean'))
@@ -693,7 +725,15 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         elementTypes = list(map(lambda n: n.asASGDataNode().getTypeInEnvironment(self.environment), elements))
         type = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGProductTypeNode, elementTypes)
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGTupleNode, type, elements)
-    
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxFromExternalImportNode)
+    def expandSyntaxFromExternalImportNode(self, node: ASGSyntaxFromExternalImportNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        externalName = self.evaluateSymbol(node.externalName)
+        importedName = self.evaluateSymbol(node.importedName)
+        type = self.analyzeTypeExpression(node.typeExpression)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGFromExternalImportNode, type, externalName, importedName)
+
     @asgPatternMatchingOnNodeKind(ASGTypecheckedNode)
     def expandSyntaxTypecheckedNode(self, node: ASGTypecheckedNode) -> ASGTypecheckedNode:
         return node

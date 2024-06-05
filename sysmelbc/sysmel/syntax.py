@@ -183,6 +183,11 @@ class ASGSyntaxIfThenElseNode(ASGSyntaxNode):
     trueExpression = ASGNodeOptionalDataInputPort()
     falseExpression = ASGNodeOptionalDataInputPort()
 
+class ASGSyntaxFromExternalImportNode(ASGSyntaxNode):
+    externalName = ASGNodeDataInputPort()
+    importedName = ASGNodeDataInputPort()
+    typeExpression = ASGNodeDataInputPort()
+
 class ASGParseTreeFrontEnd(ParseTreeVisitor):
     def __init__(self):
         self.lastVisitedNode = None
@@ -209,26 +214,26 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return self.visitNodeWithoutSequencing(node)
 
     def visitErrorNode(self, node: ParseTreeErrorNode):
-        return ASGSyntaxErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodes(node.innerNodes), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxErrorNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.message, self.transformNodesWithoutSequencing(node.innerNodes), syntacticPredecessor = self.lastVisitedNode)
 
     def visitApplicationNode(self, node: ParseTreeApplicationNode):
-        return ASGSyntaxApplicationNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functional), self.transformNodesWithoutSequencing(node.arguments), node.kind, syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxApplicationNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.functional), self.transformNodesWithoutSequencing(node.arguments), node.kind, syntacticPredecessor = self.lastVisitedNode)
 
     def visitAssignmentNode(self, node: ParseTreeAssignmentNode):
         return ASGSyntaxAssignmentNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.store), self.visitNodeWithoutSequencing(node.value), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindPatternNode(self, node: ParseTreeBindPatternNode):
-        return ASGSyntaxBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.pattern), self.visitNode(node.value), syntacticPredecessor = self.lastVisitedNode, allowsRebind = True)
+        return ASGSyntaxBindPatternNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.pattern), self.visitNodeWithoutSequencing(node.value), syntacticPredecessor = self.lastVisitedNode, allowsRebind = True)
 
     def visitBinaryExpressionSequenceNode(self, node: ParseTreeBinaryExpressionSequenceNode):
         return ASGSyntaxBinaryExpressionSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodesWithoutSequencing(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitBindableNameNode(self, node: ParseTreeBindableNameNode):
         self.lastVisitedNode = None
-        return ASGSyntaxBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNode(node.typeExpression), self.visitOptionalNode(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression)
+        return ASGSyntaxBindableNameNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNodeWithoutSequencing(node.typeExpression), self.visitOptionalNodeWithoutSequencing(node.nameExpression), node.isImplicit, node.isExistential, node.isVariadic, node.isMutable, node.hasPostTypeExpression)
 
     def visitBlockNode(self, node: ParseTreeBlockNode):
-        return ASGSyntaxBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.functionType), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.functionType), self.visitNodeWithoutSequencing(node.body), syntacticPredecessor = self.lastVisitedNode)
 
     def visitDictionaryNode(self, node: ParseTreeDictionaryNode):
         return ASGSyntaxDictionaryNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
@@ -240,7 +245,7 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return ASGSyntaxIdentifierReferenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
     def visitLexicalBlockNode(self, node: ParseTreeLexicalBlockNode):
-        return ASGSyntaxLexicalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNode(node.body), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxLexicalBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.body), syntacticPredecessor = self.lastVisitedNode)
 
     def visitLiteralCharacterNode(self, node: ParseTreeLiteralCharacterNode):
         return ASGSyntaxLiteralCharacterNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
@@ -261,7 +266,7 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
         return ASGSyntaxMessageSendNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNodeWithoutSequencing(node.receiver), self.visitNodeWithoutSequencing(node.selector), self.transformNodesWithoutSequencing(node.arguments), syntacticPredecessor = self.lastVisitedNode)
 
     def visitSequenceNode(self, node: ParseTreeSequenceNode):
-        return ASGSyntaxSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodesWithoutSequencing(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
     def visitTupleNode(self, node: ParseTreeTupleNode):
-        return ASGSyntaxTupleNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
+        return ASGSyntaxTupleNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodesWithoutSequencing(node.elements), syntacticPredecessor = self.lastVisitedNode)

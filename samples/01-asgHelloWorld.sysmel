@@ -14,7 +14,11 @@
 ##:idInteger(:(Integer)x :: Integer) := x.
 ##idInteger(42)
 
+fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32).
+
 :main(:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) := {
+    printf("Hello World\n" elements).
+
     if: argc >= 1i32 then: {
 
         argc + 1i32

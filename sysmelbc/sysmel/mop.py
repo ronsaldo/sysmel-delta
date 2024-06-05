@@ -816,6 +816,15 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     
     def isOverloadedAlternativesNode(self) -> bool:
         return False
+    
+    def isProductTypeNode(self) -> bool:
+        return False
+    
+    def isTupleNode(self) -> bool:
+        return False
+    
+    def canBePassedAsCVarArgType(self) -> bool:
+        return False
 
     def coerceExpressionWith(self, expression, expander):
         return expression
