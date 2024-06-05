@@ -264,7 +264,11 @@ class ASGRecordTypeNode(ASGProductTypeNode):
         return super().expandSyntaxMessageSendNode(expander, messageSendNode)
 
 class ASGStringTypeNode(ASGRecordTypeNode):
-    pass
+    def coerceExpressionIntoWith(self, expression, targetType, expander):
+        if targetType.unificationEquals(self.elements[0]):
+            elements = expander.builder.forSyntaxExpansionBuildAndSequence(expander, expression, ASGTupleAtNode, self.elements[0], expander(expression), 0)
+            return expander.postProcessResult(elements)
+        return expression
 
 class ASGTupleNode(ASGTypedDataExpressionNode):
     elements = ASGNodeDataInputPorts()

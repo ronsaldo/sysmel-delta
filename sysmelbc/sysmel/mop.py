@@ -826,8 +826,11 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def canBePassedAsCVarArgType(self) -> bool:
         return False
 
-    def coerceExpressionWith(self, expression, expander):
+    def coerceExpressionIntoWith(self, expression, targetType, expander):
         return expression
+
+    def coerceExpressionWith(self, expression, expander):
+        return expression.getTypeInEnvironment(expander.environment).coerceExpressionIntoWith(expression, self, expander)
 
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:

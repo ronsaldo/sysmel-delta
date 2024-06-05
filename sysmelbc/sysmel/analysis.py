@@ -399,7 +399,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralStringNode)
     def expandSyntaxLiteralStringNode(self, node: ASGSyntaxLiteralSymbolNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
-        type: ASGProductTypeNode = self.builder.topLevelIdentifier('String')
+        type: ASGProductTypeNode = self.builder.topLevelIdentifier('String').asASGTypeNode()
         assert type.isProductTypeNode()
 
         data = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralStringDataNode, type.elements[0], node.value)
