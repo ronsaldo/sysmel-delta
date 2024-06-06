@@ -79,6 +79,12 @@ class ASGNodeNoDerivation(ASGNodeDerivation):
             cls.Singleton = cls()
         return cls.Singleton
 
+class ASGNodeMirExpansionDerivation(ASGNodeExpansionDerivation):
+    pass
+
+class ASGNodeMirTypeExpansionDerivation(ASGNodeExpansionDerivation):
+    pass
+
 class ASGNodeAttributeDescriptor:
     def __init__(self) -> None:
         super().__init__()
@@ -799,6 +805,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 self.__betaReplaceableDependencies__.add(element)
         return self.__betaReplaceableDependencies__
 
+    def isArgumentNode(self) -> bool:
+        return False
+
     def isPureCompileTimePrimitive(self) -> bool:
         return False
     
@@ -838,6 +847,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def coerceExpressionWith(self, expression, expander):
         return expression.getTypeInEnvironment(expander.environment).coerceExpressionIntoWith(expression, self, expander)
+    
+    def appendInFlattenedList(self, list: list):
+        list.append(self)
 
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
@@ -929,11 +941,14 @@ class ASGUnifiedNodeValue:
 class ASGDynamicProgrammingAlgorithmMetaclass(type):
     def __new__(cls, name, bases, attributes):
         patterns: list[ASGPatternMatchingNodeKindPattern] = []
-        patternKindDictionary = {}
+        for base in bases:
+            patterns += base.__asgDPAPatterns__
+
         for value in attributes.values():
             if isinstance(value, ASGPatternMatchingPattern):
                 patterns.append(value)
 
+        patternKindDictionary = {}
         for pattern in patterns:
             patternKind = pattern.getExpectedKind()
             if patternKind not in patternKindDictionary:
@@ -1020,7 +1035,16 @@ class ASGBuilderWithGVN:
 
     def forCoercionExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
         return self.updatePredecessorWith(self.forSyntaxExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
-    
+
+    def forMirExpansionBuild(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
+        return self.build(kind, ASGNodeMirExpansionDerivation(expansionAlgorithm, syntaxNode), *arguments, **kwArguments)
+
+    def forMirTypeExpansionBuild(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
+        return self.build(kind, ASGNodeMirTypeExpansionDerivation(expansionAlgorithm, syntaxNode), *arguments, **kwArguments)
+
+    def forMirExpansionBuildAndSequence(self, expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments):
+        return self.updatePredecessorWith(self.forMirExpansionBuild(expansionAlgorithm, syntaxNode, kind, *arguments, **kwArguments))
+        
 class ASGDynamicProgrammingAlgorithm(metaclass = ASGDynamicProgrammingAlgorithmMetaclass):
     def __init__(self) -> None:
         self.processedNodes = {}
@@ -1062,3 +1086,32 @@ class ASGDynamicProgrammingAlgorithm(metaclass = ASGDynamicProgrammingAlgorithmM
     
     def __call__(self, node: ASGNode) -> Any:
         return self.fromNodeContinueExpanding(None, node)
+
+class ASGDynamicProgrammingReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
+    def reduceNode(self, node: ASGNode):
+        return self(node)
+    
+    def reduceAttribute(self, attribute):
+        if isinstance(attribute, ASGNode):
+            return self.reduceNode(attribute)
+        else:
+            return attribute
+
+    @asgPatternMatchingOnNodeKind(ASGNode)
+    def reduceGenericNode(self, node: ASGNode) -> ASGNode:
+        return self.reduceGenericNodeRecursively(node)
+    
+    def reduceGenericNodeRecursively(self, node: ASGNode):
+        nodeAttributes = node.getAllConstructionAttributes()
+        reducedAttributes = []
+        hasReducedAttribute = False
+        for attribute in nodeAttributes:
+            reducedAttribute = self.reduceAttribute(attribute)
+            hasReducedAttribute = hasReducedAttribute or reducedAttribute is not attribute
+            reducedAttributes.append(reducedAttribute)
+
+        if hasReducedAttribute:
+            return self.fromNodeContinueExpanding(node, node.__class__(*reducedAttributes))
+        else:
+            return node
+        

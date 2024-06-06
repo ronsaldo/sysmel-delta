@@ -59,6 +59,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addBaseType(ASGPrimitiveFloatTypeNode(topLevelDerivation, 'Float64', 8, 8))
         self.addBaseType(ASGPrimitiveCVarArgTypeNode(topLevelDerivation, 'CVarArg'))
 
+        self.addBaseType(ASGModuleTypeNode(topLevelDerivation, 'Module'))
         self.addBaseType(ASGMetaType(topLevelDerivation, 'ASGNode', ASGNode))
         self.addBaseType(ASGMetaType(topLevelDerivation, 'MacroContext', ASGMacroContext))
         self.addSymbolValue('void', ASGLiteralUnitNode(topLevelDerivation, voidType))

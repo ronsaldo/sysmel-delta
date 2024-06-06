@@ -139,6 +139,17 @@ class FrontEndDriver:
             if self.verbose and evalResult is not None:
                 print(evalResult)
         return True
+    
+    def generateMIR(self):
+        from sysmel.mir import expandSourcesIntoMir
+        from sysmel.visualizations import asgToDotFileNamed, asgWithDerivationsToDotFileNamed
+        mir, mirExpansionErrors = expandSourcesIntoMir(DefaultCompilationTarget, self.typecheckedSources)
+        for error in mirExpansionErrors:
+            sys.stderr.write('%s\n' % error.prettyPrintError())
+
+        asgToDotFileNamed(mir, 'asgMir.dot')
+        asgWithDerivationsToDotFileNamed(mir, 'asgMirWithDerivation.dot')
+        return len(mirExpansionErrors) == 0
 
     def runPipeline(self):
         if not self.parseAndTypecheckSourceFiles():
@@ -148,6 +159,9 @@ class FrontEndDriver:
             return False
         
         # Generate the MIR
+        if not self.generateMIR():
+            return False
+
         return True
 
         if not self.compileSDVMModule():

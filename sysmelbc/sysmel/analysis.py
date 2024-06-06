@@ -25,16 +25,7 @@ class ASGBetaSubstitutionContext:
                 return True
         return False
 
-class ASGReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
-    def reduceNode(self, node: ASGNode):
-        return self(node)
-    
-    def reduceAttribute(self, attribute):
-        if isinstance(attribute, ASGNode):
-            return self.reduceNode(attribute)
-        else:
-            return attribute
-
+class ASGReductionAlgorithm(ASGDynamicProgrammingReductionAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGApplicationNode, when = lambda n: n.isLiteralAlwaysReducedPrimitiveApplication() or n.isLiteralPureCompileTimePrimitiveApplication())
     def reduceLiteralApplicationNode(self, node: ASGApplicationNode) -> ASGNode:
         return node.functional.reduceApplicationWithAlgorithm(node, self)
@@ -46,24 +37,6 @@ class ASGReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGTupleAtNode, when = lambda n: n.tuple.isTupleNode())
     def reduceTupleAt(self, node: ASGTupleAtNode) -> ASGTypecheckedNode:
         return node.tuple.elements[node.index]
-
-    @asgPatternMatchingOnNodeKind(ASGNode)
-    def reduceGenericNode(self, node: ASGNode) -> ASGTypecheckedNode:
-        return self.reduceGenericNodeRecursively(node)
-    
-    def reduceGenericNodeRecursively(self, node: ASGNode):
-        nodeAttributes = node.getAllConstructionAttributes()
-        reducedAttributes = []
-        hasReducedAttribute = False
-        for attribute in nodeAttributes:
-            reducedAttribute = self.reduceAttribute(attribute)
-            hasReducedAttribute = hasReducedAttribute or reducedAttribute is not attribute
-            reducedAttributes.append(reducedAttribute)
-
-        if hasReducedAttribute:
-            return self.fromNodeContinueExpanding(node, node.__class__(*reducedAttributes))
-        else:
-            return node
 
 class ASGBetaSubstitutionAlgorithm(ASGDynamicProgrammingAlgorithm):
     def __init__(self, substitutionContext: ASGBetaSubstitutionContext, builder: ASGBuilderWithGVN) -> None:

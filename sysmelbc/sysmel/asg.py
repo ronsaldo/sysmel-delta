@@ -56,7 +56,16 @@ class ASGSequencingAndDataNode(ASGTypecheckedNode):
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return self.type
 
+class ASGMirSequencingAndDataNode(ASGSequencingAndDataNode):
+    mirType = ASGNodeTypeInputNode()
+
 class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
+    def isPureDataNode(self) -> bool:
+        return True
+
+class ASGMirTypedDataExpressionNode(ASGTypedExpressionNode):
+    mirType = ASGNodeTypeInputNode()
+
     def isPureDataNode(self) -> bool:
         return True
 
@@ -128,6 +137,14 @@ class ASGBetaReplaceableNode(ASGTypedDataExpressionNode):
         return True
 
 class ASGArgumentNode(ASGBetaReplaceableNode):
+    index = ASGNodeDataAttribute(int, default = 0)
+    name = ASGNodeDataAttribute(str, default = None, notCompared = True)
+    isImplicit = ASGNodeDataAttribute(bool, default = False)
+
+    def isArgumentNode(self) -> bool:
+        return True
+
+class ASGMirArgumentNode(ASGMirTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int, default = 0)
     name = ASGNodeDataAttribute(str, default = None, notCompared = True)
     isImplicit = ASGNodeDataAttribute(bool, default = False)
@@ -302,6 +319,23 @@ class ASGLambdaNode(ASGTypedDataExpressionNode):
     def isLambda(self) -> bool:
         return True
 
+class ASGMirLambdaNode(ASGMirTypedDataExpressionNode):
+    functionDefinition = ASGNodeDataInputPort()
+    captures = ASGNodeDataInputPorts()
+
+    def isMirLambda(self) -> bool:
+        return True
+
+class ASGMirFunctionDefinitionNode(ASGMirTypedDataExpressionNode):
+    arguments = ASGNodeDataInputPorts()
+    entryPoint = ASGSequencingDestinationPort()
+    result = ASGNodeDataInputPort()
+    exitPoint = ASGSequencingPredecessorAttribute()
+    callingConvention = ASGNodeDataAttribute(str, default = None)
+
+    def isMirFunctionDefinition(self) -> bool:
+        return True
+
 class ASGApplicationNode(ASGTypedDataExpressionNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
@@ -312,13 +346,21 @@ class ASGApplicationNode(ASGTypedDataExpressionNode):
     def isLiteralAlwaysReducedPrimitiveApplication(self):
         return self.functional.isAlwaysReducedPrimitive()
 
+class ASGMirApplicationNode(ASGMirTypedDataExpressionNode):
+    functional = ASGNodeDataInputPort()
+    arguments = ASGNodeDataInputPorts()
+    
 class ASGFxApplicationNode(ASGSequencingAndDataNode):
+    functional = ASGNodeDataInputPort()
+    arguments = ASGNodeDataInputPorts()
+
+class ASGMirFxApplicationNode(ASGMirSequencingAndDataNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
 
     def isLiteralAlwaysReducedPrimitiveApplication(self):
         return self.functional.isAlwaysReducedPrimitive()
-
+    
 class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
     value = ASGNodeDataInputPort()
@@ -328,11 +370,21 @@ class ASGTopLevelScriptNode(ASGTypedDataExpressionNode):
     result = ASGNodeDataInputPort()
     exitPoint = ASGSequencingPredecessorAttribute()
 
+class ASGModuleTypeNode(ASGBaseTypeNode):
+    pass
+
+class ASGModuleNode(ASGTypedDataExpressionNode):
+    topLevelScripts = ASGNodeDataInputPorts()
+    exports = ASGNodeDataInputPorts()
+
 class ASGPhiValueNode(ASGTypedDataExpressionNode):
     value = ASGNodeDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
 
 class ASGPhiNode(ASGTypedDataExpressionNode):
+    values = ASGNodeDataInputPorts()
+
+class ASGMirPhiNode(ASGTypedDataExpressionNode):
     values = ASGNodeDataInputPorts()
 
 class ASGSumTypeNode(ASGTypeNode):
@@ -416,6 +468,16 @@ class ASGFunctionTypeNode(ASGTypeNode):
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandFunctionApplicationWithType(applicationNode, self)
 
+class ASGMirFunctionTypeNode(ASGTypeNode):
+    arguments = ASGNodeTypeInputNodes()
+    resultType = ASGNodeTypeInputNode()
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+    callingConvention = ASGNodeDataAttribute(str, default = None)
+    pure = ASGNodeDataAttribute(bool, default = False)
+    
+class ASGMirClosureTypeNode(ASGTypeNode):
+    functionType = ASGNodeTypeInputNode()
+
 class ASGMacroFunctionTypeNode(ASGTypeNode):
     arguments = ASGNodeTypeInputNodes()
     resultType = ASGNodeTypeInputNode()
@@ -470,5 +532,9 @@ class ASGExportNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
 
 class ASGFromExternalImportNode(ASGTypedDataExpressionNode):
+    externalName = ASGNodeDataAttribute(str)
+    importedName = ASGNodeDataAttribute(str)
+
+class ASGMirFromExternalImportNode(ASGMirTypedDataExpressionNode):
     externalName = ASGNodeDataAttribute(str)
     importedName = ASGNodeDataAttribute(str)
