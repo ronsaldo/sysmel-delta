@@ -542,6 +542,8 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
         self.__hashValueCache__ = None
         self.__betaReplaceableDependencies__ = None
+        self.__dominanceTreeDepth__ = None
+        self.__constantDataNodeCache__ = None
 
         constructionAttributes = self.__class__.__asgConstructionAttributes__
         constructionAttributeDictionary = self.__class__.__asgConstructionAttributeDictionary__
@@ -686,6 +688,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             yield dependency
         for dependency in self.typeDependencies():
             yield dependency
+
+    def divergenceDestinations(self):
+        return ()
     
     def printNameWithDataAttributes(self) -> str:
         result = self.__class__.__asgKindName__
@@ -801,8 +806,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             self.__betaReplaceableDependencies__.add(self)
 
         for dependency in self.allDependencies():
-            for element in dependency.betaReplaceableDependencies():
-                self.__betaReplaceableDependencies__.add(element)
+            if dependency not in self.__betaReplaceableDependencies__:
+                for element in dependency.betaReplaceableDependencies():
+                    self.__betaReplaceableDependencies__.add(element)
         return self.__betaReplaceableDependencies__
 
     def isArgumentNode(self) -> bool:
@@ -850,6 +856,53 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     
     def appendInFlattenedList(self, list: list):
         list.append(self)
+
+    def isExportNode(self) -> bool:
+        return False
+    
+    def findExportedValueSet(self):
+        exportedValueSet = set()
+        exportedValues = []
+        def selectExportedValue(aNode):
+            if aNode.isExportNode():
+                if aNode.value not in exportedValueSet:
+                    exportedValueSet.add(aNode.value)
+                    exportedValues.append(aNode.value)
+
+        asgPredecessorTopoSortDo(self, selectExportedValue)
+        return exportedValues
+    
+    def directImmediateDominator(self):
+        return None
+
+    def dominanceTreeDepth(self):
+        if self.__dominanceTreeDepth__ is None:
+            idom = self.immediateDominator()
+            if idom is not None:
+                self.__dominanceTreeDepth__ = idom.dominanceTreeDepth() + 1
+            else:
+                self.__dominanceTreeDepth__ = 0
+
+        return self.__dominanceTreeDepth__
+    
+    def isConstructionDataNode(self):
+        return False
+    
+    def isConstantDataNode(self):
+        if self.__constantDataNodeCache__ is not None:
+            return self.__constantDataNodeCache__
+        
+        if not self.isConstructionDataNode():
+            self.__constantDataNodeCache__ = False;
+            return False
+        
+        self.__constantDataNodeCache__ = True
+        for dataDependency in self.dataDependencies():
+            if not dataDependency.isConstantDataNode():
+                self.__constantDataNodeCache__ = False
+                break
+
+        return self.__constantDataNodeCache__
 
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
@@ -1115,3 +1168,20 @@ class ASGDynamicProgrammingReductionAlgorithm(ASGDynamicProgrammingAlgorithm):
         else:
             return node
         
+def asgPredecessorTopoSortDo(startingNode, aBlock):
+    visited = set()
+    def visitNode(node):
+        if node in visited:
+            return
+        
+        visited.add(node)
+        for pred in node.sequencingDependencies():
+            visitNode(pred)
+        aBlock(node)
+
+    visitNode(startingNode)
+
+def asgPredecessorTopo(startingNode):
+    topoSort = []
+    asgPredecessorTopoSortDo(startingNode, topoSort.append)
+    return topoSort

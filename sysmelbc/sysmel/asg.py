@@ -21,15 +21,25 @@ class ASGSequenceEntryNode(ASGSequencingNode):
 class ASGSequenceDivergenceNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
 
+    def directImmediateDominator(self):
+        return self.predecessor
+
 class ASGConditionalBranchNode(ASGSequenceDivergenceNode):
     condition = ASGNodeDataInputPort()
     trueDestination = ASGSequencingDestinationPort()
     falseDestination = ASGSequencingDestinationPort()
 
+    def divergenceDestinations(self):
+        yield self.trueDestination
+        yield self.falseDestination
+
 class ASGSequenceConvergenceNode(ASGSequencingNode):
     divergence = ASGSequencingPredecessorAttribute()
     predecessors = ASGSequencingPredecessorsAttribute()
     values = ASGNodeDataInputPorts()
+
+    def directImmediateDominator(self):
+        return self.divergence
 
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
@@ -56,6 +66,9 @@ class ASGSequencingAndDataNode(ASGTypecheckedNode):
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return self.type
 
+    def directImmediateDominator(self):
+        return self.predecessor
+
 class ASGMirSequencingAndDataNode(ASGSequencingAndDataNode):
     mirType = ASGNodeTypeInputNode()
 
@@ -78,6 +91,9 @@ class ASGErrorNode(ASGTypedDataExpressionNode):
 
 class ASGLiteralNode(ASGTypedDataExpressionNode):
     def isLiteralNode(self) -> bool:
+        return True
+    
+    def isConstantDataNode(self) -> bool:
         return True
     
 class ASGLiteralCharacterNode(ASGLiteralNode):
@@ -365,6 +381,9 @@ class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
     value = ASGNodeDataInputPort()
 
+    def isConstructionDataNode(self):
+        return True
+    
 class ASGTopLevelScriptNode(ASGTypedDataExpressionNode):
     entryPoint = ASGSequencingDestinationPort()
     result = ASGNodeDataInputPort()
@@ -531,10 +550,22 @@ class ASGExportNode(ASGSequencingNode):
     value = ASGNodeDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
 
+    def directImmediateDominator(self):
+        return self.predecessor
+
+    def isExportNode(self) -> bool:
+        return True
+
 class ASGFromExternalImportNode(ASGTypedDataExpressionNode):
     externalName = ASGNodeDataAttribute(str)
     importedName = ASGNodeDataAttribute(str)
 
+    def isConstantDataNode(self) -> bool:
+        return True
+    
 class ASGMirFromExternalImportNode(ASGMirTypedDataExpressionNode):
     externalName = ASGNodeDataAttribute(str)
     importedName = ASGNodeDataAttribute(str)
+
+    def isConstantDataNode(self) -> bool:
+        return True

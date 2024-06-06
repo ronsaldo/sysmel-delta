@@ -103,6 +103,9 @@ class FrontEndDriver:
         from sysmel.analysis import expandAndTypecheck
         from sysmel.visualizations import asgToDotFileNamed, asgWithDerivationsToDotFileNamed
         from sysmel.environment import makeScriptAnalysisEnvironment
+        from sysmel.mop import asgPredecessorTopoSortDo
+        from sysmel.gcm import lambdaGCM
+
         parseTree = parseFileNamed(sourceFile)
         if not ParseTreeErrorVisitor().checkAndPrintErrors(parseTree):
             return False
@@ -116,6 +119,13 @@ class FrontEndDriver:
         for error in asgTypecheckingErrors:
             sys.stderr.write('%s\n' % error.prettyPrintError())
         self.typecheckedSources.append(asgTypechecked)
+
+        exportedValueSet = asgTypechecked.findExportedValueSet()
+        for exportedValue in exportedValueSet:
+            if exportedValue.isLambda():
+                lambdaGcm = lambdaGCM(exportedValue)
+                pass
+
         return len(asgTypecheckingErrors) == 0
 
     def parseAndTypecheckSourceFiles(self):
