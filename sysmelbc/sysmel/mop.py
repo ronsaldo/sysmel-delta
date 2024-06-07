@@ -885,6 +885,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
         return self.__dominanceTreeDepth__
     
+    def isActivationContextParameterDataNode(self):
+        return False
+
     def isConstructionDataNode(self):
         return False
     
@@ -903,6 +906,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
                 break
 
         return self.__constantDataNodeCache__
+
+    def isSequenceConvergenceNode(self) -> bool:
+        return False
 
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:

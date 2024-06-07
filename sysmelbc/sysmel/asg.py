@@ -29,6 +29,9 @@ class ASGConditionalBranchNode(ASGSequenceDivergenceNode):
     trueDestination = ASGSequencingDestinationPort()
     falseDestination = ASGSequencingDestinationPort()
 
+    def getRegionOfUsedValue(self, usedValue):
+        return self.predecessor
+
     def divergenceDestinations(self):
         yield self.trueDestination
         yield self.falseDestination
@@ -38,8 +41,14 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
     predecessors = ASGSequencingPredecessorsAttribute()
     values = ASGNodeDataInputPorts()
 
+    def isSequenceConvergenceNode(self) -> bool:
+        return True
+
     def directImmediateDominator(self):
         return self.divergence
+
+    def getRegionOfUsedValue(self, usedValue):
+        return self
 
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
@@ -160,13 +169,20 @@ class ASGArgumentNode(ASGBetaReplaceableNode):
     def isArgumentNode(self) -> bool:
         return True
 
+    def isActivationContextParameterDataNode(self):
+        return True
+
 class ASGMirArgumentNode(ASGMirTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int, default = 0)
     name = ASGNodeDataAttribute(str, default = None, notCompared = True)
     isImplicit = ASGNodeDataAttribute(bool, default = False)
 
+    def isActivationContextParameterDataNode(self):
+        return True
+
 class ASGCapturedValueNode(ASGBetaReplaceableNode):
-    pass
+    def isActivationContextParameterDataNode(self):
+        return True
 
 class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
