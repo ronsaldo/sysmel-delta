@@ -78,13 +78,12 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         return node
 
     @asgPatternMatchingOnNodeKind(ASGTopLevelScriptNode)
-    def expandSyntaxFromExternalImportNode(self, node: ASGTopLevelScriptNode) -> ASGNode:
+    def expandSyntaxFromTopLevelScriptNode(self, node: ASGTopLevelScriptNode) -> ASGNode:
         type = self.expandNode(node.type)
         entryPoint = self.expandNode(node.entryPoint)
-        result = self.expandNode(node.result)
         exitPoint = self.expandNode(node.exitPoint)
 
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGTopLevelScriptNode, type, entryPoint, result, exitPoint)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGTopLevelScriptNode, type, entryPoint, exitPoint)
 
     @asgPatternMatchingOnNodeKind(ASGFromExternalImportNode)
     def expandFromExternalImportNode(self, node: ASGFromExternalImportNode) -> ASGNode:
@@ -143,10 +142,9 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         mirType = self.expandMirType(node.type)
         arguments = definitionExpander.expandFlattenedNodes(node.arguments)
         entryPoint = definitionExpander.expandNode(node.entryPoint)
-        result = definitionExpander.expandNode(node.result)
         exitPoint = definitionExpander.expandNode(node.exitPoint)
 
-        definition = self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirFunctionDefinitionNode, node.type, mirType.functionType, arguments, entryPoint, result, node.callingConvention, exitPoint = exitPoint)
+        definition = self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirFunctionDefinitionNode, node.type, mirType.functionType, arguments, entryPoint, node.callingConvention, exitPoint = exitPoint)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirLambdaNode, node.type, mirType, definition, [])
 
     @asgPatternMatchingOnNodeKind(ASGSequenceEntryNode)
@@ -167,7 +165,13 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         predecessors = self.expandNodes(node.predecessors)
         values = self.expandNodes(node.values)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, values, divergence = divergence, predecessors = predecessors)
-    
+
+    @asgPatternMatchingOnNodeKind(ASGSequenceReturnNode)
+    def expandSequenceReturnNode(self, node: ASGSequenceReturnNode) -> ASGNode:
+        predecessor = self.expandNode(node.predecessor)
+        value = self.expandNode(node.value)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGSequenceReturnNode, value, predecessor = predecessor)
+
     @asgPatternMatchingOnNodeKind(ASGTypeNode)
     def expandTypeNode(self, node: ASGTypeNode) -> ASGNode:
         return node

@@ -50,6 +50,19 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
     def getRegionOfUsedValue(self, usedValue):
         return self
 
+class ASGSequenceReturnNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    value = ASGNodeDataInputPort()
+
+    def isSequenceReturnNode(self) -> bool:
+        return True
+
+    def directImmediateDominator(self):
+        return self.predecessor
+
+    def getRegionOfUsedValue(self, usedValue):
+        return self
+
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
 
@@ -187,6 +200,9 @@ class ASGCapturedValueNode(ASGBetaReplaceableNode):
 class ASGBaseTypeNode(ASGTypeNode):
     name = ASGNodeDataAttribute(str)
 
+    def isConstantDataNode(self) -> bool:
+        return True
+
     def normalizeValue(self, value):
         return value
 
@@ -286,6 +302,9 @@ class ASGProductTypeNode(ASGTypeNode):
     elements = ASGNodeTypeInputNodes()
     name = ASGNodeDataAttribute(str, default = None)
 
+    def isConstructionTypeNode(self) -> bool:
+        return True
+
     def isProductTypeNode(self) -> bool:
         return True
 
@@ -296,6 +315,9 @@ class ASGProductTypeNode(ASGTypeNode):
 
 class ASGRecordTypeNode(ASGProductTypeNode):
     fieldNames = ASGNodeDataAttribute(tuple)
+
+    def isConstructionTypeNode(self) -> bool:
+        return True
 
     def isRecordTypeNode(self) -> bool:
         return True
@@ -344,7 +366,6 @@ class ASGMetaType(ASGBaseTypeNode):
 class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     entryPoint = ASGSequencingDestinationPort()
-    result = ASGNodeDataInputPort()
     exitPoint = ASGSequencingPredecessorAttribute()
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
@@ -361,7 +382,6 @@ class ASGMirLambdaNode(ASGMirTypedDataExpressionNode):
 class ASGMirFunctionDefinitionNode(ASGMirTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     entryPoint = ASGSequencingDestinationPort()
-    result = ASGNodeDataInputPort()
     exitPoint = ASGSequencingPredecessorAttribute()
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
@@ -402,7 +422,6 @@ class ASGInjectSum(ASGTypedDataExpressionNode):
     
 class ASGTopLevelScriptNode(ASGTypedDataExpressionNode):
     entryPoint = ASGSequencingDestinationPort()
-    result = ASGNodeDataInputPort()
     exitPoint = ASGSequencingPredecessorAttribute()
 
 class ASGModuleTypeNode(ASGBaseTypeNode):
@@ -416,15 +435,27 @@ class ASGPhiValueNode(ASGTypedDataExpressionNode):
     value = ASGNodeDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
 
+    def isPhiValueNode(self) -> bool:
+        return True
+
 class ASGPhiNode(ASGTypedDataExpressionNode):
     values = ASGNodeDataInputPorts()
+
+    def isPhiNode(self) -> bool:
+        return True
 
 class ASGMirPhiNode(ASGTypedDataExpressionNode):
     values = ASGNodeDataInputPorts()
 
+    def isPhiNode() -> bool:
+        return True
+
 class ASGSumTypeNode(ASGTypeNode):
     variants = ASGNodeTypeInputNodes()
     name = ASGNodeDataAttribute(str, default = None)
+
+    def isConstructionTypeNode(self) -> bool:
+        return True
 
     def makeBooleanWithValue(self, derivation, value: bool):
         if not value:
@@ -451,6 +482,9 @@ class ASGSumTypeNode(ASGTypeNode):
 
 class ASGOverloadedTypeNode(ASGTypeNode):
     alternatives = ASGNodeTypeInputNodes()
+
+    def isConstructionTypeNode(self) -> bool:
+        return True
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandOverloadedApplicationWithType(applicationNode, self)

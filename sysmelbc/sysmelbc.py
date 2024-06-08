@@ -124,7 +124,8 @@ class FrontEndDriver:
         for exportedValue in exportedValueSet:
             if exportedValue.isLambda():
                 lambdaGcm = lambdaGCM(exportedValue)
-                pass
+                interpretableLambda = lambdaGcm.asInterpretableInstructions()
+                interpretableLambda.dumpDotToFileNamed('interpretableLambda.dot')
 
         return len(asgTypecheckingErrors) == 0
 

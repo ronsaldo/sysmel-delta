@@ -139,6 +139,9 @@ class ASGNodeAttributeDescriptor:
     def isSequencingDestinationPort(self) -> bool:
         return False
     
+    def isInterpretationDependency(self) -> bool:
+        return False
+    
     def getNodeInputsOf(self, instance):
         return ()
     
@@ -322,6 +325,9 @@ class ASGSequencingDestinationPort(ASGNodeConstructionAttributeWithSourceDerivat
         self.storeValueIn(constructorValue.asASGSequencingNode(), instance)
         self.storeSourceDerivationIn(constructorValue.asASGSequencingNodeDerivation(), instance)
 
+    def isInterpretationDependency(self) -> bool:
+        return True
+    
     def getNodeInputsOf(self, instance):
         return [self.loadValueFrom(instance)]
     
@@ -337,6 +343,9 @@ class ASGNodeDataInputPort(ASGNodeConstructionAttributeWithSourceDerivation):
         self.storeSourceDerivationIn(constructorValue.asASGDataNodeDerivation(), instance)
 
     def isDataInputPort(self) -> bool:
+        return True
+    
+    def isInterpretationDependency(self) -> bool:
         return True
 
     def getNodeInputsOf(self, instance):
@@ -360,6 +369,9 @@ class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttributeWithSourceDerivat
     def isDataInputPort(self) -> bool:
         return True
 
+    def isInterpretationDependency(self) -> bool:
+        return True
+    
     def getNodeInputsOf(self, instance):
         value =  self.loadValueFrom(instance)
         if value is None:
@@ -389,6 +401,9 @@ class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
     def isDataInputPort(self) -> bool:
         return True
 
+    def isInterpretationDependency(self) -> bool:
+        return True
+    
     def getNodeInputsOf(self, instance):
         return self.loadValueFrom(instance)
 
@@ -449,6 +464,9 @@ class ASGNodeTypeInputNode(ASGNodeConstructionAttributeWithSourceDerivation):
         self.storeValueIn(constructorValue.asASGTypeNode(), instance)
         self.storeSourceDerivationIn(constructorValue.asASGTypeNodeDerivation(), instance)
 
+    def isInterpretationDependency(self) -> bool:
+        return True
+    
     def isTypeInputPort(self) -> bool:
         return True
 
@@ -466,6 +484,9 @@ class ASGNodeTypeInputNodes(ASGNodeConstructionAttributeWithSourceDerivation):
         self.storeValueIn(tuple(map(lambda x: x.asASGTypeNode(), constructorValue)), instance)
         self.storeSourceDerivationIn(tuple(map(lambda x: x.asASGTypeNodeDerivation(), constructorValue)), instance)
 
+    def isInterpretationDependency(self) -> bool:
+        return True
+    
     def isTypeInputPort(self) -> bool:
         return True
 
@@ -513,6 +534,7 @@ class ASGNodeMetaclass(type):
         dataInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isDataInputPort(), descriptors))
         typeInputPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isTypeInputPort(), descriptors))
         destinationPorts: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isSequencingDestinationPort(), descriptors))
+        interpretationDependencies: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isInterpretationDependency(), descriptors))
 
         numberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and desc.isNumberedConstructionAttribute(), descriptors))
         unnumberedConstructionAttributes: list[ASGNodeAttributeDescriptor] = list(filter(lambda desc: desc.isConstructionAttribute() and not desc.isNumberedConstructionAttribute(), descriptors))
@@ -534,6 +556,7 @@ class ASGNodeMetaclass(type):
         nodeClass.__asgDataInputPorts__ = dataInputPorts
         nodeClass.__asgTypeInputPorts__ = typeInputPorts
         nodeClass.__asgDestinationPorts__ = destinationPorts
+        nodeClass.__asgInterpretationDependency__ = interpretationDependencies
         return nodeClass
 
 class ASGNode(metaclass = ASGNodeMetaclass):
@@ -660,6 +683,11 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def effectDependencies(self):
         return []
+    
+    def interpretationDependencies(self):
+        for port in self.__class__.__asgInterpretationDependency__:
+            for dep in port.getNodeInputsOf(self):
+                yield dep
 
     def dataDependencies(self):
         for port in self.__class__.__asgDataInputPorts__:
@@ -835,6 +863,12 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isProductTypeNode(self) -> bool:
         return False
     
+    def isPhiNode(self) -> bool:
+        return False
+
+    def isPhiValueNode(self) -> bool:
+        return False
+
     def isTupleNode(self) -> bool:
         return False
     
@@ -890,12 +924,15 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def isConstructionDataNode(self):
         return False
-    
+
+    def isConstructionTypeNode(self):
+        return False
+
     def isConstantDataNode(self):
         if self.__constantDataNodeCache__ is not None:
             return self.__constantDataNodeCache__
         
-        if not self.isConstructionDataNode():
+        if not self.isConstructionDataNode() and not self.isConstructionTypeNode():
             self.__constantDataNodeCache__ = False;
             return False
         
