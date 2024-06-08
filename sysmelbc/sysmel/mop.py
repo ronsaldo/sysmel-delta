@@ -177,9 +177,10 @@ class ASGNodeConstructionAttribute(ASGNodeAttributeDescriptor):
         self.storeValueIn(constructorValue, instance)
 
 class ASGNodeConstructionAttributeWithSourceDerivation(ASGNodeConstructionAttribute):
-    def __init__(self) -> None:
+    def __init__(self, notInterpreted = False) -> None:
         super().__init__()
         self.sourceDerivationStorageName = None
+        self.notInterpreted = notInterpreted
 
     def setName(self, name: str):
         super().setName(name)
@@ -326,7 +327,7 @@ class ASGSequencingDestinationPort(ASGNodeConstructionAttributeWithSourceDerivat
         self.storeSourceDerivationIn(constructorValue.asASGSequencingNodeDerivation(), instance)
 
     def isInterpretationDependency(self) -> bool:
-        return True
+        return not self.notInterpreted
     
     def getNodeInputsOf(self, instance):
         return [self.loadValueFrom(instance)]
@@ -346,7 +347,7 @@ class ASGNodeDataInputPort(ASGNodeConstructionAttributeWithSourceDerivation):
         return True
     
     def isInterpretationDependency(self) -> bool:
-        return True
+        return not self.notInterpreted
 
     def getNodeInputsOf(self, instance):
         return [self.loadValueFrom(instance)]
@@ -370,7 +371,7 @@ class ASGNodeOptionalDataInputPort(ASGNodeConstructionAttributeWithSourceDerivat
         return True
 
     def isInterpretationDependency(self) -> bool:
-        return True
+        return not self.notInterpreted
     
     def getNodeInputsOf(self, instance):
         value =  self.loadValueFrom(instance)
@@ -402,7 +403,7 @@ class ASGNodeDataInputPorts(ASGNodeConstructionAttributeWithSourceDerivation):
         return True
 
     def isInterpretationDependency(self) -> bool:
-        return True
+        return not self.notInterpreted
     
     def getNodeInputsOf(self, instance):
         return self.loadValueFrom(instance)
@@ -699,6 +700,12 @@ class ASGNode(metaclass = ASGNodeMetaclass):
             for typeInput in port.getNodeInputsOf(self):
                 yield typeInput
 
+    def scheduledTypeDependencies(self):
+        return self.typeDependencies()
+
+    def scheduledDataDependencies(self):
+        return self.dataDependencies()
+
     def allDerivationNodes(self):
         for port in self.__class__.__asgConstructionAttributes__:
             for derivation in port.getNodeDerivationsOf(self):
@@ -947,6 +954,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isSequenceConvergenceNode(self) -> bool:
         return False
 
+    def interpretInContext(self, context, parameters):
+        raise Exception('Cannot interpret %s.' % self.printNameWithDataAttributes())
+    
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
         self.node = node

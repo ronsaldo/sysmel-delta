@@ -17,6 +17,9 @@ class ASGSequencingNode(ASGTypecheckedNode):
 class ASGSequenceEntryNode(ASGSequencingNode):
     def isSequenceEntryNode(self) -> bool:
         return True
+    
+    def interpretInContext(self, context, parameterList):
+        pass
 
 class ASGSequenceDivergenceNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
@@ -51,8 +54,8 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
         return self
 
 class ASGSequenceReturnNode(ASGSequencingNode):
-    predecessor = ASGSequencingPredecessorAttribute()
     value = ASGNodeDataInputPort()
+    predecessor = ASGSequencingPredecessorAttribute()
 
     def isSequenceReturnNode(self) -> bool:
         return True
@@ -62,6 +65,9 @@ class ASGSequenceReturnNode(ASGSequencingNode):
 
     def getRegionOfUsedValue(self, usedValue):
         return self
+    
+    def interpretInContext(self, context, parameters):
+        context.returnValue(context[parameters[0]])
 
 class ASGTypedExpressionNode(ASGTypecheckedNode):
     type = ASGNodeTypeInputNode()
@@ -364,10 +370,16 @@ class ASGMetaType(ASGBaseTypeNode):
     metaclass = ASGNodeDataAttribute(type, notPrinted = True)
 
 class ASGLambdaNode(ASGTypedDataExpressionNode):
-    arguments = ASGNodeDataInputPorts()
-    entryPoint = ASGSequencingDestinationPort()
-    exitPoint = ASGSequencingPredecessorAttribute()
+    arguments = ASGNodeDataInputPorts(notInterpreted = True)
+    entryPoint = ASGSequencingDestinationPort(notInterpreted = True)
+    exitPoint = ASGSequencingPredecessorAttribute(notInterpreted = True)
     callingConvention = ASGNodeDataAttribute(str, default = None)
+
+    def scheduledDataDependencies(self):
+        return ()
+
+    def isConstantDataNode(self) -> bool:
+        return self.type.isConstantDataNode()
 
     def isLambda(self) -> bool:
         return True
@@ -512,6 +524,10 @@ class ASGPiNode(ASGTypeNode):
     ## TODO: Remove this when supporting dependent effects.
     pure = ASGNodeDataAttribute(bool, default = False)
 
+    def isConstantDataNode(self) -> bool:
+        # TODO: Return false if we have captures
+        return True
+
     def isFunctionalTypeNode(self) -> bool:
         return True
 
@@ -527,6 +543,9 @@ class ASGFunctionTypeNode(ASGTypeNode):
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
     pure = ASGNodeDataAttribute(bool, default = False)
+
+    def isConstructionTypeNode(self) -> bool:
+        return True
 
     def isFunctionalTypeNode(self) -> bool:
         return True
@@ -560,6 +579,9 @@ class ASGMacroFunctionTypeNode(ASGTypeNode):
 
 class ASGDerivedTypeNode(ASGTypeNode):
     baseType = ASGNodeTypeInputNode()
+
+    def isConstructionTypeNode(self):
+        return True
 
 class ASGDecoratedTypeNode(ASGDerivedTypeNode):
     def mutableConstructorImpl(cls, derivation, baseType):
@@ -605,6 +627,10 @@ class ASGExportNode(ASGSequencingNode):
 
     def isExportNode(self) -> bool:
         return True
+
+    def interpretInContext(self, context, parameters):
+        value = context[parameters[0]]
+        context.getActiveModule().exportValueWithName(value, self.exportedName, externalName = self.externalName)
 
 class ASGFromExternalImportNode(ASGTypedDataExpressionNode):
     externalName = ASGNodeDataAttribute(str)

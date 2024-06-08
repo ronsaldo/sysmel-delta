@@ -4,6 +4,7 @@ import sys
 import json
 import os.path
 from sysmel.target import *
+from sysmel.module import *
 
 class FrontEndDriver:
     def __init__(self) -> None:
@@ -21,6 +22,7 @@ class FrontEndDriver:
         self.emitSdvm = False
         self.emitObjectFile = False
         self.targetTriple = None
+        self.compilationTarget = DefaultCompilationTarget
         self.sdvmModule = None
         self.keepIntermediates = False
         if sys.platform.startswith('win32'):
@@ -113,7 +115,7 @@ class FrontEndDriver:
         asgSyntax = ASGParseTreeFrontEnd().visitNode(parseTree)
         asgToDotFileNamed(asgSyntax, 'asgSyntax.dot')
 
-        asgTypechecked, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(DefaultCompilationTarget, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
+        asgTypechecked, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(self.compilationTarget, self.module, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
         asgToDotFileNamed(asgTypechecked, 'asgTypechecked.dot')
         asgWithDerivationsToDotFileNamed(asgTypechecked, 'asgTypecheckedWithDerivation.dot')
         for error in asgTypecheckingErrors:
@@ -132,7 +134,7 @@ class FrontEndDriver:
     def parseAndTypecheckSourceFiles(self):
         if self.moduleName is None:
             self.moduleName, ext = os.path.splitext(os.path.basename(self.inputSourceFiles[0]))
-            #self.module = Module(Symbol.intern(self.moduleName))
+            self.module = Module(self.moduleName)
 
         success = True
         for inputSource in self.inputSourceFiles:
@@ -141,8 +143,11 @@ class FrontEndDriver:
         return success
 
     def evaluateTypecheckedSource(self, typecheckedSource):
-        # TODO: Implement this part.
-        return None
+        from sysmel.gcm import topLevelScriptGCM
+        gcm = topLevelScriptGCM(typecheckedSource)
+        interpretableScript = gcm.asInterpretableInstructions()
+        scriptResult = interpretableScript.evaluateInModuleWithArguments(self.module)
+        return scriptResult
 
     def evaluateTypecheckedSources(self):
         for typecheckedSource in self.typecheckedSources:
@@ -152,9 +157,9 @@ class FrontEndDriver:
         return True
     
     def generateMIR(self):
-        from sysmel.mir import expandSourcesIntoMir
+        from sysmel.mir import expandModuleIntoMir
         from sysmel.visualizations import asgToDotFileNamed, asgWithDerivationsToDotFileNamed
-        mir, mirExpansionErrors = expandSourcesIntoMir(DefaultCompilationTarget, self.typecheckedSources)
+        mir, mirExpansionErrors = expandModuleIntoMir(DefaultCompilationTarget, self.module)
         for error in mirExpansionErrors:
             sys.stderr.write('%s\n' % error.prettyPrintError())
 

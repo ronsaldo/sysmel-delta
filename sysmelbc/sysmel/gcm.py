@@ -1,71 +1,6 @@
 from .mop import *
 from .asg import *
-
-class ASGNodeWithInterpretableInstructions:
-    def __init__(self, functionalNode, instructions, constantCount, activationParameterCount) -> None:
-        self.functionalNode = functionalNode
-        self.instructions = instructions
-        self.constantCount = constantCount
-        self.activationParameterCount = activationParameterCount
-        self.startpc = constantCount + activationParameterCount
-        self.activationContextSize = len(self.instructions) - self.constantCount
-        self.parametersLists = None
-        self.buildParametersLists()
-
-    def buildParametersLists(self):
-        self.parametersLists = []
-        instructionIndexTable = {}
-        for i in range(len(self.instructions)):
-            instructionIndexTable[self.instructions[i]] = i - self.constantCount
-        for i in range(self.constantCount, len(self.instructions)):
-            instruction = self.instructions[i]
-            parameterList = tuple(map(lambda dep: instructionIndexTable[dep], instruction.interpretationDependencies()))
-            self.parametersLists.append(parameterList)
-
-    def dump(self) -> str:
-        result = ''
-        for i in range(len(self.instructions)):
-            result += '%d: %s' % (i - self.constantCount, self.instructions[i].prettyPrintNameWithDataAttributes())
-            if i >= self.constantCount:
-                parameters = self.parametersLists[i - self.constantCount]
-                if len(parameters) > 0:
-                    result += '('
-                    for i in range(len(parameters)):
-                        if i > 0:
-                            result += ', '
-                        result += str(parameters[i])
-                    result += ')'
-
-            result += '\n'
-
-        return result
-
-    def dumpDot(self) -> str:
-        result = 'digraph {\n'
-
-        def formatId(id) -> str:
-            if id < 0:
-                return 'C%d' % abs(id)
-            else:
-                return 'N%d' % id
-
-        for i in range(len(self.instructions)):
-            result += '  %s [label="%s"]\n' % (formatId(i - self.constantCount), self.instructions[i].prettyPrintNameWithDataAttributes().replace('\\', '\\\\'.replace('\"', '\\"')))
-
-        for i in range(self.constantCount, len(self.instructions)):
-            if i > self.startpc:
-                result += '  %s -> %s [color = blue]\n' % (formatId(i - self.constantCount - 1), formatId(i - self.constantCount))
-
-            parameters = self.parametersLists[i - self.constantCount]
-            for param in parameters:
-                result += '  %s -> %s\n' % (formatId(i - self.constantCount), formatId(param))
-
-        result += '}'
-        return result
-    
-    def dumpDotToFileNamed(self, filename):
-        with open(filename, "w") as f:
-            f.write(self.dumpDot())
+from .interpreter import ASGNodeWithInterpretableInstructions
 
 class ASGNodeWithInstructionScheduling:
     def __init__(self, functionalNode, activationParameters, constants, serializedInstructions) -> None:
@@ -129,11 +64,16 @@ class GlobalCodeMotionAlgorithm:
         lambdaNode: ASGLambdaNode = self.functionalNode
         self.computeForRegions(asgPredecessorTopo(lambdaNode.exitPoint))
         return self.serializeInstructions()
-    
+
+    def computeForTopLevelScript(self):
+        topLevelScript: ASGTopLevelScriptNode = self.functionalNode
+        self.computeForRegions(asgPredecessorTopo(topLevelScript.exitPoint))
+        return self.serializeInstructions()
+
     def dependenciesOf(self, instruction):
-        for dep in instruction.typeDependencies():
+        for dep in instruction.scheduledTypeDependencies():
             yield dep
-        for dep in instruction.dataDependencies():
+        for dep in instruction.scheduledDataDependencies():
             yield dep
 
     def computeForRegions(self, regions):
@@ -379,3 +319,7 @@ class GlobalCodeMotionAlgorithm:
 def lambdaGCM(node: ASGLambdaNode):
     lambdaWithGcm = GlobalCodeMotionAlgorithm(node).computeForLambda()
     return lambdaWithGcm
+
+def topLevelScriptGCM(node: ASGTopLevelScriptNode):
+    topLevelScriptGCM = GlobalCodeMotionAlgorithm(node).computeForTopLevelScript()
+    return topLevelScriptGCM

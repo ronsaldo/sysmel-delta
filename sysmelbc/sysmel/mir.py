@@ -197,3 +197,13 @@ def expandSourcesIntoMir(target, analyzedSources):
 
     expandedModuleSources = ASGModuleNode(ASGNodeNoDerivation(), expander.builder.topLevelIdentifier('Module'), expandedSources, expander.moduleExports)
     return expandedModuleSources, []
+
+def expandModuleIntoMir(target, module):
+    expander = ASGMirExpanderAlgorithm(target)
+    mir = []
+    for exportedValue in module.exportedValues:
+        exportedValue.mirValue = expander.expandNode(exportedValue.value)
+        mir.append(exportedValue.mirValue)
+
+    expandedModuleSources = ASGModuleNode(ASGNodeNoDerivation(), expander.builder.topLevelIdentifier('Module'), mir, expander.moduleExports)
+    return expandedModuleSources, []

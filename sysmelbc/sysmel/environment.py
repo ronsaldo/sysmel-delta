@@ -1,6 +1,7 @@
 from .mop import *
 from .syntax import *
 from .asg import *
+from .module import *
 
 class ASGEnvironment(ABC):
     @abstractmethod
@@ -70,6 +71,8 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addBaseType(ASGStringTypeNode(topLevelDerivation, [char8PointerType, sizeType], 'String', ('elements', 'size')))
 
         self.addPrimitiveFunctions()
+        self.gcmCache = {}
+        self.interpreterCache = {}
 
     def addBaseType(self, baseType: ASGBaseTypeNode):
         baseType = self.addUnificationValue(baseType)
@@ -385,10 +388,11 @@ class ASGFunctionalAnalysisEnvironment(ASGLexicalEnvironment):
         return self.symbolTable.get(symbol, []) + self.parent.lookSymbolBindingListRecursively(symbol)
 
 class ASGScriptEnvironment(ASGLexicalEnvironment):
-    def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script') -> None:
+    def __init__(self, parent: ASGEnvironment, module: Module, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script') -> None:
         super().__init__(parent, sourcePosition)
         self.scriptDirectory = scriptDirectory
         self.scriptName = scriptName
+        self.module = module
 
     def isScriptEnvironment(self):
         return True
@@ -405,8 +409,8 @@ class ASGBuilderWithGVNAndEnvironment(ASGBuilderWithGVN):
         value = self.topLevelEnvironment.lookLastBindingOf(name)
         return self.unifyWithPreviousBuiltNode(value)
 
-def makeScriptAnalysisEnvironment(target: CompilationTarget, sourcePosition: SourcePosition, scriptPath: str) -> ASGEnvironment:
+def makeScriptAnalysisEnvironment(target: CompilationTarget, module, sourcePosition: SourcePosition, scriptPath: str) -> ASGEnvironment:
     topLevelEnvironment = ASGTopLevelTargetEnvironment.getForTarget(target)
     scriptDirectory = os.path.dirname(scriptPath)
     scriptName = os.path.basename(scriptPath)
-    return ASGScriptEnvironment(topLevelEnvironment, sourcePosition, scriptDirectory, scriptName)
+    return ASGScriptEnvironment(topLevelEnvironment, module, sourcePosition, scriptDirectory, scriptName)
