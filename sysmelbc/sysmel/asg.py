@@ -46,7 +46,6 @@ class ASGConditionalBranchNode(ASGSequenceDivergenceNode):
 class ASGSequenceConvergenceNode(ASGSequencingNode):
     divergence = ASGSequencingPredecessorAttribute()
     predecessors = ASGSequencingPredecessorsAttribute()
-    values = ASGNodeDataInputPorts()
 
     def isBasicBlockStart(self) -> bool:
         return True
@@ -56,9 +55,6 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
 
     def directImmediateDominator(self):
         return self.divergence
-
-    def getRegionOfUsedValue(self, usedValue):
-        return self
 
 class ASGSequenceReturnNode(ASGSequencingNode):
     value = ASGNodeDataInputPort()
@@ -445,6 +441,7 @@ class ASGPhiValueNode(ASGTypedDataExpressionNode):
 
 class ASGPhiNode(ASGTypedDataExpressionNode):
     values = ASGNodeDataInputPorts()
+    predecessor = ASGSequencingPredecessorAttribute()
 
     def isPhiNode(self) -> bool:
         return True

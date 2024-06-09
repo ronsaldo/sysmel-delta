@@ -652,20 +652,20 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         mergedBranchType = self.mergeTypesOfBranches([trueResult, falseResult])
         branchResult = None
         convergenceValues = []
-        if mergedBranchType is None:
-            # Failed to merge the branch types. Emit void.
-            branchResult = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, self.builder.topLevelIdentifier('Void'))
-        else:
+        phiIncomingValues = None
+        if mergedBranchType is not None:
             phiIncomingValues = [
                 self.builder.forSyntaxExpansionBuild(self, node, ASGPhiValueNode, mergedBranchType, trueResult, predecessor = trueExitPoint),
                 self.builder.forSyntaxExpansionBuild(self, node, ASGPhiValueNode, mergedBranchType, falseResult, predecessor = falseExitPoint),
             ]
 
-            branchResult = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPhiNode, mergedBranchType, phiIncomingValues)
-            convergenceValues = [branchResult]
 
-        convergence = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, convergenceValues, divergence = branch, predecessors = [trueExitPoint, falseExitPoint])
-        return branchResult
+        convergence = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, divergence = branch, predecessors = [trueExitPoint, falseExitPoint])
+        if mergedBranchType is None:
+            # Failed to merge the branch types. Emit void.
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, self.builder.topLevelIdentifier('Void'))
+        else:
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPhiNode, mergedBranchType, phiIncomingValues, predecessor = convergence)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
     def expandSyntaxSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:

@@ -186,14 +186,15 @@ class GlobalCodeMotionAlgorithm:
             self.earlySchedule[instructionIndex] = regionIndex
             self.pinnedDataInstructions[instructionIndex] = True
 
-        for region in self.regions:
-            if not region.isSequenceConvergenceNode():
+        for instruction in self.dataInstructions:
+            if not instruction.isPhiNode():
                 continue
-
-            for phi in region.values:
-                pinInstructionToRegion(phi, region)
-                for incomingValue in phi.values:
-                    pinInstructionToRegion(incomingValue, incomingValue.predecessor)
+            
+            phi: ASGPhiNode = instruction
+            region = phi.predecessor
+            pinInstructionToRegion(phi, region)
+            for incomingValue in phi.values:
+                pinInstructionToRegion(incomingValue, incomingValue.predecessor)
 
         def visitInstruction(instructionIndex):
             if visited[instructionIndex]:

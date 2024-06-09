@@ -204,8 +204,7 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
     def expandSequenceConvergenceNode(self, node: ASGSequenceConvergenceNode) -> ASGNode:
         divergence = self.expandNode(node.divergence)
         predecessors = self.expandNodes(node.predecessors)
-        values = self.expandNodes(node.values)
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, values, divergence = divergence, predecessors = predecessors)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, divergence = divergence, predecessors = predecessors)
 
     @asgPatternMatchingOnNodeKind(ASGSequenceReturnNode)
     def expandSequenceReturnNode(self, node: ASGSequenceReturnNode) -> ASGNode:

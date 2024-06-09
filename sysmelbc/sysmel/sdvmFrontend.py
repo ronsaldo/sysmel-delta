@@ -123,9 +123,12 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
     def translateMirArgument(self, node: ASGArgumentNode):
         self.function.addArgumentInstruction(SDVMInstruction(node.type.getSDVMArgumentInstructionWith(self.moduleFrontend)))
 
+    def translatePrimitiveApplicationWithArguments(self, resultType: ASGNode, functional: ASGLiteralPrimitiveFunctionNode, arguments: list[ASGNode], sourcePosition: SourcePosition):
+        assert False
+
     def translateApplicationWithArguments(self, resultType: ASGNode, functional: ASGNode, arguments: list[ASGNode], sourcePosition: SourcePosition):
         if functional.isLiteralPrimitiveFunction():
-            return self.translatePrimitiveApplicationWithArguments(self, resultType, functional, arguments, sourcePosition)
+            return self.translatePrimitiveApplicationWithArguments(resultType, functional, arguments, sourcePosition)
             
         calledFunctional = self(functional)
         translatedArguments = list(map(self.translateValue, arguments))
