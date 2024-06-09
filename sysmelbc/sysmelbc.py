@@ -115,26 +115,26 @@ class FrontEndDriver:
         asgSyntax = ASGParseTreeFrontEnd().visitNode(parseTree)
         asgToDotFileNamed(asgSyntax, 'asgSyntax.dot')
 
-        asgTypechecked, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(self.compilationTarget, self.module, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
-        asgToDotFileNamed(asgTypechecked, 'asgTypechecked.dot')
-        asgWithDerivationsToDotFileNamed(asgTypechecked, 'asgTypecheckedWithDerivation.dot')
+        asgAnalyzed, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(self.compilationTarget, self.module, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
+        asgToDotFileNamed(asgAnalyzed, 'asgAnalyzed.dot')
+        asgWithDerivationsToDotFileNamed(asgAnalyzed, 'asgAnalyzedWithDerivation.dot')
         for error in asgTypecheckingErrors:
             sys.stderr.write('%s\n' % error.prettyPrintError())
-        self.typecheckedSources.append(asgTypechecked)
+        self.typecheckedSources.append(asgAnalyzed)
 
-        exportedValueSet = asgTypechecked.findExportedValueSet()
-        for exportedValue in exportedValueSet:
-            if exportedValue.isLambda():
-                lambdaGcm = lambdaGCM(exportedValue)
-                interpretableLambda = lambdaGcm.asInterpretableInstructions()
-                interpretableLambda.dumpDotToFileNamed('interpretableLambda.dot')
+        #exportedValueSet = asgAnalyzed.findExportedValueSet()
+        #for exportedValue in exportedValueSet:
+        #    if exportedValue.isLambda():
+        #        lambdaGcm = lambdaGCM(exportedValue)
+        #        interpretableLambda = lambdaGcm.asInterpretableInstructions()
+        #        interpretableLambda.dumpDotToFileNamed('interpretableLambda.dot')
 
         return len(asgTypecheckingErrors) == 0
 
     def parseAndTypecheckSourceFiles(self):
         if self.moduleName is None:
             self.moduleName, ext = os.path.splitext(os.path.basename(self.inputSourceFiles[0]))
-            self.module = Module(self.moduleName)
+            self.module = Module(self.moduleName, self.compilationTarget)
 
         success = True
         for inputSource in self.inputSourceFiles:
@@ -167,6 +167,17 @@ class FrontEndDriver:
         asgWithDerivationsToDotFileNamed(mir, 'asgMirWithDerivation.dot')
         return len(mirExpansionErrors) == 0
 
+    def compileSDVMModule(self):
+        from sysmel.sdvmFrontend import SDVMModuleFrontEnd
+        self.sdvmModule = SDVMModuleFrontEnd(self.compilationTarget).compileModule(self.module)
+        if self.verbose:
+            print('-'*60)
+            print('SDVM:')
+            print('-'*60)
+            print(self.sdvmModule.prettyPrint())
+
+        return True
+    
     def runPipeline(self):
         if not self.parseAndTypecheckSourceFiles():
             return False
@@ -177,8 +188,6 @@ class FrontEndDriver:
         # Generate the MIR
         if not self.generateMIR():
             return False
-
-        return True
 
         if not self.compileSDVMModule():
             return False

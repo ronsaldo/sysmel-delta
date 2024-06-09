@@ -210,7 +210,7 @@ class SDVMStringSection(SDVMModuleSection):
         if value is None or len(value) == 0:
             return SDVMString()
         if value in self.stringDict:
-            return self.stringDict
+            return self.stringDict[value]
         
         stringValue = self.addEncoded(value.encode('utf-8'))
         self.stringDict[value] = stringValue

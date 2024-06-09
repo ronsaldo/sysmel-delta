@@ -1,3 +1,5 @@
+from .target import *
+
 class ModuleExportedValue:
     def __init__(self, name: str, value, externalName: str = None):
         self.name = name
@@ -6,8 +8,9 @@ class ModuleExportedValue:
         self.mirValue = None
 
 class Module:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, target: CompilationTarget) -> None:
         self.name = name
+        self.target = target
         self.exportedValues = []
         self.mirExportedValues = []
 

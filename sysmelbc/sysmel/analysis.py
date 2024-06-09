@@ -317,6 +317,8 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         functionalAnalyzer.builder.currentPredecessor = None
 
         resultType = functionalAnalyzer.analyzeTypeExpression(node.resultType)
+        name = self.evaluateOptionalSymbol(node.nameExpression)
+
         piType = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPiNode, typedArguments, resultType, isVariadic = node.isVariadic, callingConvention = node.callingConvention)
 
         functionalAnalyzer.builder.currentPredecessor = None
@@ -325,7 +327,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         body, bodyTypechecked = functionalAnalyzer.analyzeNodeWithExpectedType(node.body, resultType)
         bodyReturn = functionalAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceReturnNode, body, predecessor = functionalAnalyzer.builder.currentPredecessor)
         
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, exitPoint = bodyReturn, callingConvention = node.callingConvention)
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, exitPoint = bodyReturn, name = name, callingConvention = node.callingConvention)
     
     def expandTopLevelScript(self, node: ASGNode) -> ASGTopLevelScriptNode:
         entryPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)

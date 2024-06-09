@@ -5,5 +5,7 @@ class CompilationTarget:
         self.sizeAlignment = pointerSize
         self.pointerSize = pointerSize
         self.pointerAlignment = pointerSize
+        self.gcPointerSize = pointerSize*2
+        self.gcPointerAlignment = pointerSize
 
 DefaultCompilationTarget = CompilationTarget(None, 8)

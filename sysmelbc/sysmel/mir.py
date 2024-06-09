@@ -10,21 +10,42 @@ class ASGMirReductionAlgorithm(ASGDynamicProgrammingReductionAlgorithm):
         super().__init__()
 
 class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
-    def __init__(self, builder: ASGBuilderWithGVN) -> None:
+    def __init__(self, builder: ASGBuilderWithGVNAndEnvironment) -> None:
         super().__init__()
         self.builder = builder
+        for typeName, mirTypeName in [
+            ('Void', 'MIR::Void'),
+            ('Int8',  'MIR::Int8'),
+            ('Int16', 'MIR::Int16'),
+            ('Int32', 'MIR::Int32'),
+            ('Int64', 'MIR::Int64'),
+            ('UInt8',  'MIR::UInt8'),
+            ('UInt16', 'MIR::UInt16'),
+            ('UInt32', 'MIR::UInt32'),
+            ('UInt64', 'MIR::UInt64'),
+            ('Float32', 'MIR::Float32'),
+            ('Float64', 'MIR::Float64'),
+        ]:
+            type = self.builder.topLevelIdentifier(typeName)
+            mirType = self.builder.topLevelIdentifier(mirTypeName)
+            self.setValueForNodeExpansion(type, mirType)
+
+    @asgPatternMatchingOnNodeKind(ASGPointerLikeTypeNode)
+    def expandPointerLikeTypeNode(self, node: ASGPointerLikeTypeNode) -> ASGNode:
+        baseType = self.expandNode(node.baseType)
+        return self.builder.forMirTypeExpansionBuild(self, node, ASGMirPointerTypeNode, baseType)
 
     @asgPatternMatchingOnNodeKind(ASGArrayTypeNode)
     def expandArrayTypeNode(self, node: ASGArrayTypeNode) -> ASGNode:
         baseType = self.expandNode(node.baseType)
 
         if not node.size.isLiteralNode():
-            return self.builder.forMirTypeExpansionBuild(self, node, ASGPointerTypeNode, baseType)
+            return self.builder.forMirTypeExpansionBuild(self, node, ASGMirPointerTypeNode, baseType)
         
         if baseType.unificationEquals(node.baseType):
             return node
 
-        return self.builder.forMirTypeExpansionBuild(self, node, ASGArrayTypeNode, baseType, node.size)
+        return self.builder.forMirTypeExpansionBuild(self, node, ASGMirArrayTypeNode, baseType, node.size)
 
     @asgPatternMatchingOnNodeKind(ASGPiNode)
     def expandPiNode(self, node: ASGPiNode) -> ASGNode:
@@ -38,10 +59,6 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
         functionType = self.builder.forMirTypeExpansionBuild(self, node, ASGMirFunctionTypeNode, argumentTypes, resultType, isVariadic = node.isVariadic, callingConvention = node.callingConvention, pure = node.pure)
         return self.builder.forMirTypeExpansionBuild(self, node, ASGMirClosureTypeNode, functionType)
 
-    @asgPatternMatchingOnNodeKind(ASGTypeNode)
-    def expandTypeNode(self, node: ASGTypeNode) -> ASGNode:
-        return node
-    
     def expandNode(self, node: ASGNode) -> ASGNode:
         return node
 
@@ -73,9 +90,21 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
     def expandMirType(self, type: ASGNode):
         return self.typeExpander(type)
 
-    @asgPatternMatchingOnNodeKind(ASGLiteralNode)
-    def expandLiteralNode(self, node: ASGLiteralNode) -> ASGNode:
-        return node
+    @asgPatternMatchingOnNodeKind(ASGLiteralCharacterNode)
+    def expandLiteralCharacterNode(self, node: ASGLiteralCharacterNode) -> ASGNode:
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralIntegerNode, self.expandMirType(node.type), node.value)
+
+    @asgPatternMatchingOnNodeKind(ASGLiteralIntegerNode)
+    def expandLiteralIntegerNode(self, node: ASGLiteralIntegerNode) -> ASGNode:
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralIntegerNode, self.expandMirType(node.type), node.value)
+
+    @asgPatternMatchingOnNodeKind(ASGLiteralFloatNode)
+    def expandLiteralFloatNode(self, node: ASGLiteralFloatNode) -> ASGNode:
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralFloatNode, self.expandMirType(node.type), node.value)
+
+    @asgPatternMatchingOnNodeKind(ASGLiteralStringDataNode)
+    def expandLiteralStringDataNode(self, node: ASGLiteralStringDataNode) -> ASGNode:
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralStringDataNode, self.expandMirType(node.type), node.value)
 
     @asgPatternMatchingOnNodeKind(ASGTopLevelScriptNode)
     def expandSyntaxFromTopLevelScriptNode(self, node: ASGTopLevelScriptNode) -> ASGNode:
@@ -87,8 +116,8 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
 
     @asgPatternMatchingOnNodeKind(ASGFromExternalImportNode)
     def expandFromExternalImportNode(self, node: ASGFromExternalImportNode) -> ASGNode:
-        mirType = self.expandMirType(node.type)
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirFromExternalImportNode, node.type, mirType, node.externalName, node.importedName)
+        mirType = self.expandMirType(node.type).asTopLevelMirType()
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirFromExternalImportNode, mirType, node.externalName, node.importedName)
     
     @asgPatternMatchingOnNodeKind(ASGExportNode)
     def expandExportNode(self, node: ASGExportNode) -> ASGNode:
@@ -101,7 +130,7 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGArgumentNode)
     def expandArgumentNode(self, node: ASGArgumentNode) -> ASGNode:
         mirType = self.expandMirType(node.type)
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirArgumentNode, node.type, mirType, node.index, node.name, node.isImplicit)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGArgumentNode, mirType, node.index, node.name, node.isImplicit)
 
     @asgPatternMatchingOnNodeKind(ASGApplicationNode)
     def expandApplicationNode(self, node: ASGApplicationNode) -> ASGNode:
@@ -109,7 +138,7 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         functional = self.expandNode(node.functional)
         arguments = self.expandFlattenedNodes(node.arguments)
 
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirApplicationNode, node.type, mirType, functional, arguments)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGApplicationNode, mirType, functional, arguments)
 
     @asgPatternMatchingOnNodeKind(ASGFxApplicationNode)
     def expandFxApplicationNode(self, node: ASGFxApplicationNode) -> ASGNode:
@@ -118,7 +147,7 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         functional = self.expandNode(node.functional)
         arguments = self.expandFlattenedNodes(node.arguments)
 
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirFxApplicationNode, node.type, mirType, functional, arguments, predecessor = predecessor)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGFxApplicationNode, mirType, functional, arguments, predecessor = predecessor)
 
     @asgPatternMatchingOnNodeKind(ASGPhiValueNode)
     def expandPhiValueNode(self, node: ASGPhiValueNode) -> ASGNode:
@@ -144,8 +173,8 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         entryPoint = definitionExpander.expandNode(node.entryPoint)
         exitPoint = definitionExpander.expandNode(node.exitPoint)
 
-        definition = self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirFunctionDefinitionNode, node.type, mirType.functionType, arguments, entryPoint, node.callingConvention, exitPoint = exitPoint)
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirLambdaNode, node.type, mirType, definition, [])
+        definition = self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirFunctionDefinitionNode, mirType.functionType, arguments, entryPoint, node.callingConvention, name = node.name, exitPoint = exitPoint)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirLambdaNode, mirType, definition, [], name = node.name)
 
     @asgPatternMatchingOnNodeKind(ASGSequenceEntryNode)
     def expandSequenceEntryNode(self, node: ASGTypeNode) -> ASGNode:

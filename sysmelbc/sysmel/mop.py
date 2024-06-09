@@ -849,6 +849,12 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isArgumentNode(self) -> bool:
         return False
 
+    def isCapturedValueNode(self) -> bool:
+        return False
+
+    def isBasicBlockStart(self) -> bool:
+        return False
+
     def isPureCompileTimePrimitive(self) -> bool:
         return False
     
@@ -957,6 +963,24 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def interpretInContext(self, context, parameters):
         raise Exception('Cannot interpret %s.' % self.printNameWithDataAttributes())
     
+    def isMirFunctionType(self):
+        return False
+
+    def isMirClosureType(self):
+        return False
+
+    def isMirPointerType(self):
+        return False
+
+    def isMirGCPointerType(self):
+        return False
+
+    def isMirArrayType(self):
+        return False
+    
+    def asTopLevelMirType(self):
+        return self
+
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
         self.node = node
@@ -1003,12 +1027,28 @@ class ASGPatternMatchingNodeKindPatternWithPredicate(ASGPatternMatchingNodeKindP
     def matchesNode(self, node):
         return self.predicate(node)
 
+class ASGRecursivePatternMatchingNodeKindPattern(ASGPatternMatchingNodeKindPattern):
+    def __call__(self, algorithm, expansionResult, *args: Any, **kwArguments) -> Any:
+        return self.function(algorithm, expansionResult, *args, **kwArguments)
+
+class ASGRecursivePatternMatchingNodeKindPatternWithPredicate(ASGPatternMatchingNodeKindPatternWithPredicate):
+    def __call__(self, algorithm, expansionResult, *args: Any, **kwArguments) -> Any:
+        return self.function(algorithm, expansionResult, *args, **kwArguments)
+    
 def asgPatternMatchingOnNodeKind(kind: type, when = None):
     def makePattern(function):
         if when is not None:
             return ASGPatternMatchingNodeKindPatternWithPredicate(kind, when, function)
         else:
             return ASGPatternMatchingNodeKindPattern(kind, function)
+    return makePattern
+
+def asgRecursivePatternMatchingOnNodeKind(kind: type, when = None):
+    def makePattern(function):
+        if when is not None:
+            return ASGRecursivePatternMatchingNodeKindPatternWithPredicate(kind, when, function)
+        else:
+            return ASGRecursivePatternMatchingNodeKindPattern(kind, function)
     return makePattern
 
 class ASGUnifiedNodeValue:
@@ -1154,6 +1194,15 @@ class ASGBuilderWithGVN:
 class ASGDynamicProgrammingAlgorithm(metaclass = ASGDynamicProgrammingAlgorithmMetaclass):
     def __init__(self) -> None:
         self.processedNodes = {}
+
+    def setValueForNodeExpansion(self, node, result):
+        expansionResult = self.processedNodes.get(node, None)
+        if expansionResult is not None:
+            expansionResult.finishWithValue(result)
+        else:
+            expansionResult = ASGDynamicProgrammingAlgorithmNodeExpansionResult(None, node)
+            expansionResult.finishWithValue(result)
+            self.processedNodes[node] = expansionResult
 
     def postProcessResult(self, result):
         return result

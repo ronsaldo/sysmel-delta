@@ -70,6 +70,21 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         char8PointerType = self.addUnificationValue(ASGPointerTypeNode(topLevelDerivation, char8Type))
         self.addBaseType(ASGStringTypeNode(topLevelDerivation, [char8PointerType, sizeType], 'String', ('elements', 'size')))
 
+        self.addBaseType(ASGMirVoidTypeNode(topLevelDerivation, 'MIR::Void', 0, 1))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Boolean', 1, 1))
+
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Int8',  1, 1))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Int16', 2, 2))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Int32', 4, 4))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Int64', 8, 8))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::UInt8',  1, 1))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::UInt16', 2, 2))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::UInt32', 4, 4))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::UInt64', 8, 8))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Float32', 4, 4))
+        self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Float64', 8, 8))
+        self.addBaseType(ASGMirTypeUniverseNode(topLevelDerivation, 'MIR::Type', target.pointerSize, target.pointerAlignment))
+
         self.addPrimitiveFunctions()
         self.gcmCache = {}
         self.interpreterCache = {}
@@ -100,6 +115,9 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         if not name in self.symbolTable:
             raise Exception('Missing required binding for %s.' % name)
         return self.symbolTable[name][0]
+
+    def getMirTypeUniverse(self):
+        return self.lookValidLastBindingOf('MIR::Type')
 
     def getTopLevelTargetEnvironment(self):
         return self

@@ -1,5 +1,6 @@
 from .mop import *
 from .syntax import *
+from .sdvmInstructions import *
 
 class ASGTypecheckedNode(ASGNode):
     sourceDerivation = ASGNodeSourceDerivationAttribute()
@@ -15,6 +16,9 @@ class ASGSequencingNode(ASGTypecheckedNode):
         return True
     
 class ASGSequenceEntryNode(ASGSequencingNode):
+    def isBasicBlockStart(self) -> bool:
+        return True
+    
     def isSequenceEntryNode(self) -> bool:
         return True
     
@@ -43,6 +47,9 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
     divergence = ASGSequencingPredecessorAttribute()
     predecessors = ASGSequencingPredecessorsAttribute()
     values = ASGNodeDataInputPorts()
+
+    def isBasicBlockStart(self) -> bool:
+        return True
 
     def isSequenceConvergenceNode(self) -> bool:
         return True
@@ -105,8 +112,6 @@ class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
         return True
 
 class ASGMirTypedDataExpressionNode(ASGTypedExpressionNode):
-    mirType = ASGNodeTypeInputNode()
-
     def isPureDataNode(self) -> bool:
         return True
 
@@ -138,6 +143,7 @@ class ASGLiteralSymbolNode(ASGLiteralNode):
 
 class ASGLiteralStringDataNode(ASGLiteralNode):
     value = ASGNodeDataAttribute(str)
+    nullTerminated = ASGNodeDataAttribute(bool, default = True)
 
 class ASGLiteralUnitNode(ASGLiteralNode):
     pass
@@ -191,15 +197,10 @@ class ASGArgumentNode(ASGBetaReplaceableNode):
     def isActivationContextParameterDataNode(self):
         return True
 
-class ASGMirArgumentNode(ASGMirTypedDataExpressionNode):
-    index = ASGNodeDataAttribute(int, default = 0)
-    name = ASGNodeDataAttribute(str, default = None, notCompared = True)
-    isImplicit = ASGNodeDataAttribute(bool, default = False)
-
-    def isActivationContextParameterDataNode(self):
+class ASGCapturedValueNode(ASGBetaReplaceableNode):
+    def isCapturedValueNode(self) -> bool:
         return True
 
-class ASGCapturedValueNode(ASGBetaReplaceableNode):
     def isActivationContextParameterDataNode(self):
         return True
 
@@ -373,6 +374,7 @@ class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts(notInterpreted = True)
     entryPoint = ASGSequencingDestinationPort(notInterpreted = True)
     exitPoint = ASGSequencingPredecessorAttribute(notInterpreted = True)
+    name = ASGNodeDataAttribute(str, default = None, notCompared = True)
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
     def scheduledDataDependencies(self):
@@ -387,6 +389,7 @@ class ASGLambdaNode(ASGTypedDataExpressionNode):
 class ASGMirLambdaNode(ASGMirTypedDataExpressionNode):
     functionDefinition = ASGNodeDataInputPort()
     captures = ASGNodeDataInputPorts()
+    name = ASGNodeDataAttribute(str, default = None)
 
     def isMirLambda(self) -> bool:
         return True
@@ -395,6 +398,7 @@ class ASGMirFunctionDefinitionNode(ASGMirTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts()
     entryPoint = ASGSequencingDestinationPort()
     exitPoint = ASGSequencingPredecessorAttribute()
+    name = ASGNodeDataAttribute(str, default = None)
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
     def isMirFunctionDefinition(self) -> bool:
@@ -410,20 +414,9 @@ class ASGApplicationNode(ASGTypedDataExpressionNode):
     def isLiteralAlwaysReducedPrimitiveApplication(self):
         return self.functional.isAlwaysReducedPrimitive()
 
-class ASGMirApplicationNode(ASGMirTypedDataExpressionNode):
-    functional = ASGNodeDataInputPort()
-    arguments = ASGNodeDataInputPorts()
-    
 class ASGFxApplicationNode(ASGSequencingAndDataNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
-
-class ASGMirFxApplicationNode(ASGMirSequencingAndDataNode):
-    functional = ASGNodeDataInputPort()
-    arguments = ASGNodeDataInputPorts()
-
-    def isLiteralAlwaysReducedPrimitiveApplication(self):
-        return self.functional.isAlwaysReducedPrimitive()
     
 class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
@@ -562,9 +555,30 @@ class ASGMirFunctionTypeNode(ASGTypeNode):
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
     pure = ASGNodeDataAttribute(bool, default = False)
+
+    def isMirFunctionType(self) -> bool:
+        return True
     
+    def asFunctionType(self) -> bool:
+        return self
+
+    def getFixedArgumentCount(self) -> int:
+        if self.isVariadic and len(self.arguments) > 0:
+            return len(self.arguments) - 1
+        else:
+            return len(self.arguments)
+
 class ASGMirClosureTypeNode(ASGTypeNode):
     functionType = ASGNodeTypeInputNode()
+
+    def isMirClosureType(self) -> bool:
+        return True
+    
+    def asTopLevelMirType(self) -> bool:
+        return self.functionType
+
+    def asFunctionType(self) -> bool:
+        return self.functionType
 
 class ASGMacroFunctionTypeNode(ASGTypeNode):
     arguments = ASGNodeTypeInputNodes()
@@ -645,3 +659,99 @@ class ASGMirFromExternalImportNode(ASGMirTypedDataExpressionNode):
 
     def isConstantDataNode(self) -> bool:
         return True
+
+class ASGMirTypeNode(ASGTypeNode):
+    def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
+        return environment.getTopLevelTargetEnvironment().getMirTypeUniverse()
+    
+    def getSDVMArgumentInstructionWith(self, moduleFrontend):
+        return moduleFrontend.argumentInstructionDictionary[self]
+
+    def getSDVMCallArgumentInstructionWith(self, moduleFrontend):
+        return moduleFrontend.callArgumentInstructionDictionary[self]
+
+    def getSDVMCallClosureInstructionWith(self, moduleFrontend):
+        return moduleFrontend.callClosureInstructionDictionary[self]
+
+    def getSDVMCallInstructionWith(self, moduleFrontend):
+        return moduleFrontend.callInstructionDictionary[self]
+
+    def getSDVMReturnInstructionWith(self, moduleFrontend):
+        return moduleFrontend.returnInstructionDictionary[self]
+
+class ASGMirBaseTypeNode(ASGMirTypeNode):
+    name = ASGNodeDataAttribute(str)
+    size = ASGNodeDataAttribute(int)
+    alignment = ASGNodeDataAttribute(int)
+
+    def isConstantDataNode(self) -> bool:
+        return True
+
+    def normalizeValue(self, value):
+        return value
+
+    def prettyPrintNameWithDataAttributes(self):
+        if self.name is not None:
+            return self.name
+        else:
+            return super().prettyPrintNameWithDataAttributes()
+
+class ASGMirDerivedTypeNode(ASGMirTypeNode):
+    baseType = ASGNodeTypeInputNode()
+    
+class ASGMirArrayTypeNode(ASGMirDerivedTypeNode):
+    size = ASGNodeDataInputPort()
+    
+class ASGMirPointerTypeNode(ASGMirDerivedTypeNode):
+    def getSDVMArgumentInstructionWith(self, moduleFrontend):
+        return SdvmInstArgPointer
+
+    def getSDVMCallArgumentInstructionWith(self, moduleFrontend):
+        return SdvmInstCallArgPointer
+
+    def getSDVMCallClosureInstructionWith(self, moduleFrontend):
+        return SdvmInstCallClosurePointer
+
+    def getSDVMCallInstructionWith(self, moduleFrontend):
+        return SdvmInstCallPointer
+
+    def getSDVMReturnInstructionWith(self, moduleFrontend):
+        return SdvmInstReturnPointer
+
+    def asFunctionType(self) -> bool:
+        return self.baseType.asFunctionType()
+
+class ASGMirGCPointerTypeNode(ASGMirDerivedTypeNode):
+    def getSDVMArgumentInstructionWith(self, moduleFrontend):
+        return SdvmInstArgGCPointer
+
+    def getSDVMCallArgumentInstructionWith(self, moduleFrontend):
+        return SdvmInstCallArgGCPointer
+
+    def getSDVMCallClosureInstructionWith(self, moduleFrontend):
+        return SdvmInstCallClosureGCPointer
+
+    def getSDVMCallInstructionWith(self, moduleFrontend):
+        return SdvmInstCallGCPointer
+
+    def getSDVMReturnInstructionWith(self, moduleFrontend):
+        return SdvmInstReturnGCPointer
+
+class ASGMirVoidTypeNode(ASGMirBaseTypeNode):
+    pass
+
+class ASGMirTypeUniverseNode(ASGMirBaseTypeNode):
+    def getSDVMArgumentInstructionWith(self, moduleFrontend):
+        return SdvmInstArgGCPointer
+
+    def getSDVMCallArgumentInstructionWith(self, moduleFrontend):
+        return SdvmInstCallArgGCPointer
+
+    def getSDVMCallClosureInstructionWith(self, moduleFrontend):
+        return SdvmInstCallClosureGCPointer
+
+    def getSDVMCallInstructionWith(self, moduleFrontend):
+        return SdvmInstCallGCPointer
+
+    def getSDVMReturnInstructionWith(self, moduleFrontend):
+        return SdvmInstReturnGCPointer

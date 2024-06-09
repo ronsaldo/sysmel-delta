@@ -59,10 +59,17 @@ class GlobalCodeMotionAlgorithm:
         self.dominanceTreeDepths = []
         self.earlySchedule = []
         self.scheduleRegions = []
+        self.ignoreTypes = False
 
     def computeForLambda(self):
         lambdaNode: ASGLambdaNode = self.functionalNode
         self.computeForRegions(asgPredecessorTopo(lambdaNode.exitPoint))
+        return self.serializeInstructions()
+
+    def computeForMirFunctionDefinition(self):
+        functionDefinitionNode: ASGMirFunctionDefinitionNode = self.functionalNode
+        self.ignoreTypes = True
+        self.computeForRegions(asgPredecessorTopo(functionDefinitionNode.exitPoint))
         return self.serializeInstructions()
 
     def computeForTopLevelScript(self):
@@ -71,8 +78,9 @@ class GlobalCodeMotionAlgorithm:
         return self.serializeInstructions()
 
     def dependenciesOf(self, instruction):
-        for dep in instruction.scheduledTypeDependencies():
-            yield dep
+        if not self.ignoreTypes:
+            for dep in instruction.scheduledTypeDependencies():
+                yield dep
         for dep in instruction.scheduledDataDependencies():
             yield dep
 
@@ -319,6 +327,10 @@ class GlobalCodeMotionAlgorithm:
 def lambdaGCM(node: ASGLambdaNode):
     lambdaWithGcm = GlobalCodeMotionAlgorithm(node).computeForLambda()
     return lambdaWithGcm
+
+def mirFunctionDefinitionGCM(node: ASGMirFunctionDefinitionNode):
+    functionDefinitionWithGcm = GlobalCodeMotionAlgorithm(node).computeForMirFunctionDefinition()
+    return functionDefinitionWithGcm
 
 def topLevelScriptGCM(node: ASGTopLevelScriptNode):
     topLevelScriptGCM = GlobalCodeMotionAlgorithm(node).computeForTopLevelScript()
