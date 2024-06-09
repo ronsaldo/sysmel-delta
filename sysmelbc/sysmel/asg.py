@@ -549,37 +549,6 @@ class ASGFunctionTypeNode(ASGTypeNode):
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandFunctionApplicationWithType(applicationNode, self)
 
-class ASGMirFunctionTypeNode(ASGTypeNode):
-    arguments = ASGNodeTypeInputNodes()
-    resultType = ASGNodeTypeInputNode()
-    isVariadic = ASGNodeDataAttribute(bool, default = False)
-    callingConvention = ASGNodeDataAttribute(str, default = None)
-    pure = ASGNodeDataAttribute(bool, default = False)
-
-    def isMirFunctionType(self) -> bool:
-        return True
-    
-    def asFunctionType(self) -> bool:
-        return self
-
-    def getFixedArgumentCount(self) -> int:
-        if self.isVariadic and len(self.arguments) > 0:
-            return len(self.arguments) - 1
-        else:
-            return len(self.arguments)
-
-class ASGMirClosureTypeNode(ASGTypeNode):
-    functionType = ASGNodeTypeInputNode()
-
-    def isMirClosureType(self) -> bool:
-        return True
-    
-    def asTopLevelMirType(self) -> bool:
-        return self.functionType
-
-    def asFunctionType(self) -> bool:
-        return self.functionType
-
 class ASGMacroFunctionTypeNode(ASGTypeNode):
     arguments = ASGNodeTypeInputNodes()
     resultType = ASGNodeTypeInputNode()
@@ -695,6 +664,37 @@ class ASGMirBaseTypeNode(ASGMirTypeNode):
             return self.name
         else:
             return super().prettyPrintNameWithDataAttributes()
+
+class ASGMirFunctionTypeNode(ASGMirTypeNode):
+    arguments = ASGNodeTypeInputNodes()
+    resultType = ASGNodeTypeInputNode()
+    isVariadic = ASGNodeDataAttribute(bool, default = False)
+    callingConvention = ASGNodeDataAttribute(str, default = None)
+    pure = ASGNodeDataAttribute(bool, default = False)
+
+    def isMirFunctionType(self) -> bool:
+        return True
+    
+    def asFunctionType(self) -> bool:
+        return self
+
+    def getFixedArgumentCount(self) -> int:
+        if self.isVariadic and len(self.arguments) > 0:
+            return len(self.arguments) - 1
+        else:
+            return len(self.arguments)
+
+class ASGMirClosureTypeNode(ASGMirTypeNode):
+    functionType = ASGNodeTypeInputNode()
+
+    def isMirClosureType(self) -> bool:
+        return True
+    
+    def asTopLevelMirType(self) -> bool:
+        return self.functionType
+
+    def asFunctionType(self) -> bool:
+        return self.functionType
 
 class ASGMirDerivedTypeNode(ASGMirTypeNode):
     baseType = ASGNodeTypeInputNode()

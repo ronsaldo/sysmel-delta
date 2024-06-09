@@ -15,6 +15,7 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
         self.builder = builder
         for typeName, mirTypeName in [
             ('Void', 'MIR::Void'),
+            ('Boolean', 'MIR::Boolean'),
             ('Int8',  'MIR::Int8'),
             ('Int16', 'MIR::Int16'),
             ('Int32', 'MIR::Int32'),
@@ -59,6 +60,13 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
         functionType = self.builder.forMirTypeExpansionBuild(self, node, ASGMirFunctionTypeNode, argumentTypes, resultType, isVariadic = node.isVariadic, callingConvention = node.callingConvention, pure = node.pure)
         return self.builder.forMirTypeExpansionBuild(self, node, ASGMirClosureTypeNode, functionType)
 
+    @asgPatternMatchingOnNodeKind(ASGFunctionTypeNode)
+    def expandFunctionTypeNode(self, node: ASGFunctionTypeNode) -> ASGNode:
+        arguments = list(map(self.expandNode, node.arguments))
+        resultType = self.expandNode(node.resultType)
+        functionType = self.builder.forMirTypeExpansionBuild(self, node, ASGMirFunctionTypeNode, arguments, resultType, isVariadic = node.isVariadic, callingConvention = node.callingConvention, pure = node.pure)
+        return self.builder.forMirTypeExpansionBuild(self, node, ASGMirClosureTypeNode, functionType)
+    
     def expandNode(self, node: ASGNode) -> ASGNode:
         return node
 
@@ -105,6 +113,10 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGLiteralStringDataNode)
     def expandLiteralStringDataNode(self, node: ASGLiteralStringDataNode) -> ASGNode:
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralStringDataNode, self.expandMirType(node.type), node.value)
+
+    @asgPatternMatchingOnNodeKind(ASGLiteralPrimitiveFunctionNode)
+    def expandLiteralPrimitiveFunctionNode(self, node: ASGLiteralPrimitiveFunctionNode) -> ASGNode:
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralPrimitiveFunctionNode, self.expandMirType(node.type).asTopLevelMirType(), node.compileTimeImplementation, pure = node.pure, compileTime = node.compileTime, alwaysInline = node.alwaysInline)
 
     @asgPatternMatchingOnNodeKind(ASGTopLevelScriptNode)
     def expandSyntaxFromTopLevelScriptNode(self, node: ASGTopLevelScriptNode) -> ASGNode:
