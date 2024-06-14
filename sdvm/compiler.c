@@ -1459,6 +1459,8 @@ SDVM_API sdvm_compilerLocation_t sdvm_compilerLocation_spillForOperandType(sdvm_
     case SdvmTypeInt64:
         return sdvm_compilerLocation_stackSignedInteger(8);
 
+    case SdvmTypeBoolean:
+        return sdvm_compilerLocation_stack(1, 1);
     case SdvmTypeUInt8:
         return sdvm_compilerLocation_stack(1, 1);
     case SdvmTypeUInt16:

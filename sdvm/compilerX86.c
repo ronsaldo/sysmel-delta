@@ -2072,7 +2072,6 @@ SDVM_API void sdvm_compiler_x86_shr16RegImm8(sdvm_compiler_t *compiler, sdvm_x86
 
 void sdvm_compiler_x86_mov8RmoReg(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t base, int32_t offset, sdvm_x86_registerIndex_t source)
 {
-    sdvm_compiler_x86_operandPrefix(compiler);
     sdvm_compiler_x86_rexByteRmReg(compiler, false, base, source);
     sdvm_compiler_x86_opcode(compiler, 0x88);
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, source);
@@ -2087,21 +2086,21 @@ void sdvm_compiler_x86_movzxReg32Reg8(sdvm_compiler_t *compiler, sdvm_x86_regist
 
 void sdvm_compiler_x86_movzxReg32Rmo8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
 {
-    sdvm_compiler_x86_rexByteRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
     sdvm_compiler_x86_opcode2(compiler, 0x0FB6);
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
 
 void sdvm_compiler_x86_movzxReg64Reg8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t source)
 {
-    sdvm_compiler_x86_rexByteRmReg(compiler, true, source, destination);
+    sdvm_compiler_x86_rexRmReg(compiler, true, source, destination);
     sdvm_compiler_x86_opcode2(compiler, 0x0FB6);
     sdvm_compiler_x86_modRmReg(compiler, source, destination);
 }
 
 void sdvm_compiler_x86_movzxReg64Rmo8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
 {
-    sdvm_compiler_x86_rexByteRmReg(compiler, true, base, destination);
+    sdvm_compiler_x86_rexRmReg(compiler, true, base, destination);
     sdvm_compiler_x86_opcode2(compiler, 0x0FB6);
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
@@ -2115,7 +2114,7 @@ void sdvm_compiler_x86_movsxReg32Reg8(sdvm_compiler_t *compiler, sdvm_x86_regist
 
 void sdvm_compiler_x86_movsxReg32Rmo8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
 {
-    sdvm_compiler_x86_rexByteRmReg(compiler, false, base, destination);
+    sdvm_compiler_x86_rexRmReg(compiler, false, base, destination);
     sdvm_compiler_x86_opcode2(compiler, 0x0FBE);
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
@@ -2129,7 +2128,7 @@ void sdvm_compiler_x86_movsxReg64Reg8(sdvm_compiler_t *compiler, sdvm_x86_regist
 
 void sdvm_compiler_x86_movsxReg64Rmo8(sdvm_compiler_t *compiler, sdvm_x86_registerIndex_t destination, sdvm_x86_registerIndex_t base, int32_t offset)
 {
-    sdvm_compiler_x86_rexByteRmReg(compiler, true, base, destination);
+    sdvm_compiler_x86_rexRmReg(compiler, true, base, destination);
     sdvm_compiler_x86_opcode2(compiler, 0x0FBE);
     sdvm_compiler_x86_modRmoReg(compiler, base, offset, destination);
 }
@@ -4499,6 +4498,9 @@ void sdvm_compiler_x64_emitMoveFromRegisterIntoStackLocation(sdvm_compiler_t *co
     case SdvmCompRegisterKindInteger:
         switch(sourceRegister->size)
         {
+        case 1:
+            sdvm_compiler_x86_mov8RmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
+            return;
         case 2:
             sdvm_compiler_x86_mov16RmoReg(compiler, stackLocation->framePointerRegister, stackLocation->framePointerOffset, sourceRegister->value);
             return;

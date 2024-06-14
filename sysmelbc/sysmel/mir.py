@@ -116,7 +116,7 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
 
     @asgPatternMatchingOnNodeKind(ASGLiteralPrimitiveFunctionNode)
     def expandLiteralPrimitiveFunctionNode(self, node: ASGLiteralPrimitiveFunctionNode) -> ASGNode:
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralPrimitiveFunctionNode, self.expandMirType(node.type).asTopLevelMirType(), node.compileTimeImplementation, pure = node.pure, compileTime = node.compileTime, alwaysInline = node.alwaysInline)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLiteralPrimitiveFunctionNode, self.expandMirType(node.type).asTopLevelMirType(), node.name, node.compileTimeImplementation, pure = node.pure, compileTime = node.compileTime, alwaysInline = node.alwaysInline)
 
     @asgPatternMatchingOnNodeKind(ASGTopLevelScriptNode)
     def expandSyntaxFromTopLevelScriptNode(self, node: ASGTopLevelScriptNode) -> ASGNode:
