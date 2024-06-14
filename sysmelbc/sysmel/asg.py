@@ -43,6 +43,16 @@ class ASGConditionalBranchNode(ASGSequenceDivergenceNode):
         yield self.trueDestination
         yield self.falseDestination
 
+class ASGSequenceBranchEndNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    divergence = ASGSequencingPredecessorAttribute()
+
+    def isBasicBlockEnd(self) -> bool:
+        return True
+
+    def directImmediateDominator(self):
+        return self.predecessor
+    
 class ASGSequenceConvergenceNode(ASGSequencingNode):
     divergence = ASGSequencingPredecessorAttribute()
     predecessors = ASGSequencingPredecessorsAttribute()

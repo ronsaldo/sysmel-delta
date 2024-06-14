@@ -206,6 +206,12 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         predecessors = self.expandNodes(node.predecessors)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, divergence = divergence, predecessors = predecessors)
 
+    @asgPatternMatchingOnNodeKind(ASGSequenceBranchEndNode)
+    def expandSequenceBranchEndNode(self, node: ASGSequenceBranchEndNode) -> ASGNode:
+        divergence = self.expandNode(node.divergence)
+        predecessor = self.expandNode(node.predecessor)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGSequenceBranchEndNode, predecessor = predecessor, divergence = divergence)
+
     @asgPatternMatchingOnNodeKind(ASGSequenceReturnNode)
     def expandSequenceReturnNode(self, node: ASGSequenceReturnNode) -> ASGNode:
         predecessor = self.expandNode(node.predecessor)

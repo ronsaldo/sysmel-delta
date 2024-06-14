@@ -22,7 +22,7 @@ def sdvmBinaryPrimitiveFor(sdvmInstructionDef: SdvmInstructionDef):
     def translate(functionTranslator: SDVMFunctionFrontEnd, resultType: ASGNode, functional: ASGLiteralPrimitiveFunctionNode, arguments: list[ASGNode], sourcePosition: SourcePosition):
         assert len(arguments) == 2
         left = functionTranslator.translateValue(arguments[0])
-        right = functionTranslator.translateValue(arguments[0])
+        right = functionTranslator.translateValue(arguments[1])
         return functionTranslator.function.addInstruction(SDVMInstruction(sdvmInstructionDef, left, right, sourcePosition = sourcePosition))
     return translate
 
@@ -665,6 +665,7 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
         self.environment = self.moduleFrontend.environment
         self.function: SDVMFunction = None
         self.instructionToSerializationIndexDictionary = {}
+        self.convergenceInstructionDictionary = {}
 
     def translateMirFunctionInto(self, mirFunction: ASGMirFunctionDefinitionNode, function: SDVMFunction):
         self.function = function
@@ -677,9 +678,13 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
 
         # Declare the labels and the phi nodes
         self.instructionToSerializationIndexDictionary = {}
+        self.mergeInstructionDictionary = {}
         for i in range(len(scheduledMirFunction.serializedInstructions)):
             instruction = scheduledMirFunction.serializedInstructions[i]
             self.instructionToSerializationIndexDictionary[instruction] = i
+            if instruction.isSequenceConvergenceNode():
+                self.convergenceInstructionDictionary[instruction.divergence] = instruction
+
             if instruction.isBasicBlockStart():
                 basicBlockLabel = SDVMInstruction(SdvmConstLabel, sourcePosition = instruction.sourceDerivation.getSourcePosition())
                 self.setValueForNodeExpansion(instruction, basicBlockLabel)
@@ -700,7 +705,7 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
 
     @asgPatternMatchingOnNodeKind(ASGArgumentNode)
     def translateMirArgument(self, node: ASGArgumentNode):
-        self.function.addArgumentInstruction(SDVMInstruction(node.type.getSDVMArgumentInstructionWith(self.moduleFrontend)))
+        return self.function.addArgumentInstruction(SDVMInstruction(node.type.getSDVMArgumentInstructionWith(self.moduleFrontend)))
 
     def translatePrimitiveApplicationWithArguments(self, resultType: ASGNode, functional: ASGLiteralPrimitiveFunctionNode, arguments: list[ASGNode], sourcePosition: SourcePosition):
         primitiveTranslator = self.moduleFrontend.sdvmPrimitiveFunctionTranslationTable[functional.name]
@@ -778,7 +783,13 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
         else:
             self.function.addInstruction(SDVMInstruction(SdvmInstJumpIfTrue, condition, trueDestinationLabel, sourcePosition = sourcePosition))
             self.function.addInstruction(SDVMInstruction(SdvmInstJump, falseDestinationLabel, sourcePosition = sourcePosition))
-    
+
+    @asgPatternMatchingOnNodeKind(ASGSequenceBranchEndNode)
+    def translateSequenceBranchEnd(self, node: ASGSequenceBranchEndNode):
+        convergence = self.convergenceInstructionDictionary[node.divergence]
+        convergenceLabel = self.translateValue(convergence)
+        self.function.addInstruction(SDVMInstruction(SdvmInstJump, convergenceLabel, sourcePosition = node.sourceDerivation.getSourcePosition()))
+
     @asgPatternMatchingOnNodeKind(ASGSequenceReturnNode)
     def translateSequenceReturn(self, node: ASGSequenceReturnNode):
         result = self.translateValue(node.value)

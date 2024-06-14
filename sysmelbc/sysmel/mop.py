@@ -855,6 +855,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isBasicBlockStart(self) -> bool:
         return False
 
+    def isBasicBlockEnd(self) -> bool:
+        return False
+
     def isPureCompileTimePrimitive(self) -> bool:
         return False
     

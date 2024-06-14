@@ -649,6 +649,9 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         falseEntryPoint, falseExitPoint, falseResult, falseBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.falseExpression)
         branch = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGConditionalBranchNode, condition, trueEntryPoint, falseEntryPoint, predecessor = self.builder.currentPredecessor)
 
+        trueExitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceBranchEndNode, predecessor = trueExitPoint, divergence = branch)
+        falseExitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceBranchEndNode, predecessor = falseExitPoint, divergence = branch)
+
         mergedBranchType = self.mergeTypesOfBranches([trueResult, falseResult])
         branchResult = None
         convergenceValues = []
