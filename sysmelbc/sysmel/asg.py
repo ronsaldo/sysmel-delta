@@ -47,6 +47,9 @@ class ASGSequenceBranchEndNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
     divergence = ASGSequencingPredecessorAttribute()
 
+    def getRegionOfUsedValue(self, usedValue):
+        return self.predecessor
+
     def isBasicBlockEnd(self) -> bool:
         return True
 

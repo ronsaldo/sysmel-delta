@@ -261,6 +261,11 @@ class GlobalCodeMotionAlgorithm:
                 for user in self.dataInstructionUserLists[i].users:
                     visitInstruction(user)
 
+        # Visit the remaining data instructions
+        for i in range(len(self.dataInstructions)):
+            if not visited[i]:
+                visitInstruction(self.dataInstructions[i])
+
     def computeBlockLCA(self, a, b):
         if a is None:
             return b
