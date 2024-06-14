@@ -697,6 +697,8 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
             if instruction.isBasicBlockStart() or instruction.isPhiNode():
                 self.function.addInstruction(instructionValue)
 
+        self.function.optimize()
+
     def translateValue(self, value):
         return self(value)
     

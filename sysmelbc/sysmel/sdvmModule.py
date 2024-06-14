@@ -648,6 +648,25 @@ class SDVMFunction:
     
     def constLocalProcedure(self, value) -> SDVMConstant:
         return self.const(SdvmConstLocalProcedureHandle, value, value.index)
+    
+    def removeJumpsToSuccessor(self):
+        optimizedInstructions = []
+        instructionCount = len(self.instructions)
+        for i in range(instructionCount):
+            instruction = self.instructions[i]
+            if i + 1 < instructionCount:
+                successor = self.instructions[i + 1]
+                if instruction.definition is SdvmInstJump and instruction.arg0 is successor:
+                    continue
+                elif instruction.definition is SdvmInstJumpIfTrue and instruction.arg1 is successor:
+                    continue
+                elif instruction.definition is SdvmInstJumpIfFalse and instruction.arg1 is successor:
+                    continue
+            optimizedInstructions.append(instruction)
+        self.instructions = optimizedInstructions
+
+    def optimize(self):
+        self.removeJumpsToSuccessor()
 
     def finishBuilding(self):
         if self.isFinished:
