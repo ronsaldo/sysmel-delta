@@ -774,10 +774,10 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
         sourcePosition = node.sourceDerivation.getSourcePosition()
         if self.isScheduledBeforeThanInclusive(node.trueDestination, node.falseDestination):
             self.function.addInstruction(SDVMInstruction(SdvmInstJumpIfFalse, condition, falseDestinationLabel, sourcePosition = sourcePosition))
-            self.function.addInstruction(SDVMInstruction(SdvmInstJump, condition, trueDestinationLabel, sourcePosition = sourcePosition))
+            self.function.addInstruction(SDVMInstruction(SdvmInstJump, trueDestinationLabel, sourcePosition = sourcePosition))
         else:
             self.function.addInstruction(SDVMInstruction(SdvmInstJumpIfTrue, condition, trueDestinationLabel, sourcePosition = sourcePosition))
-            self.function.addInstruction(SDVMInstruction(SdvmInstJump, condition, falseDestinationLabel, sourcePosition = sourcePosition))
+            self.function.addInstruction(SDVMInstruction(SdvmInstJump, falseDestinationLabel, sourcePosition = sourcePosition))
     
     @asgPatternMatchingOnNodeKind(ASGSequenceReturnNode)
     def translateSequenceReturn(self, node: ASGSequenceReturnNode):
