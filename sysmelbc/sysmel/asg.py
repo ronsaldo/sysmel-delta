@@ -427,6 +427,11 @@ class ASGFxApplicationNode(ASGSequencingAndDataNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
     
+    def interpretInContext(self, context, parameters):
+        functional = context[parameters[0]]
+        arguments = list(map(lambda x: context[x], parameters[1:]))
+        return functional(*arguments)
+
 class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
     value = ASGNodeDataInputPort()

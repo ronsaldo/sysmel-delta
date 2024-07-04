@@ -63,6 +63,14 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Launch (Linux x64 target)",
+            "program": "${workspaceFolder}/build/bin/sdvm",
+            "args": ["-v", "-target", "x86_64-linux-gnu", "-o", "test.o", "test.sdvm"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Launch (Linux AArch64 target)",
             "program": "${workspaceFolder}/build/bin/sdvm",
             "args": ["-v", "-target", "aarch64-linux-eabi", "-o", "test.aarch64.o", "test.sdvm"],

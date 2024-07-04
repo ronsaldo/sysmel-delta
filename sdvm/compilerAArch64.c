@@ -803,7 +803,7 @@ void sdvm_compiler_aarch64_computeInstructionLocationConstraints(sdvm_functionCo
     case SdvmInstUInt64GreaterThan:
     case SdvmInstUInt64GreaterOrEquals:
         instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, NULL, instruction->decoding.instruction.arg0Type);
-        instruction->arg0Location = sdvm_compilerLocation_forOperandType(compiler, NULL, instruction->decoding.instruction.arg0Type);
+        instruction->arg1Location = sdvm_compilerLocation_forOperandType(compiler, NULL, instruction->decoding.instruction.arg1Type);
         instruction->destinationLocation = sdvm_compilerLocation_integerRegister(1);
         instruction->allowArg0DestinationShare = true;
         instruction->allowArg1DestinationShare = true;
