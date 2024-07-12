@@ -182,6 +182,9 @@ class ASGSyntaxSequenceNode(ASGSyntaxNode):
 class ASGSyntaxTupleNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
 
+    def isSyntaxTupleNode(self) -> bool:
+        return self.elements
+
     def parseAndUnpackArgumentsPattern(self):
         isExistential = False
         isVariadic = False

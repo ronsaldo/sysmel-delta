@@ -469,12 +469,22 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         # Make an application node with the error.
         return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, errorType, functional, analyzedArguments)
 
+    def expandSingleProductTypeArguments(self, arguments: list[ASGNode], requiredAgumentCount: int, isVariadic: bool):
+        if requiredAgumentCount <= 1 or len(arguments) != 1:
+            return arguments
+
+        singleArgument = arguments[0]
+        if singleArgument.isSyntaxTupleNode():
+            return singleArgument.elements
+        return arguments
+
     def expandDependentApplicationWithType(self, node: ASGSyntaxApplicationNode, dependentType: ASGPiNode):
         self.syntaxPredecessorOf(node)
 
         substitutionAlgorithm = ASGBetaSubstitutionAlgorithm(ASGBetaSubstitutionContext(), self.builder)
         requiredArgumentCount = len(dependentType.arguments)
-        availableArgumentCount = len(node.arguments)
+        expandedArguments = self.expandSingleProductTypeArguments(node.arguments, requiredArgumentCount, dependentType.isVariadic)
+        availableArgumentCount = len(expandedArguments)
 
         # Analyze the functional.
         functional = self(node.functional)
@@ -484,7 +494,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         expectedType = None
         analyzedArguments = []
         for i in range(directCheckeableArgumentCount):
-            argumentValue: ASGNode = node.arguments[i]
+            argumentValue: ASGNode = expandedArguments[i]
             argumentSpecification: ASGArgumentNode = dependentType.arguments[i]
             expectedType = substitutionAlgorithm.expandNode(argumentSpecification.type)
             analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
@@ -496,6 +506,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             expectedType = None
         
         for i in range(directCheckeableArgumentCount, availableArgumentCount):
+            argumentValue: ASGNode = expandedArguments[i]
             analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
             analyzedArguments.append(analyzedArgument)
 
@@ -516,12 +527,13 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
                 return self.makeErrorAtNode('Required at least %d arguments for variadic application.' % requiredArgumentCount, node)
         
         return application
-
+    
     def expandFunctionApplicationWithType(self, node: ASGSyntaxApplicationNode, functionType: ASGFunctionTypeNode):
         self.syntaxPredecessorOf(node)
 
         requiredArgumentCount = len(functionType.arguments)
-        availableArgumentCount = len(node.arguments)
+        expandedArguments = self.expandSingleProductTypeArguments(node.arguments, requiredArgumentCount, functionType.isVariadic)
+        availableArgumentCount = len(expandedArguments)
 
         # Analyze the functional.
         functional = self(node.functional)
@@ -531,9 +543,11 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         expectedType: ASGNode = None
         analyzedArguments = []
         for i in range(directCheckeableArgumentCount):
-            argumentValue: ASGNode = node.arguments[i]
+            argumentValue: ASGNode = expandedArguments[i]
             expectedType = functionType.arguments[i]
             analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
+            if not typechecked and functionType.isVariadic:
+                pass
             analyzedArguments.append(analyzedArgument)
 
         # Analyze the remaining arguments
@@ -541,6 +555,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             expectedType = None
         
         for i in range(directCheckeableArgumentCount, availableArgumentCount):
+            argumentValue: ASGNode = expandedArguments[i]
             analyzedArgument, typechecked = self.analyzeNodeWithExpectedType(argumentValue, expectedType)
             analyzedArguments.append(analyzedArgument)
 

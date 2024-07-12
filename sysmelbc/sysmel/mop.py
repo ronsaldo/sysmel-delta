@@ -649,6 +649,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isSyntaxNode(self) -> bool:
         return False
 
+    def isSyntaxTupleNode(self) -> bool:
+        return False
+
     def isSequencingNode(self) -> bool:
         return False
 

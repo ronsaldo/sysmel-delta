@@ -18,13 +18,16 @@ fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)..
 
 external: #C export: (
     :main(:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) := {
-        printf("Hello World\n").
+        printf("Hello World: %d\n", argc).
 
+        ##:!i := 1i32.
+        #*
         if: argc >= 2i32 then: {
             printf("First branch\n").
         } else: {
             printf("Second branch\n").
         }.
+        *#
         
         0i32
     }.

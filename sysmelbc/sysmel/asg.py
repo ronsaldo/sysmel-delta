@@ -250,6 +250,9 @@ class ASGPrimitiveType(ASGBaseTypeNode):
     alignment = ASGNodeDataAttribute(int)
 
 class ASGPrimitiveCharacterTypeNode(ASGPrimitiveType):
+    def canBePassedAsCVarArgType(self) -> bool:
+        return True
+
     def normalizeValue(self, value):
         intValue = int(value)
         bitSize = self.size * 8
@@ -261,6 +264,9 @@ class ASGPrimitiveCharacterTypeNode(ASGPrimitiveType):
 
 class ASGPrimitiveIntegerTypeNode(ASGPrimitiveType):
     isSigned = ASGNodeDataAttribute(int)
+
+    def canBePassedAsCVarArgType(self) -> bool:
+        return True
 
     def normalizeValue(self, value):
         intValue = int(value)
@@ -276,6 +282,9 @@ class ASGPrimitiveIntegerTypeNode(ASGPrimitiveType):
         return ASGLiteralIntegerNode(derivation, self, self.normalizeValue(value))
 
 class ASGPrimitiveFloatTypeNode(ASGPrimitiveType):
+    def canBePassedAsCVarArgType(self) -> bool:
+        return True
+
     def normalizeValue(self, value):
         floatValue = float(value)
         if self.size == 2:
@@ -603,7 +612,8 @@ class ASGPointerLikeTypeNode(ASGDerivedTypeNode):
         return cls(derivation, baseType)
 
 class ASGPointerTypeNode(ASGPointerLikeTypeNode):
-    pass
+    def canBePassedAsCVarArgType(self) -> bool:
+        return True
 
 class ASGReferenceLikeTypeNode(ASGPointerLikeTypeNode):
     pass
