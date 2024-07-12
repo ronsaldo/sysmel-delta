@@ -20,7 +20,8 @@ external: #C export: (
     :main(:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) := {
         printf("Hello World: %d\n", argc).
 
-        ##:!i := 1i32.
+        :!i := 1i32.
+        printf("i %d\n", i).
         #*
         if: argc >= 2i32 then: {
             printf("First branch\n").

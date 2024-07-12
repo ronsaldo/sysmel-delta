@@ -265,6 +265,10 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     def expandSyntaxBindPatternNode(self, node: ASGSyntaxBindPatternNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         return self.fromNodeContinueExpanding(node, node.pattern.expandPatternWithValueAt(self, node.value, node))
+    
+    def decayAnalyzedValue(self, node: ASGNode):
+        # TODO: Implement this properly
+        return node
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxBindingDefinitionNode)
     def expandSyntaxBindindingDefinitionNode(self, node: ASGSyntaxBindingDefinitionNode) -> ASGTypecheckedNode:
@@ -273,6 +277,13 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         expectedType = self.analyzeOptionalTypeExpression(node.typeExpression)
         value, typechecked = self.analyzeNodeWithExpectedType(node.valueExpression, expectedType)
         value = value.asASGDataNode()
+        isMutable = node.isMutable
+        if node.isMutable:
+            decayedValueType = value.getTypeInEnvironment(self.environment).asDecayedType()
+            referenceType = self.builder.forSyntaxExpansionBuild(self, node, ASGReferenceTypeNode, decayedValueType)
+            alloca = self.builder.forSyntaxExpansionBuild(self, node, ASGAllocaNode, referenceType, decayedValueType)
+            self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGStoreNode, alloca, value, predecessor = self.builder.currentPredecessor)
+            value = alloca
         if name is None:
             return value
 
@@ -333,7 +344,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         entryPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
         scriptResult = self(node)
         exitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceReturnNode, scriptResult, predecessor = self.builder.currentPredecessor)
-        resultType = scriptResult.getTypeInEnvironment(self.builder)
+        resultType = scriptResult.getTypeInEnvironment(self.environment)
         return self.builder.forSyntaxExpansionBuild(self, node, ASGTopLevelScriptNode, resultType, entryPoint, exitPoint = exitPoint)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxPiNode)

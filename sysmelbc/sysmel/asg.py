@@ -120,6 +120,13 @@ class ASGTypedDataExpressionNode(ASGTypedExpressionNode):
     def isPureDataNode(self) -> bool:
         return True
 
+class ASGTypedStatefullExpressionNode(ASGTypedExpressionNode):
+    def isPureDataNode(self) -> bool:
+        return False
+
+    def isStatefullDataNode(self) -> bool:
+        return False
+
 class ASGMirTypedDataExpressionNode(ASGTypedExpressionNode):
     def isPureDataNode(self) -> bool:
         return True
@@ -441,6 +448,17 @@ class ASGFxApplicationNode(ASGSequencingAndDataNode):
         arguments = list(map(lambda x: context[x], parameters[1:]))
         return functional(*arguments)
 
+class ASGAllocaNode(ASGTypedStatefullExpressionNode):
+    valueType = ASGNodeTypeInputNode(str)
+
+class ASGLoadNode(ASGSequencingAndDataNode):
+    pointer = ASGNodeDataInputPort()
+
+class ASGStoreNode(ASGSequencingNode):
+    pointer = ASGNodeDataInputPort()
+    value = ASGNodeDataInputPort()
+    predecessor = ASGSequencingPredecessorAttribute()
+
 class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
     value = ASGNodeDataInputPort()
@@ -599,6 +617,9 @@ class ASGDecoratedTypeNode(ASGDerivedTypeNode):
         # TODO: Implement properly
         return baseType
 
+    def asUndecoratedType(self):
+        return self.baseType
+
 class ASGArrayTypeNode(ASGDerivedTypeNode):
     size = ASGNodeDataInputPort()
 
@@ -616,7 +637,8 @@ class ASGPointerTypeNode(ASGPointerLikeTypeNode):
         return True
 
 class ASGReferenceLikeTypeNode(ASGPointerLikeTypeNode):
-    pass
+    def asDecayedType(self):
+        return self.baseType.asUndecoratedType()
 
 class ASGReferenceTypeNode(ASGReferenceLikeTypeNode):
     pass

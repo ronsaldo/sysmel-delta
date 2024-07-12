@@ -645,7 +645,10 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def isPureDataNode(self) -> bool:
         raise Exception("Subclass responsibility isPureDataNode")
-    
+
+    def isStatefullDataNode(self) -> bool:
+        return False
+
     def isSyntaxNode(self) -> bool:
         return False
 
@@ -985,6 +988,12 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         return False
     
     def asTopLevelMirType(self):
+        return self
+    
+    def asDecayedType(self):
+        return self
+
+    def asUndecoratedType(self):
         return self
 
 class ASGUnificationComparisonNode:

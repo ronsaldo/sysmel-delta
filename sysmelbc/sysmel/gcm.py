@@ -131,7 +131,7 @@ class GlobalCodeMotionAlgorithm:
 
                     traverseNode(dependency)
 
-            if node.isPureDataNode():
+            if node.isPureDataNode() or node.isStatefullDataNode():
                 if node.isActivationContextParameterDataNode():
                     self.activationContextParameterInstructions.append(node)
                 elif node.isConstantDataNode():
