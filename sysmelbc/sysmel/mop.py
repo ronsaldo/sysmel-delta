@@ -966,6 +966,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
         return self.__constantDataNodeCache__
 
+    def isReferenceLikeType(self) -> bool:
+        return False
+
     def isSequenceConvergenceNode(self) -> bool:
         return False
 
@@ -992,7 +995,7 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     
     def asDecayedType(self):
         return self
-
+    
     def asUndecoratedType(self):
         return self
 

@@ -637,8 +637,20 @@ class ASGPointerTypeNode(ASGPointerLikeTypeNode):
         return True
 
 class ASGReferenceLikeTypeNode(ASGPointerLikeTypeNode):
+    def coerceExpressionIntoWith(self, expression, targetType, expander):
+        if not targetType.asUndecoratedType().isReferenceLikeType():
+            expandedExpression = expander(expression)
+            loadedValue = expander.builder.forSyntaxExpansionBuildAndSequence(expander, expression, ASGLoadNode, self.baseType, expandedExpression, predecessor = expander.builder.currentPredecessor)
+            loadedValue = expander.postProcessResult(loadedValue)
+            return targetType.coerceExpressionWith(loadedValue, expander)
+
+        return super().coerceExpressionIntoWith(expression, targetType, expander)
+
     def asDecayedType(self):
         return self.baseType.asUndecoratedType()
+    
+    def isReferenceLikeType(self) -> bool:
+        return True
 
 class ASGReferenceTypeNode(ASGReferenceLikeTypeNode):
     pass

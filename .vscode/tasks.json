@@ -30,7 +30,7 @@
         {
             "label": "Build Hello World Sample",
             "type": "shell",
-            "command": "./sysmelbc/sysmelbc.py -o 01-helloWorld samples/01-helloWorld.sysmel",
+            "command": "./sysmelbc/sysmelbc.py -o 01-helloWorld samples/01-asgHelloWorld.sysmel",
             "problemMatcher": ["$sysmelc"],
             "group": "build",
             "presentation": {
