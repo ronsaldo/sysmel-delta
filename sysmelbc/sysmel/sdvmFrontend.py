@@ -773,6 +773,45 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
     def translateMirFxApplication(self, node: ASGFxApplicationNode):
         return self.translateApplicationWithArguments(node.type, node.functional, node.arguments, node.sourceDerivation.getSourcePosition())
 
+    @asgPatternMatchingOnNodeKind(ASGAllocaNode)
+    def translateAllocaNode(self, node: ASGAllocaNode):
+        pointerType = node.type
+        if pointerType.isMirGCPointerType():
+            # TODO: Perform escape analysis
+            allocaInstruction = SdvmInstAllocateGC
+        else:
+            allocaInstruction = SdvmInstAllocateLocal
+
+        valueType = node.valueType
+        memoryDescriptor = valueType.getMemoryDescriptor()
+        sdvmMemoryDescriptor = self.moduleFrontend.module.addMemoryDescriptor(memoryDescriptor)
+        return self.function.addInstruction(SDVMInstruction(allocaInstruction, sdvmMemoryDescriptor, sourcePosition = node.sourceDerivation.getSourcePosition()))
+
+    @asgPatternMatchingOnNodeKind(ASGStoreNode)
+    def translateStoreNode(self, node: ASGStoreNode):
+        pointer = self(node.pointer)
+        value = self(node.value)
+        pointerType = node.pointer.getTypeInEnvironment(self.environment)
+        valueType = node.value.getTypeInEnvironment(self.environment)
+        if pointerType.isMirGCPointerType():
+            # TODO: Perform escape analysis
+            storeInstruction = valueType.getSDVMStoreGCInstructionWith(self.moduleFrontend)
+        else:
+            storeInstruction = valueType.getSDVMStoreInstructionWith(self.moduleFrontend)
+        return self.function.addInstruction(SDVMInstruction(storeInstruction, pointer, value, sourcePosition = node.sourceDerivation.getSourcePosition()))
+
+    @asgPatternMatchingOnNodeKind(ASGLoadNode)
+    def translateLoadNode(self, node: ASGLoadNode):
+        pointer = self(node.pointer)
+        pointerType = node.pointer.getTypeInEnvironment(self.environment)
+        valueType = node.type
+        if pointerType.isMirGCPointerType():
+            # TODO: Perform escape analysis
+            loadInstruction = valueType.getSDVMLoadGCInstructionWith(self.moduleFrontend)
+        else:
+            loadInstruction = valueType.getSDVMLoadInstructionWith(self.moduleFrontend)
+        return self.function.addInstruction(SDVMInstruction(loadInstruction, pointer, sourcePosition = node.sourceDerivation.getSourcePosition()))
+
     @asgPatternMatchingOnNodeKind(ASGConditionalBranchNode)
     def translateConditionalBranch(self, node: ASGConditionalBranchNode):
         condition = self.translateValue(node.condition)

@@ -1,6 +1,7 @@
 from .mop import *
 from .syntax import *
 from .sdvmInstructions import *
+from .memoryDescriptor import *
 
 class ASGTypecheckedNode(ASGNode):
     sourceDerivation = ASGNodeSourceDerivationAttribute()
@@ -125,7 +126,7 @@ class ASGTypedStatefullExpressionNode(ASGTypedExpressionNode):
         return False
 
     def isStatefullDataNode(self) -> bool:
-        return False
+        return True
 
 class ASGMirTypedDataExpressionNode(ASGTypedExpressionNode):
     def isPureDataNode(self) -> bool:
@@ -454,11 +455,23 @@ class ASGAllocaNode(ASGTypedStatefullExpressionNode):
 class ASGLoadNode(ASGSequencingAndDataNode):
     pointer = ASGNodeDataInputPort()
 
+    def getRegionOfUsedValue(self, usedValue):
+        return self.predecessor
+
+    def directImmediateDominator(self):
+        return self.predecessor
+
 class ASGStoreNode(ASGSequencingNode):
     pointer = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
 
+    def getRegionOfUsedValue(self, usedValue):
+        return self.predecessor
+
+    def directImmediateDominator(self):
+        return self.predecessor
+    
 class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
     value = ASGNodeDataInputPort()
@@ -689,11 +702,27 @@ class ASGMirFromExternalImportNode(ASGMirTypedDataExpressionNode):
         return True
 
 class ASGMirTypeNode(ASGTypeNode):
+    def __init__(self, *positionalArguments, **kwArguments) -> None:
+        super().__init__(*positionalArguments, **kwArguments)
+        self.memoryDescriptor = None
+
     def getTypeInEnvironment(self, environment) -> ASGTypecheckedNode:
         return environment.getTopLevelTargetEnvironment().getMirTypeUniverse()
     
     def getSDVMArgumentInstructionWith(self, moduleFrontend):
         return moduleFrontend.argumentInstructionDictionary[self]
+
+    def getSDVMLoadInstructionWith(self, moduleFrontend):
+        return moduleFrontend.loadInstructionDictionary[self]
+
+    def getSDVMLoadGCInstructionWith(self, moduleFrontend):
+        return moduleFrontend.loadGCInstructionDictionary[self]
+
+    def getSDVMStoreInstructionWith(self, moduleFrontend):
+        return moduleFrontend.storeInstructionDictionary[self]
+
+    def getSDVMStoreGCInstructionWith(self, moduleFrontend):
+        return moduleFrontend.storeGCInstructionDictionary[self]
 
     def getSDVMCallArgumentInstructionWith(self, moduleFrontend):
         return moduleFrontend.callArgumentInstructionDictionary[self]
@@ -706,11 +735,25 @@ class ASGMirTypeNode(ASGTypeNode):
 
     def getSDVMReturnInstructionWith(self, moduleFrontend):
         return moduleFrontend.returnInstructionDictionary[self]
+    
+    def getMemoryDescriptor(self):
+        if self.memoryDescriptor is None:
+            self.memoryDescriptor = self.buildMemoryDescriptor()
+        return self.memoryDescriptor
+    
+    def buildMemoryDescriptor(self):
+        return MemoryDescriptor(self.getSize(), self.getAlignment())
 
 class ASGMirBaseTypeNode(ASGMirTypeNode):
     name = ASGNodeDataAttribute(str)
     size = ASGNodeDataAttribute(int)
     alignment = ASGNodeDataAttribute(int)
+
+    def getSize(self) -> int:
+        return self.size
+
+    def getAlignment(self) -> int:
+        return self.alignment
 
     def isConstantDataNode(self) -> bool:
         return True
@@ -761,7 +804,13 @@ class ASGMirDerivedTypeNode(ASGMirTypeNode):
 class ASGMirArrayTypeNode(ASGMirDerivedTypeNode):
     size = ASGNodeDataInputPort()
     
+    def isMirArrayType(self):
+        return True
+
 class ASGMirPointerTypeNode(ASGMirDerivedTypeNode):
+    def isMirPointerType(self):
+        return True
+
     def getSDVMArgumentInstructionWith(self, moduleFrontend):
         return SdvmInstArgPointer
 
@@ -781,6 +830,9 @@ class ASGMirPointerTypeNode(ASGMirDerivedTypeNode):
         return self.baseType.asFunctionType()
 
 class ASGMirGCPointerTypeNode(ASGMirDerivedTypeNode):
+    def isMirGCPointerType(self):
+        return True
+
     def getSDVMArgumentInstructionWith(self, moduleFrontend):
         return SdvmInstArgGCPointer
 

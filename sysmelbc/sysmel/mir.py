@@ -212,6 +212,26 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         predecessor = self.expandNode(node.predecessor)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGSequenceBranchEndNode, predecessor = predecessor, divergence = divergence)
 
+    @asgPatternMatchingOnNodeKind(ASGAllocaNode)
+    def expandAllocaNode(self, node: ASGAllocaNode) -> ASGNode:
+        mirType = self.expandMirType(node.type)
+        mirValueType = self.expandMirType(node.valueType)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGAllocaNode, mirType, mirValueType)
+
+    @asgPatternMatchingOnNodeKind(ASGLoadNode)
+    def expandLoadNode(self, node: ASGLoadNode) -> ASGNode:
+        predecessor = self.expandNode(node.predecessor)
+        pointer = self.expandNode(node.pointer)
+        mirType = self.expandMirType(node.type)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoadNode, mirType, pointer, predecessor = predecessor)
+
+    @asgPatternMatchingOnNodeKind(ASGStoreNode)
+    def expandStoreNode(self, node: ASGStoreNode) -> ASGNode:
+        predecessor = self.expandNode(node.predecessor)
+        pointer = self.expandNode(node.pointer)
+        value = self.expandNode(node.value)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGStoreNode, pointer, value, predecessor = predecessor)
+
     @asgPatternMatchingOnNodeKind(ASGSequenceReturnNode)
     def expandSequenceReturnNode(self, node: ASGSequenceReturnNode) -> ASGNode:
         predecessor = self.expandNode(node.predecessor)
