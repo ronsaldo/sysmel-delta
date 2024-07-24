@@ -44,12 +44,40 @@ class ASGConditionalBranchNode(ASGSequenceDivergenceNode):
         yield self.trueDestination
         yield self.falseDestination
 
-class ASGSequenceBranchEndNode(ASGSequencingNode):
-    predecessor = ASGSequencingPredecessorAttribute()
-    divergence = ASGSequencingPredecessorAttribute()
+class ASGLoopEntryNode(ASGSequenceDivergenceNode):
+    entryDestination = ASGSequencingDestinationPort()
+    continueDestination = ASGSequencingDestinationPort()
 
     def getRegionOfUsedValue(self, usedValue):
         return self.predecessor
+
+    def divergenceDestinations(self):
+        yield self.entryDestination
+        yield self.continueDestination
+
+class ASGLoopBreakNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    loop = ASGSequencingPredecessorAttribute()
+
+    def isBasicBlockEnd(self) -> bool:
+        return True
+
+    def directImmediateDominator(self):
+        return self.predecessor
+
+class ASGLoopContinueNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    loop = ASGSequencingPredecessorAttribute()
+
+    def isBasicBlockEnd(self) -> bool:
+        return True
+
+    def directImmediateDominator(self):
+        return self.predecessor
+
+class ASGSequenceBranchEndNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    divergence = ASGSequencingPredecessorAttribute()
 
     def isBasicBlockEnd(self) -> bool:
         return True

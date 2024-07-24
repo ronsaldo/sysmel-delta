@@ -199,6 +199,16 @@ class ASGSyntaxIfThenElseNode(ASGSyntaxNode):
     trueExpression = ASGNodeOptionalDataInputPort()
     falseExpression = ASGNodeOptionalDataInputPort()
 
+class ASGSyntaxDoContinueWithWhileNode(ASGSyntaxNode):
+    body = ASGNodeOptionalDataInputPort()
+    continueExpression = ASGNodeOptionalDataInputPort()
+    condition = ASGNodeOptionalDataInputPort()
+
+class ASGSyntaxWhileDoContinueWithNode(ASGSyntaxNode):
+    condition = ASGNodeOptionalDataInputPort()
+    body = ASGNodeOptionalDataInputPort()
+    continueExpression = ASGNodeOptionalDataInputPort()
+
 class ASGSyntaxExportName(ASGSyntaxNode):
     externalName = ASGNodeOptionalDataInputPort()
     exportedName = ASGNodeDataInputPort()

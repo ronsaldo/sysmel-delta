@@ -239,7 +239,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             else:
                 return self.fromNodeContinueExpanding(node, ASGSyntaxBindPatternNode(derivation, bindableNameNode, node.value, allowsRebind = False))
 
-        selector = ASGLiteralSymbolNode(self.builder.topLevelIdentifier('Symbol'), ':=')
+        selector = ASGLiteralSymbolNode(ASGNodeSyntaxExpansionDerivation(self, node), self.builder.topLevelIdentifier('Symbol'), ':=')
         return self.fromNodeContinueExpanding(node, ASGSyntaxMessageSendNode(derivation, store, selector, [node.value]))
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxBinaryExpressionSequenceNode)
@@ -695,6 +695,33 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, self.builder.topLevelIdentifier('Void'))
         else:
             return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPhiNode, mergedBranchType, phiIncomingValues, predecessor = convergence)
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxDoContinueWithWhileNode)
+    def expandSyntaxDoContinueWithWhileNode(self, node: ASGSyntaxDoContinueWithWhileNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+
+        bodyEntryPoint, bodyExitPoint, bodyResult, trueBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.body)
+        # continueEntryPoint, continueExitPoint, continueResult, continueBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.continueExpression)
+        # conditionEntryPoint, conditionExitPoint, conditionResult, conditionBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.condition)
+
+        # loop = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLoopEntryNode, bodyEntryPoint, continueEntryPoint, predecessor = self.builder.currentPredecessor)
+        #bodyExitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLoopContinueNode, predecessor = bodyExitPoint, loop = loop)
+        #falseExitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceBranchEndNode, predecessor = falseExitPoint, divergence = branch)
+
+        assert False
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxWhileDoContinueWithNode)
+    def expandSyntaxWhileDoContinueWith(self, node: ASGSyntaxWhileDoContinueWithNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        derivation = ASGNodeSyntaxExpansionDerivation(self, node)
+
+        # Loop inversion. We perform loop inversion at this level to take advantage of Global Code Motion for loop invariant optimization.
+        doWhileLoop = ASGSyntaxDoContinueWithWhileNode(derivation, node.body, node.continueExpression, node.condition)
+        if node.condition is None:
+            return self.fromNodeContinueExpanding(node, doWhileLoop)
+
+        firstIterationCondition = ASGSyntaxIfThenElseNode(derivation, node.condition, doWhileLoop, None)
+        return self.fromNodeContinueExpanding(node, firstIterationCondition)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
     def expandSyntaxSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:

@@ -20,8 +20,12 @@ external: #C export: (
     :main(:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) := {
         printf("Hello World: %d\n", argc).
 
-        :!i := 1i32.
-        printf("i %d\n", i).
+        :!i := 0i32.
+        while: (i < argc) do: {
+            printf("i %d\n", i).
+            ##printf("%d loop body: %s\n", i, argv[i asSize]).
+        } continueWith: (#* i := i + 1i32 *#).
+
         #*
         if: argc >= 2i32 then: {
             printf("First branch\n").

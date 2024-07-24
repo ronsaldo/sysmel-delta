@@ -186,6 +186,10 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addPrimitiveFunctionsWithDesc([
             ('if:then:',  'ControlFlow::if:then:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.ifThenMacro),
             ('if:then:else:',  'ControlFlow::if:then:',  (('ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.ifThenElseMacro),
+            ('do:while:',  'ControlFlow::do:while:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.doWhileMacro),
+            ('do:continueWith:while:',  'ControlFlow::do:continueWith:while:',  (('ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.doContinueWithWhileMacro),
+            ('while:do:',  'ControlFlow::while:do:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.whileDoMacro),
+            ('while:do:continueWith:',  'ControlFlow::while:do:continueWith:',  (('ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.whileDoContinueWithMacro),
         ])
 
     def ifThenMacro(self, macroContext: ASGMacroContext, condition: ASGNode, ifTrue: ASGNode) -> ASGNode:
@@ -193,6 +197,18 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
 
     def ifThenElseMacro(self, macroContext: ASGMacroContext, condition: ASGNode, ifTrue: ASGNode, ifFalse: ASGNode) -> ASGNode:
         return ASGSyntaxIfThenElseNode(macroContext.derivation, condition, ifTrue, ifFalse)
+
+    def doWhileMacro(self, macroContext: ASGMacroContext, body: ASGNode, condition: ASGNode) -> ASGNode:
+        return ASGSyntaxDoContinueWithWhileNode(macroContext.derivation, body, None, condition)
+
+    def doContinueWithWhileMacro(self, macroContext: ASGMacroContext, body: ASGNode, continueNode: ASGNode, condition: ASGNode) -> ASGNode:
+        return ASGSyntaxDoContinueWithWhileNode(macroContext.derivation, body, continueNode, condition)
+
+    def whileDoMacro(self, macroContext: ASGMacroContext, condition: ASGNode, body: ASGNode) -> ASGNode:
+        return ASGSyntaxWhileDoContinueWithNode(macroContext.derivation, condition, body, None)
+
+    def whileDoContinueWithMacro(self, macroContext: ASGMacroContext, condition: ASGNode, body: ASGNode, continueNode: ASGNode) -> ASGNode:
+        return ASGSyntaxWhileDoContinueWithNode(macroContext.derivation, condition, body, continueNode)
 
     def addTypeConstructors(self):
         self.addPrimitiveFunctionsWithDesc([
