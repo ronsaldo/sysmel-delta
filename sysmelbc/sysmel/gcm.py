@@ -96,9 +96,9 @@ class GlobalCodeMotionAlgorithm:
         self.idoms = list(map(lambda r: self.regionToIndexDictionary.get(r.directImmediateDominator(), None), regions))
         for regionIndex in range(len(regions)):
             region = regions[regionIndex]
-            for divergenceDestination in region.divergenceDestinations():
+            for divergenceDestination in region.immediateDivergenceDestinations():
                 destinationIndex = self.regionToIndexDictionary[divergenceDestination]
-                assert self.idoms[destinationIndex] is None
+                assert self.idoms[destinationIndex] is None or self.idoms[destinationIndex] == regionIndex
                 self.idoms[destinationIndex] = regionIndex
 
         # Dominance tree depths.

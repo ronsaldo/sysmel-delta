@@ -666,6 +666,9 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
         self.function: SDVMFunction = None
         self.instructionToSerializationIndexDictionary = {}
         self.convergenceInstructionDictionary = {}
+        self.loopEntryLabelMap = {}
+        self.loopContinueLabelMap = {}
+        self.loopBreakLabelMap = {}
 
     def translateMirFunctionInto(self, mirFunction: ASGMirFunctionDefinitionNode, function: SDVMFunction):
         self.function = function
@@ -824,6 +827,43 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
         else:
             self.function.addInstruction(SDVMInstruction(SdvmInstJumpIfTrue, condition, trueDestinationLabel, sourcePosition = sourcePosition))
             self.function.addInstruction(SDVMInstruction(SdvmInstJump, falseDestinationLabel, sourcePosition = sourcePosition))
+
+    @asgPatternMatchingOnNodeKind(ASGLoopEntryNode)
+    def translateLoopEntryNode(self, node: ASGLoopEntryNode):
+        entryDestinationLabel = self.translateValue(node.entryDestination)
+        continueDestinationLabel = self.translateValue(node.continueDestination)
+        breakDestinationLabel = self.translateValue(self.convergenceInstructionDictionary[node])
+        
+        self.loopContinueLabelMap[node.entryDestination] = continueDestinationLabel
+        self.loopBreakLabelMap[node] = breakDestinationLabel
+        self.loopBreakLabelMap[node.entryDestination] = breakDestinationLabel
+
+        sourcePosition = node.sourceDerivation.getSourcePosition()
+        self.function.addInstruction(SDVMInstruction(SdvmInstJump, entryDestinationLabel, sourcePosition = sourcePosition))
+
+    @asgPatternMatchingOnNodeKind(ASGLoopBreakNode)
+    def translateLoopBreak(self, node: ASGLoopBreakNode):
+        breakLabel = self.loopBreakLabelMap[node.loopBodyEntry]
+        sourcePosition = node.sourceDerivation.getSourcePosition()
+        self.function.addInstruction(SDVMInstruction(SdvmInstJump, breakLabel, sourcePosition = sourcePosition))
+
+    @asgPatternMatchingOnNodeKind(ASGLoopContinueNode)
+    def translateLoopContinueNode(self, node: ASGLoopContinueNode):
+        continueLabel = self.loopContinueLabelMap[node.loopBodyEntry]
+        sourcePosition = node.sourceDerivation.getSourcePosition()
+        self.function.addInstruction(SDVMInstruction(SdvmInstJump, continueLabel, sourcePosition = sourcePosition))
+
+    @asgPatternMatchingOnNodeKind(ASGLoopIterationEndNode)
+    def translateLoopIterationEndNode(self, node: ASGLoopIterationEndNode):
+        entryLabel = self.translateValue(node.loop.entryDestination)
+        sourcePosition = node.sourceDerivation.getSourcePosition()
+        if node.continueCondition is not None:
+            breakLabel = self.loopBreakLabelMap[node.loop]
+            condition = self.translateValue(node.continueCondition)
+            self.function.addInstruction(SDVMInstruction(SdvmInstJumpIfTrue, condition, entryLabel, sourcePosition = sourcePosition))
+            self.function.addInstruction(SDVMInstruction(SdvmInstJump, breakLabel, sourcePosition = sourcePosition))
+        else:
+            self.function.addInstruction(SDVMInstruction(SdvmInstJump, entryLabel, sourcePosition = sourcePosition))
 
     @asgPatternMatchingOnNodeKind(ASGSequenceBranchEndNode)
     def translateSequenceBranchEnd(self, node: ASGSequenceBranchEndNode):

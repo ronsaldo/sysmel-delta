@@ -735,7 +735,10 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
     def divergenceDestinations(self):
         return ()
-    
+
+    def immediateDivergenceDestinations(self):
+        return self.divergenceDestinations()
+
     def printNameWithDataAttributes(self) -> str:
         result = self.__class__.__asgKindName__
         attributes: list[ASGNodeAttributeDescriptor] = self.__class__.__asgDataAttributes__

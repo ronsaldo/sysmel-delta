@@ -189,7 +189,7 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGMirLambdaNode, mirType, definition, [], name = node.name)
 
     @asgPatternMatchingOnNodeKind(ASGSequenceEntryNode)
-    def expandSequenceEntryNode(self, node: ASGTypeNode) -> ASGNode:
+    def expandSequenceEntryNode(self, node: ASGSequenceEntryNode) -> ASGNode:
         return node
 
     @asgPatternMatchingOnNodeKind(ASGConditionalBranchNode)
@@ -217,6 +217,42 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         mirType = self.expandMirType(node.type)
         mirValueType = self.expandMirType(node.valueType)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGAllocaNode, mirType, mirValueType)
+
+    @asgPatternMatchingOnNodeKind(ASGLoopBodyEntry)
+    def expandLoopBodyEntry(self, node: ASGLoopBodyEntry) -> ASGNode:
+        return node
+
+    @asgPatternMatchingOnNodeKind(ASGLoopBreakNode)
+    def expandLoopBreakNode(self, node: ASGLoopBreakNode) -> ASGNode:
+        predecessor = self.expandNode(node.predecessor)
+        loopBodyEntry = self.expandNode(node.loopBodyEntry)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopBreakNode, predecessor, loopBodyEntry)
+
+    @asgPatternMatchingOnNodeKind(ASGLoopContinueNode)
+    def expandLoopContinueNode(self, node: ASGLoopContinueNode) -> ASGNode:
+        predecessor = self.expandNode(node.predecessor)
+        loopBodyEntry = self.expandNode(node.loopBodyEntry)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopContinueNode, predecessor, loopBodyEntry)
+
+    @asgPatternMatchingOnNodeKind(ASGLoopContinueEntry)
+    def expandLoopContinueEntry(self, node: ASGLoopContinueEntry) -> ASGNode:
+        divergence = self.expandNode(node.divergence)
+        predecessors = self.expandNodes(node.predecessors)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopContinueEntry, divergence = divergence, predecessors = predecessors)
+
+    @asgPatternMatchingOnNodeKind(ASGLoopEntryNode)
+    def expandLoopEntryNode(self, node: ASGLoopEntryNode) -> ASGNode:
+        predecessor = self.expandNode(node.predecessor)
+        entryDestination = self.expandNode(node.entryDestination)
+        continueDestination = self.expandNode(node.continueDestination)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopEntryNode, entryDestination, continueDestination, predecessor = predecessor)
+
+    @asgPatternMatchingOnNodeKind(ASGLoopIterationEndNode)
+    def expandLoopIterationEndNode(self, node: ASGLoopIterationEndNode) -> ASGNode:
+        continueCondition = self.expandNode(node.continueCondition)
+        predecessor = self.expandNode(node.predecessor)
+        loop = self.expandNode(node.loop)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopIterationEndNode, continueCondition, predecessor, loop)
 
     @asgPatternMatchingOnNodeKind(ASGLoadNode)
     def expandLoadNode(self, node: ASGLoadNode) -> ASGNode:

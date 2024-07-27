@@ -48,18 +48,21 @@ class ASGLoopEntryNode(ASGSequenceDivergenceNode):
     entryDestination = ASGSequencingDestinationPort()
     continueDestination = ASGSequencingDestinationPort()
 
-    def getRegionOfUsedValue(self, usedValue):
-        return self.predecessor
-
     def divergenceDestinations(self):
         yield self.entryDestination
         yield self.continueDestination
+
+    def immediateDivergenceDestinations(self):
+        yield self.entryDestination
 
 class ASGLoopIterationEndNode(ASGSequencingNode):
     continueCondition = ASGNodeOptionalDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
     loop = ASGSequencingPredecessorAttribute()
 
+    def getRegionOfUsedValue(self, usedValue):
+        return self.predecessor
+    
     def isBasicBlockEnd(self) -> bool:
         return True
 
