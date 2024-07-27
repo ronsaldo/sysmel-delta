@@ -643,6 +643,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isBottomTypeNode(self) -> bool:
         return False
 
+    def isUnitTypeNode(self) -> bool:
+        return False
+
     def isPureDataNode(self) -> bool:
         raise Exception("Subclass responsibility isPureDataNode")
 
@@ -970,6 +973,18 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         return False
 
     def isSequenceConvergenceNode(self) -> bool:
+        return False
+
+    def isSequenceTerminatorNode(self) -> bool:
+        return False
+
+    def isLoopBreakNode(self) -> bool:
+        return False
+
+    def isLoopContinueNode(self) -> bool:
+        return False
+
+    def isSequenceReturnNode(self) -> bool:
         return False
 
     def interpretInContext(self, context, parameters):

@@ -12,6 +12,18 @@ class ASGEnvironment(ABC):
     def lookSymbolBindingListRecursively(self, symbol: str):
         pass
 
+    @abstractmethod
+    def findCurrentLoopBodyEntryNode(self) -> ASGNode:
+        pass
+    
+    @abstractmethod
+    def addBreakNodeToCurrentLoop(self, node: ASGLoopBreakNode):
+        pass
+
+    @abstractmethod
+    def addContinueNodeToCurrentLoop(self, node: ASGLoopContinueNode):
+        pass
+
     def isLexicalEnvironment(self):
         return False
 
@@ -221,6 +233,15 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
             ('tempRef', 'Type::pointer', (('Type',), 'Type'),  ['compileTime', 'pure', 'alwaysInline'], ASGTemporaryReferenceTypeNode.constructorImpl),
         ])
 
+    def findCurrentLoopBodyEntryNode(self) -> ASGNode:
+        return None
+    
+    def addBreakNodeToCurrentLoop(self, node: ASGLoopBreakNode):
+        raise Exception("Not in a loop")
+
+    def addContinueNodeToCurrentLoop(self, node: ASGLoopContinueNode):
+        raise Exception("Not in a loop")
+
     def addPrimitiveTypeFunctions(self):
         primitiveCharacterTypes = list(map(self.lookValidLastBindingOf, [
             'Char8', 'Char16', 'Char32'
@@ -382,6 +403,15 @@ class ASGChildEnvironment(ASGEnvironment):
     def lookSymbolBindingListRecursively(self, symbol: str):
         return self.parent.lookSymbolBindingListRecursively(symbol)
 
+    def findCurrentLoopBodyEntryNode(self) -> ASGNode:
+        return self.parent.findCurrentLoopBodyEntryNode()
+    
+    def addBreakNodeToCurrentLoop(self, node: ASGLoopBreakNode):
+        return self.parent.addBreakNodeToCurrentLoop(node)
+
+    def addContinueNodeToCurrentLoop(self, node: ASGLoopContinueNode):
+        return self.parent.addContinueNodeToCurrentLoop(node)
+
 class ASGChildEnvironmentWithBindings(ASGChildEnvironment):
     def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
         super().__init__(parent, sourcePosition)
@@ -406,6 +436,22 @@ class ASGChildEnvironmentWithBindings(ASGChildEnvironment):
 class ASGLexicalEnvironment(ASGChildEnvironment):
     def isLexicalEnvironment(self):
         return True
+
+class ASGLoopBodyEnvironment(ASGLexicalEnvironment):
+    def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
+        super().__init__(parent, sourcePosition)
+        self.loopBodyEntryNode: ASGNode = None
+        self.breakNodes: list[ASGNode] = []
+        self.continueNodes: list[ASGNode] = []
+
+    def findCurrentLoopBodyEntryNode(self) -> ASGNode:
+        return self.loopBodyEntryNode
+    
+    def addBreakNodeToCurrentLoop(self, node: ASGLoopBreakNode):
+        self.breakNodes.append(node)
+
+    def addContinueNodeToCurrentLoop(self, node: ASGLoopContinueNode):
+        self.continueNodes.append(node)
 
 class ASGFunctionalAnalysisEnvironment(ASGLexicalEnvironment):
     def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:

@@ -648,11 +648,19 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         exitPoint = branchAnalyzer.builder.currentPredecessor
         return entryPoint, exitPoint, branchResult, branchAnalyzer
 
-    def analyzeOptionalDivergentBranchExpression(self, node: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
-        if node is not None:
-            return self.analyzeDivergentBranchExpression(node)
+    def analyzeOptionalDivergentBranchExpression(self, divergenceNode: ASGNode, branchNode: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
+        expansionNode = branchNode
+        if branchNode is None:
+            expansionNode = divergenceNode        
         
-        assert False
+        branchAnalyzer = self.withDivergingEnvironment(ASGLexicalEnvironment(self.environment, expansionNode.sourceDerivation.getSourcePosition()))
+        entryPoint = branchAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, expansionNode, ASGSequenceEntryNode)
+        if branchNode is not None:
+            branchResult = branchAnalyzer(branchNode)
+        else:
+            branchResult = self.expandVoidConstantFor(expansionNode)
+        exitPoint = branchAnalyzer.builder.currentPredecessor
+        return entryPoint, exitPoint, branchResult, branchAnalyzer
         
     def mergeTypesOfBranches(self, branches: list[ASGNode]):
         if len(branches) == 0:
@@ -671,8 +679,8 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     def expandSyntaxIfThenElseNode(self, node: ASGSyntaxIfThenElseNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         condition, typechecked = self.analyzeBooleanCondition(node.condition)
-        trueEntryPoint, trueExitPoint, trueResult, trueBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.trueExpression)
-        falseEntryPoint, falseExitPoint, falseResult, falseBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.falseExpression)
+        trueEntryPoint, trueExitPoint, trueResult, trueBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node, node.trueExpression)
+        falseEntryPoint, falseExitPoint, falseResult, falseBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node, node.falseExpression)
         branch = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGConditionalBranchNode, condition, trueEntryPoint, falseEntryPoint, predecessor = self.builder.currentPredecessor)
 
         trueExitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceBranchEndNode, predecessor = trueExitPoint, divergence = branch)
@@ -682,33 +690,80 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         branchResult = None
         convergenceValues = []
         phiIncomingValues = None
-        if mergedBranchType is not None:
+
+        # If failed to merge the branch result type, emit unit.
+        if mergedBranchType is None:
+            mergedBranchType = self.builder.topLevelIdentifier('Void')
+
+        if not mergedBranchType.isUnitTypeNode():
             phiIncomingValues = [
                 self.builder.forSyntaxExpansionBuild(self, node, ASGPhiValueNode, mergedBranchType, trueResult, predecessor = trueExitPoint),
                 self.builder.forSyntaxExpansionBuild(self, node, ASGPhiValueNode, mergedBranchType, falseResult, predecessor = falseExitPoint),
             ]
 
-
         convergence = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, divergence = branch, predecessors = [trueExitPoint, falseExitPoint])
-        if mergedBranchType is None:
-            # Failed to merge the branch types. Emit void.
-            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, self.builder.topLevelIdentifier('Void'))
+        if mergedBranchType.isUnitTypeNode():
+            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, mergedBranchType)
         else:
             return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGPhiNode, mergedBranchType, phiIncomingValues, predecessor = convergence)
 
+    def analyzeOptionalLoopBodyExpression(self, loopNode: ASGNode, bodyNode: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
+        expansionNode = bodyNode
+        if bodyNode is None:
+            expansionNode = loopNode
+
+        loopBodyEnvironment = ASGLoopBodyEnvironment(self.environment, expansionNode.sourceDerivation.getSourcePosition())
+        bodyAnalyzer = self.withDivergingEnvironment(loopBodyEnvironment)
+        entryPoint = bodyAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, expansionNode, ASGLoopBodyEntry)
+        loopBodyEnvironment.loopBodyEntryNode = entryPoint
+
+        if bodyNode is not None:
+            bodyAnalyzer(bodyNode)
+
+        exitPoint = bodyAnalyzer.builder.currentPredecessor
+        if not exitPoint.isSequenceTerminatorNode():
+            implicitContinue = bodyAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, expansionNode, ASGLoopContinueNode, exitPoint, entryPoint)
+            bodyAnalyzer.environment.addContinueNodeToCurrentLoop(implicitContinue)
+        return entryPoint, loopBodyEnvironment.breakNodes, loopBodyEnvironment.continueNodes
+
+    def analyzeOptionalLoopContinueExpression(self, loopNode: ASGNode, loopBodyEntryNode: ASGNode, continueNodes: list[ASGNode], continueExpressionNode: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
+        expansionNode = continueExpressionNode
+        if continueExpressionNode is None:
+            expansionNode = loopNode
+
+        continueAnalyzer = self.withDivergingEnvironment(ASGLexicalEnvironment(self.environment, expansionNode.sourceDerivation.getSourcePosition()))
+        entryPoint = continueAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, expansionNode, ASGLoopContinueEntry, loopBodyEntryNode, continueNodes)
+        if continueExpressionNode is not None:
+            continueAnalyzer(continueExpressionNode)
+
+        exitPoint = continueAnalyzer.builder.currentPredecessor
+        return entryPoint, exitPoint
+
+    def analyzeOptionalLoopConditionExpression(self, loopExpressionNode: ASGNode, loopNode: ASGNode, predecessor: ASGNode, conditionExpression: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
+        expansionNode = conditionExpression
+        if conditionExpression is None:
+            expansionNode = loopExpressionNode
+
+        conditionAnalyzer = self.withDivergingEnvironment(ASGLexicalEnvironment(self.environment, expansionNode.sourceDerivation.getSourcePosition()))
+        conditionAnalyzer.builder.currentPredecessor = predecessor
+        conditionValue = None
+        if conditionExpression is not None:
+            conditionValue, typechecked = conditionAnalyzer.analyzeBooleanCondition(conditionExpression)
+
+        return conditionAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, expansionNode, ASGLoopIterationEndNode, conditionValue, conditionAnalyzer.builder.currentPredecessor, loopNode)
+    
     @asgPatternMatchingOnNodeKind(ASGSyntaxDoContinueWithWhileNode)
     def expandSyntaxDoContinueWithWhileNode(self, node: ASGSyntaxDoContinueWithWhileNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
 
-        bodyEntryPoint, bodyExitPoint, bodyResult, trueBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.body)
-        # continueEntryPoint, continueExitPoint, continueResult, continueBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.continueExpression)
-        # conditionEntryPoint, conditionExitPoint, conditionResult, conditionBranchAnalyzer = self.analyzeOptionalDivergentBranchExpression(node.condition)
+        loopBodyEntryNode, breakNodes, continueNodes = self.analyzeOptionalLoopBodyExpression(node, node.body)
+        loopContinueEntryNode, continueExitNode = self.analyzeOptionalLoopContinueExpression(node, loopBodyEntryNode, continueNodes, node.continueExpression)
 
-        # loop = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLoopEntryNode, bodyEntryPoint, continueEntryPoint, predecessor = self.builder.currentPredecessor)
-        #bodyExitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLoopContinueNode, predecessor = bodyExitPoint, loop = loop)
-        #falseExitPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceBranchEndNode, predecessor = falseExitPoint, divergence = branch)
+        loopNode = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLoopEntryNode, loopBodyEntryNode, loopContinueEntryNode, predecessor = self.builder.currentPredecessor)
+        loopIterationEndNode = self.analyzeOptionalLoopConditionExpression(node, loopNode, continueExitNode, node.condition)
 
-        assert False
+        self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceConvergenceNode, divergence = loopNode, predecessors = breakNodes + [loopIterationEndNode])
+        return self.expandVoidConstantFor(node)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxWhileDoContinueWithNode)
     def expandSyntaxWhileDoContinueWith(self, node: ASGSyntaxWhileDoContinueWithNode) -> ASGTypecheckedNode:
@@ -722,13 +777,16 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
         firstIterationCondition = ASGSyntaxIfThenElseNode(derivation, node.condition, doWhileLoop, None)
         return self.fromNodeContinueExpanding(node, firstIterationCondition)
+    
+    def expandVoidConstantFor(self, node: ASGNode) -> ASGTypecheckedNode:
+        type = self.builder.topLevelIdentifier('Void')
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, type)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxSequenceNode)
     def expandSyntaxSequenceNode(self, node: ASGSyntaxSequenceNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         if len(node.elements) == 0:
-            type = self.builder.topLevelIdentifier('Void')
-            return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLiteralUnitNode, type)
+            return self.expandVoidConstantFor(node)
 
         elementsToExpand = node.elements
         for i in range(len(elementsToExpand)):

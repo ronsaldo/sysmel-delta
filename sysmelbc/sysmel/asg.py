@@ -55,7 +55,8 @@ class ASGLoopEntryNode(ASGSequenceDivergenceNode):
         yield self.entryDestination
         yield self.continueDestination
 
-class ASGLoopBreakNode(ASGSequencingNode):
+class ASGLoopIterationEndNode(ASGSequencingNode):
+    continueCondition = ASGNodeOptionalDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
     loop = ASGSequencingPredecessorAttribute()
 
@@ -65,9 +66,34 @@ class ASGLoopBreakNode(ASGSequencingNode):
     def directImmediateDominator(self):
         return self.predecessor
 
+class ASGLoopBodyEntry(ASGSequenceEntryNode):
+    pass
+
+class ASGLoopBreakNode(ASGSequencingNode):
+    predecessor = ASGSequencingPredecessorAttribute()
+    loopBodyEntry = ASGSequencingPredecessorAttribute()
+
+    def isSequenceTerminatorNode(self) -> bool:
+        return True
+
+    def isLoopBreakNode(self) -> bool:
+        return True
+
+    def isBasicBlockEnd(self) -> bool:
+        return True
+
+    def directImmediateDominator(self):
+        return self.predecessor
+
 class ASGLoopContinueNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
-    loop = ASGSequencingPredecessorAttribute()
+    loopBodyEntry = ASGSequencingPredecessorAttribute()
+
+    def isSequenceTerminatorNode(self) -> bool:
+        return True
+
+    def isLoopEndNode(self) -> bool:
+        return True
 
     def isBasicBlockEnd(self) -> bool:
         return True
@@ -98,9 +124,15 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
     def directImmediateDominator(self):
         return self.divergence
 
+class ASGLoopContinueEntry(ASGSequenceConvergenceNode):
+    pass
+
 class ASGSequenceReturnNode(ASGSequencingNode):
     value = ASGNodeDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()
+
+    def isSequenceTerminatorNode(self) -> bool:
+        return True
 
     def isSequenceReturnNode(self) -> bool:
         return True
@@ -268,7 +300,8 @@ class ASGSymbolTypeNode(ASGBaseTypeNode):
     pass
 
 class ASGUnitTypeNode(ASGBaseTypeNode):
-    pass
+    def isUnitTypeNode(self) -> bool:
+        return True
 
 class ASGBottomTypeNode(ASGBaseTypeNode):
     def expandSyntaxApplicationNode(self, expander, applicationNode):
