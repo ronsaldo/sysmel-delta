@@ -460,6 +460,15 @@ class SDVMOperand:
 
     def __str__(self) -> str:
         return '$%d' % self.index
+    
+    def isInstruction(self):
+        return False
+    
+    def markUsedOperand(self):
+        pass
+
+    def clearUsedOpenad(self):
+        pass
 
 class SDVMMemoryDescriptor(SDVMOperand):
     def __init__(self, descriptor: MemoryDescriptor) -> None:
@@ -495,6 +504,19 @@ class SDVMInstruction(SDVMOperand):
         self.arg0 = arg0
         self.arg1 = arg1
         self.sourcePosition = sourcePosition
+        self.isUsedAsOperand = False
+
+    def isInstruction(self):
+        return True
+    
+    def isLabel(self):
+        return self.definition is SdvmConstLabel
+
+    def markUsedOperand(self):
+        self.isUsedAsOperand = True
+
+    def clearUsedOpenad(self):
+        self.isUsedAsOperand = False
 
     def prettyPrint(self) -> str:
         if self.arg1 is None:
@@ -649,18 +671,28 @@ class SDVMFunction:
     def constLocalProcedure(self, value) -> SDVMConstant:
         return self.const(SdvmConstLocalProcedureHandle, value, value.index)
     
+    def isSuccessorOf(self, argument, instruction):
+        if not argument.isInstruction() or argument.index <= instruction.index:
+            return False
+
+        for i in range(instruction.index + 1, argument.index):
+            middleInstruction = self.instructions[i]
+            if not middleInstruction.isLabel():
+                return False
+        return True
+
     def removeJumpsToSuccessor(self):
+        self.enumerateOnlyInstructions()
         optimizedInstructions = []
         instructionCount = len(self.instructions)
         for i in range(instructionCount):
             instruction = self.instructions[i]
             if i + 1 < instructionCount:
-                successor = self.instructions[i + 1]
-                if instruction.definition is SdvmInstJump and instruction.arg0 is successor:
+                if instruction.definition is SdvmInstJump and self.isSuccessorOf(instruction.arg0, instruction):
                     continue
-                elif instruction.definition is SdvmInstJumpIfTrue and instruction.arg1 is successor:
+                elif instruction.definition is SdvmInstJumpIfTrue and self.isSuccessorOf(instruction.arg1, instruction):
                     continue
-                elif instruction.definition is SdvmInstJumpIfFalse and instruction.arg1 is successor:
+                elif instruction.definition is SdvmInstJumpIfFalse and self.isSuccessorOf(instruction.arg1, instruction):
                     continue
             optimizedInstructions.append(instruction)
         self.instructions = optimizedInstructions
@@ -696,7 +728,13 @@ class SDVMFunction:
             yield instruction
         for instruction in self.instructions:
             yield instruction
-    
+
+    def enumerateOnlyInstructions(self):
+        index = 0
+        for instruction in self.instructions:
+            instruction.index = index
+            index += 1
+
     def enumerateInstructions(self):
         index = 0
         for instruction in self.allInstructions():

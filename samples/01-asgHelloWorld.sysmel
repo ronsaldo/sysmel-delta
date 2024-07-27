@@ -25,14 +25,6 @@ external: #C export: (
             printf("i %d\n", i).
             ##printf("%d loop body: %s\n", i, argv[i asSize]).
         } continueWith: (i := i + 1i32).
-
-        #*
-        if: argc >= 2i32 then: {
-            printf("First branch\n").
-        } else: {
-            printf("Second branch\n").
-        }.
-        *#
         
         0i32
     }.
