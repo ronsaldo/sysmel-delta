@@ -170,7 +170,24 @@ class GlobalCodeMotionAlgorithm:
         return self.dominanceTreeDepths[index]
     
     def computeLoopNestingLevels(self):
-        self.loopNestingLevels = [0] * len(self.regions)
+        self.loopNestingLevels = [None] * len(self.regions)
+        for i in range(len(self.regions)):
+            self.computeLoopNestingLevelAtIndex(i)
+    
+    def computeLoopNestingLevelAtIndex(self, index):
+        if self.loopNestingLevels[index] is None:
+            idom = self.idoms[index]
+            if idom is None:
+                self.loopNestingLevels[index] = 0
+            else:
+                self.loopNestingLevels[index] = self.computeLoopNestingLevelAtIndex(idom)
+            region = self.regions[index]
+            if region.isLoopEntryNode():
+                self.loopNestingLevels[index] += 1
+            elif region.isSequenceConvergenceNode() and region.divergence.isLoopEntryNode():
+                self.loopNestingLevels[index] -= 1
+        
+        return self.loopNestingLevels[index]
     
     def earlyScheduleInstructions(self):
         self.earlySchedule = [0] * len(self.dataInstructions)

@@ -55,6 +55,9 @@ class ASGLoopEntryNode(ASGSequenceDivergenceNode):
     def immediateDivergenceDestinations(self):
         yield self.entryDestination
 
+    def isLoopEntryNode(self):
+        return True
+
 class ASGLoopIterationEndNode(ASGSequencingNode):
     continueCondition = ASGNodeOptionalDataInputPort()
     predecessor = ASGSequencingPredecessorAttribute()

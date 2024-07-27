@@ -987,6 +987,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def isLoopContinueNode(self) -> bool:
         return False
 
+    def isLoopEntryNode(self):
+        return False
+    
     def isSequenceReturnNode(self) -> bool:
         return False
 
