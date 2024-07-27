@@ -972,6 +972,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
 
         return self.__constantDataNodeCache__
 
+    def isArrayTypeNode(self) -> bool:
+        return False
+    
     def isReferenceLikeType(self) -> bool:
         return False
 

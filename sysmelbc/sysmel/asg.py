@@ -530,6 +530,17 @@ class ASGLoadNode(ASGSequencingAndDataNode):
     def directImmediateDominator(self):
         return self.predecessor
 
+class ASGBoundsCheckNode(ASGSequencingNode):
+    index = ASGNodeDataInputPort()
+    size = ASGNodeDataInputPort()
+    predecessor = ASGSequencingPredecessorAttribute()
+
+    def getRegionOfUsedValue(self, usedValue):
+        return self.predecessor
+
+    def directImmediateDominator(self):
+        return self.predecessor
+    
 class ASGStoreNode(ASGSequencingNode):
     pointer = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
@@ -705,10 +716,26 @@ class ASGDecoratedTypeNode(ASGDerivedTypeNode):
 class ASGArrayTypeNode(ASGDerivedTypeNode):
     size = ASGNodeDataInputPort()
 
+    def isArrayTypeNode(self) -> bool:
+        return True
+
     @classmethod
     def constructorImpl(cls, derivation, resultType, baseType, size):
         return cls(derivation, baseType, size)
-    
+
+    def expandSyntaxApplicationNode(self, expander, applicationNode):
+        if applicationNode.isBracketKind() and len(applicationNode.arguments) == 1:
+            return expander.fromNodeContinueExpanding(applicationNode, ASGSyntaxArrayElementReferenceAtNode(ASGNodeSyntaxExpansionDerivation(expander, applicationNode), applicationNode.functional, applicationNode.arguments[0]))
+        return super().expandSyntaxApplicationNode(expander, applicationNode)
+
+class ASGArrayElementAtNode(ASGTypedDataExpressionNode):
+    array = ASGNodeDataInputPort()
+    index = ASGNodeDataInputPort()
+
+class ASGArrayElementReferenceAtNode(ASGTypedDataExpressionNode):
+    array = ASGNodeDataInputPort()
+    index = ASGNodeDataInputPort()
+
 class ASGPointerLikeTypeNode(ASGDerivedTypeNode):
     @classmethod
     def constructorImpl(cls, derivation, resultType, baseType):

@@ -194,6 +194,10 @@ class ASGSyntaxTupleNode(ASGSyntaxNode):
             isVariadic = self.elements[-1].isVariadic
         return self.elements, isExistential, isVariadic
 
+class ASGSyntaxArrayElementReferenceAtNode(ASGSyntaxNode):
+    array = ASGNodeDataInputPort()
+    index = ASGNodeDataInputPort()
+
 class ASGSyntaxIfThenElseNode(ASGSyntaxNode):
     condition = ASGNodeDataInputPort()
     trueExpression = ASGNodeOptionalDataInputPort()

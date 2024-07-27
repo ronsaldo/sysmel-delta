@@ -216,6 +216,9 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     def expandMacrosOnly(self, node: ASGNode) -> ASGNode:
         # TODO: Implement this properly.
         return node
+    
+    def emitBoundsSize(self, node: ASGNode, index: ASGNode, size: ASGNode) -> ASGNode:
+        self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGBoundsCheckNode, index, size, predecessor = self.builder.currentPredecessor)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxErrorNode)
     def expandSyntaxErrorNode(self, node: ASGSyntaxErrorNode) -> ASGTypecheckedNode:
@@ -241,6 +244,21 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
 
         selector = ASGLiteralSymbolNode(ASGNodeSyntaxExpansionDerivation(self, node), self.builder.topLevelIdentifier('Symbol'), ':=')
         return self.fromNodeContinueExpanding(node, ASGSyntaxMessageSendNode(derivation, store, selector, [node.value]))
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxArrayElementReferenceAtNode)
+    def expandSyntaxArrayElementReferenceAtNode(self, node: ASGSyntaxArrayElementReferenceAtNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        array = self(node.array)
+        index, typechecked = self.analyzeSizeNode(node.index)
+
+        decayedArrayType = array.getTypeInEnvironment(self.environment).asDecayedType()
+        if not decayedArrayType.isArrayTypeNode():
+            arrayError = self.makeErrorAtNode('Expected value with an array type for the subscript operator.', array)
+            assert False
+
+        self.emitBoundsSize(node, index, decayedArrayType.size)
+        elementReferenceType = self.builder.forSyntaxExpansionBuild(self, node, ASGReferenceTypeNode, decayedArrayType.baseType)
+        return self.builder.forSyntaxExpansionBuild(self, node, ASGArrayElementReferenceAtNode, elementReferenceType, array, index)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxBinaryExpressionSequenceNode)
     def expandSyntaxBinaryExpressionSequenceNode(self, node: ASGSyntaxBinaryExpressionSequenceNode) -> ASGTypecheckedNode:
@@ -640,7 +658,10 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         
     def analyzeBooleanCondition(self, node: ASGNode):
         return self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Boolean'))
-    
+
+    def analyzeSizeNode(self, node: ASGNode):
+        return self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('Size'))
+
     def analyzeDivergentBranchExpression(self, node: ASGNode) -> tuple[ASGSequenceEntryNode, ASGNode]:
         branchAnalyzer = self.withDivergingEnvironment(ASGLexicalEnvironment(self.environment, node.sourceDerivation.getSourcePosition()))
         entryPoint = branchAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
