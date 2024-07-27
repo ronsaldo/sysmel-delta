@@ -203,8 +203,20 @@ class GlobalCodeMotionAlgorithm:
             visited[instructionIndex] = True
             instruction = self.dataInstructions[instructionIndex]
 
+            def applyDependencyRegion(dependencyRegion):
+                dependencyRegionDepth = self.dominanceTreeDepths[dependencyRegion]
+
+                instructionRegion = self.earlySchedule[instructionIndex]
+                instructionRegionDepth = self.dominanceTreeDepths[instructionRegion]
+                if instructionRegionDepth < dependencyRegionDepth:
+                    self.earlySchedule[instructionIndex] = dependencyRegion
+
             for dependency in instruction.dataDependencies():
-                if dependency not in self.dataInstructionIndexDictionary:
+                if dependency.isSequencingNode():
+                    dependencyRegion = self.regionToIndexDictionary[dependency]
+                    applyDependencyRegion(dependencyRegion)
+                    continue
+                elif dependency not in self.dataInstructionIndexDictionary:
                     continue
 
                 dependencyIndex = self.dataInstructionIndexDictionary[dependency]
@@ -212,12 +224,7 @@ class GlobalCodeMotionAlgorithm:
 
                 if not self.pinnedDataInstructions[instructionIndex]:
                     dependencyRegion = self.earlySchedule[dependencyIndex]
-                    dependencyRegionDepth = self.dominanceTreeDepths[dependencyRegion]
-
-                    instructionRegion = self.earlySchedule[instructionIndex]
-                    instructionRegionDepth = self.dominanceTreeDepths[instructionRegion]
-                    if instructionRegionDepth < dependencyRegionDepth:
-                        self.earlySchedule[instructionIndex] = self.earlySchedule[dependencyIndex]
+                    applyDependencyRegion(dependencyRegion)
 
         for i in range(len(self.dataInstructions)):
             visitInstruction(i)

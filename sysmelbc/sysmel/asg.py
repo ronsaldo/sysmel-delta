@@ -125,6 +125,8 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
         return True
 
     def directImmediateDominator(self):
+        if len(self.predecessors) == 1:
+            return self.predecessors[0]
         return self.divergence
 
 class ASGLoopContinueEntry(ASGSequenceConvergenceNode):
