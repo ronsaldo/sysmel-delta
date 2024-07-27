@@ -271,7 +271,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         return node
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxBindingDefinitionNode)
-    def expandSyntaxBindindingDefinitionNode(self, node: ASGSyntaxBindingDefinitionNode) -> ASGTypecheckedNode:
+    def expandSyntaxBindingDefinitionNode(self, node: ASGSyntaxBindingDefinitionNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)
         name = self.evaluateOptionalSymbol(node.nameExpression)
         expectedType = self.analyzeOptionalTypeExpression(node.typeExpression)

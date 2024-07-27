@@ -729,6 +729,19 @@ class ASGReferenceLikeTypeNode(ASGPointerLikeTypeNode):
     def isReferenceLikeType(self) -> bool:
         return True
 
+    def expandSyntaxMessageSendNode(self, expander, messageSendNode):
+        selector = expander.attemptToEvaluateMessageSendSelector(messageSendNode)
+        if selector is not None:
+            if selector == ':=' and len(messageSendNode.arguments) == 1:
+                ## TODO: Ensure that this is mutable reference.
+                expectedValueType = self.baseType.asUndecoratedType()
+                reference = expander(messageSendNode.receiver)
+                coercedValued, typechecked = expander.analyzeNodeWithExpectedType(messageSendNode.arguments[0], expectedValueType)
+                expander.builder.forSyntaxExpansionBuildAndSequence(expander, messageSendNode, ASGStoreNode, reference, coercedValued, predecessor = expander.builder.currentPredecessor)
+                return reference
+                    
+        return super().expandSyntaxMessageSendNode(expander, messageSendNode)
+
 class ASGReferenceTypeNode(ASGReferenceLikeTypeNode):
     pass
 
