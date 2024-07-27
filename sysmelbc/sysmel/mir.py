@@ -13,6 +13,11 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
     def __init__(self, builder: ASGBuilderWithGVNAndEnvironment) -> None:
         super().__init__()
         self.builder = builder
+
+        def mapTypeToMir(typeName, mirTypeName):
+            type = self.builder.topLevelIdentifier(typeName)
+            mirType = self.builder.topLevelIdentifier(mirTypeName)
+            self.setValueForNodeExpansion(type, mirType)
         for typeName, mirTypeName in [
             ('Void', 'MIR::Void'),
             ('Boolean', 'MIR::Boolean'),
@@ -27,9 +32,24 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
             ('Float32', 'MIR::Float32'),
             ('Float64', 'MIR::Float64'),
         ]:
-            type = self.builder.topLevelIdentifier(typeName)
-            mirType = self.builder.topLevelIdentifier(mirTypeName)
-            self.setValueForNodeExpansion(type, mirType)
+            mapTypeToMir(typeName, mirTypeName)
+
+        compilationTarget = self.builder.topLevelEnvironment.target
+        if compilationTarget.sizeSize == 4:
+            mapTypeToMir('Size', 'MIR::UInt32')
+            mapTypeToMir('SignedSize', 'MIR::Int32')
+        else:
+            assert compilationTarget.sizeSize == 8
+            mapTypeToMir('Size', 'MIR::UInt64')
+            mapTypeToMir('SignedSize', 'MIR::Int64')
+
+        if compilationTarget.pointerSize == 4:
+            mapTypeToMir('UIntPointer', 'MIR::UInt32')
+            mapTypeToMir('IntPointer', 'MIR::Int32')
+        else:
+            assert compilationTarget.sizeSize == 8
+            mapTypeToMir('UIntPointer', 'MIR::UInt64')
+            mapTypeToMir('IntPointer', 'MIR::Int64')
 
     @asgPatternMatchingOnNodeKind(ASGPointerLikeTypeNode)
     def expandPointerLikeTypeNode(self, node: ASGPointerLikeTypeNode) -> ASGNode:
@@ -218,6 +238,13 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         mirValueType = self.expandMirType(node.valueType)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGAllocaNode, mirType, mirValueType)
 
+    @asgPatternMatchingOnNodeKind(ASGBoundsCheckNode)
+    def expandBoundsCheckNode(self, node: ASGBoundsCheckNode) -> ASGNode:
+        predecessor = self.expandNode(node.predecessor)
+        index = self.expandNode(node.index)
+        size = self.expandNode(node.size)
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGBoundsCheckNode, index, size, predecessor = predecessor)
+
     @asgPatternMatchingOnNodeKind(ASGLoopBodyEntry)
     def expandLoopBodyEntry(self, node: ASGLoopBodyEntry) -> ASGNode:
         return node
@@ -253,6 +280,15 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         predecessor = self.expandNode(node.predecessor)
         loop = self.expandNode(node.loop)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopIterationEndNode, continueCondition, predecessor, loop)
+
+    @asgPatternMatchingOnNodeKind(ASGArrayElementReferenceAtNode)
+    def expandArrayElementReferenceAt(self, node: ASGArrayElementReferenceAtNode) -> ASGNode:
+        referenceType = self.expandMirType(node.type)
+        array = self.expandNode(node.array)
+        index = self.expandNode(node.index)
+
+        assert False
+        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoadNode, mirType, pointer, predecessor = predecessor)
 
     @asgPatternMatchingOnNodeKind(ASGLoadNode)
     def expandLoadNode(self, node: ASGLoadNode) -> ASGNode:
