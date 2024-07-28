@@ -57,6 +57,22 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
             self.uintPointerType = mapTypeToMir('UIntPointer', 'MIR::UInt64')
             self.intPointerType = mapTypeToMir('IntPointer', 'MIR::Int64')
 
+        int32Type = self.builder.topLevelIdentifier('MIR::Int32').asTopLevelMirType()
+        int64Type = self.builder.topLevelIdentifier('MIR::Int64').asTopLevelMirType()
+        uint32Type = self.builder.topLevelIdentifier('MIR::UInt32').asTopLevelMirType()
+        uint64Type = self.builder.topLevelIdentifier('MIR::UInt64').asTopLevelMirType()
+        self.pointerStrideIndexCoercionTable = {
+            (int32Type, int32Type) : int32Type,
+            (uint32Type, uint32Type) : uint32Type,
+            (int32Type, uint32Type) : int32Type,
+            (uint32Type, int32Type) : int32Type,
+
+            (int64Type, int64Type) : int64Type,
+            (uint64Type, uint64Type) : uint64Type,
+            (int64Type, uint64Type) : int64Type,
+            (uint64Type, int64Type) : int64Type,
+        }
+
     @asgPatternMatchingOnNodeKind(ASGPointerLikeTypeNode)
     def expandPointerLikeTypeNode(self, node: ASGPointerLikeTypeNode) -> ASGNode:
         baseType = self.expandNode(node.baseType)
@@ -291,6 +307,21 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         loop = self.expandNode(node.loop)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopIterationEndNode, continueCondition, predecessor, loop)
     
+    def coerceIntegerIntoType(self, node: ASGNode, integer: ASGNode, targetType: ASGNode):
+        integerType = integer.getTypeInEnvironment(self.builder.topLevelEnvironment).asTopLevelMirType()
+        if integerType.isSatisfiedAsTypeBy(targetType):
+            return integer
+
+        assert False
+    
+    def addPointerStridedIndex(self, node: ASGNode, nextPointerType: ASGNode, pointer: ASGNode, stride: ASGNode, index: ASGNode):
+        strideType = stride.getTypeInEnvironment(self.builder.topLevelEnvironment).asTopLevelMirType()
+        indexType = index.getTypeInEnvironment(self.builder.topLevelEnvironment).asTopLevelMirType()
+        coercionType = self.typeExpander.pointerStrideIndexCoercionTable[strideType, indexType]
+        coercedStride = self.coerceIntegerIntoType(node, stride, coercionType)
+        coercedIndex = self.coerceIntegerIntoType(node, index, coercionType)
+        return self.builder.forMirExpansionBuild(self, node, ASGMirPointerAddStridedIndex, nextPointerType, pointer, coercedStride, coercedIndex)
+
     def translateElementPointerAccess(self, node: ASGNode, resultPointerType: ASGNode, pointer: ASGNode, indices: list[ASGNode]) -> ASGNode:
         pointerType = pointer.getTypeInEnvironment(self.builder.topLevelEnvironment)
         currentType = pointerType
@@ -305,7 +336,7 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
                 nextPointerType = pointerType
 
             if stride is not None:
-                result = self.builder.forMirExpansionBuild(self, node, ASGMirPointerAddStridedIndex, nextPointerType, result, stride, index)
+                result = self.addPointerStridedIndex(node, nextPointerType, result, stride, index)
             if offset is not None:
                 result = self.builder.forMirExpansionBuild(self, node, ASGMirPointerAddOffset, nextPointerType, result, offset)
             currentType = nextType

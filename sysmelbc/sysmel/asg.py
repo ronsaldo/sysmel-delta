@@ -952,6 +952,18 @@ class ASGMirPointerTypeNode(ASGMirDerivedTypeNode):
     def isMirPointerType(self):
         return True
 
+    def getSDVMLoadInstructionWith(self, moduleFrontend):
+        return SdvmInstLoadPointer
+
+    def getSDVMLoadGCInstructionWith(self, moduleFrontend):
+        return SdvmInstLoadGC_Pointer
+
+    def getSDVMStoreInstructionWith(self, moduleFrontend):
+        return SdvmInstStorePointer
+
+    def getSDVMStoreGCInstructionWith(self, moduleFrontend):
+        return SdvmInstStoreGC_Pointer
+    
     def getSDVMArgumentInstructionWith(self, moduleFrontend):
         return SdvmInstArgPointer
 
@@ -985,6 +997,18 @@ class ASGMirGCPointerTypeNode(ASGMirDerivedTypeNode):
     def isMirGCPointerType(self):
         return True
 
+    def getSDVMLoadInstructionWith(self, moduleFrontend):
+        return SdvmInstLoadGCPointer
+
+    def getSDVMLoadGCInstructionWith(self, moduleFrontend):
+        return SdvmInstLoadGC_GCPointer
+
+    def getSDVMStoreInstructionWith(self, moduleFrontend):
+        return SdvmInstStoreGCPointer
+
+    def getSDVMStoreGCInstructionWith(self, moduleFrontend):
+        return SdvmInstStoreGC_GCPointer
+    
     def getSDVMArgumentInstructionWith(self, moduleFrontend):
         return SdvmInstArgGCPointer
 

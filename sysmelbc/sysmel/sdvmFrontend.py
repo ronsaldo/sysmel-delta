@@ -75,6 +75,34 @@ class SDVMModuleFrontEnd(ASGDynamicProgrammingAlgorithm):
             self.callClosureInstructionDictionary[type] = callClosureInst
             self.returnInstructionDictionary[type] = returnInst
 
+        self.primitiveMulTable = {}
+        for typeName, primitive in [
+            ('MIR::Int8',   SdvmInstInt8Mul),
+            ('MIR::Int16',  SdvmInstInt16Mul),
+            ('MIR::Int32',  SdvmInstInt32Mul),
+            ('MIR::Int64',  SdvmInstInt64Mul),
+            ('MIR::UInt8',  SdvmInstUInt8Mul),
+            ('MIR::UInt16', SdvmInstUInt16Mul),
+            ('MIR::UInt32', SdvmInstUInt32Mul),
+            ('MIR::UInt64', SdvmInstUInt64Mul),
+        ]:
+            type = self.environment.lookValidLastBindingOf(typeName)
+            self.primitiveMulTable[type] = primitive
+
+        self.pointerAddOffsetTable = {}
+        for isGCPointer, typeName, primitive in [
+            (False, 'MIR::Int32',  SdvmInstPointerAddOffsetInt32),
+            (False, 'MIR::Int64',  SdvmInstPointerAddOffsetInt64),
+            (False, 'MIR::UInt32', SdvmInstPointerAddOffsetUInt32),
+            (False, 'MIR::UInt64', SdvmInstPointerAddOffsetUInt64),
+            (True,  'MIR::Int32',  SdvmInstGCPointerAddOffsetInt32),
+            (True,  'MIR::Int64',  SdvmInstGCPointerAddOffsetInt64),
+            (True,  'MIR::UInt32', SdvmInstGCPointerAddOffsetUInt32),
+            (True,  'MIR::UInt64', SdvmInstGCPointerAddOffsetUInt64),
+        ]:
+            type = self.environment.lookValidLastBindingOf(typeName)
+            self.pointerAddOffsetTable[(isGCPointer, type)] = primitive
+
         for primitiveDef in [
             ('Int8::+',    sdvmBinaryPrimitiveFor(SdvmInstInt8Add)),
             ('Int8::-',    sdvmBinaryPrimitiveFor(SdvmInstInt8Sub)),
@@ -824,17 +852,34 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGMirPointerAddStridedIndex)
     def translatePointerAddStridedIndex(self, node: ASGMirPointerAddStridedIndex):
         pointerType = node.getTypeInEnvironment(self.environment)
+        strideType = node.stride.getTypeInEnvironment(self.environment).asTopLevelMirType()
+        indexType = node.index.getTypeInEnvironment(self.environment).asTopLevelMirType()
+        assert strideType.isSatisfiedAsTypeBy(indexType)
+
         pointer = self(node.pointer)
         stride = self(node.stride)
         index = self(node.index)
-        assert False
+        mulPrimitive = self.moduleFrontend.primitiveMulTable[strideType]
+
+        sourcePosition = node.sourceDerivation.getSourcePosition()
+        offset = self.function.addInstruction(SDVMInstruction(mulPrimitive, index, stride, sourcePosition = sourcePosition))
+
+        isGCPointer = pointerType.isMirGCPointerType()
+        offsetPrimitive = self.moduleFrontend.pointerAddOffsetTable[isGCPointer, strideType]
+        return self.function.addInstruction(SDVMInstruction(offsetPrimitive, pointer, offset, sourcePosition = sourcePosition))
 
     @asgPatternMatchingOnNodeKind(ASGMirPointerAddOffset)
     def translatePointerAddOffset(self, node: ASGMirPointerAddOffset):
         pointerType = node.getTypeInEnvironment(self.environment)
+        offsetType = node.offset.getTypeInEnvironment(self.environment)
+
         pointer = self(node.pointer)
         offset = self(node.offset)
-        assert False
+
+        sourcePosition = node.sourceDerivation.getSourcePosition()
+        isGCPointer = pointerType.isMirGCPointerType()
+        offsetPrimitive = self.moduleFrontend.pointerAddOffsetTable[isGCPointer, offsetType]
+        return self.function.addInstruction(SDVMInstruction(offsetPrimitive, pointer, offset, sourcePosition = sourcePosition))
 
     @asgPatternMatchingOnNodeKind(ASGConditionalBranchNode)
     def translateConditionalBranch(self, node: ASGConditionalBranchNode):

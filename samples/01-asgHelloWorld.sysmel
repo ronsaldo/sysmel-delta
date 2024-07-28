@@ -22,7 +22,6 @@ external: #C export: (
 
         :!i := 0i32.
         while: (i < argc) do: {
-            ##printf("i %d\n", i).
             printf("%d loop body: %s\n", i, argv[i asSize]).
         } continueWith: (i := i + 1i32).
         
