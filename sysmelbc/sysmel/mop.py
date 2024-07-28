@@ -1023,6 +1023,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     def asUndecoratedType(self):
         return self
 
+    def computeIndexedElementOffsetAndStride(self, expander, node, index):
+        raise Exception("Not an aggregate type")
+
 class ASGUnificationComparisonNode:
     def __init__(self, node) -> None:
         self.node = node
@@ -1125,6 +1128,11 @@ class ASGUnifiedNodeValue:
     def isSequencingNode(self):
         return self.node.isSequencingNode()
 
+    def asTopLevelMirType(self):
+        return self.node.asTopLevelMirType()
+
+    def computeIndexedElementOffsetAndStride(self, expander, node, index):
+        return self.node.computeIndexedElementOffsetAndStride(expander, node, index)
 
 class ASGDynamicProgrammingAlgorithmMetaclass(type):
     def __new__(cls, name, bases, attributes):

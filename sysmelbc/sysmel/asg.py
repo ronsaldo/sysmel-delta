@@ -2,6 +2,8 @@ from .mop import *
 from .syntax import *
 from .sdvmInstructions import *
 from .memoryDescriptor import *
+from .target import *
+from .util import *
 
 class ASGTypecheckedNode(ASGNode):
     sourceDerivation = ASGNodeSourceDerivationAttribute()
@@ -499,6 +501,15 @@ class ASGMirFunctionDefinitionNode(ASGMirTypedDataExpressionNode):
     def isMirFunctionDefinition(self) -> bool:
         return True
 
+class ASGMirPointerAddStridedIndex(ASGMirTypedDataExpressionNode):
+    pointer = ASGNodeDataInputPort()
+    stride = ASGNodeDataInputPort()
+    index = ASGNodeDataInputPort()
+
+class ASGMirPointerAddOffset(ASGMirTypedDataExpressionNode):
+    pointer = ASGNodeDataInputPort()
+    offset = ASGNodeDataInputPort()
+
 class ASGApplicationNode(ASGTypedDataExpressionNode):
     functional = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
@@ -712,6 +723,9 @@ class ASGDecoratedTypeNode(ASGDerivedTypeNode):
 
     def asUndecoratedType(self):
         return self.baseType
+    
+    def computeIndexedElementOffsetAndStride(self, expander, node, index: ASGNode):
+        return self.baseType.computeIndexedElementOffsetAndStride(expander, node, index)
 
 class ASGArrayTypeNode(ASGDerivedTypeNode):
     size = ASGNodeDataInputPort()
@@ -850,6 +864,19 @@ class ASGMirTypeNode(ASGTypeNode):
             self.memoryDescriptor = self.buildMemoryDescriptor()
         return self.memoryDescriptor
     
+    def getAlignedSizeWithExpander(self, expander, node):
+        alignedSize = self.getAlignedSize()
+        return expander.makeLiteralSizeAt(node, alignedSize)
+
+    def getAlignedSize(self) -> int:
+        return alignedTo(self.getSize(), self.getAlignment())
+
+    def getAlignment(self) -> int:
+        raise Exception("Type with unknown alignment")
+
+    def getSize(self) -> int:
+        raise Exception("Type with unknown size")
+
     def buildMemoryDescriptor(self):
         return MemoryDescriptor(self.getSize(), self.getAlignment())
 
@@ -875,6 +902,9 @@ class ASGMirBaseTypeNode(ASGMirTypeNode):
             return self.name
         else:
             return super().prettyPrintNameWithDataAttributes()
+
+class ASGMirCVarArgTypeNode(ASGMirBaseTypeNode):
+    pass
 
 class ASGMirFunctionTypeNode(ASGMirTypeNode):
     arguments = ASGNodeTypeInputNodes()
@@ -917,6 +947,8 @@ class ASGMirArrayTypeNode(ASGMirDerivedTypeNode):
         return True
 
 class ASGMirPointerTypeNode(ASGMirDerivedTypeNode):
+    target = ASGNodeDataAttribute(CompilationTarget, notPrinted = True)
+
     def isMirPointerType(self):
         return True
 
@@ -938,7 +970,18 @@ class ASGMirPointerTypeNode(ASGMirDerivedTypeNode):
     def asFunctionType(self) -> bool:
         return self.baseType.asFunctionType()
 
+    def getAlignment(self) -> int:
+        return self.target.pointerAlignment
+
+    def getSize(self) -> int:
+        return self.target.pointerSize
+
+    def computeIndexedElementOffsetAndStride(self, expander, node, index: ASGNode):
+        return self.baseType, None, self.baseType.getAlignedSizeWithExpander(expander, node)
+
 class ASGMirGCPointerTypeNode(ASGMirDerivedTypeNode):
+    target = ASGNodeDataAttribute(CompilationTarget, notPrinted = True)
+
     def isMirGCPointerType(self):
         return True
 
@@ -957,6 +1000,15 @@ class ASGMirGCPointerTypeNode(ASGMirDerivedTypeNode):
     def getSDVMReturnInstructionWith(self, moduleFrontend):
         return SdvmInstReturnGCPointer
 
+    def getAlignment(self) -> int:
+        return self.target.gcPointerAlignment
+
+    def getSize(self) -> int:
+        return self.target.gcPointerSize
+
+    def computeIndexedElementOffsetAndStride(self, expander, node, index: ASGNode):
+        return self.baseType, None, self.baseType.getAlignedSizeWithExpander(expander, node)
+    
 class ASGMirVoidTypeNode(ASGMirBaseTypeNode):
     pass
 

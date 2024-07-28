@@ -18,9 +18,14 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
             type = self.builder.topLevelIdentifier(typeName)
             mirType = self.builder.topLevelIdentifier(mirTypeName)
             self.setValueForNodeExpansion(type, mirType)
+            return mirType
+
         for typeName, mirTypeName in [
             ('Void', 'MIR::Void'),
             ('Boolean', 'MIR::Boolean'),
+            ('Char8',  'MIR::UInt8'),
+            ('Char16', 'MIR::UInt16'),
+            ('Char32', 'MIR::UInt32'),
             ('Int8',  'MIR::Int8'),
             ('Int16', 'MIR::Int16'),
             ('Int32', 'MIR::Int32'),
@@ -31,37 +36,38 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
             ('UInt64', 'MIR::UInt64'),
             ('Float32', 'MIR::Float32'),
             ('Float64', 'MIR::Float64'),
+            ('CVarArg', 'MIR::CVarArg'),
         ]:
             mapTypeToMir(typeName, mirTypeName)
 
         compilationTarget = self.builder.topLevelEnvironment.target
         if compilationTarget.sizeSize == 4:
-            mapTypeToMir('Size', 'MIR::UInt32')
-            mapTypeToMir('SignedSize', 'MIR::Int32')
+            self.sizeType = mapTypeToMir('Size', 'MIR::UInt32')
+            self.signedSizeType = mapTypeToMir('SignedSize', 'MIR::Int32')
         else:
             assert compilationTarget.sizeSize == 8
-            mapTypeToMir('Size', 'MIR::UInt64')
-            mapTypeToMir('SignedSize', 'MIR::Int64')
+            self.sizeType = mapTypeToMir('Size', 'MIR::UInt64')
+            self.signedSizeType = mapTypeToMir('SignedSize', 'MIR::Int64')
 
         if compilationTarget.pointerSize == 4:
-            mapTypeToMir('UIntPointer', 'MIR::UInt32')
-            mapTypeToMir('IntPointer', 'MIR::Int32')
+            self.uintPointerType = mapTypeToMir('UIntPointer', 'MIR::UInt32')
+            self.intPointerType = mapTypeToMir('IntPointer', 'MIR::Int32')
         else:
             assert compilationTarget.sizeSize == 8
-            mapTypeToMir('UIntPointer', 'MIR::UInt64')
-            mapTypeToMir('IntPointer', 'MIR::Int64')
+            self.uintPointerType = mapTypeToMir('UIntPointer', 'MIR::UInt64')
+            self.intPointerType = mapTypeToMir('IntPointer', 'MIR::Int64')
 
     @asgPatternMatchingOnNodeKind(ASGPointerLikeTypeNode)
     def expandPointerLikeTypeNode(self, node: ASGPointerLikeTypeNode) -> ASGNode:
         baseType = self.expandNode(node.baseType)
-        return self.builder.forMirTypeExpansionBuild(self, node, ASGMirPointerTypeNode, baseType)
+        return self.builder.forMirTypeExpansionBuild(self, node, ASGMirPointerTypeNode, baseType, self.builder.topLevelEnvironment.target)
 
     @asgPatternMatchingOnNodeKind(ASGArrayTypeNode)
     def expandArrayTypeNode(self, node: ASGArrayTypeNode) -> ASGNode:
         baseType = self.expandNode(node.baseType)
 
         if not node.size.isLiteralNode():
-            return self.builder.forMirTypeExpansionBuild(self, node, ASGMirPointerTypeNode, baseType)
+            return self.builder.forMirTypeExpansionBuild(self, node, ASGMirPointerTypeNode, baseType, self.builder.topLevelEnvironment.target)
         
         if baseType.unificationEquals(node.baseType):
             return node
@@ -88,7 +94,7 @@ class ASGMirTypeExpansionAlgorithm(ASGDynamicProgrammingAlgorithm):
         return self.builder.forMirTypeExpansionBuild(self, node, ASGMirClosureTypeNode, functionType)
     
     def expandNode(self, node: ASGNode) -> ASGNode:
-        return node
+        return self(node)
 
     def expandFlattenedNodes(self, nodes: list[ASGNode]):
         expandedNodes = []
@@ -117,6 +123,10 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
     
     def expandMirType(self, type: ASGNode):
         return self.typeExpander(type)
+    
+    def makeLiteralSizeAt(self, node: ASGNode, size: int):
+        assert size >= 0
+        return self.builder.forMirExpansionBuild(self, node, ASGLiteralIntegerNode, self.typeExpander.sizeType, size)
 
     @asgPatternMatchingOnNodeKind(ASGLiteralCharacterNode)
     def expandLiteralCharacterNode(self, node: ASGLiteralCharacterNode) -> ASGNode:
@@ -280,15 +290,34 @@ class ASGMirExpanderAlgorithm(ASGDynamicProgrammingAlgorithm):
         predecessor = self.expandNode(node.predecessor)
         loop = self.expandNode(node.loop)
         return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoopIterationEndNode, continueCondition, predecessor, loop)
+    
+    def translateElementPointerAccess(self, node: ASGNode, resultPointerType: ASGNode, pointer: ASGNode, indices: list[ASGNode]) -> ASGNode:
+        pointerType = pointer.getTypeInEnvironment(self.builder.topLevelEnvironment)
+        currentType = pointerType
+        result = pointer
+        indexCount = len(indices)
+        for i in range(indexCount):
+            index = indices[i]
+            nextType, offset, stride = currentType.computeIndexedElementOffsetAndStride(self, node, index)
+            if i + 1 < indexCount:
+                nextPointerType = self.builder.forMirTypeExpansionBuild(self, node, ASGMirPointerTypeNode, nextType, self.builder.topLevelEnvironment.target)
+            else:
+                nextPointerType = pointerType
 
+            if stride is not None:
+                result = self.builder.forMirExpansionBuild(self, node, ASGMirPointerAddStridedIndex, nextPointerType, result, stride, index)
+            if offset is not None:
+                result = self.builder.forMirExpansionBuild(self, node, ASGMirPointerAddOffset, nextPointerType, result, offset)
+            currentType = nextType
+
+        return result
+    
     @asgPatternMatchingOnNodeKind(ASGArrayElementReferenceAtNode)
     def expandArrayElementReferenceAt(self, node: ASGArrayElementReferenceAtNode) -> ASGNode:
-        referenceType = self.expandMirType(node.type)
+        resultPointerType = self.expandMirType(node.type)
         array = self.expandNode(node.array)
         index = self.expandNode(node.index)
-
-        assert False
-        return self.builder.forMirExpansionBuildAndSequence(self, node, ASGLoadNode, mirType, pointer, predecessor = predecessor)
+        return self.translateElementPointerAccess(node, resultPointerType, array, [index])
 
     @asgPatternMatchingOnNodeKind(ASGLoadNode)
     def expandLoadNode(self, node: ASGLoadNode) -> ASGNode:

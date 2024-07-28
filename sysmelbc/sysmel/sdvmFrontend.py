@@ -790,6 +790,12 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
         sdvmMemoryDescriptor = self.moduleFrontend.module.addMemoryDescriptor(memoryDescriptor)
         return self.function.addInstruction(SDVMInstruction(allocaInstruction, sdvmMemoryDescriptor, sourcePosition = node.sourceDerivation.getSourcePosition()))
 
+    @asgPatternMatchingOnNodeKind(ASGBoundsCheckNode)
+    def translateBoundsCheck(self, node: ASGBoundsCheckNode):
+        index = self(node.index)
+        size = self(node.size)
+        # TODO: Emit the instruction for this
+
     @asgPatternMatchingOnNodeKind(ASGStoreNode)
     def translateStoreNode(self, node: ASGStoreNode):
         pointer = self(node.pointer)
@@ -814,6 +820,21 @@ class SDVMFunctionFrontEnd(ASGDynamicProgrammingAlgorithm):
         else:
             loadInstruction = valueType.getSDVMLoadInstructionWith(self.moduleFrontend)
         return self.function.addInstruction(SDVMInstruction(loadInstruction, pointer, sourcePosition = node.sourceDerivation.getSourcePosition()))
+
+    @asgPatternMatchingOnNodeKind(ASGMirPointerAddStridedIndex)
+    def translatePointerAddStridedIndex(self, node: ASGMirPointerAddStridedIndex):
+        pointerType = node.getTypeInEnvironment(self.environment)
+        pointer = self(node.pointer)
+        stride = self(node.stride)
+        index = self(node.index)
+        assert False
+
+    @asgPatternMatchingOnNodeKind(ASGMirPointerAddOffset)
+    def translatePointerAddOffset(self, node: ASGMirPointerAddOffset):
+        pointerType = node.getTypeInEnvironment(self.environment)
+        pointer = self(node.pointer)
+        offset = self(node.offset)
+        assert False
 
     @asgPatternMatchingOnNodeKind(ASGConditionalBranchNode)
     def translateConditionalBranch(self, node: ASGConditionalBranchNode):

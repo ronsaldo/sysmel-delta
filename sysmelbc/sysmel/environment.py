@@ -32,6 +32,10 @@ class ASGEnvironment(ABC):
     
     def childWithSymbolBinding(self, symbol: str, binding: ASGNode):
         return ASGChildEnvironmentWithBindings(self).childWithSymbolBinding(symbol, binding)
+    
+    @abstractmethod
+    def getCompilationTarget(self):
+        pass
 
 class ASGMacroContext(ASGNode):
     derivation = ASGNodeDataAttribute(ASGNodeDerivation)
@@ -95,6 +99,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::UInt64', 8, 8))
         self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Float32', 4, 4))
         self.addBaseType(ASGMirBaseTypeNode(topLevelDerivation, 'MIR::Float64', 8, 8))
+        self.addBaseType(ASGMirCVarArgTypeNode(topLevelDerivation, 'MIR::CVarArg', target.pointerSize, target.pointerAlignment))
         self.addBaseType(ASGMirTypeUniverseNode(topLevelDerivation, 'MIR::Type', target.pointerSize, target.pointerAlignment))
 
         self.addPrimitiveFunctions()
@@ -133,6 +138,9 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
 
     def getTopLevelTargetEnvironment(self):
         return self
+    
+    def getCompilationTarget(self):
+        return self.target
     
     def getTypeUniverseWithIndex(self, index):
         if index in self.typeUniverseIndexCache:
@@ -411,6 +419,9 @@ class ASGChildEnvironment(ASGEnvironment):
 
     def addContinueNodeToCurrentLoop(self, node: ASGLoopContinueNode):
         return self.parent.addContinueNodeToCurrentLoop(node)
+    
+    def getCompilationTarget(self):
+        return self.parent.getCompilationTarget()
 
 class ASGChildEnvironmentWithBindings(ASGChildEnvironment):
     def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None) -> None:
