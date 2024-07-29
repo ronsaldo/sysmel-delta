@@ -235,6 +235,9 @@ class ASGLiteralStringDataNode(ASGLiteralNode):
 class ASGLiteralUnitNode(ASGLiteralNode):
     pass
 
+class ASGLiteralMetaValueNode(ASGLiteralNode):
+    value = ASGNodeDataAttribute(ASGNode)
+
 class ASGLiteralPrimitiveFunctionNode(ASGLiteralNode):
     name = ASGNodeDataAttribute(str)
     compileTimeImplementation = ASGNodeDataAttribute(object, default = None, notCompared = True, notPrinted = True)
@@ -466,6 +469,17 @@ class ASGTupleAtNode(ASGTypedDataExpressionNode):
 
 class ASGMetaType(ASGBaseTypeNode):
     metaclass = ASGNodeDataAttribute(type, notPrinted = True)
+
+    def isSatisfiedAsTypeBy(self, otherType) -> bool:
+        if isinstance(otherType, ASGMetaType):
+            return issubclass(otherType.metaclass, self.metaclass)
+        return super().isSatisfiedAsTypeBy(otherType)
+
+class ASGMacroBinding(ASGTypedDataExpressionNode):
+    value = ASGNodeDataInputPort()
+
+    def expandSyntaxBindingReferenceWith(self, bindingReferenceNode, expander):
+        return expander.evaluateAndExpandMacroExpression(self.value, bindingReferenceNode)
 
 class ASGLambdaNode(ASGTypedDataExpressionNode):
     arguments = ASGNodeDataInputPorts(notInterpreted = True)

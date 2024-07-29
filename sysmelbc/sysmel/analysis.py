@@ -91,12 +91,13 @@ class ASGTypecheckingErrorAcumulator:
         self.errorList.append(error)
 
 class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
-    def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVNAndEnvironment = None, reductionAlgorithm: ASGReductionAlgorithm = None, errorAccumulator = None) -> None:
+    def __init__(self, environment: ASGEnvironment, builder: ASGBuilderWithGVNAndEnvironment = None, reductionAlgorithm: ASGReductionAlgorithm = None, errorAccumulator = None, expansionLevel = 0) -> None:
         super().__init__()
         self.environment = environment
         self.builder = builder
         self.reductionAlgorithm = reductionAlgorithm
         self.errorAccumulator = errorAccumulator
+        self.expansionLevel = expansionLevel
         if self.builder is None:
             self.builder = ASGBuilderWithGVNAndEnvironment(None, self.environment.getTopLevelTargetEnvironment())
         if self.reductionAlgorithm is None:
@@ -105,7 +106,10 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             self.errorAccumulator = ASGTypecheckingErrorAcumulator()
 
     def withDivergingEnvironment(self, newEnvironment: ASGEnvironment):
-        return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVNAndEnvironment(self.builder, newEnvironment.getTopLevelTargetEnvironment()), self.reductionAlgorithm, self.errorAccumulator)
+        return ASGExpandAndTypecheckingAlgorithm(newEnvironment, ASGBuilderWithGVNAndEnvironment(self.builder, newEnvironment.getTopLevelTargetEnvironment()), self.reductionAlgorithm, self.errorAccumulator, self.expansionLevel + 1)
+
+    def withNextMacroExpansionLevel(self):
+        return ASGExpandAndTypecheckingAlgorithm(self.environment, self.builder, self.reductionAlgorithm, self.errorAccumulator, self.expansionLevel + 1)
 
     def withFunctionalAnalysisEnvironment(self, newEnvironment: ASGFunctionalAnalysisEnvironment):
         return self.withDivergingEnvironment(newEnvironment)
@@ -178,6 +182,18 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         self.makeErrorAtNode('Expected a literal symbol.', node)
         return None
 
+    def evaluateMacroExpression(self, node: ASGNode) -> str:
+        typecheckedNode, typechecked = self.analyzeNodeWithExpectedType(node, self.builder.topLevelIdentifier('ASGNode'))
+        if not typechecked:
+            return None
+        
+        typecheckedNode = typecheckedNode.asASGDataNode()
+        if typecheckedNode.isLiteralNode():
+            return typecheckedNode.value
+
+        self.makeErrorAtNode('Expected a literal meta value.', node)
+        return None
+    
     def evaluateOptionalSymbol(self, node: ASGNode) -> str:
         if node is None:
             return None
@@ -287,6 +303,21 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     def decayAnalyzedValue(self, node: ASGNode):
         # TODO: Implement this properly
         return node
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxMacroBindingDefinitionNode)
+    def expandSyntaxMacroBindingDefinitionNode(self, node: ASGSyntaxMacroBindingDefinitionNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        name = self.evaluateOptionalSymbol(node.nameExpression)
+        expectedType = self.builder.topLevelIdentifier('ASGNode')
+        value, typechecked = self.analyzeNodeWithExpectedType(node.valueExpression, expectedType)
+        
+        macroBindingType = self.builder.topLevelIdentifier('MacroBinding')
+        macroBinding = self.builder.forSyntaxExpansionBuild(self, node, ASGMacroBinding, macroBindingType, value)
+        if name is None:
+            return macroBinding
+
+        self.environment = self.environment.childWithSymbolBinding(name, macroBinding)
+        return macroBinding
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxBindingDefinitionNode)
     def expandSyntaxBindingDefinitionNode(self, node: ASGSyntaxBindingDefinitionNode) -> ASGTypecheckedNode:
@@ -418,7 +449,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         if len(lookupResults) == 0:
             return self.makeErrorAtNode('Failed to finding binding for symbol %s.' % node.value, node)
         elif len(lookupResults) == 1 or not lookupResults[0].getTypeInEnvironment(self.environment).isFunctionalTypeNode():
-            return self(lookupResults[0])
+            return lookupResults[0].expandSyntaxBindingReferenceWith(node, self)
         else:
             # Select the first overloaded functionals.
             overloadedAlternatives = []
@@ -434,11 +465,18 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
             # If we only have one overloaded alternative, select it.
             assert len(overloadedAlternatives) >= 1
             if len(overloadedAlternatives) == 1:
-                return self(overloadedAlternatives[0]) 
+                return overloadedAlternatives[0].expandSyntaxBindingReferenceWith(node, self)
             
             ## Overloaded type and its alternatives.
             overloadedType = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGOverloadedTypeNode, overloadedAlternativeTypes)
             return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGOverloadedAlternativesNode, overloadedType, overloadedAlternatives)
+
+    def evaluateAndExpandMacroExpression(self, macroExpression: ASGNode, expansionLocation: ASGNode) -> ASGTypecheckedNode:
+        macroExpressionResult = self.evaluateMacroExpression(macroExpression)
+        if macroExpressionResult is None:
+            return self.makeErrorAtNode('Failed to evaluate macro expression.', expansionLocation)
+        #return self(macroExpressionResult)
+        return self.withNextMacroExpansionLevel()(macroExpressionResult)
 
     @asgPatternMatchingOnNodeKind(ASGSyntaxMessageSendNode, when = lambda n: n.receiver is None)
     def expandSyntaxMessageSendNodeWithoutReceiver(self, node: ASGSyntaxMessageSendNode) -> ASGTypecheckedNode:
@@ -857,6 +895,12 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
     @asgPatternMatchingOnNodeKind(ASGTypecheckedNode)
     def expandSyntaxTypecheckedNode(self, node: ASGTypecheckedNode) -> ASGTypecheckedNode:
         return node
+
+    @asgPatternMatchingOnNodeKind(ASGSyntaxQuoteNode)
+    def expandSyntaxQuoteNode(self, node: ASGSyntaxQuoteNode) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        metaType = node.term.asASGDataNode().__class__.asMetaTypeForSyntaxExpansion(self, node)
+        return self.builder.forSyntaxExpansionBuild(self, node, ASGLiteralMetaValueNode, metaType, node.term)
 
 def expandAndTypecheck(environment: ASGEnvironment, node: ASGNode):
     expander = ASGExpandAndTypecheckingAlgorithm(environment)

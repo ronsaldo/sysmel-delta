@@ -834,6 +834,11 @@ class ASGNode(metaclass = ASGNodeMetaclass):
         messageSendNode = ASGSyntaxMessageSendNode(derivation, applicationNode.functional, selector, applicationNode.arguments)
         return expander.fromNodeContinueExpanding(applicationNode, messageSendNode)
 
+    @classmethod
+    def asMetaTypeForSyntaxExpansion(cls, expander, node):
+        from .asg import ASGMetaType
+        return expander.builder.forSyntaxExpansionBuild(expander, node, ASGMetaType, cls.__asgKindName__, cls)
+
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         # Expand the arguments for making the error messages.
         for argument in applicationNode.arguments:
@@ -843,6 +848,9 @@ class ASGNode(metaclass = ASGNodeMetaclass):
     
     def expandSyntaxMessageSendNode(self, expander, messageSendNode):
         return expander.expandFunctionalApplicationMessageSendNode(messageSendNode)
+
+    def expandSyntaxBindingReferenceWith(self, bindingReferenceNode, expander):
+        return self
 
     def betaReplaceableDependencies(self):
         if self.__betaReplaceableDependencies__ is not None:

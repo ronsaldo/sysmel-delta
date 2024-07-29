@@ -78,6 +78,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
 
         self.addBaseType(ASGModuleTypeNode(topLevelDerivation, 'Module'))
         self.addBaseType(ASGMetaType(topLevelDerivation, 'ASGNode', ASGNode))
+        self.addBaseType(ASGMetaType(topLevelDerivation, 'MacroBinding', ASGMacroBinding))
         self.addBaseType(ASGMetaType(topLevelDerivation, 'MacroContext', ASGMacroContext))
         self.addSymbolValue('void', ASGLiteralUnitNode(topLevelDerivation, voidType))
         self.addSymbolValue('false', ASGLiteralUnitNode(topLevelDerivation, falseType))
