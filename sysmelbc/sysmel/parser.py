@@ -158,25 +158,25 @@ def parseIdentifier(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
 def parseQuote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     assert state.next().kind == TokenKind.QUOTE
-    state, term = parseTerm(state)
+    state, term = parseUnaryPrefixExpression(state)
     return state, ParseTreeQuoteNode(state.sourcePositionFrom(startPosition), term)
 
 def parseQuasiQuote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     assert state.next().kind == TokenKind.QUASI_QUOTE
-    state, term = parseTerm(state)
+    state, term = parseUnaryPrefixExpression(state)
     return state, ParseTreeQuasiQuoteNode(state.sourcePositionFrom(startPosition), term)
 
 def parseQuasiUnquote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     assert state.next().kind == TokenKind.QUASI_UNQUOTE
-    state, term = parseTerm(state)
+    state, term = parseUnaryPrefixExpression(state)
     return state, ParseTreeQuasiUnquoteNode(state.sourcePositionFrom(startPosition), term)
 
 def parseSplice(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     assert state.next().kind == TokenKind.SPLICE
-    state, term = parseTerm(state)
+    state, term = parseUnaryPrefixExpression(state)
     return state, ParseTreeSpliceNode(state.sourcePositionFrom(startPosition), term)
 
 def parseTerm(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
@@ -185,10 +185,6 @@ def parseTerm(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     elif state.peekKind() == TokenKind.LEFT_CURLY_BRACKET: return parseBlock(state)
     elif state.peekKind() == TokenKind.DICTIONARY_START: return parseDictionary(state)
     elif state.peekKind() == TokenKind.COLON: return parseBindableName(state)
-    elif state.peekKind() == TokenKind.QUOTE: return parseQuote(state)
-    elif state.peekKind() == TokenKind.QUASI_QUOTE: return parseQuasiQuote(state)
-    elif state.peekKind() == TokenKind.QUASI_UNQUOTE: return parseQuasiUnquote(state)
-    elif state.peekKind() == TokenKind.SPLICE: return parseSplice(state)
     else: return parseLiteral(state)
 
 def parseOptionalParenthesis(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
@@ -391,12 +387,19 @@ def parseUnaryPostfixExpression(state: ParserState) -> tuple[ParserState, ParseT
             receiver = ParseTreeApplicationNode(state.sourcePositionFrom(startPosition), receiver, [argument], ParseTreeApplicationNode.Dictionary)
     return state, receiver
 
+def parseUnaryPrefixExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
+    if state.peekKind() == TokenKind.QUOTE: return parseQuote(state)
+    elif state.peekKind() == TokenKind.QUASI_QUOTE: return parseQuasiQuote(state)
+    elif state.peekKind() == TokenKind.QUASI_UNQUOTE: return parseQuasiUnquote(state)
+    elif state.peekKind() == TokenKind.SPLICE: return parseSplice(state)
+    else: return parseUnaryPostfixExpression(state)
+
 def isBinaryExpressionOperator(kind: TokenKind) -> bool:
     return kind in [TokenKind.OPERATOR, TokenKind.STAR, TokenKind.LESS_THAN, TokenKind.GREATER_THAN, TokenKind.BAR]
 
 def parseBinaryExpressionSequence(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
-    state, operand = parseUnaryPostfixExpression(state)
+    state, operand = parseUnaryPrefixExpression(state)
     if not isBinaryExpressionOperator(state.peekKind()):
         return state, operand
     

@@ -16,7 +16,7 @@
 
 fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32).
 
-macroLet: #helloWorld with: `'(printf("Hello World\n")).
+macroLet: #helloWorld with: `'printf("Hello World\n").
 
 external: #C export: (
     :main(:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) := {
