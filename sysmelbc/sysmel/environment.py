@@ -175,10 +175,27 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
         return self.makeFunctionType(arguments, resultType, isMacro = isMacro, isPure = isPure)
 
     def addPrimitiveFunctions(self):
+        self.addBindingMacros()
         self.addModuleMacros()
         self.addControlFlowMacros()
         self.addTypeConstructors()
         self.addPrimitiveTypeFunctions()
+
+    def addBindingMacros(self):
+        self.addPrimitiveFunctionsWithDesc([
+            ('let:type:with:', 'Binding::let:type:with:',  (('ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.letTypeWithMacro),
+            ('let:with:', 'Binding::let:with:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.letWithMacro),
+            ('macroLet:with:', 'Binding::macroLet:with:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.macroLetWithMacro),
+        ])
+
+    def letTypeWithMacro(self, macroContext: ASGMacroContext, bindingName: ASGNode, typeExpression: ASGNode, valueExpression: ASGNode):
+        return ASGSyntaxBindingDefinitionNode(macroContext.derivation, typeExpression, bindingName, valueExpression)
+
+    def letWithMacro(self, macroContext: ASGMacroContext, bindingName: ASGNode, valueExpression: ASGNode):
+        return ASGSyntaxBindingDefinitionNode(macroContext.derivation, None, bindingName, valueExpression)
+
+    def macroLetWithMacro(self, macroContext: ASGMacroContext, bindingName: ASGNode, valueExpression: ASGNode):
+        return ASGSyntaxMacroBindingDefinitionNode(macroContext.derivation, bindingName, valueExpression)
 
     def addModuleMacros(self):
         self.addPrimitiveFunctionsWithDesc([

@@ -129,12 +129,36 @@ def parseLiteral(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     elif state.peekKind() == TokenKind.STRING: return parseLiteralString(state)
     elif state.peekKind() == TokenKind.CHARACTER: return parseLiteralCharacter(state)
     elif state.peekKind() == TokenKind.SYMBOL: return parseLiteralSymbol(state)
-    else: return state.advanceWithExpectedError("Literal")
+    else: return state.advanceWithExpectedError('Expected a literal.')
 
 def parseIdentifier(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.IDENTIFIER
     return state, ParseTreeIdentifierReferenceNode(token.sourcePosition, token.getStringValue())
+
+def parseQuote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
+    startPosition = state.position
+    assert state.next().kind == TokenKind.QUOTE
+    term = parseTerm(state)
+    return state, ParseTreeQuoteNode(state.sourcePositionFrom(startPosition), term)
+
+def parseQuasiQuote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
+    startPosition = state.position
+    assert state.next().kind == TokenKind.QUOTE
+    term = parseTerm(state)
+    return state, ParseTreeQuasiQuoteNode(state.sourcePositionFrom(startPosition), term)
+
+def parseQuasiUnquote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
+    startPosition = state.position
+    assert state.next().kind == TokenKind.QUOTE
+    term = parseTerm(state)
+    return state, ParseTreeQuasiUnquoteNode(state.sourcePositionFrom(startPosition), term)
+
+def parseSplice(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
+    startPosition = state.position
+    assert state.next().kind == TokenKind.QUOTE
+    term = parseTerm(state)
+    return state, ParseTreeSpliceNode(state.sourcePositionFrom(startPosition), term)
 
 def parseTerm(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.IDENTIFIER: return parseIdentifier(state)
@@ -142,6 +166,10 @@ def parseTerm(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     elif state.peekKind() == TokenKind.LEFT_CURLY_BRACKET: return parseBlock(state)
     elif state.peekKind() == TokenKind.DICTIONARY_START: return parseDictionary(state)
     elif state.peekKind() == TokenKind.COLON: return parseBindableName(state)
+    elif state.peekKind() == TokenKind.QUOTE: return parseQuote(state)
+    elif state.peekKind() == TokenKind.QUASI_QUOTE: return parseQuasiQuote(state)
+    elif state.peekKind() == TokenKind.QUASI_UNQUOTE: return parseQuasiUnquote(state)
+    elif state.peekKind() == TokenKind.SPLICE: return parseSplice(state)
     else: return parseLiteral(state)
 
 def parseOptionalParenthesis(state: ParserState) -> tuple[ParserState, ParseTreeNode]:

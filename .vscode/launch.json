@@ -5,15 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Sysmelbc",
+            "name": "Sysmelbc Tests",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",
+            "program": "${workspaceFolder}/sysmelbc/sysmelbc_tests.py",
             "console": "integratedTerminal",
-            "args": ["-v", "-emit-sdvm", "-c", "-o", "test.sdvm", "samples/01-helloWorld.sysmel"]
+            "args": []
         },
         {
-            "name": "Sysmelbc ASG",
+            "name": "Sysmelbc",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",

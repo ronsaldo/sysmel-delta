@@ -114,6 +114,10 @@ class ASGSyntaxBindingDefinitionNode(ASGSyntaxNode):
     isMutable = ASGNodeDataAttribute(bool, default = False)
     allowsRebind = ASGNodeDataAttribute(bool, default = False)
 
+class ASGSyntaxMacroBindingDefinitionNode(ASGSyntaxNode):
+    nameExpression = ASGNodeOptionalDataInputPort()
+    valueExpression = ASGNodeDataInputPort()
+
 class ASGSyntaxBlockNode(ASGSyntaxNode):
     functionType = ASGNodeDataInputPort()
     body = ASGNodeDataInputPorts()

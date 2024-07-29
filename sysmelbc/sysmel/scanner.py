@@ -124,6 +124,9 @@ def skipWhite(state: ScannerState) -> tuple[ScannerState, Token]:
 def isDigit(c: int) -> bool:
     return (b'0'[0] <= c and c <= b'9'[0])
 
+def isE(c: int) -> bool:
+    return b'e'[0] == c or b'E'[0] == c
+
 def isIdentifierStart(c: int) -> bool:
     return (b'A'[0] <= c and c <= b'Z'[0]) or \
         (b'a'[0] <= c and c <= b'z'[0]) or \
@@ -199,6 +202,12 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
             while isDigit(state.peek()):
                 state.advance()
 
+            if (state.peek() == b'e'[0] or state.peek() == b'E'[0]):
+                if isDigit(state.peek(1)) or ((state.peek(1) == b'+'[0] or state.peek(1) == b'-'[0]) and isDigit(state.peek(2))):
+                    state.advanceCount(2)
+                    while isDigit(state.peek()):
+                        state.advance()
+
             return state, state.makeTokenStartingFrom(TokenKind.FLOAT, initialState)
         
         return state, state.makeTokenStartingFrom(TokenKind.NAT, initialState)
@@ -225,8 +234,25 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
                     return state, state.makeTokenStartingFrom(TokenKind.SYMBOL, initialState)
             
             return state, state.makeTokenStartingFrom(TokenKind.SYMBOL, initialState)
-        
-        if c1 == b'['[0]:
+
+        if isOperatorCharacter(c1):
+            state.advanceCount(2)
+            while isOperatorCharacter(state.peek()):
+                state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.SYMBOL, initialState)
+        elif c1 == b'"'[0]:
+            state.advanceCount(2)
+            while not state.atEnd() and state.peek() != b'"'[0]:
+                if state.peek() == b'\\'[0] and state.peek(1) >= 0:
+                    state.advanceCount(2)
+                else:
+                    state.advance()
+            if state.peek() != b'"'[0]:
+                return state, state.makeErrorTokenStartingFrom("Incomplete symbol string literal.", initialState)
+            state.advance()
+            return state, state.makeTokenStartingFrom(TokenKind.SYMBOL, initialState)
+
+        elif c1 == b'['[0]:
             state.advanceCount(2)
             return state, state.makeTokenStartingFrom(TokenKind.BYTE_ARRAY_START, initialState)
         elif c1 == b'{'[0]:
@@ -306,16 +332,16 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
         return state, state.makeTokenStartingFrom(TokenKind.COLON, initialState)
     elif c == b'`'[0]:
         if state.peek(1) == b'\''[0]:
-            state.advance()
+            state.advanceCount(2)
             return state, state.makeTokenStartingFrom(TokenKind.QUOTE, initialState)
         elif state.peek(1) == b'`'[0]:
-            state.advance()
+            state.advanceCount(2)
             return state, state.makeTokenStartingFrom(TokenKind.QUASI_QUOTE, initialState)
         elif state.peek(1) == b','[0]:
-            state.advance()
+            state.advanceCount(2)
             return state, state.makeTokenStartingFrom(TokenKind.QUASI_UNQUOTE, initialState)
         elif state.peek(1) == b'@'[0]:
-            state.advance()
+            state.advanceCount(2)
             return state, state.makeTokenStartingFrom(TokenKind.SPLICE, initialState)
     elif c == b'|'[0]:
         state.advance()
@@ -347,18 +373,26 @@ def scanNextToken(state: ScannerState) -> tuple[ScannerState, Token]:
     errorToken = state.makeErrorTokenStartingFrom("Unexpected character.", initialState)
     return state, errorToken
 
+def scanSourceCode(sourceCode: SourceCode) -> list[Token]:
+    state = ScannerState(sourceCode)
+    tokens = []
+    while True:
+        state, token = scanNextToken(state)
+        tokens.append(token)
+        if token.kind == TokenKind.END_OF_SOURCE:
+            break
+    return tokens
+
+def scanSourceString(sourceText: str, sourceName: str = '<string>') -> tuple[SourceCode, list[Token]]:
+    sourceCode = SourceCode(None, sourceName, 'sysmel', sourceText.encode('utf-8'))
+    tokens = scanSourceCode(sourceCode)
+    return sourceCode, tokens
+
 def scanFileNamed(fileName: str) -> tuple[SourceCode, list[Token]]:
     with open(fileName, "rb") as f:
         sourceText = f.read()
         sourceDirectory = os.path.dirname(fileName)
         sourceName = os.path.basename(fileName)
-        sourceCode = SourceCode(sourceDirectory, sourceName, 'sysmel', sourceText)
-        state = ScannerState(sourceCode)
-        tokens = []
-        while True:
-            state, token = scanNextToken(state)
-            tokens.append(token)
-            if token.kind == TokenKind.END_OF_SOURCE:
-                break
-
+        sourceCode = SourceCode(sourceDirectory, sourceName, 'smalltalk', sourceText)
+        tokens = scanSourceCode(sourceCode)
         return sourceCode, tokens

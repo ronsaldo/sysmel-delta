@@ -145,7 +145,23 @@ class ParseTreeVisitor(ABC):
         pass
 
     @abstractmethod
+    def visitQuasiQuoteNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitQuasiUnquoteNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitQuoteNode(self, node):
+        pass
+
+    @abstractmethod
     def visitSequenceNode(self, node):
+        pass
+
+    @abstractmethod
+    def visitSpliceNode(self, node):
         pass
 
     @abstractmethod
@@ -167,7 +183,7 @@ class ParseTreeNode(ABC):
         return False
 
 class ParseTreeErrorNode(ParseTreeNode):
-    def __init__(self, sourcePosition: SourcePosition, message: str, innerNodes: list[ParseTreeNode]) -> None:
+    def __init__(self, sourcePosition: SourcePosition, message: str, innerNodes: list[ParseTreeNode] = ()) -> None:
         super().__init__(sourcePosition)
         self.message = message
         self.innerNodes = innerNodes
@@ -328,6 +344,30 @@ class ParseTreeMessageSendNode(ParseTreeNode):
     def accept(self, visitor: ParseTreeVisitor):
         return visitor.visitMessageSendNode(self)    
 
+class ParseTreeQuasiQuoteNode(ParseTreeNode):
+    def __init__(self, sourcePosition: SourcePosition, term: ParseTreeNode) -> None:
+        super().__init__(sourcePosition)
+        self.term = term
+    
+    def accept(self, visitor: ParseTreeVisitor):
+        return visitor.visitQuasiQuoteNode(self)
+
+class ParseTreeQuasiUnquoteNode(ParseTreeNode):
+    def __init__(self, sourcePosition: SourcePosition, term: ParseTreeNode) -> None:
+        super().__init__(sourcePosition)
+        self.term = term
+    
+    def accept(self, visitor: ParseTreeVisitor):
+        return visitor.visitQuasiUnquoteNode(self)
+
+class ParseTreeQuoteNode(ParseTreeNode):
+    def __init__(self, sourcePosition: SourcePosition, term: ParseTreeNode) -> None:
+        super().__init__(sourcePosition)
+        self.term = term
+    
+    def accept(self, visitor: ParseTreeVisitor):
+        return visitor.visitQuoteNode(self)
+
 class ParseTreeSequenceNode(ParseTreeNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ParseTreeNode]) -> None:
         super().__init__(sourcePosition)
@@ -335,7 +375,15 @@ class ParseTreeSequenceNode(ParseTreeNode):
     
     def accept(self, visitor: ParseTreeVisitor):
         return visitor.visitSequenceNode(self)
+
+class ParseTreeSpliceNode(ParseTreeNode):
+    def __init__(self, sourcePosition: SourcePosition, term: ParseTreeNode) -> None:
+        super().__init__(sourcePosition)
+        self.term = term
     
+    def accept(self, visitor: ParseTreeVisitor):
+        return visitor.visitSpliceNode(self)
+
 class ParseTreeTupleNode(ParseTreeNode):
     def __init__(self, sourcePosition: SourcePosition, elements: list[ParseTreeNode]) -> None:
         super().__init__(sourcePosition)
@@ -407,8 +455,20 @@ class ParseTreeSequentialVisitor(ParseTreeVisitor):
         self.visitNode(node.selector)
         self.visitNodes(node.arguments)
 
+    def visitQuoteNode(self, node: ParseTreeQuoteNode):
+        self.visitNode(node.term)
+
+    def visitQuasiQuoteNode(self, node: ParseTreeQuasiQuoteNode):
+        self.visitNode(node.term)
+
+    def visitQuasiUnquoteNode(self, node: ParseTreeQuasiUnquoteNode):
+        self.visitNode(node.term)
+
     def visitSequenceNode(self, node: ParseTreeSequenceNode):
         self.visitNodes(node.elements)
+
+    def visitSpliceNode(self, node: ParseTreeSpliceNode):
+        self.visitNode(node.term)
 
     def visitTupleNode(self, node: ParseTreeTupleNode):
         self.visitNodes(node.elements)
