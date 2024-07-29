@@ -122,11 +122,19 @@ class ASGSyntaxBlockNode(ASGSyntaxNode):
     functionType = ASGNodeDataInputPort()
     body = ASGNodeDataInputPorts()
 
+class ASGSyntaxCascadeMessageNode(ASGSyntaxNode):
+    selector = ASGNodeDataInputPort()
+    arguments = ASGNodeDataInputPorts()
+
 class ASGSyntaxIdentifierReferenceNode(ASGSyntaxNode):
     value = ASGNodeDataAttribute(str)
 
 class ASGSyntaxLexicalBlockNode(ASGSyntaxNode):
     body = ASGNodeDataInputPort()
+
+class ASGSyntaxMessageCascadeNode(ASGSyntaxNode):
+    receiver = ASGNodeOptionalDataInputPort()
+    messages = ASGNodeDataInputPorts()
 
 class ASGSyntaxMessageSendNode(ASGSyntaxNode):
     receiver = ASGNodeOptionalDataInputPort()
@@ -175,6 +183,15 @@ class ASGSyntaxPiNode(ASGSyntaxNode):
     isVariadic = ASGNodeDataAttribute(bool, default = False)
     callingConvention = ASGNodeDataAttribute(str, default = None)
 
+class ASGSyntaxQuoteNode(ASGSyntaxNode):
+    term = ASGNodeDataInputPort()
+
+class ASGSyntaxQuasiQuoteNode(ASGSyntaxNode):
+    term = ASGNodeDataInputPort()
+
+class ASGSyntaxQuasiUnquoteNode(ASGSyntaxNode):
+    term = ASGNodeDataInputPort()
+
 class ASGSyntaxSigmaNode(ASGSyntaxNode):
     arguments = ASGNodeDataInputPorts()
     resultType = ASGNodeOptionalDataInputPort()
@@ -182,6 +199,9 @@ class ASGSyntaxSigmaNode(ASGSyntaxNode):
 
 class ASGSyntaxSequenceNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
+
+class ASGSyntaxSpliceNode(ASGSyntaxNode):
+    term = ASGNodeDataInputPort()
 
 class ASGSyntaxTupleNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()
@@ -274,6 +294,9 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
     def visitBlockNode(self, node: ParseTreeBlockNode):
         return ASGSyntaxBlockNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.functionType), self.visitNodeWithoutSequencing(node.body), syntacticPredecessor = self.lastVisitedNode)
 
+    def visitCascadeMessageNode(self, node: ParseTreeCascadeMessageNode):
+        return ASGSyntaxCascadeMessageNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.selector), self.transformNodesWithoutSequencing(node.arguments), syntacticPredecessor = self.lastVisitedNode)
+
     def visitDictionaryNode(self, node: ParseTreeDictionaryNode):
         return ASGSyntaxDictionaryNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodes(node.elements), syntacticPredecessor = self.lastVisitedNode)
 
@@ -301,11 +324,26 @@ class ASGParseTreeFrontEnd(ParseTreeVisitor):
     def visitLiteralStringNode(self, node: ParseTreeLiteralStringNode):
         return ASGSyntaxLiteralStringNode(ASGNodeSourceCodeDerivation(node.sourcePosition), node.value, syntacticPredecessor = self.lastVisitedNode)
 
+    def visitMessageCascadeNode(self, node: ParseTreeMessageCascadeNode):
+        return ASGSyntaxMessageCascadeNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNodeWithoutSequencing(node.receiver), self.transformNodesWithoutSequencing(node.messages), syntacticPredecessor = self.lastVisitedNode)
+
     def visitMessageSendNode(self, node: ParseTreeMessageSendNode):
         return ASGSyntaxMessageSendNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitOptionalNodeWithoutSequencing(node.receiver), self.visitNodeWithoutSequencing(node.selector), self.transformNodesWithoutSequencing(node.arguments), syntacticPredecessor = self.lastVisitedNode)
 
+    def visitQuoteNode(self, node: ParseTreeQuoteNode):
+        return ASGSyntaxQuoteNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.term), syntacticPredecessor = self.lastVisitedNode)
+
+    def visitQuasiQuoteNode(self, node: ParseTreeQuasiQuoteNode):
+        return ASGSyntaxQuasiQuoteNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.term), syntacticPredecessor = self.lastVisitedNode)
+
+    def visitQuasiUnquoteNode(self, node: ParseTreeQuasiUnquoteNode):
+        return ASGSyntaxQuasiUnquoteNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.term), syntacticPredecessor = self.lastVisitedNode)
+
     def visitSequenceNode(self, node: ParseTreeSequenceNode):
         return ASGSyntaxSequenceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodesWithoutSequencing(node.elements), syntacticPredecessor = self.lastVisitedNode)
+
+    def visitSpliceNode(self, node: ParseTreeSpliceNode):
+        return ASGSyntaxSpliceNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.visitNodeWithoutSequencing(node.term), syntacticPredecessor = self.lastVisitedNode)
 
     def visitTupleNode(self, node: ParseTreeTupleNode):
         return ASGSyntaxTupleNode(ASGNodeSourceCodeDerivation(node.sourcePosition), self.transformNodesWithoutSequencing(node.elements), syntacticPredecessor = self.lastVisitedNode)

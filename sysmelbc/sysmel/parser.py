@@ -1,4 +1,4 @@
-from .scanner import Token, TokenKind, scanFileNamed
+from .scanner import Token, TokenKind, scanSourceString, scanFileNamed
 from .parsetree import *
 import copy
 
@@ -80,6 +80,12 @@ class ParserState:
             errorPosition = self.currentSourcePosition()
             self.advance()
             return self, ParseTreeErrorNode(errorPosition, message)
+        
+    def memento(self):
+        return self.position
+
+    def restore(self, memento):
+        self.position = memento
 
 def parseCEscapedString(string: str) -> str:
     unescaped = ''
@@ -94,10 +100,23 @@ def parseCEscapedString(string: str) -> str:
         i += 1
     return unescaped
 
+def parseIntegerConstant(string: str) -> str:
+    if b'r' in string:
+        radixIndex = string.index(b'r')
+    elif b'R' in string:
+        radixIndex = string.index(b'R')
+    else:
+        return int(string)
+    
+    radix = int(string[0:radixIndex])
+    assert radix >= 0
+    radixedInteger = int(string[radixIndex + 1:], abs(radix))
+    return radixedInteger
+    
 def parseLiteralInteger(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
     assert token.kind == TokenKind.NAT
-    return state, ParseTreeLiteralIntegerNode(token.sourcePosition, int(token.getValue()))
+    return state, ParseTreeLiteralIntegerNode(token.sourcePosition, parseIntegerConstant(token.getValue()))
 
 def parseLiteralFloat(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     token = state.next()
@@ -139,25 +158,25 @@ def parseIdentifier(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
 def parseQuote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
     assert state.next().kind == TokenKind.QUOTE
-    term = parseTerm(state)
+    state, term = parseTerm(state)
     return state, ParseTreeQuoteNode(state.sourcePositionFrom(startPosition), term)
 
 def parseQuasiQuote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
-    assert state.next().kind == TokenKind.QUOTE
-    term = parseTerm(state)
+    assert state.next().kind == TokenKind.QUASI_QUOTE
+    state, term = parseTerm(state)
     return state, ParseTreeQuasiQuoteNode(state.sourcePositionFrom(startPosition), term)
 
 def parseQuasiUnquote(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
-    assert state.next().kind == TokenKind.QUOTE
-    term = parseTerm(state)
+    assert state.next().kind == TokenKind.QUASI_UNQUOTE
+    state, term = parseTerm(state)
     return state, ParseTreeQuasiUnquoteNode(state.sourcePositionFrom(startPosition), term)
 
 def parseSplice(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
-    assert state.next().kind == TokenKind.QUOTE
-    term = parseTerm(state)
+    assert state.next().kind == TokenKind.SPLICE
+    state, term = parseTerm(state)
     return state, ParseTreeSpliceNode(state.sourcePositionFrom(startPosition), term)
 
 def parseTerm(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
@@ -443,10 +462,57 @@ def parseKeywordMessageSend(state: ParserState) -> tuple[ParserState, ParseTreeN
     selector = ParseTreeLiteralSymbolNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), symbolValue)
     return state, ParseTreeMessageSendNode(state.sourcePositionFrom(startPosition), receiver, selector, arguments)
 
+def parseCascadedMessage(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
+    startPosition = state.position
+    token = state.peek()
+    if state.peekKind() == TokenKind.IDENTIFIER:
+        state.advance()
+        selector = ParseTreeLiteralSymbolNode(token.sourcePosition, token.getStringValue())
+        return state, ParseTreeCascadeMessageNode(state.sourcePositionFrom(startPosition), selector, [])
+    elif state.peekKind() == TokenKind.KEYWORD:
+        symbolValue = ""
+        arguments = []
+        firstKeywordSourcePosition = state.peek(0).sourcePosition
+        lastKeywordSourcePosition = firstKeywordSourcePosition
+        while state.peekKind() == TokenKind.KEYWORD:
+            keywordToken = state.next()
+            lastKeywordSourcePosition = keywordToken.sourcePosition
+            symbolValue += keywordToken.getStringValue()
+            
+            state, argument = parseBinaryExpressionSequence(state)
+            arguments.append(argument)
+
+        selector = ParseTreeLiteralSymbolNode(firstKeywordSourcePosition.to(lastKeywordSourcePosition), symbolValue)
+        return state, ParseTreeCascadeMessageNode(state.sourcePositionFrom(startPosition), selector, arguments)
+    elif isBinaryExpressionOperator(state.peekKind()):
+        state.advance()
+        selector = ParseTreeLiteralSymbolNode(token.sourcePosition, token.getStringValue())
+        state, argument = parseUnaryPostfixExpression(state)
+        return state, ParseTreeCascadeMessageNode(state.sourcePositionFrom(startPosition), selector, [argument])
+    else:
+        return state, ParseTreeErrorNode(state.currentSourcePosition(), 'Expected a cascaded message send.')
+
+def parseMessageCascade(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
+    startPosition = state.position
+    state, firstMessage = parseKeywordMessageSend(state)
+    if state.peekKind() != TokenKind.SEMICOLON:
+        return state, firstMessage
+    
+    cascadeReceiver, firstCascadedMessage = firstMessage.asMessageSendCascadeReceiverAndFirstMessage()
+    cascadedMessages = []
+    if firstCascadedMessage is not None:
+        cascadedMessages.append(firstCascadedMessage)
+
+    while state.peekKind() == TokenKind.SEMICOLON:
+        state.advance()
+        state, cascadedMessage = parseCascadedMessage(state)
+        cascadedMessages.append(cascadedMessage)
+    return state, ParseTreeMessageCascadeNode(state.sourcePositionFrom(startPosition), cascadeReceiver, cascadedMessages)
+
 def parseLowPrecedenceExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     if state.peekKind() == TokenKind.KEYWORD:
         return parseKeywordApplication(state)
-    return parseKeywordMessageSend(state)
+    return parseMessageCascade(state)
 
 def parseAssignmentExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     startPosition = state.position
@@ -467,7 +533,11 @@ def parseCommaExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode
     elements = [element]
     while state.peekKind() == TokenKind.COMMA:
         state.advance()
+        memento = state.memento()
         state, element = parseAssignmentExpression(state)
+        if element.isErrorNode():
+            state.restore(memento)
+            break
         elements.append(element)
     
     return state, ParseTreeTupleNode(state.sourcePositionFrom(startPosition), elements)
@@ -537,6 +607,11 @@ def parseSequenceUntilEndOrDelimiter(state: ParserState, delimiter: TokenKind) -
 def parseTopLevelExpression(state: ParserState) -> tuple[ParserState, ParseTreeNode]:
     state, node = parseSequenceUntilEndOrDelimiter(state, TokenKind.END_OF_SOURCE)
     return node
+
+def parseSourceString(sourceText: str, sourceName: str = '<string>') -> ParseTreeNode:
+    sourceCode, tokens = scanSourceString(sourceText, sourceName)
+    state = ParserState(sourceCode, tokens)
+    return parseTopLevelExpression(state)
 
 def parseFileNamed(fileName: str) -> ParseTreeNode:
     sourceCode, tokens = scanFileNamed(fileName)
