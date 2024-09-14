@@ -5,14 +5,18 @@
 ##Int32, Float32, Char32.
 ##((:(Int32)x :: Int32) := x) , ((:(Int32)y :: Int32) := y).
 ##(:(Type)T :: Type) := T.
-##:Identity(:(Type)T :: :(T)x :: T) := x.
-##Identity(Integer)(42)
+:Identity(:[Type]T :: :(T)x :: T) := x.
+Identity[Integer](42)
 ##:Identity <- (:(Type)T :: :(T)x :: T) := x.
 
 ##Int32 -> Int32
 
 ##:idInteger(:(Integer)x :: Integer) := x.
 ##idInteger(42)
+
+##:size(:[Type]T :: :[Size]S :: :(T[Size])ArrayType) := Size.
+
+#*
 
 fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32).
 
@@ -34,3 +38,4 @@ external: #C export: (
 
 ##:plusOne(:(Integer)x :: Integer) := x.
 ##plusOne(1)
+*#
