@@ -178,6 +178,7 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
     def addPrimitiveFunctions(self):
         self.addBindingMacros()
         self.addModuleMacros()
+        self.addFileMacros()
         self.addControlFlowMacros()
         self.addTypeConstructors()
         self.addPrimitiveTypeFunctions()
@@ -206,6 +207,11 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
             ('export:', 'Module::export:',  (('ASGNode',), 'ASGNode'),  ['macro'], self.exportMacro),
         ])
 
+    def addFileMacros(self):
+        self.addPrimitiveFunctionsWithDesc([
+            ('loadFileOnce:', 'FileSystem::loadFileOnce',  (('ASGNode',), 'ASGNode'),  ['macro'], self.loadFileOnce),
+        ])
+
     def fromExternalImportWithTypeMacro(self, macroContext: ASGMacroContext, externalName: ASGNode, nameExpression: ASGNode, typeExpression: ASGNode):
         return self.fromExternalImportAsWithTypeMacro(macroContext, externalName, nameExpression, nameExpression, typeExpression)
 
@@ -219,6 +225,14 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
 
     def exportMacro(self, macroContext: ASGMacroContext, exportedExpressions: ASGNode):
         return self.externalExportMacro(macroContext, None, exportedExpressions)
+
+    def loadFileOnce(self, macroContext: ASGMacroContext, fileName: ASGNode):
+        environment = macroContext.expander.environment
+        scriptDirectory = environment.scriptDirectory
+        fileNameString = fileName.value
+        fullScriptPath = os.path.join(scriptDirectory, fileNameString)
+        environment.frontEnd.parseAndTypecheckSourceFile(fullScriptPath)
+        return ASGSyntaxTupleNode(macroContext.derivation, [])
 
     def addControlFlowMacros(self):
         self.addPrimitiveFunctionsWithDesc([
@@ -497,11 +511,12 @@ class ASGFunctionalAnalysisEnvironment(ASGLexicalEnvironment):
         return self.symbolTable.get(symbol, []) + self.parent.lookSymbolBindingListRecursively(symbol)
 
 class ASGScriptEnvironment(ASGLexicalEnvironment):
-    def __init__(self, parent: ASGEnvironment, module: Module, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script') -> None:
+    def __init__(self, parent: ASGEnvironment, module: Module, sourcePosition: SourcePosition = None, scriptDirectory = '', scriptName = 'script', frontEnd = None) -> None:
         super().__init__(parent, sourcePosition)
         self.scriptDirectory = scriptDirectory
         self.scriptName = scriptName
         self.module = module
+        self.frontEnd = frontEnd
 
     def isScriptEnvironment(self):
         return True
@@ -518,8 +533,8 @@ class ASGBuilderWithGVNAndEnvironment(ASGBuilderWithGVN):
         value = self.topLevelEnvironment.lookLastBindingOf(name)
         return self.unifyWithPreviousBuiltNode(value)
 
-def makeScriptAnalysisEnvironment(target: CompilationTarget, module, sourcePosition: SourcePosition, scriptPath: str) -> ASGEnvironment:
+def makeScriptAnalysisEnvironment(target: CompilationTarget, module, sourcePosition: SourcePosition, scriptPath: str, frontEnd) -> ASGEnvironment:
     topLevelEnvironment = ASGTopLevelTargetEnvironment.getForTarget(target)
     scriptDirectory = os.path.dirname(scriptPath)
     scriptName = os.path.basename(scriptPath)
-    return ASGScriptEnvironment(topLevelEnvironment, module, sourcePosition, scriptDirectory, scriptName)
+    return ASGScriptEnvironment(topLevelEnvironment, module, sourcePosition, scriptDirectory, scriptName, frontEnd)

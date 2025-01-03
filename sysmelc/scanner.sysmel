@@ -1,7 +1,0 @@
-:printf <- (fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32) __cdecl).
-
-export: #main external: #C with: (:(Int32)argc, :(Char8 pointer[argc asSize])argv :: Int32) __cdecl :> {
-    printf("Scan %s\n" elements, argv[1sz]).
-
-    0i32
-}.

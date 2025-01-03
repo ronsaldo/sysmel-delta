@@ -1,0 +1,4 @@
+loadFileOnce: "Tokens.sysmel".
+loadFileOnce: "Scanner.sysmel".
+loadFileOnce: "ParseTree.sysmel".
+loadFileOnce: "Parser.sysmel".

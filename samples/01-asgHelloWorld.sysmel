@@ -5,6 +5,7 @@
 ##Int32, Float32, Char32.
 ##((:(Int32)x :: Int32) := x) , ((:(Int32)y :: Int32) := y).
 ##(:(Type)T :: Type) := T.
+
 ##:Identity(:(Type)T :: :(T)x :: T) := x.
 ##Identity(Integer)(42)
 ##:Identity <- (:(Type)T :: :(T)x :: T) := x.
@@ -16,6 +17,15 @@
 
 fromExternal: #C import: #printf withType: (:(Char8 pointer)format, :(CVarArg)... :: Int32).
 
+#*
+let: #until:do: with: (:(MacroContext)context, :(ASGNode)startingIndex, :(ASGNode)endIndex, :(ASGNode)aBlock :: ASGNode)
+    := `'{
+        :!index := `,startingIndex.
+        while: (index < `,endIndex) do: {
+            `,aBlock(index)
+        } continueWith: (index := index + index __typeOfExpression__ asDecayedType one)
+    }.
+*#
 macroLet: #helloWorld with: `'printf("Hello World\n").
 
 external: #C export: (
@@ -34,3 +44,20 @@ external: #C export: (
 
 ##:plusOne(:(Integer)x :: Integer) := x.
 ##plusOne(1)
+
+#*
+:testIf(:(Boolean)input :: Integer) := {
+    :!a := 42.
+    :!b := 87.
+    ##:c := if: input then: a + b else: a - b.
+
+    :!c := 0.
+    if: c then: {
+        c := a + b
+    } else: {
+        c := a -b 
+    }.
+
+    c
+}.
+*#

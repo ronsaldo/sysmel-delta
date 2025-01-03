@@ -1,4 +1,5 @@
 from .target import *
+from namespace import *
 
 class ModuleExportedValue:
     def __init__(self, name: str, value, externalName: str = None):
@@ -13,6 +14,7 @@ class Module:
         self.target = target
         self.exportedValues = []
         self.mirExportedValues = []
+        self.globalNamespace = Namespace('__global')
 
     def exportValueWithName(self, value, name, externalName):
         self.exportedValues.append(ModuleExportedValue(name, value, externalName))

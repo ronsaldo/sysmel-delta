@@ -13,6 +13,14 @@
             "args": []
         },
         {
+            "name": "Sysmelbc Module",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sysmelbc/sysmelbc.py",
+            "console": "integratedTerminal",
+            "args": ["-c", "-o", "Sysmel.Compiler.FrontEnd.o", "-module-dir", "module-sources/Sysmel.Compiler.FrontEnd" ]
+        },
+        {
             "name": "Sysmelbc",
             "type": "python",
             "request": "launch",

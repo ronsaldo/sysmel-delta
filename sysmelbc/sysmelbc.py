@@ -94,6 +94,17 @@ class FrontEndDriver:
 
                     self.moduleName = argv[i]
                     i += 1
+                elif arg in ['-module-dir']:
+                    if i >= len(argv):
+                        self.printHelp()
+                        return False
+
+                    moduleDirectory = argv[i]
+                    dirBaseName = os.path.basename(moduleDirectory)
+                    self.moduleName = dirBaseName
+                    moduleInputSource = os.path.join(moduleDirectory, 'module.sysmel')
+                    self.inputSourceFiles.append(moduleInputSource)
+                    i += 1
             else:
                 self.inputSourceFiles.append(arg)
         return True
@@ -115,7 +126,7 @@ class FrontEndDriver:
         asgSyntax = ASGParseTreeFrontEnd().visitNode(parseTree)
         asgToDotFileNamed(asgSyntax, 'asgSyntax.dot')
 
-        asgAnalyzed, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(self.compilationTarget, self.module, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile), asgSyntax)
+        asgAnalyzed, asgTypecheckingErrors = expandAndTypecheck(makeScriptAnalysisEnvironment(self.compilationTarget, self.module, asgSyntax.sourceDerivation.getSourcePosition(), sourceFile, self), asgSyntax)
         asgToDotFileNamed(asgAnalyzed, 'asgAnalyzed.dot')
         asgWithDerivationsToDotFileNamed(asgAnalyzed, 'asgAnalyzedWithDerivation.dot')
         for error in asgTypecheckingErrors:
@@ -135,7 +146,8 @@ class FrontEndDriver:
         if self.moduleName is None:
             self.moduleName, ext = os.path.splitext(os.path.basename(self.inputSourceFiles[0]))
             self.module = Module(self.moduleName, self.compilationTarget)
-
+        elif self.moduleName is not None and self.module is None:
+            self.module = Module(self.moduleName, self.compilationTarget)
         success = True
         for inputSource in self.inputSourceFiles:
             if not self.parseAndTypecheckSourceFile(inputSource):
