@@ -387,7 +387,8 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         body, bodyTypechecked = functionalAnalyzer.analyzeNodeWithExpectedType(node.body, resultType)
         bodyReturn = functionalAnalyzer.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceReturnNode, body, predecessor = functionalAnalyzer.builder.currentPredecessor)
         
-        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, exitPoint = bodyReturn, name = name, callingConvention = node.callingConvention)
+        pureFunctional = bodyReturn.isPureSequencing()
+        return self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGLambdaNode, piType, typedArguments, entryPoint, exitPoint = bodyReturn, name = name, callingConvention = node.callingConvention, pureFunctional = pureFunctional)
     
     def expandTopLevelScript(self, node: ASGNode) -> ASGTopLevelScriptNode:
         entryPoint = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGSequenceEntryNode)
@@ -581,7 +582,7 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         resultType = substitutionAlgorithm.expandNode(dependentType.resultType)
 
         # Make the application node
-        if dependentType.isPureFunctional():
+        if dependentType.isPureFunctional() or functional.isPureFunctionalValue():
             application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGApplicationNode, resultType, functional, analyzedArguments)
         else:
             application = self.builder.forSyntaxExpansionBuildAndSequence(self, node, ASGFxApplicationNode, resultType, functional, analyzedArguments, predecessor = self.builder.currentPredecessor)

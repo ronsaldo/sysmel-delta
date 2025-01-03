@@ -1,3 +1,4 @@
+from typing import Any
 from .mop import *
 from .syntax import *
 from .sdvmInstructions import *
@@ -25,6 +26,9 @@ class ASGSequenceEntryNode(ASGSequencingNode):
     def isSequenceEntryNode(self) -> bool:
         return True
     
+    def isPureSequencing(self) -> bool:
+        return True
+    
     def interpretInContext(self, context, parameterList):
         pass
 
@@ -33,6 +37,9 @@ class ASGSequenceDivergenceNode(ASGSequencingNode):
 
     def directImmediateDominator(self):
         return self.predecessor
+
+    def isPureSequencing(self) -> bool:
+        return self.predecessor.isPureSequencing()
 
 class ASGConditionalBranchNode(ASGSequenceDivergenceNode):
     condition = ASGNodeDataInputPort()
@@ -74,8 +81,12 @@ class ASGLoopIterationEndNode(ASGSequencingNode):
     def directImmediateDominator(self):
         return self.predecessor
 
+    def isPureSequencing(self) -> bool:
+        return self.predecessor.isPureSequencing()
+
 class ASGLoopBodyEntry(ASGSequenceEntryNode):
-    pass
+    def isPureSequencing(self) -> bool:
+        return True
 
 class ASGLoopBreakNode(ASGSequencingNode):
     predecessor = ASGSequencingPredecessorAttribute()
@@ -88,6 +99,9 @@ class ASGLoopBreakNode(ASGSequencingNode):
         return True
 
     def isBasicBlockEnd(self) -> bool:
+        return True
+
+    def isPureSequencing(self) -> bool:
         return True
 
     def directImmediateDominator(self):
@@ -106,6 +120,9 @@ class ASGLoopContinueNode(ASGSequencingNode):
     def isBasicBlockEnd(self) -> bool:
         return True
 
+    def isPureSequencing(self) -> bool:
+        return True
+
     def directImmediateDominator(self):
         return self.predecessor
 
@@ -115,6 +132,9 @@ class ASGSequenceBranchEndNode(ASGSequencingNode):
 
     def isBasicBlockEnd(self) -> bool:
         return True
+
+    def isPureSequencing(self) -> bool:
+        return self.predecessor.isPureSequencing() and self.divergence.isPureSequencing()
 
     def directImmediateDominator(self):
         return self.predecessor
@@ -128,6 +148,12 @@ class ASGSequenceConvergenceNode(ASGSequencingNode):
 
     def isSequenceConvergenceNode(self) -> bool:
         return True
+
+    def isPureSequencing(self) -> bool:
+        for pred in self.predecessors:
+            if not pred.isPureSequencing():
+                return False
+        return self.divergence.isPureSequencing()
 
     def directImmediateDominator(self):
         if len(self.predecessors) == 1:
@@ -146,6 +172,9 @@ class ASGSequenceReturnNode(ASGSequencingNode):
 
     def isSequenceReturnNode(self) -> bool:
         return True
+
+    def isPureSequencing(self) -> bool:
+        return self.predecessor.isPureSequencing()
 
     def directImmediateDominator(self):
         return self.predecessor
@@ -487,6 +516,7 @@ class ASGLambdaNode(ASGTypedDataExpressionNode):
     exitPoint = ASGSequencingPredecessorAttribute(notInterpreted = True)
     name = ASGNodeDataAttribute(str, default = None, notCompared = True)
     callingConvention = ASGNodeDataAttribute(str, default = None)
+    pureFunctional = ASGNodeDataAttribute(bool, default = False)
 
     def scheduledDataDependencies(self):
         return ()
@@ -496,6 +526,12 @@ class ASGLambdaNode(ASGTypedDataExpressionNode):
 
     def isLambda(self) -> bool:
         return True
+    
+    def isPureFunctionalValue(self) -> bool:
+        return self.pureFunctional
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        assert False
 
 class ASGMirLambdaNode(ASGMirTypedDataExpressionNode):
     functionDefinition = ASGNodeDataInputPort()
@@ -555,6 +591,9 @@ class ASGLoadNode(ASGSequencingAndDataNode):
     def directImmediateDominator(self):
         return self.predecessor
 
+    def isPureSequencing(self) -> bool:
+        return False
+
 class ASGBoundsCheckNode(ASGSequencingNode):
     index = ASGNodeDataInputPort()
     size = ASGNodeDataInputPort()
@@ -565,7 +604,7 @@ class ASGBoundsCheckNode(ASGSequencingNode):
 
     def directImmediateDominator(self):
         return self.predecessor
-    
+
 class ASGStoreNode(ASGSequencingNode):
     pointer = ASGNodeDataInputPort()
     value = ASGNodeDataInputPort()
@@ -576,7 +615,10 @@ class ASGStoreNode(ASGSequencingNode):
 
     def directImmediateDominator(self):
         return self.predecessor
-    
+
+    def isPureSequencing(self) -> bool:
+        return False
+
 class ASGInjectSum(ASGTypedDataExpressionNode):
     index = ASGNodeDataAttribute(int)
     value = ASGNodeDataInputPort()
@@ -686,9 +728,15 @@ class ASGPiNode(ASGTypeNode):
 
     def isPureFunctional(self) -> bool:
         return self.pure
+    
+    def isPureFunctionalValue(self) -> bool:
+        return True
 
     def expandSyntaxApplicationNode(self, expander, applicationNode):
         return expander.expandDependentApplicationWithType(applicationNode, self)
+    
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        assert False
 
 class ASGFunctionTypeNode(ASGTypeNode):
     arguments = ASGNodeTypeInputNodes()
