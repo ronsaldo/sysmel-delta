@@ -1,5 +1,5 @@
 from .target import *
-from namespace import *
+from .namespace import *
 
 class ModuleExportedValue:
     def __init__(self, name: str, value, externalName: str = None):
