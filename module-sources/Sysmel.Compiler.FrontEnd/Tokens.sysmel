@@ -1,3 +1,44 @@
 namespace: Sysmel Compiler FrontEnd TokenKind definition: {
-    
+    :EndOfSource := 1i32.
+    :Error := 2i32.
+
+    :Character := 3i32.
+    :Float := 4i32.
+    :Identifier := 5i32.
+    :Nat := 6i32.
+    :Keyword := 7i32.
+    :MultiKeyword := 8i32.
+    :Operator := 9i32.
+    :String := 10i32.
+    :Symbol := 11i32.
+
+    :LeftParent := 12i32.
+    :RightParent := 13i32.
+    :LeftBracket := 14i32.
+    :RightBracket := 15i32.
+    :LeftCurlyBracket := 16i32.
+    :RightCurlyBracket := 17i32.
+
+    :LessThan := 18i32.
+    :GreaterThan := 19i32.
+    :Star := 20i32.
+    :Question := 21i32.
+    :Bang := 22i32.
+    :Colon := 23i32.
+    :ColonColon := 24i32.
+    :Bar := 25i32.
+    :Assignment := 26i32.
+    :Semicolon := 27i32.
+    :Comma := 28i32.
+    :Dot := 29i32.
+    :Ellipsis := 30i32.
+    :BindOperator := 31i32.
+    :Quote := 32i32.
+    :QuasiQuote := 33i32.
+    :QuasiUnquote := 34i32.
+    :Splice := 35i32.
+
+    :ByteArrayStart := 36i32.
+    :DictionaryStart := 37i32.
+    :LiteralArrayStart := 38i32.
 }.
