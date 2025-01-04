@@ -421,6 +421,11 @@ class ASGExpandAndTypecheckingAlgorithm(ASGDynamicProgrammingAlgorithm):
         lexicalEnvironment = ASGLexicalEnvironment(self.environment, node.sourceDerivation.getSourcePosition())
         return self.withChildLexicalEnvironmentDo(lexicalEnvironment, lambda: self(node.body))
     
+    @asgPatternMatchingOnNodeKind(ASGSyntaxSpecificEnvironmentBlock)
+    def expandSyntaxSpecificEnvironmentBlock(self, node: ASGSyntaxSpecificEnvironmentBlock) -> ASGTypecheckedNode:
+        self.syntaxPredecessorOf(node)
+        return self.withChildLexicalEnvironmentDo(node.environment, lambda: self(node.body))
+    
     @asgPatternMatchingOnNodeKind(ASGSyntaxLiteralIntegerNode)
     def expandSyntaxLiteralIntegerNode(self, node: ASGSyntaxLiteralIntegerNode) -> ASGTypecheckedNode:
         self.syntaxPredecessorOf(node)

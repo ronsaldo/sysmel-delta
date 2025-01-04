@@ -33,6 +33,9 @@ class ASGEnvironment(ABC):
     def childWithSymbolBinding(self, symbol: str, binding: ASGNode):
         return ASGChildEnvironmentWithBindings(self).childWithSymbolBinding(symbol, binding)
     
+    def getCurrentNamespace(self):
+        return None
+
     @abstractmethod
     def getCompilationTarget(self):
         pass
@@ -205,7 +208,19 @@ class ASGTopLevelTargetEnvironment(ASGEnvironment):
             ('fromExternal:import:as:withType:', 'Module::fromExternal:import:as:withType:',  (('ASGNode', 'ASGNode', 'ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.fromExternalImportAsWithTypeMacro),
             ('external:export:', 'Module::external:export:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.externalExportMacro),
             ('export:', 'Module::export:',  (('ASGNode',), 'ASGNode'),  ['macro'], self.exportMacro),
+            ('namespace:definition:', 'Namespace::namespace:',  (('ASGNode', 'ASGNode'), 'ASGNode'),  ['macro'], self.namespaceMacro),
+            
         ])
+
+    def namespaceMacro(self, macroContext: ASGMacroContext, name: ASGNode, definition: ASGNode):
+        nameParts = name.parseUnaryMessageSendChain()
+        currentEnvironment = macroContext.expander.environment
+        currentNamespace = currentEnvironment.getCurrentNamespace()
+        for subNamespaceName in nameParts:
+            subNamespace = currentNamespace.getOrCreateSubNamespace(subNamespaceName)
+            currentEnvironment = ASGNamespaceEnvironment(currentEnvironment, None, subNamespace)
+        definitionEnvironment = ASGLexicalEnvironment(currentEnvironment)
+        return ASGSyntaxSpecificEnvironmentBlock(macroContext.derivation, definitionEnvironment, definition)
 
     def addFileMacros(self):
         self.addPrimitiveFunctionsWithDesc([
@@ -452,6 +467,9 @@ class ASGChildEnvironment(ASGEnvironment):
     def addContinueNodeToCurrentLoop(self, node: ASGLoopContinueNode):
         return self.parent.addContinueNodeToCurrentLoop(node)
     
+    def getCurrentNamespace(self):
+        return self.parent.getCurrentNamespace()
+    
     def getCompilationTarget(self):
         return self.parent.getCompilationTarget()
 
@@ -476,6 +494,17 @@ class ASGChildEnvironmentWithBindings(ASGChildEnvironment):
     def lookSymbolBindingListRecursively(self, symbol: str):
         return self.symbolTable.get(symbol, []) + self.parent.lookSymbolBindingListRecursively(symbol)
 
+class ASGNamespaceEnvironment(ASGChildEnvironment):
+    def __init__(self, parent: ASGEnvironment, sourcePosition: SourcePosition = None, namespace: Namespace = None) -> None:
+        super().__init__(parent, sourcePosition)
+        self.namespace = namespace
+
+    def getCurrentNamespace(self):
+        return self.namespace
+    
+    def isNamespaceEnvironment(self):
+        return True
+    
 class ASGLexicalEnvironment(ASGChildEnvironment):
     def isLexicalEnvironment(self):
         return True
@@ -517,6 +546,9 @@ class ASGScriptEnvironment(ASGLexicalEnvironment):
         self.scriptName = scriptName
         self.module = module
         self.frontEnd = frontEnd
+
+    def getCurrentNamespace(self):
+        return self.module.globalNamespace
 
     def isScriptEnvironment(self):
         return True

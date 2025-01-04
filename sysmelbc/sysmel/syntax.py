@@ -13,6 +13,9 @@ class ASGSyntaxNode(ASGNode):
 
     def asASGNodeDerivation(self):
         return self.sourceDerivation
+    
+    def parseUnaryMessageSendChain(self):
+        return ASGSyntaxErrorNode(self.sourceDerivation, "Invalid unary message send chain.", [self])
 
 class ASGSyntaxErrorNode(ASGSyntaxNode):
     message = ASGNodeDataAttribute(int)
@@ -129,7 +132,14 @@ class ASGSyntaxCascadeMessageNode(ASGSyntaxNode):
 class ASGSyntaxIdentifierReferenceNode(ASGSyntaxNode):
     value = ASGNodeDataAttribute(str)
 
+    def parseUnaryMessageSendChain(self):
+        return [self.value]
+
 class ASGSyntaxLexicalBlockNode(ASGSyntaxNode):
+    body = ASGNodeDataInputPort()
+
+class ASGSyntaxSpecificEnvironmentBlock(ASGSyntaxNode):
+    environment = ASGNodeDataAttribute(object)
     body = ASGNodeDataInputPort()
 
 class ASGSyntaxMessageCascadeNode(ASGSyntaxNode):
@@ -140,6 +150,10 @@ class ASGSyntaxMessageSendNode(ASGSyntaxNode):
     receiver = ASGNodeOptionalDataInputPort()
     selector = ASGNodeDataInputPort()
     arguments = ASGNodeDataInputPorts()
+
+    def parseUnaryMessageSendChain(self):
+        assert len(self.arguments) == 0
+        return self.receiver.parseUnaryMessageSendChain() + [self.selector.value]
 
 class ASGSyntaxDictionaryNode(ASGSyntaxNode):
     elements = ASGNodeDataInputPorts()

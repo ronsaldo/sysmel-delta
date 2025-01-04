@@ -856,6 +856,17 @@ class ASGReferenceTypeNode(ASGReferenceLikeTypeNode):
 class ASGTemporaryReferenceTypeNode(ASGReferenceLikeTypeNode):
     pass
 
+class ASGNamespaceNode(ASGSequencingNode):
+    name = ASGNodeDataAttribute(str)
+    value = ASGNodeDataInputPort()
+
+    def isNamespaceNode(self) -> bool:
+        return True
+
+    def interpretInContext(self, context, parameters):
+        value = context[parameters[0]]
+        context.getActiveModule().exportValueWithName(value, self.exportedName, externalName = self.externalName)
+
 class ASGExportNode(ASGSequencingNode):
     externalName = ASGNodeDataAttribute(str)
     exportedName = ASGNodeDataAttribute(str)
